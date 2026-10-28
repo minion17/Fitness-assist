@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # initData older than this is rejected (replay protection)
     init_data_max_age: int = 86400
     cors_origins: str = "*"
+    # AI (Claude API). Without a key the AI features answer 503 and the rest of the app works.
+    anthropic_api_key: str = ""
+    ai_model: str = "claude-haiku-5-5"
+    ai_daily_limit: int = 30  # AI requests per user per day (cost guard)
 
 
 settings = Settings()

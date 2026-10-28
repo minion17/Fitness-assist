@@ -7,3 +7,5 @@ pydantic-settings==2.*
 # tests
 pytest==8.*
 httpx==0.28.*
+anthropic==2.*
+python-multipart==0.0.*

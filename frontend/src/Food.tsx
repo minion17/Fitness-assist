@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Targets } from './profile'
-import { publicGet } from './telegram'
+import AiMeal from './AiMeal'
+import { api, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type MealType, type Product } from './types'
 import { Bar, Ring, Sheet } from './ui'
 
@@ -13,16 +14,19 @@ const MACROS = [
 
 const r1 = (n: number) => Math.round(n * 10) / 10
 
-export default function Food({ day, targets, canEdit, onAdd, onDelete }: {
+export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled = false, onAiDone = async () => {} }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
   onAdd: (productId: number, grams: number, meal: MealType) => Promise<void>
   onDelete: (id: number) => Promise<void>
+  aiEnabled?: boolean
+  onAiDone?: (xp: number) => Promise<void>
 }) {
   const goals = targets ?? DEFAULT_GOALS
   const [adding, setAdding] = useState<MealType | null>(null)
   const [confirm, setConfirm] = useState<number | null>(null)
+  const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(null)
   const t = day.totals
 
   return (
@@ -44,6 +48,12 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete }: {
         {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
       </section>
       {canEdit && <button className="btn" onClick={() => setAdding(mealNow())}>+ Добавить продукт</button>}
+      {canEdit && aiEnabled && (
+        <div className="ai-row">
+          <button className="btn btn-ghost" onClick={() => setAiMode('text')}>✨ Текстом</button>
+          <button className="btn btn-ghost" onClick={() => setAiMode('photo')}>📷 Фото</button>
+        </div>
+      )}
 
       {(Object.keys(MEALS) as MealType[]).map((meal) => {
         const items = day.items.filter((i) => i.meal_type === meal)
@@ -82,6 +92,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete }: {
         )
       })}
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
+      {aiMode && <AiMeal mode={aiMode} onClose={() => setAiMode(null)} onDone={onAiDone} />}
       {adding && <AddFood meal={adding} onClose={() => setAdding(null)} onAdd={onAdd} />}
     </>
   )
@@ -104,7 +115,9 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
     if (q.trim().length < 2) return
     let stale = false
     const timer = setTimeout(() => {
-      publicGet<Product[]>(`/api/products/search?q=${encodeURIComponent(q.trim())}`)
+      const url = `/api/products/search?q=${encodeURIComponent(q.trim())}`
+      // signed request also returns the user's own products; outside Telegram fall back to the public catalog
+      api<Product[]>(url).then((r) => r ?? publicGet<Product[]>(url))
         .then((r) => !stale && setResults(r))
         .catch(() => !stale && setError('Поиск недоступен — проверьте соединение'))
     }, 300) // wait for the user to stop typing

@@ -3,7 +3,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -13,7 +13,8 @@ from sqlalchemy.orm import selectinload
 from backend.core.config import settings
 from backend.core.gamification import level_progress
 from backend.core.nutrition import daily_targets
-from backend.core.telegram_auth import InitDataError, validate_init_data
+from backend.api.ai import router as ai_router
+from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
 from backend.database.db import AsyncSession, get_session, init_db
 from backend.database.models import (
     BodyMeasurement,
@@ -46,20 +47,6 @@ app.add_middleware(
 )
 
 
-def telegram_user(authorization: str = Header(default="")) -> dict:
-    """Mini App sends `Authorization: tma <initData>`."""
-    scheme, _, init_data = authorization.partition(" ")
-    if scheme.lower() != "tma":
-        raise HTTPException(401, "missing Telegram initData")
-    try:
-        data = validate_init_data(init_data, settings.bot_token, settings.init_data_max_age)
-    except InitDataError as e:
-        raise HTTPException(401, f"invalid initData: {e}")
-    if "user" not in data:
-        raise HTTPException(401, "no user in initData")
-    return data["user"]
-
-
 @app.get("/health")
 async def health(session: AsyncSession = Depends(get_session)):
     try:
@@ -68,19 +55,6 @@ async def health(session: AsyncSession = Depends(get_session)):
     except Exception as e:  # report, don't crash the probe
         db = f"error: {type(e).__name__}"
     return {"status": "ok" if db == "ok" else "degraded", "database": db}
-
-
-async def get_or_create_user(tg: dict, session: AsyncSession) -> User:
-    user = await session.scalar(select(User).where(User.telegram_id == tg["id"]))
-    if user is None:
-        user = User(telegram_id=tg["id"])
-        session.add(user)
-    user.username = tg.get("username")
-    user.first_name = tg.get("first_name")
-    user.language_code = tg.get("language_code")
-    await session.commit()
-    await session.refresh(user)
-    return user
 
 
 def profile_out(profile: Profile | None) -> dict | None:
@@ -136,11 +110,20 @@ async def save_profile(
 
 
 @app.get("/api/products/search")
-async def search_products(q: str = Query(min_length=2, max_length=100), session: AsyncSession = Depends(get_session)):
+async def search_products(
+    q: str = Query(min_length=2, max_length=100),
+    tg: dict | None = Depends(optional_telegram_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Shared catalog plus the caller's own custom products."""
+    owner = Product.owner_user_id.is_(None)
+    if tg:
+        user = await get_or_create_user(tg, session)
+        owner = owner | (Product.owner_user_id == user.id)
     q = q.lower().replace("ё", "е").replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
     rows = await session.scalars(
         select(Product)
-        .where(Product.search_text.like(f"%{q}%", escape="\\"))
+        .where(owner, Product.search_text.like(f"%{q}%", escape="\\"))
         .order_by(Product.name)
         .limit(20)
     )
@@ -218,7 +201,8 @@ def food_log_out(log: FoodLog) -> dict:
 @app.post("/api/food-logs")
 async def add_food_log(body: FoodLogIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    if not await session.get(Product, body.product_id):
+    product = await session.get(Product, body.product_id)
+    if product is None or product.owner_user_id not in (None, user.id):
         raise HTTPException(404, "Продукт не найден")
     log = FoodLog(user_id=user.id, **body.model_dump())
     session.add(log)
@@ -419,6 +403,9 @@ async def list_workout_logs(tg: dict = Depends(telegram_user), session: AsyncSes
         }
         for w in rows
     ]
+
+
+app.include_router(ai_router)
 
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.

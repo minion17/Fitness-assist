@@ -127,3 +127,20 @@ h2 { font-size: 15px; font-weight: 600; }
 .icon-btn:active { background: var(--card-2); }
 .confirm { display: flex; gap: 12px; flex-shrink: 0; }
 .danger { color: #ff8a80; }
+
+.textarea {
+  width: 100%; font: inherit; font-size: 16px; color: var(--text); resize: vertical;
+  background: var(--card-2); border: 1px solid transparent; border-radius: 12px; padding: 12px 14px;
+}
+.textarea:focus { outline: none; border-color: var(--accent); }
+.photo-btn { display: block; text-align: center; }
+.photo-btn.disabled { opacity: .6; }
+.grams { width: 96px; flex-shrink: 0; }
+.grams input { padding: 8px 28px 8px 10px; font-size: 15px; }
+.grams i { right: 10px; }
+.tag { font-size: 11px; padding: 2px 6px; border-radius: 6px; background: var(--card-2); color: var(--muted); }
+.tag-ai { color: var(--carbs); }
+.ai-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.seg-inline { display: flex; gap: 4px; }
+.seg-inline button { padding: 6px 10px; font-size: 13px; text-align: center; }
+.summary { font-size: 15px; line-height: 1.45; white-space: pre-line; }

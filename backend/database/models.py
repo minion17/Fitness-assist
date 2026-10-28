@@ -69,6 +69,8 @@ class Product(Base):
     fat_g: Mapped[float] = mapped_column(Float, default=0)
     carbs_g: Mapped[float] = mapped_column(Float, default=0)
     category: Mapped[str | None] = mapped_column(String(100))
+    # NULL = shared catalog; otherwise a custom product (e.g. recognised by AI) visible only to its owner.
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     # Lower-cased in Python: Postgres with the C locale can't case-fold Cyrillic in ILIKE/lower().
     search_text: Mapped[str] = mapped_column(
         Text, default=lambda ctx: _search_text(ctx.get_current_parameters()), index=True
@@ -182,3 +184,28 @@ class BodyMeasurement(Base):
     chest_cm: Mapped[float | None] = mapped_column(Float)
     hips_cm: Mapped[float | None] = mapped_column(Float)
     body_fat_pct: Mapped[float | None] = mapped_column(Float)
+
+
+class AiRequest(Base):
+    """One row per AI call — used for the per-user daily limit."""
+
+    __tablename__ = "ai_requests"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+class AiSummary(Base):
+    """Cached AI summary so reopening the screen doesn't cost another request."""
+
+    __tablename__ = "ai_summaries"
+    __table_args__ = (UniqueConstraint("user_id", "period", "day"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    period: Mapped[str] = mapped_column(String(10))  # day | week
+    day: Mapped[date] = mapped_column(Date)
+    text: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

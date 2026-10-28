@@ -1,31 +1,9 @@
-import hashlib
-import hmac
-import json
-import os
 import time
-from urllib.parse import urlencode
-
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://fitness:fitness@localhost:5432/fitness_test")
-os.environ["BOT_TOKEN"] = "123456:TEST-TOKEN"
-os.environ["WEBAPP_URL"] = "https://example.test"
 
 import pytest
-from fastapi.testclient import TestClient
 
 from backend.core.telegram_auth import InitDataError, validate_init_data
-
-TOKEN = os.environ["BOT_TOKEN"]
-
-
-def make_init_data(user: dict, token: str = TOKEN, auth_date: int | None = None) -> str:
-    fields = {"auth_date": str(auth_date or int(time.time())), "query_id": "AAH", "user": json.dumps(user)}
-    check = "\n".join(f"{k}={v}" for k, v in sorted(fields.items()))
-    secret = hmac.new(b"WebAppData", token.encode(), hashlib.sha256).digest()
-    fields["hash"] = hmac.new(secret, check.encode(), hashlib.sha256).hexdigest()
-    return urlencode(fields)
-
-
-USER = {"id": 777000111, "first_name": "Егор", "username": "egor", "language_code": "ru"}
+from conftest import PROFILE, TOKEN, USER, make_init_data, new_user_headers
 
 
 def test_valid_init_data():
@@ -46,14 +24,6 @@ def test_valid_init_data():
 def test_invalid_init_data(init_data):
     with pytest.raises(InitDataError):
         validate_init_data(init_data, TOKEN, max_age=86400)
-
-
-@pytest.fixture(scope="module")
-def client():
-    from backend.api.main import app
-
-    with TestClient(app) as c:
-        yield c
 
 
 def test_health(client):
@@ -120,9 +90,6 @@ def test_award_xp_is_idempotent(client):
     assert client.post("/api/auth", headers=headers).json()["progress"]["xp"] == user.xp
 
 
-PROFILE = {"sex": "male", "birth_year": 1998, "height_cm": 182, "weight_kg": 78.4, "activity": "moderate", "goal": "lose"}
-
-
 def test_daily_targets():
     from datetime import date
 
@@ -164,33 +131,6 @@ def test_profile_requires_telegram(client):
 
 
 # ---- merged: reference data, food diary, workouts ----
-
-
-def new_user_headers():
-    import random
-
-    return {"Authorization": f"tma {make_init_data({**USER, 'id': random.randint(3 * 10**9, 4 * 10**9)})}"}
-
-
-@pytest.fixture(scope="module")
-def seeded(client):
-    from backend.database.db import SessionLocal
-    from backend.database.models import Product
-    from backend.seed.import_data import run
-
-    async def seed():
-        first = await run()
-        second = await run()
-        async with SessionLocal() as s:
-            for name, kcal in [("Тестовый творог 5%", 121), ("Тестовый творог обезжиренный", 71)]:
-                from sqlalchemy import select
-
-                if not await s.scalar(select(Product.id).where(Product.name == name)):
-                    s.add(Product(name=name, brand="Тест", kcal=kcal, protein_g=17, fat_g=5, carbs_g=3))
-            await s.commit()
-        return first, second
-
-    return client.portal.call(seed)
 
 
 def test_import_is_idempotent(seeded):

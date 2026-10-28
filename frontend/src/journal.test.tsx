@@ -1,12 +1,17 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import AiMeal from './AiMeal'
+import AiSummary from './AiSummary'
 import Body from './Body'
 import Food from './Food'
-import { api, publicGet } from './telegram'
+import { api, ApiError, publicGet } from './telegram'
 import { mealNow, nextDay, weightTrend, type FoodDay, type Measurement, type Program, type WorkoutLog } from './types'
 import Workouts from './Workouts'
 
-vi.mock('./telegram', () => ({ api: vi.fn(), publicGet: vi.fn(), postJson: (b: unknown) => ({ method: 'POST', body: JSON.stringify(b) }) }))
+vi.mock('./telegram', () => {
+  class ApiError extends Error { status: number; constructor(status: number, msg: string) { super(msg); this.status = status } }
+  return { api: vi.fn(), publicGet: vi.fn(), postJson: (b: unknown) => ({ method: 'POST', body: JSON.stringify(b) }), ApiError }
+})
 const apiMock = vi.mocked(api)
 const publicGetMock = vi.mocked(publicGet)
 
@@ -66,6 +71,7 @@ test('workout session rejects bad reps without calling the API', () => {
 
 test('food: search a product and add grams to a meal', async () => {
   const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  apiMock.mockResolvedValue(null) // outside Telegram -> public catalog
   publicGetMock.mockResolvedValue([{ id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 }])
   const onAdd = vi.fn().mockResolvedValue(undefined)
   render(<Food day={empty} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
@@ -124,4 +130,48 @@ test('body: add measurement prefilled with latest values, validated', async () =
   fireEvent.change(weight, { target: { value: '78,6' } })
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
   await waitFor(() => expect(onSave).toHaveBeenCalledWith({ weight_kg: 78.6, waist_cm: 85, chest_cm: null, hips_cm: null, body_fat_pct: null }))
+})
+
+test('AI meal from text: edit draft, confirm sends edited items', async () => {
+  const draft = { meal_type: 'lunch', note: 'Порцию плова оценил примерно', items: [
+    { product_id: 3, name: 'Гречка', grams: 200, from_catalog: true, kcal_100g: 110, protein_100g: 4, fat_100g: 1, carbs_100g: 21 },
+    { product_id: null, name: 'Плов домашний', grams: 300, from_catalog: false, kcal_100g: 180, protein_100g: 7, fat_100g: 9, carbs_100g: 20 },
+    { product_id: null, name: 'Чай', grams: 250, from_catalog: false, kcal_100g: 1, protein_100g: 0, fat_100g: 0, carbs_100g: 0 },
+  ] }
+  apiMock.mockResolvedValueOnce(draft).mockResolvedValueOnce({ added: 2, xp_awarded: 10 })
+  const onDone = vi.fn().mockResolvedValue(undefined)
+  render(<AiMeal mode="text" onClose={() => {}} onDone={onDone} />)
+
+  fireEvent.change(screen.getByPlaceholderText(/Например/), { target: { value: 'гречка, плов и чай' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Распознать' }))
+  expect(await screen.findByText('Порцию плова оценил примерно')).toBeTruthy()
+  expect(screen.getAllByText('оценка AI')).toHaveLength(2)
+  expect(screen.getByRole('button', { name: 'Обед' }).getAttribute('aria-pressed')).toBe('true') // meal type from AI
+
+  fireEvent.change(screen.getByLabelText('Плов домашний, граммы'), { target: { value: '250' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать Чай' }))
+  expect(screen.getByText(/Итого ≈ 670 ккал/)).toBeTruthy() // 220 + 450
+  fireEvent.click(screen.getByRole('button', { name: 'Ужин' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить в «Ужин»' }))
+
+  await waitFor(() => expect(onDone).toHaveBeenCalledWith(10))
+  const [url, init] = apiMock.mock.calls[1]
+  expect(url).toBe('/api/ai/meal/confirm')
+  const body = JSON.parse(init!.body as string)
+  expect(body.meal_type).toBe('dinner')
+  expect(body.items.map((i: { name: string; grams: number }) => [i.name, i.grams])).toEqual([['Гречка', 200], ['Плов домашний', 250]])
+})
+
+test('AI errors are shown in plain words', async () => {
+  apiMock.mockRejectedValueOnce(new ApiError(429, 'Лимит AI-запросов на сегодня исчерпан (30). Завтра снова можно.'))
+  render(<AiSummary />)
+  fireEvent.click(screen.getByRole('button', { name: 'Получить итог дня' }))
+  expect((await screen.findByRole('alert')).textContent).toMatch('Лимит AI-запросов')
+
+  apiMock.mockResolvedValueOnce({ text: 'Сегодня 1650 ккал из 2354.\nСовет: добавьте белка на ужин.', created_at: '', cached: false })
+  fireEvent.click(screen.getByRole('button', { name: 'Получить итог дня' }))
+  expect(await screen.findByText(/Совет: добавьте белка/)).toBeTruthy()
+  expect(apiMock.mock.calls[1][0]).toBe('/api/ai/summary?period=day')
+  fireEvent.click(screen.getByRole('button', { name: 'Обновить' }))
+  await waitFor(() => expect(apiMock.mock.calls[2]?.[0]).toBe('/api/ai/summary?period=day&refresh=true'))
 })

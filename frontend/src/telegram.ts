@@ -45,6 +45,17 @@ export const postJson = (body: unknown): RequestInit => ({
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T | null> {
   if (!tg?.initData) return null
   const res = await fetch(path, { ...init, headers: { ...init.headers, Authorization: `tma ${tg.initData}` } })
-  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`)
+  if (!res.ok) throw new ApiError(res.status, await res.text())
   return res.json()
+}
+
+/** Error with the backend's human-readable `detail` as the message. */
+export class ApiError extends Error {
+  status: number
+  constructor(status: number, body: string) {
+    let detail = body
+    try { const d = JSON.parse(body).detail; if (typeof d === 'string') detail = d } catch { /* not JSON */ }
+    super(detail)
+    this.status = status
+  }
 }

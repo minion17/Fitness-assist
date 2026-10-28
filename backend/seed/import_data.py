@@ -41,7 +41,9 @@ async def import_products(s) -> int:
         brand = p.get("brand") or None
         if brand and brand.strip().lower() in ("не указан", "нет", "-"):  # placeholder, not a real brand
             brand = None
-        if await s.scalar(select(Product.id).where(Product.name == p["name"], Product.brand.is_not_distinct_from(brand))):
+        if await s.scalar(select(Product.id).where(
+            Product.owner_user_id.is_(None), Product.name == p["name"], Product.brand.is_not_distinct_from(brand)
+        )):
             continue
         s.add(Product(
             name=p["name"], brand=brand, barcode=p.get("barcode") or None, category=p.get("category"),

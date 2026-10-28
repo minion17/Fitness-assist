@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
+import AiSummary from './AiSummary'
 import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Questionnaire from './Questionnaire'
@@ -27,9 +28,9 @@ const TABS: { id: Tab; label: string }[] = [
 const name = tgUser?.first_name ?? 'Гость'
 const PROGRAM_KEY = 'fa.programId'
 
-function Home({ go, targets, day, program, logs, measurements, weight }: {
+function Home({ go, targets, day, program, logs, measurements, weight, aiEnabled }: {
   go: (t: Tab) => void; targets?: Targets; day: FoodDay; program?: Program; logs: WorkoutLog[]
-  measurements: Measurement[]; weight?: number
+  measurements: Measurement[]; weight?: number; aiEnabled: boolean
 }) {
   const trend = weightTrend(measurements)
   const goal = targets?.calories ?? 2000
@@ -68,6 +69,7 @@ function Home({ go, targets, day, program, logs, measurements, weight }: {
           <Bar value={completedThisWeek(logs)} goal={program?.days_per_week ?? 3} />
         </section>
       </div>
+      {aiEnabled && <AiSummary />}
     </>
   )
 }
@@ -144,6 +146,7 @@ export default function App() {
   })
   const [toast, setToast] = useState('')
   const [measurements, setMeasurements] = useState<Measurement[]>([])
+  const [aiEnabled, setAiEnabled] = useState(false)
 
   const refreshJournal = useCallback(async () => {
     const [day, ws, ms, u] = await Promise.all([
@@ -169,6 +172,7 @@ export default function App() {
         setMe(u.profile)
         setEditing(!u.profile) // first visit: questionnaire before anything else
         setFoodDay({ date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } })
+        api<{ enabled: boolean }>('/api/ai/status').then((s) => setAiEnabled(Boolean(s?.enabled))).catch(() => {})
         return refreshJournal()
       })
       .catch(() => setSynced('Сервер недоступен'))
@@ -186,6 +190,11 @@ export default function App() {
     const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal }))
     await refreshJournal()
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
+  }
+
+  async function aiMealDone(xpAwarded: number) {
+    await refreshJournal()
+    flash(xpAwarded ? `Добавлено · +${xpAwarded} XP` : 'Добавлено')
   }
 
   async function deleteFood(id: number) {
@@ -247,8 +256,8 @@ export default function App() {
   return (
     <div className="app">
       <main className="screen" key={tab}>
-        {tab === 'home' && <Home go={go} targets={me?.targets} day={foodDay} program={program} logs={logs} measurements={measurements} weight={me?.weight_kg} />}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} />}
+        {tab === 'home' && <Home go={go} targets={me?.targets} day={foodDay} program={program} logs={logs} measurements={measurements} weight={me?.weight_kg} aiEnabled={aiEnabled} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram}
             canEdit={canEdit} onChanged={workoutChanged} />

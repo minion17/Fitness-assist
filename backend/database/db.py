@@ -1,3 +1,4 @@
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
@@ -22,6 +23,15 @@ async def init_db() -> None:
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all doesn't add columns to existing tables; idempotent column additions go here.
+        for ddl in ADDED_COLUMNS:
+            await conn.execute(text(ddl))
+
+
+ADDED_COLUMNS = [
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+    "CREATE INDEX IF NOT EXISTS ix_products_owner_user_id ON products (owner_user_id)",
+]
 
 
 __all__ = ["engine", "SessionLocal", "Base", "AsyncSession", "get_session", "init_db"]

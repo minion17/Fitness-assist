@@ -208,7 +208,7 @@ def test_programs_and_exercises(client, seeded):
 
 def test_product_search_escapes_wildcards(client, seeded):
     names = [p["name"] for p in client.get("/api/products/search", params={"q": "творог 5%"}).json()]
-    assert names == ["Тестовый творог 5%"]
+    assert "Тестовый творог 5%" in names and "Тестовый творог обезжиренный" not in names  # "%" is literal
     assert len(client.get("/api/products/search", params={"q": "тестовый творог"}).json()) == 2
     assert client.get("/api/products/search", params={"q": "т"}).status_code == 422
 

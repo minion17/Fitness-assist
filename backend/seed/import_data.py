@@ -15,17 +15,29 @@ from backend.database.models import Exercise, Product, Program, ProgramDay, Prog
 CONTENT = Path(__file__).resolve().parents[2] / "content"
 
 
-def load(rel: str) -> list[dict]:
+def load(rel: str, required: tuple[str, ...] = ("name",), numeric: tuple[str, ...] = ()) -> list[dict]:
     path = CONTENT / rel
     if not path.exists():
         print(f"- нет файла {rel}, пропускаю")
         return []
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        rows = json.loads(path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError as e:
+        raise SystemExit(f"{rel}: ошибка JSON в строке {e.lineno}, позиция {e.colno}: {e.msg}")
+    if not isinstance(rows, list):
+        raise SystemExit(f"{rel}: ожидается список [ ... ]")
+    for i, row in enumerate(rows, 1):
+        missing = [k for k in required if row.get(k) in (None, "")]
+        bad = [k for k in numeric if k in row and not (isinstance(row[k], (int, float)) and row[k] >= 0)]
+        if missing or bad:
+            what = (f"нет поля {', '.join(missing)}" if missing else "") + (f" не число ≥ 0: {', '.join(bad)}" if bad else "")
+            raise SystemExit(f"{rel}: запись №{i} ({row.get('name', '?')}): {what.strip()}")
+    return rows
 
 
 async def import_products(s) -> int:
     added = 0
-    for p in load("products/products.json"):
+    for p in load("products/products.json", ("name", "kcal"), ("kcal", "protein_g", "fat_g", "carbs_g")):
         brand = p.get("brand") or None
         if await s.scalar(select(Product.id).where(Product.name == p["name"], Product.brand.is_not_distinct_from(brand))):
             continue

@@ -252,3 +252,16 @@ def test_workout_flow(client, seeded):
     assert logs[0]["sets"] == 1 and logs[0]["completed_at"]
     assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == 50
     assert client.post("/api/workout-logs", headers=h, json={"program_day_id": 10**9}).status_code == 404
+
+
+def test_import_reports_bad_product_rows(tmp_path, monkeypatch):
+    import backend.seed.import_data as imp
+
+    (tmp_path / "products").mkdir()
+    monkeypatch.setattr(imp, "CONTENT", tmp_path)
+    (tmp_path / "products/products.json").write_text('[{"name": "Хлеб", "kcal": 250}, {"name": "Сыр", "kcal": "много"}]', encoding="utf-8")
+    with pytest.raises(SystemExit, match="запись №2 \\(Сыр\\).*kcal"):
+        imp.load("products/products.json", ("name", "kcal"), ("kcal",))
+    (tmp_path / "products/products.json").write_text('[{"name": "Хлеб", "kcal": 250},]', encoding="utf-8")
+    with pytest.raises(SystemExit, match="ошибка JSON в строке 1"):
+        imp.load("products/products.json")

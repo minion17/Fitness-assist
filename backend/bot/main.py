@@ -65,15 +65,13 @@ async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     if not settings.bot_token:
         raise SystemExit("BOT_TOKEN не задан в .env")
-    bot = Bot(settings.bot_token)
-    if settings.webapp_url.startswith("https://"):
-        # Telegram accepts only HTTPS for Mini Apps
-        await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="Открыть", web_app=WebAppInfo(url=settings.webapp_url)))
-    else:
+    if not settings.webapp_url.startswith("https://"):
         log.warning("WEBAPP_URL не HTTPS — Telegram не откроет Mini App")
+    # No network calls before polling: start_polling retries on its own if the connection drops,
+    # and the menu button is set per chat in /start.
     dp = Dispatcher()
     dp.include_router(router)
-    await dp.start_polling(bot)
+    await dp.start_polling(Bot(settings.bot_token))
 
 
 if __name__ == "__main__":

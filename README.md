@@ -56,27 +56,14 @@ cloudflared tunnel --url http://localhost:8000
 
 Разовая подготовка уже описана выше; PostgreSQL — из zip-архива в `C:\pgsql`, база `fitness`, вход без пароля (`DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/fitness`).
 
-Каждый раз после перезагрузки компьютера — 4 окна PowerShell:
+**Запуск — двойной щелчок по `start.bat`** в папке проекта. Он сам поднимает базу, сервер, туннель (с автопереподключением; новый адрес пишется в `.env`) и бота — каждый в своём окне (`FA сервер`, `FA туннель`, `FA бот`). Уже запущенное повторно не стартует. Через ~10 секунд отправьте боту `/start`.
 
-```powershell
-# 1. База
-C:\pgsql\bin\pg_ctl.exe -D C:\pgsql\data -l C:\pgsql\log.txt start
+**Обновление — двойной щелчок по `update.bat`**: `git pull`, зависимости Python и npm, сборка интерфейса. После обновления закройте окна FA и снова запустите `start.bat`.
 
-# 2. Сервер (окно не закрывать)
-cd $HOME\Fitness-assist
-.venv\Scripts\python -m uvicorn backend.api.main:app --port 8000
-
-# 3. Туннель (окно не закрывать): сам переподключается и сам пишет адрес в WEBAPP_URL
-powershell -ExecutionPolicy Bypass -File $HOME\Fitness-assist\scripts\tunnel.ps1
-
-# 4. Бот (окно не закрывать). Адрес берёт из .env при каждом /start — после смены туннеля просто отправьте /start
-cd $HOME\Fitness-assist
-.venv\Scripts\python -m backend.bot.main
-```
+Остановить — закрыть окна FA. Удобно вынести ярлык `start.bat` на рабочий стол (ПКМ → Отправить → Рабочий стол).
 
 Cloudflare-туннель в этой сети не работает (заблокирован порт 7844), поэтому localhost.run. Запасной вариант: `ssh -p 443 -R0:localhost:8000 a.pinggy.io`.
 
-Если изменился код интерфейса: `cd frontend; npm.cmd run build; cd ..` и перезапустить сервер.
 
 ## Тесты
 

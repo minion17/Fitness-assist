@@ -16,6 +16,7 @@ from backend.core.nutrition import daily_targets
 from backend.core.telegram_auth import InitDataError, validate_init_data
 from backend.database.db import AsyncSession, get_session, init_db
 from backend.database.models import (
+    BodyMeasurement,
     Exercise,
     FoodLog,
     Product,
@@ -247,6 +248,94 @@ async def get_food_logs(
     items = [food_log_out(log) for log in rows]
     totals = {k: round(sum(i[k] for i in items), 1) for k in ("kcal", "protein_g", "fat_g", "carbs_g")}
     return {"date": day.isoformat(), "items": items, "totals": totals}
+
+
+@app.delete("/api/food-logs/{log_id}")
+async def delete_food_log(log_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    # XP already granted for the meal is kept: it's per meal type per day, not per entry.
+    user = await get_or_create_user(tg, session)
+    log = await session.get(FoodLog, log_id)
+    if log is None or log.user_id != user.id:
+        raise HTTPException(404, "Запись не найдена")
+    await session.delete(log)
+    await session.commit()
+    return {"ok": True}
+
+
+# ---- Body measurements ----
+
+
+class MeasurementIn(BaseModel):
+    measured_on: date | None = None  # default: today
+    weight_kg: float | None = Field(default=None, ge=30, le=300)
+    waist_cm: float | None = Field(default=None, ge=30, le=250)
+    chest_cm: float | None = Field(default=None, ge=40, le=250)
+    hips_cm: float | None = Field(default=None, ge=40, le=250)
+    body_fat_pct: float | None = Field(default=None, ge=2, le=70)
+
+
+MEASURE_FIELDS = ("weight_kg", "waist_cm", "chest_cm", "hips_cm", "body_fat_pct")
+
+
+def measurement_out(m: BodyMeasurement) -> dict:
+    return {"id": m.id, "measured_on": m.measured_on.isoformat(), **{k: getattr(m, k) for k in MEASURE_FIELDS}}
+
+
+@app.put("/api/measurements")
+async def save_measurement(
+    body: MeasurementIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
+):
+    if all(getattr(body, k) is None for k in MEASURE_FIELDS):
+        raise HTTPException(422, "Укажите хотя бы одно значение")
+    day = body.measured_on or date.today()
+    if day > date.today() + timedelta(days=1):  # +1: client may be ahead of the server's timezone
+        raise HTTPException(422, "Дата в будущем")
+    user = await get_or_create_user(tg, session)
+    m = await session.scalar(
+        select(BodyMeasurement).where(BodyMeasurement.user_id == user.id, BodyMeasurement.measured_on == day)
+    ) or BodyMeasurement(user_id=user.id, measured_on=day)
+    for k in MEASURE_FIELDS:
+        setattr(m, k, getattr(body, k))
+    session.add(m)
+    # Latest weight drives the daily targets, so keep the questionnaire in sync.
+    if body.weight_kg is not None:
+        latest = await session.scalar(
+            select(func.max(BodyMeasurement.measured_on)).where(
+                BodyMeasurement.user_id == user.id, BodyMeasurement.weight_kg.is_not(None)
+            )
+        )
+        profile = await session.get(Profile, user.id)
+        if profile and (latest is None or day >= latest):
+            profile.weight_kg = body.weight_kg
+    await session.commit()
+    xp = await award_xp(session, user.id, "body_measurement", f"measure:{day}")
+    return {**measurement_out(m), "xp_awarded": xp}
+
+
+@app.get("/api/measurements")
+async def list_measurements(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """Newest first, last 365 entries."""
+    user = await get_or_create_user(tg, session)
+    rows = await session.scalars(
+        select(BodyMeasurement)
+        .where(BodyMeasurement.user_id == user.id)
+        .order_by(BodyMeasurement.measured_on.desc())
+        .limit(365)
+    )
+    return [measurement_out(m) for m in rows]
+
+
+@app.delete("/api/measurements/{measurement_id}")
+async def delete_measurement(
+    measurement_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
+):
+    user = await get_or_create_user(tg, session)
+    m = await session.get(BodyMeasurement, measurement_id)
+    if m is None or m.user_id != user.id:
+        raise HTTPException(404, "Замер не найден")
+    await session.delete(m)
+    await session.commit()
+    return {"ok": True}
 
 
 # ---- Workout journal ----

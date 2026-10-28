@@ -42,3 +42,33 @@ export function nextDay(program: Program, logs: WorkoutLog[]): ProgramDay {
 export function completedThisWeek(logs: WorkoutLog[], now = Date.now()): number {
   return logs.filter((l) => l.completed_at && now - Date.parse(l.completed_at) < 7 * 864e5).length
 }
+
+export type Measurement = {
+  id: number; measured_on: string
+  weight_kg: number | null; waist_cm: number | null; chest_cm: number | null; hips_cm: number | null; body_fat_pct: number | null
+}
+export type MeasureKey = 'weight_kg' | 'waist_cm' | 'chest_cm' | 'hips_cm' | 'body_fat_pct'
+export const MEASURES: { key: MeasureKey; label: string; unit: string }[] = [
+  { key: 'weight_kg', label: 'Вес', unit: 'кг' },
+  { key: 'waist_cm', label: 'Талия', unit: 'см' },
+  { key: 'chest_cm', label: 'Грудь', unit: 'см' },
+  { key: 'hips_cm', label: 'Бёдра', unit: 'см' },
+  { key: 'body_fat_pct', label: '% жира', unit: '%' },
+]
+
+/** Latest weight and change over the last 30 days (measurements are newest first). */
+export function weightTrend(ms: Measurement[], today = new Date()): { latest: number; delta: number | null } | null {
+  const ws = ms.filter((m) => m.weight_kg !== null)
+  if (!ws.length) return null
+  const latest = ws[0].weight_kg!
+  const from = new Date(today.getTime() - 30 * 864e5).toISOString().slice(0, 10)
+  const base = [...ws].reverse().find((m) => m.measured_on >= from && m !== ws[0])
+  return { latest, delta: base ? Math.round((latest - base.weight_kg!) * 10) / 10 : null }
+}
+
+/** Most recent non-empty value of each measure. */
+export function latestValues(ms: Measurement[]): Partial<Record<MeasureKey, { value: number; on: string }>> {
+  const out: Partial<Record<MeasureKey, { value: number; on: string }>> = {}
+  for (const m of ms) for (const { key } of MEASURES) if (out[key] === undefined && m[key] !== null) out[key] = { value: m[key]!, on: m.measured_on }
+  return out
+}

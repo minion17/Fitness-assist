@@ -13,14 +13,16 @@ const MACROS = [
 
 const r1 = (n: number) => Math.round(n * 10) / 10
 
-export default function Food({ day, targets, canEdit, onAdd }: {
+export default function Food({ day, targets, canEdit, onAdd, onDelete }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
   onAdd: (productId: number, grams: number, meal: MealType) => Promise<void>
+  onDelete: (id: number) => Promise<void>
 }) {
   const goals = targets ?? DEFAULT_GOALS
   const [adding, setAdding] = useState<MealType | null>(null)
+  const [confirm, setConfirm] = useState<number | null>(null)
   const t = day.totals
 
   return (
@@ -60,7 +62,17 @@ export default function Food({ day, targets, canEdit, onAdd }: {
                       <div className="row-title">{i.product.name}</div>
                       <div className="row-sub">{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
                     </div>
-                    <div className="row-end">{Math.round(i.kcal)} ккал</div>
+                    {confirm === i.id ? (
+                      <div className="confirm">
+                        <button className="link danger" onClick={() => onDelete(i.id).finally(() => setConfirm(null))}>Удалить</button>
+                        <button className="link" onClick={() => setConfirm(null)}>Отмена</button>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="row-end">{Math.round(i.kcal)} ккал</div>
+                        {canEdit && <button className="icon-btn" aria-label={`Удалить ${i.product.name}`} onClick={() => setConfirm(i.id)}>✕</button>}
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

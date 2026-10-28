@@ -122,3 +122,8 @@ h2 { font-size: 15px; font-weight: 600; }
 .nav button[aria-current='page'] { color: var(--text); }
 .nav button[aria-current='page'] svg { stroke: var(--accent); }
 .nav svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.icon-btn { width: 36px; height: 36px; border-radius: 10px; color: var(--muted); flex-shrink: 0; }
+.icon-btn:active { background: var(--card-2); }
+.confirm { display: flex; gap: 12px; flex-shrink: 0; }
+.danger { color: #ff8a80; }

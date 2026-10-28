@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { demoFoodDay, demoPrograms, profile } from './demo'
+import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
+import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, type ProfileData, type Targets } from './profile'
 import { api, initTelegram, postJson, publicGet, tg, tgUser } from './telegram'
-import { completedThisWeek, nextDay, type FoodDay, type MealType, type Program, type WorkoutLog } from './types'
+import { completedThisWeek, nextDay, weightTrend, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar } from './ui'
 import Workouts from './Workouts'
 
@@ -26,9 +27,11 @@ const TABS: { id: Tab; label: string }[] = [
 const name = tgUser?.first_name ?? 'Гость'
 const PROGRAM_KEY = 'fa.programId'
 
-function Home({ go, targets, day, program, logs, weight }: {
-  go: (t: Tab) => void; targets?: Targets; day: FoodDay; program?: Program; logs: WorkoutLog[]; weight?: number
+function Home({ go, targets, day, program, logs, measurements, weight }: {
+  go: (t: Tab) => void; targets?: Targets; day: FoodDay; program?: Program; logs: WorkoutLog[]
+  measurements: Measurement[]; weight?: number
 }) {
+  const trend = weightTrend(measurements)
   const goal = targets?.calories ?? 2000
   const next = program && nextDay(program, logs)
   return (
@@ -54,8 +57,10 @@ function Home({ go, targets, day, program, logs, weight }: {
       <div className="grid2">
         <section className="card">
           <span className="sub">Вес</span>
-          <div className="stat">{weight ?? profile.weight}<small>кг</small></div>
-          <span className="sub">{weight ? 'из анкеты' : 'демо'}</span>
+          <div className="stat">{trend?.latest ?? weight ?? profile.weight}<small>кг</small></div>
+          {trend?.delta != null
+            ? <span className={trend.delta <= 0 ? 'sub pos' : 'sub'}>{trend.delta > 0 ? '+' : ''}{trend.delta} кг за месяц</span>
+            : <button className="link" style={{ textAlign: 'left' }} onClick={() => go('profile')}>Записать вес</button>}
         </section>
         <section className="card">
           <span className="sub">Тренировки</span>
@@ -83,7 +88,9 @@ function LevelCard({ p }: { p: Progress }) {
   )
 }
 
-function Profile({ synced, progress, data, onEdit }: { synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void }) {
+function Profile({ synced, progress, data, onEdit, body }: {
+  synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void; body: React.ReactNode
+}) {
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
     : profile
@@ -116,14 +123,7 @@ function Profile({ synced, progress, data, onEdit }: { synced: string; progress:
         </section>
       )}
       <button className="btn btn-ghost" onClick={onEdit}>{data ? 'Изменить анкету' : 'Заполнить анкету'}</button>
-      <section className="card">
-        <h2>Параметры тела</h2>
-        <div className="list">
-          {profile.body.map((b) => (
-            <div className="row" key={b.label}><div className="row-main row-title">{b.label}</div><div className="row-end">{b.value}</div></div>
-          ))}
-        </div>
-      </section>
+      {body}
     </>
   )
 }
@@ -143,16 +143,19 @@ export default function App() {
     try { return Number(localStorage.getItem(PROGRAM_KEY)) || null } catch { return null }
   })
   const [toast, setToast] = useState('')
+  const [measurements, setMeasurements] = useState<Measurement[]>([])
 
   const refreshJournal = useCallback(async () => {
-    const [day, ws, u] = await Promise.all([
+    const [day, ws, ms, u] = await Promise.all([
       api<FoodDay>('/api/food-logs'),
       api<WorkoutLog[]>('/api/workout-logs'),
-      api<{ progress: Progress }>('/api/auth', { method: 'POST' }),
+      api<Measurement[]>('/api/measurements'),
+      api<{ progress: Progress; profile: ProfileData | null }>('/api/auth', { method: 'POST' }),
     ])
     if (day) setFoodDay(day)
     if (ws) setLogs(ws)
-    if (u) setXp(u.progress)
+    if (ms) setMeasurements(ms)
+    if (u) { setXp(u.progress); setMe(u.profile) } // weight changes the daily targets
   }, [])
 
   useEffect(() => {
@@ -183,6 +186,24 @@ export default function App() {
     const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal }))
     await refreshJournal()
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
+  }
+
+  async function deleteFood(id: number) {
+    await api(`/api/food-logs/${id}`, { method: 'DELETE' })
+    await refreshJournal()
+  }
+
+  async function saveMeasurement(m: MeasurementInput) {
+    const r = await api<{ xp_awarded: number }>('/api/measurements', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(m),
+    })
+    await refreshJournal()
+    flash(r?.xp_awarded ? `Замер сохранён · +${r.xp_awarded} XP` : 'Замер сохранён')
+  }
+
+  async function deleteMeasurement(id: number) {
+    await api(`/api/measurements/${id}`, { method: 'DELETE' })
+    await refreshJournal()
   }
 
   async function workoutChanged(xpAwarded: number) {
@@ -226,13 +247,16 @@ export default function App() {
   return (
     <div className="app">
       <main className="screen" key={tab}>
-        {tab === 'home' && <Home go={go} targets={me?.targets} day={foodDay} program={program} logs={logs} weight={me?.weight_kg} />}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} />}
+        {tab === 'home' && <Home go={go} targets={me?.targets} day={foodDay} program={program} logs={logs} measurements={measurements} weight={me?.weight_kg} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram}
             canEdit={canEdit} onChanged={workoutChanged} />
         )}
-        {tab === 'profile' && <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} />}
+        {tab === 'profile' && (
+          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)}
+            body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
+        )}
       </main>
       <nav className="nav">
         <div className="nav-inner">

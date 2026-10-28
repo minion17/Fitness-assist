@@ -1,5 +1,5 @@
 // Demo data shown outside Telegram (no account), so the UI can be previewed in a browser.
-import type { FoodDay, Program } from './types'
+import type { FoodDay, Measurement, Program } from './types'
 
 const p = (id: number, name: string, kcal: number, protein_g: number, fat_g: number, carbs_g: number) =>
   ({ id, name, brand: null, category: null, kcal, protein_g, fat_g, carbs_g })
@@ -25,15 +25,10 @@ export const demoPrograms: Program[] = [{
   }],
 }]
 
-export const profile = {
-  age: 27,
-  height: 182,
-  weight: 78.4,
-  goal: 'Снижение веса',
-  body: [
-    { label: 'Талия', value: '84 см' },
-    { label: 'Грудь', value: '101 см' },
-    { label: 'Бёдра', value: '97 см' },
-    { label: '% жира', value: '17 %' },
-  ],
-}
+export const demoMeasurements: Measurement[] = [
+  { id: 3, measured_on: '2026-10-27', weight_kg: 78.4, waist_cm: 84, chest_cm: 101, hips_cm: 97, body_fat_pct: 17 },
+  { id: 2, measured_on: '2026-10-20', weight_kg: 79.1, waist_cm: 85, chest_cm: null, hips_cm: null, body_fat_pct: null },
+  { id: 1, measured_on: '2026-10-13', weight_kg: 79.6, waist_cm: null, chest_cm: null, hips_cm: null, body_fat_pct: null },
+]
+
+export const profile = { age: 27, height: 182, weight: 78.4, goal: 'Снижение веса' }

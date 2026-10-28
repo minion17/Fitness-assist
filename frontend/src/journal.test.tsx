@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import Body from './Body'
 import Food from './Food'
 import { api, publicGet } from './telegram'
-import { mealNow, nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
+import { mealNow, nextDay, weightTrend, type FoodDay, type Measurement, type Program, type WorkoutLog } from './types'
 import Workouts from './Workouts'
 
 vi.mock('./telegram', () => ({ api: vi.fn(), publicGet: vi.fn(), postJson: (b: unknown) => ({ method: 'POST', body: JSON.stringify(b) }) }))
@@ -67,7 +68,7 @@ test('food: search a product and add grams to a meal', async () => {
   const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
   publicGetMock.mockResolvedValue([{ id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 }])
   const onAdd = vi.fn().mockResolvedValue(undefined)
-  render(<Food day={empty} canEdit onAdd={onAdd} />)
+  render(<Food day={empty} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
 
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[2]) // dinner
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'тв' } })
@@ -79,4 +80,48 @@ test('food: search a product and add grams to a meal', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Добавить в «Ужин»' }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 200, 'dinner'))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+})
+
+test('food: delete asks for confirmation', async () => {
+  const day: FoodDay = {
+    date: '', totals: { kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 },
+    items: [{ id: 42, meal_type: 'lunch', amount_g: 100, logged_at: '', kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3,
+      product: { id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 } }],
+  }
+  const onDelete = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить Творог 5%' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
+  expect(onDelete).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить Творог 5%' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить' }))
+  await waitFor(() => expect(onDelete).toHaveBeenCalledWith(42))
+})
+
+const m = (id: number, on: string, weight: number | null, waist: number | null = null): Measurement =>
+  ({ id, measured_on: on, weight_kg: weight, waist_cm: waist, chest_cm: null, hips_cm: null, body_fat_pct: null })
+
+test('weight trend over 30 days', () => {
+  const today = new Date('2026-10-29T12:00:00')
+  expect(weightTrend([], today)).toBeNull()
+  expect(weightTrend([m(1, '2026-10-28', 78)], today)).toEqual({ latest: 78, delta: null })
+  const ms = [m(3, '2026-10-28', 77.5), m(2, '2026-10-10', 79.1), m(1, '2026-09-01', 82)] // newest first
+  expect(weightTrend(ms, today)).toEqual({ latest: 77.5, delta: -1.6 }) // 09-01 is older than 30 days
+})
+
+test('body: add measurement prefilled with latest values, validated', async () => {
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<Body measurements={[m(2, '2026-10-20', 79.1), m(1, '2026-10-13', 79.6, 85)]} canEdit onSave={onSave} onDelete={vi.fn()} />)
+  expect(screen.getByText('79.1')).toBeTruthy()
+  expect(screen.getByText('-0.5 кг за 30 дней')).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: '+ Добавить замер' }))
+  const [weight, waist] = screen.getAllByRole('textbox') as HTMLInputElement[]
+  expect([weight.value, waist.value]).toEqual(['79.1', '85']) // latest known value of each field
+  fireEvent.change(weight, { target: { value: '500' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+  expect(screen.getByRole('alert').textContent).toBe('Вес: от 30 до 300')
+  fireEvent.change(weight, { target: { value: '78,6' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith({ weight_kg: 78.6, waist_cm: 85, chest_cm: null, hips_cm: null, body_fat_pct: null }))
 })

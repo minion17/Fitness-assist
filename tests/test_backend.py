@@ -265,3 +265,44 @@ def test_import_reports_bad_product_rows(tmp_path, monkeypatch):
     (tmp_path / "products/products.json").write_text('[{"name": "Хлеб", "kcal": 250},]', encoding="utf-8")
     with pytest.raises(SystemExit, match="ошибка JSON в строке 1"):
         imp.load("products/products.json")
+
+
+def test_food_log_delete(client, seeded):
+    h, other = new_user_headers(), new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "творог 5%"}).json()[0]["id"]
+    log_id = client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": "snack"}).json()["id"]
+    assert client.delete(f"/api/food-logs/{log_id}", headers=other).status_code == 404  # not yours
+    assert client.delete(f"/api/food-logs/{log_id}", headers=h).json() == {"ok": True}
+    assert client.get("/api/food-logs", headers=h).json()["items"] == []
+    assert client.delete(f"/api/food-logs/{log_id}", headers=h).status_code == 404
+
+
+def test_measurements(client):
+    from datetime import date, timedelta
+
+    h, other = new_user_headers(), new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)  # weight 78.4
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+
+    first = client.put("/api/measurements", headers=h, json={"weight_kg": 77.9, "waist_cm": 84}).json()
+    assert first["xp_awarded"] == 15 and first["measured_on"] == date.today().isoformat()
+    again = client.put("/api/measurements", headers=h, json={"weight_kg": 77.5, "waist_cm": 83.5}).json()
+    assert again["id"] == first["id"] and again["xp_awarded"] == 0  # same day: overwritten, no extra XP
+    assert client.get("/api/profile", headers=h).json()["weight_kg"] == 77.5  # targets follow latest weight
+
+    old = client.put("/api/measurements", headers=h, json={"measured_on": yesterday, "weight_kg": 80}).json()
+    assert old["xp_awarded"] == 15
+    assert client.get("/api/profile", headers=h).json()["weight_kg"] == 77.5  # older entry doesn't override
+
+    rows = client.get("/api/measurements", headers=h).json()
+    assert [r["weight_kg"] for r in rows] == [77.5, 80]  # newest first
+    assert client.get("/api/measurements", headers=other).json() == []
+
+    assert client.put("/api/measurements", headers=h, json={}).status_code == 422
+    assert client.put("/api/measurements", headers=h, json={"weight_kg": 5}).status_code == 422
+    future = (date.today() + timedelta(days=5)).isoformat()
+    assert client.put("/api/measurements", headers=h, json={"measured_on": future, "weight_kg": 70}).status_code == 422
+
+    assert client.delete(f"/api/measurements/{old['id']}", headers=other).status_code == 404
+    assert client.delete(f"/api/measurements/{old['id']}", headers=h).json() == {"ok": True}
+    assert len(client.get("/api/measurements", headers=h).json()) == 1

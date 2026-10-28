@@ -62,6 +62,24 @@ h2 { font-size: 15px; font-weight: 600; }
 
 .btn { background: var(--accent); color: #16171a; font-weight: 600; border-radius: 14px; padding: 14px; width: 100%; }
 .btn:active { opacity: .85; }
+.btn:disabled { opacity: .6; }
+.btn-ghost { background: var(--card); color: var(--text); }
+.error { color: #ff8a80; font-size: 14px; }
+
+.field { display: flex; flex-direction: column; gap: 8px; border: 0; min-width: 0; }
+.field > span, .field legend { font-size: 13px; color: var(--muted); padding: 0; }
+.field legend { margin-bottom: 8px; }
+.input-wrap { position: relative; }
+.input-wrap input {
+  width: 100%; font: inherit; font-size: 17px; color: var(--text);
+  background: var(--card-2); border: 1px solid transparent; border-radius: 12px; padding: 12px 40px 12px 14px;
+}
+.input-wrap input:focus { outline: none; border-color: var(--accent); }
+.input-wrap i { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-style: normal; color: var(--muted); font-size: 14px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.seg-col { grid-template-columns: 1fr; }
+.seg button { background: var(--card-2); border-radius: 12px; padding: 12px; text-align: left; font-size: 15px; border: 1px solid transparent; }
+.seg button[aria-pressed='true'] { border-color: var(--accent); color: var(--accent); }
 .chip { display: inline-block; font-size: 12px; padding: 4px 10px; border-radius: 99px; background: var(--card-2); color: var(--muted); }
 
 .avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--card-2); display: grid; place-items: center; font-size: 26px; font-weight: 600; overflow: hidden; }

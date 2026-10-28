@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { nutrition, profile, progress, workout } from './demo'
+import Questionnaire from './Questionnaire'
+import { GOALS, YEAR, type ProfileData, type Targets } from './profile'
 import { api, initTelegram, tg, tgUser } from './telegram'
 
 type Tab = 'home' | 'food' | 'workouts' | 'profile'
@@ -43,8 +45,11 @@ function Ring({ value, goal }: { value: number; goal: number }) {
   )
 }
 
-function Home({ go }: { go: (t: Tab) => void }) {
-  const c = nutrition.calories
+// Demo intake stays until the diary exists; goals come from the questionnaire when filled.
+const calGoal = (t?: Targets) => t?.calories ?? nutrition.calories.goal
+
+function Home({ go, targets }: { go: (t: Tab) => void; targets?: Targets }) {
+  const c = { eaten: nutrition.calories.eaten, goal: calGoal(targets) }
   return (
     <>
       <div>
@@ -77,8 +82,10 @@ function Home({ go }: { go: (t: Tab) => void }) {
   )
 }
 
-function Food() {
-  const c = nutrition.calories
+const MACRO_KEY = { 'Белки': 'protein', 'Жиры': 'fat', 'Углеводы': 'carbs' } as const
+
+function Food({ targets }: { targets?: Targets }) {
+  const c = { eaten: nutrition.calories.eaten, goal: calGoal(targets) }
   return (
     <>
       <h1>Питание</h1>
@@ -87,7 +94,7 @@ function Food() {
         <div className="ring-wrap">
           <Ring value={c.eaten} goal={c.goal} />
           <div className="macros">
-            {nutrition.macros.map((m) => (
+            {nutrition.macros.map((m) => ({ ...m, goal: targets?.[MACRO_KEY[m.key as keyof typeof MACRO_KEY]] ?? m.goal })).map((m) => (
               <div key={m.key}>
                 <div className="macro-row"><span>{m.key}</span><span>{m.eaten} / {m.goal} г</span></div>
                 <Bar value={m.eaten} goal={m.goal} color={m.color} />
@@ -163,7 +170,10 @@ function LevelCard({ p }: { p: Progress }) {
   )
 }
 
-function Profile({ synced, progress }: { synced: string; progress: Progress }) {
+function Profile({ synced, progress, data, onEdit }: { synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void }) {
+  const shown = data
+    ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
+    : profile
   return (
     <>
       <section className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
@@ -176,11 +186,23 @@ function Profile({ synced, progress }: { synced: string; progress: Progress }) {
       </section>
       <LevelCard p={progress} />
       <div className="grid2">
-        <section className="card"><span className="sub">Возраст</span><div className="stat">{profile.age}<small>лет</small></div></section>
-        <section className="card"><span className="sub">Рост</span><div className="stat">{profile.height}<small>см</small></div></section>
-        <section className="card"><span className="sub">Вес</span><div className="stat">{profile.weight}<small>кг</small></div></section>
-        <section className="card"><span className="sub">Цель</span><div className="row-title" style={{ marginTop: 6 }}>{profile.goal}</div></section>
+        <section className="card"><span className="sub">Возраст</span><div className="stat">{shown.age}<small>лет</small></div></section>
+        <section className="card"><span className="sub">Рост</span><div className="stat">{shown.height}<small>см</small></div></section>
+        <section className="card"><span className="sub">Вес</span><div className="stat">{shown.weight}<small>кг</small></div></section>
+        <section className="card"><span className="sub">Цель</span><div className="row-title" style={{ marginTop: 6 }}>{shown.goal}</div></section>
       </div>
+      {data?.targets && (
+        <section className="card">
+          <h2>Дневная норма</h2>
+          <div className="list">
+            <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{data.targets.calories} ккал</div></div>
+            <div className="row"><div className="row-main row-title">Белки</div><div className="row-end">{data.targets.protein} г</div></div>
+            <div className="row"><div className="row-main row-title">Жиры</div><div className="row-end">{data.targets.fat} г</div></div>
+            <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{data.targets.carbs} г</div></div>
+          </div>
+        </section>
+      )}
+      <button className="btn btn-ghost" onClick={onEdit}>{data ? 'Изменить анкету' : 'Заполнить анкету'}</button>
       <section className="card">
         <h2>Параметры тела</h2>
         <div className="list">
@@ -197,14 +219,18 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('home')
   const [synced, setSynced] = useState('Демо-режим')
   const [xp, setXp] = useState<Progress>(NEW_USER)
+  const [me, setMe] = useState<ProfileData | null>(null)
+  const [editing, setEditing] = useState(false)
 
   useEffect(() => {
     initTelegram()
-    api<{ id: number; progress: Progress }>('/api/auth', { method: 'POST' })
+    api<{ id: number; progress: Progress; profile: ProfileData | null }>('/api/auth', { method: 'POST' })
       .then((u) => {
         if (!u) return
         setSynced('Аккаунт подключён')
         setXp(u.progress)
+        setMe(u.profile)
+        setEditing(!u.profile) // first visit: questionnaire before anything else
       })
       .catch(() => setSynced('Сервер недоступен'))
   }, [])
@@ -215,13 +241,33 @@ export default function App() {
     window.scrollTo(0, 0)
   }
 
+  async function saveProfile(p: ProfileData) {
+    // Outside Telegram (demo) there is no account: keep answers in memory only.
+    const saved = await api<ProfileData>('/api/profile', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(p),
+    })
+    setMe(saved ?? p)
+    setEditing(false)
+    window.scrollTo(0, 0)
+  }
+
+  if (editing) {
+    return (
+      <div className="app">
+        <Questionnaire initial={me} onSave={saveProfile} onCancel={me ? () => setEditing(false) : undefined} />
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <main className="screen" key={tab}>
-        {tab === 'home' && <Home go={go} />}
-        {tab === 'food' && <Food />}
+        {tab === 'home' && <Home go={go} targets={me?.targets} />}
+        {tab === 'food' && <Food targets={me?.targets} />}
         {tab === 'workouts' && <Workouts />}
-        {tab === 'profile' && <Profile synced={synced} progress={xp} />}
+        {tab === 'profile' && <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} />}
       </main>
       <nav className="nav">
         <div className="nav-inner">

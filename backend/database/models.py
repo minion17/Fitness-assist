@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from backend.database.db import Base
@@ -17,6 +17,23 @@ class User(Base):
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class Profile(Base):
+    """Questionnaire answers. Separate table so existing databases pick it up via create_all."""
+
+    __tablename__ = "profiles"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    sex: Mapped[str] = mapped_column(String(8))
+    birth_year: Mapped[int] = mapped_column(Integer)
+    height_cm: Mapped[int] = mapped_column(Integer)
+    weight_kg: Mapped[float] = mapped_column(Float)
+    activity: Mapped[str] = mapped_column(String(16))
+    goal: Mapped[str] = mapped_column(String(16))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

@@ -118,3 +118,46 @@ def test_award_xp_is_idempotent(client):
     assert user.xp == before["progress"]["xp"] + 50
     assert user.level == level_progress(user.xp)["level"]
     assert client.post("/api/auth", headers=headers).json()["progress"]["xp"] == user.xp
+
+
+PROFILE = {"sex": "male", "birth_year": 1998, "height_cm": 182, "weight_kg": 78.4, "activity": "moderate", "goal": "lose"}
+
+
+def test_daily_targets():
+    from datetime import date
+
+    from backend.core.nutrition import daily_targets
+
+    t = daily_targets(**{**PROFILE, "birth_year": date.today().year - 30})
+    # BMR = 784 + 1137.5 - 150 + 5 = 1776.5; *1.55*0.85 = 2340.5
+    assert t == {"calories": 2341, "protein": 157, "fat": 71, "carbs": 268}
+
+
+def test_profile_save_and_read(client):
+    import random
+
+    fresh_user = {**USER, "id": random.randint(10**9, 2 * 10**9)}  # new user every run
+    headers = {"Authorization": f"tma {make_init_data(fresh_user)}"}
+    assert client.get("/api/profile", headers=headers).json() is None
+    assert client.post("/api/auth", headers=headers).json()["profile"] is None
+
+    saved = client.put("/api/profile", headers=headers, json=PROFILE)
+    assert saved.status_code == 200
+    assert saved.json()["targets"]["calories"] > 0
+
+    updated = client.put("/api/profile", headers=headers, json={**PROFILE, "goal": "gain"}).json()
+    assert updated["goal"] == "gain" and updated["targets"]["calories"] > saved.json()["targets"]["calories"]
+    assert client.post("/api/auth", headers=headers).json()["profile"] == updated
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [{"height_cm": 50}, {"weight_kg": 1000}, {"sex": "x"}, {"goal": "fly"}, {"birth_year": 2025}, {"activity": None}],
+)
+def test_profile_validation(client, bad):
+    headers = {"Authorization": f"tma {make_init_data(USER)}"}
+    assert client.put("/api/profile", headers=headers, json={**PROFILE, **bad}).status_code == 422
+
+
+def test_profile_requires_telegram(client):
+    assert client.put("/api/profile", json=PROFILE).status_code == 401

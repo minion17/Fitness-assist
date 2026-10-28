@@ -1,16 +1,20 @@
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
+from typing import Literal
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 
 from backend.core.config import settings
 from backend.core.gamification import level_progress
+from backend.core.nutrition import daily_targets
 from backend.core.telegram_auth import InitDataError, validate_init_data
 from backend.database.db import AsyncSession, get_session, init_db
-from backend.database.models import User
+from backend.database.models import Profile, User
 
 
 @asynccontextmanager
@@ -52,9 +56,7 @@ async def health(session: AsyncSession = Depends(get_session)):
     return {"status": "ok" if db == "ok" else "degraded", "database": db}
 
 
-@app.post("/api/auth")
-async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    """Register or refresh the user from verified initData. Base for the upcoming profile flow."""
+async def get_or_create_user(tg: dict, session: AsyncSession) -> User:
     user = await session.scalar(select(User).where(User.telegram_id == tg["id"]))
     if user is None:
         user = User(telegram_id=tg["id"])
@@ -64,13 +66,56 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
     user.language_code = tg.get("language_code")
     await session.commit()
     await session.refresh(user)
+    return user
+
+
+def profile_out(profile: Profile | None) -> dict | None:
+    if profile is None:
+        return None
+    data = ProfileIn.model_validate(profile, from_attributes=True).model_dump()
+    return {**data, "targets": daily_targets(**data)}
+
+
+@app.post("/api/auth")
+async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """Register or refresh the user from verified initData."""
+    user = await get_or_create_user(tg, session)
     return {
         "id": user.id,
         "telegram_id": user.telegram_id,
         "first_name": user.first_name,
         "username": user.username,
         "progress": level_progress(user.xp),
+        "profile": profile_out(await session.get(Profile, user.id)),
     }
+
+
+class ProfileIn(BaseModel):
+    sex: Literal["male", "female"]
+    birth_year: int = Field(ge=date.today().year - 100, le=date.today().year - 12)
+    height_cm: int = Field(ge=120, le=230)
+    weight_kg: float = Field(ge=30, le=300)
+    activity: Literal["low", "light", "moderate", "high", "very_high"]
+    goal: Literal["lose", "maintain", "gain"]
+
+
+@app.get("/api/profile")
+async def get_profile(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    return profile_out(await session.get(Profile, user.id))
+
+
+@app.put("/api/profile")
+async def save_profile(
+    body: ProfileIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
+):
+    user = await get_or_create_user(tg, session)
+    profile = await session.get(Profile, user.id) or Profile(user_id=user.id)
+    for k, v in body.model_dump().items():
+        setattr(profile, k, v)
+    session.add(profile)
+    await session.commit()
+    return profile_out(profile)
 
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.

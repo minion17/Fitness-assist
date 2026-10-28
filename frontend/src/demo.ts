@@ -1,36 +1,29 @@
-// Demo data for stage 1. Replaced by API data in the next stages.
-export const nutrition = {
-  calories: { eaten: 1640, goal: 2400 },
-  macros: [
-    { key: 'Белки', eaten: 112, goal: 160, color: 'var(--protein)' },
-    { key: 'Жиры', eaten: 54, goal: 80, color: 'var(--fat)' },
-    { key: 'Углеводы', eaten: 168, goal: 260, color: 'var(--carbs)' },
+// Demo data shown outside Telegram (no account), so the UI can be previewed in a browser.
+import type { FoodDay, Program } from './types'
+
+const p = (id: number, name: string, kcal: number, protein_g: number, fat_g: number, carbs_g: number) =>
+  ({ id, name, brand: null, category: null, kcal, protein_g, fat_g, carbs_g })
+
+export const demoFoodDay: FoodDay = {
+  date: '',
+  items: [
+    { id: 1, meal_type: 'breakfast', amount_g: 250, logged_at: '', product: p(1, 'Овсянка на молоке', 102, 3.2, 3.6, 14.2), kcal: 255, protein_g: 8, fat_g: 9, carbs_g: 35.5 },
+    { id: 2, meal_type: 'lunch', amount_g: 150, logged_at: '', product: p(2, 'Куриная грудка', 165, 31, 3.6, 0), kcal: 248, protein_g: 46.5, fat_g: 5.4, carbs_g: 0 },
+    { id: 3, meal_type: 'lunch', amount_g: 200, logged_at: '', product: p(3, 'Рис отварной', 130, 2.7, 0.3, 28), kcal: 260, protein_g: 5.4, fat_g: 0.6, carbs_g: 56 },
   ],
-  meals: [
-    { name: 'Завтрак', time: '08:30', kcal: 520, items: 'Овсянка, банан, кофе' },
-    { name: 'Обед', time: '13:15', kcal: 780, items: 'Курица, рис, овощи' },
-    { name: 'Перекус', time: '16:40', kcal: 340, items: 'Творог, орехи' },
-  ],
+  totals: { kcal: 763, protein_g: 59.9, fat_g: 15, carbs_g: 91.5 },
 }
 
-export const workout = {
-  program: 'Фулбади · 3 раза в неделю',
-  week: 2,
-  today: 'Тренировка A',
-  exercises: [
-    { name: 'Приседания со штангой', sets: '4 × 8', weight: '70 кг' },
-    { name: 'Жим лёжа', sets: '4 × 8', weight: '55 кг' },
-    { name: 'Тяга в наклоне', sets: '3 × 10', weight: '45 кг' },
-    { name: 'Планка', sets: '3 × 45 с', weight: '—' },
-  ],
-  history: [
-    { date: '26 окт', name: 'Тренировка B', duration: '52 мин' },
-    { date: '24 окт', name: 'Тренировка A', duration: '48 мин' },
-    { date: '22 окт', name: 'Тренировка B', duration: '55 мин' },
-  ],
-}
-
-export const progress = { weight: 78.4, delta: -1.2, workoutsThisWeek: 2, workoutsGoal: 3 }
+export const demoPrograms: Program[] = [{
+  id: -1, name: 'Full Body для новичков', goal: 'ОФП', level: 'beginner', days_per_week: 3, description: null,
+  days: [{
+    id: -1, day_name: 'День 1: Все тело', day_order: 1, exercises: [
+      { exercise_id: -1, name: 'Приседания со штангой', sets: 3, reps: '8-10', rest_seconds: 120, notes: null },
+      { exercise_id: -2, name: 'Жим штанги лежа', sets: 3, reps: '8-10', rest_seconds: 120, notes: null },
+      { exercise_id: -3, name: 'Планка', sets: 3, reps: '45-60 сек', rest_seconds: 60, notes: null },
+    ],
+  }],
+}]
 
 export const profile = {
   age: 27,

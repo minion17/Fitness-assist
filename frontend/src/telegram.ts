@@ -28,6 +28,19 @@ export function initTelegram() {
   tg.setBackgroundColor?.('#16171a')
 }
 
+/** Public reference data (products, programs) — works outside Telegram too. */
+export async function publicGet<T>(path: string): Promise<T> {
+  const res = await fetch(path)
+  if (!res.ok) throw new Error(`${res.status}`)
+  return res.json()
+}
+
+export const postJson = (body: unknown): RequestInit => ({
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body),
+})
+
 /** Calls backend with signed initData; returns null outside Telegram. */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T | null> {
   if (!tg?.initData) return null

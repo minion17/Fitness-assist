@@ -1,8 +1,12 @@
-import { useEffect, useState } from 'react'
-import { nutrition, profile, progress, workout } from './demo'
+import { useCallback, useEffect, useState } from 'react'
+import { demoFoodDay, demoPrograms, profile } from './demo'
+import Food from './Food'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, type ProfileData, type Targets } from './profile'
-import { api, initTelegram, tg, tgUser } from './telegram'
+import { api, initTelegram, postJson, publicGet, tg, tgUser } from './telegram'
+import { completedThisWeek, nextDay, type FoodDay, type MealType, type Program, type WorkoutLog } from './types'
+import { Bar } from './ui'
+import Workouts from './Workouts'
 
 type Tab = 'home' | 'food' | 'workouts' | 'profile'
 
@@ -20,36 +24,13 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 const name = tgUser?.first_name ?? 'Гость'
-const pct = (a: number, b: number) => `${Math.min(100, Math.round((a / b) * 100))}%`
+const PROGRAM_KEY = 'fa.programId'
 
-function Bar({ value, goal, color = 'var(--accent)' }: { value: number; goal: number; color?: string }) {
-  return (
-    <div className="bar">
-      <i style={{ width: pct(value, goal), background: color }} />
-    </div>
-  )
-}
-
-function Ring({ value, goal }: { value: number; goal: number }) {
-  const r = 42
-  const c = 2 * Math.PI * r
-  const frac = Math.min(1, value / goal)
-  return (
-    <svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-label={`${value} из ${goal} ккал`}>
-      <circle cx="52" cy="52" r={r} fill="none" stroke="var(--card-2)" strokeWidth="9" />
-      <circle cx="52" cy="52" r={r} fill="none" stroke="var(--accent)" strokeWidth="9" strokeLinecap="round"
-        strokeDasharray={`${c * frac} ${c}`} transform="rotate(-90 52 52)" />
-      <text x="52" y="50" textAnchor="middle" fill="var(--text)" fontSize="20" fontWeight="650">{goal - value}</text>
-      <text x="52" y="67" textAnchor="middle" fill="var(--muted)" fontSize="11">ккал осталось</text>
-    </svg>
-  )
-}
-
-// Demo intake stays until the diary exists; goals come from the questionnaire when filled.
-const calGoal = (t?: Targets) => t?.calories ?? nutrition.calories.goal
-
-function Home({ go, targets }: { go: (t: Tab) => void; targets?: Targets }) {
-  const c = { eaten: nutrition.calories.eaten, goal: calGoal(targets) }
+function Home({ go, targets, day, program, logs, weight }: {
+  go: (t: Tab) => void; targets?: Targets; day: FoodDay; program?: Program; logs: WorkoutLog[]; weight?: number
+}) {
+  const goal = targets?.calories ?? 2000
+  const next = program && nextDay(program, logs)
   return (
     <>
       <div>
@@ -58,98 +39,30 @@ function Home({ go, targets }: { go: (t: Tab) => void; targets?: Targets }) {
       </div>
       <section className="card">
         <div className="card-head"><h2>Питание</h2><button className="link" onClick={() => go('food')}>Открыть</button></div>
-        <div className="stat">{c.eaten}<small>/ {c.goal} ккал</small></div>
-        <Bar value={c.eaten} goal={c.goal} />
+        <div className="stat">{Math.round(day.totals.kcal)}<small>/ {goal} ккал</small></div>
+        <Bar value={day.totals.kcal} goal={goal} />
       </section>
       <section className="card">
         <div className="card-head"><h2>Тренировка дня</h2><button className="link" onClick={() => go('workouts')}>Открыть</button></div>
-        <div className="row-title">{workout.today}</div>
-        <div className="sub">{workout.exercises.length} упражнения · {workout.program}</div>
+        {next ? (
+          <>
+            <div className="row-title">{next.day_name}</div>
+            <div className="sub">{next.exercises.length} упражнения · {program.name}</div>
+          </>
+        ) : <div className="sub">Выберите программу тренировок</div>}
       </section>
       <div className="grid2">
         <section className="card">
           <span className="sub">Вес</span>
-          <div className="stat">{progress.weight}<small>кг</small></div>
-          <span className="sub pos">{progress.delta} кг за месяц</span>
+          <div className="stat">{weight ?? profile.weight}<small>кг</small></div>
+          <span className="sub">{weight ? 'из анкеты' : 'демо'}</span>
         </section>
         <section className="card">
           <span className="sub">Тренировки</span>
-          <div className="stat">{progress.workoutsThisWeek}<small>/ {progress.workoutsGoal}</small></div>
-          <Bar value={progress.workoutsThisWeek} goal={progress.workoutsGoal} />
+          <div className="stat">{completedThisWeek(logs)}<small>/ {program?.days_per_week ?? 3}</small></div>
+          <Bar value={completedThisWeek(logs)} goal={program?.days_per_week ?? 3} />
         </section>
       </div>
-    </>
-  )
-}
-
-const MACRO_KEY = { 'Белки': 'protein', 'Жиры': 'fat', 'Углеводы': 'carbs' } as const
-
-function Food({ targets }: { targets?: Targets }) {
-  const c = { eaten: nutrition.calories.eaten, goal: calGoal(targets) }
-  return (
-    <>
-      <h1>Питание</h1>
-      <section className="card">
-        <div className="card-head"><h2>КБЖУ за сегодня</h2><span className="sub">{c.eaten} / {c.goal}</span></div>
-        <div className="ring-wrap">
-          <Ring value={c.eaten} goal={c.goal} />
-          <div className="macros">
-            {nutrition.macros.map((m) => ({ ...m, goal: targets?.[MACRO_KEY[m.key as keyof typeof MACRO_KEY]] ?? m.goal })).map((m) => (
-              <div key={m.key}>
-                <div className="macro-row"><span>{m.key}</span><span>{m.eaten} / {m.goal} г</span></div>
-                <Bar value={m.eaten} goal={m.goal} color={m.color} />
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-      <section className="card">
-        <h2>Приёмы пищи</h2>
-        <div className="list">
-          {nutrition.meals.map((m) => (
-            <div className="row" key={m.name}>
-              <div className="row-main"><div className="row-title">{m.name} <span className="sub">· {m.time}</span></div><div className="row-sub">{m.items}</div></div>
-              <div className="row-end">{m.kcal} ккал</div>
-            </div>
-          ))}
-        </div>
-      </section>
-      <button className="btn" onClick={() => alert('Добавление приёма пищи появится на следующем этапе')}>+ Добавить приём пищи</button>
-    </>
-  )
-}
-
-function Workouts() {
-  return (
-    <>
-      <h1>Тренировки</h1>
-      <section className="card">
-        <span className="chip">Неделя {workout.week}</span>
-        <div><div className="row-title">{workout.program}</div><div className="sub">Сегодня: {workout.today}</div></div>
-      </section>
-      <section className="card">
-        <h2>Упражнения</h2>
-        <div className="list">
-          {workout.exercises.map((e, i) => (
-            <div className="row" key={e.name}>
-              <div className="dot">{i + 1}</div>
-              <div className="row-main"><div className="row-title">{e.name}</div><div className="row-sub">{e.sets}</div></div>
-              <div className="row-end">{e.weight}</div>
-            </div>
-          ))}
-        </div>
-      </section>
-      <section className="card">
-        <h2>История</h2>
-        <div className="list">
-          {workout.history.map((h) => (
-            <div className="row" key={h.date}>
-              <div className="row-main"><div className="row-title">{h.name}</div><div className="row-sub">{h.date}</div></div>
-              <div className="row-end">{h.duration}</div>
-            </div>
-          ))}
-        </div>
-      </section>
     </>
   )
 }
@@ -221,6 +134,26 @@ export default function App() {
   const [xp, setXp] = useState<Progress>(NEW_USER)
   const [me, setMe] = useState<ProfileData | null>(null)
   const [editing, setEditing] = useState(false)
+  const [canEdit, setCanEdit] = useState(false)
+  const [foodDay, setFoodDay] = useState<FoodDay>(demoFoodDay)
+  const [programs, setPrograms] = useState<Program[] | null>(null)
+  const [logs, setLogs] = useState<WorkoutLog[]>([])
+  // shortcut: chosen program is remembered per device; move to the user's profile when it must sync across devices
+  const [programId, setProgramId] = useState<number | null>(() => {
+    try { return Number(localStorage.getItem(PROGRAM_KEY)) || null } catch { return null }
+  })
+  const [toast, setToast] = useState('')
+
+  const refreshJournal = useCallback(async () => {
+    const [day, ws, u] = await Promise.all([
+      api<FoodDay>('/api/food-logs'),
+      api<WorkoutLog[]>('/api/workout-logs'),
+      api<{ progress: Progress }>('/api/auth', { method: 'POST' }),
+    ])
+    if (day) setFoodDay(day)
+    if (ws) setLogs(ws)
+    if (u) setXp(u.progress)
+  }, [])
 
   useEffect(() => {
     initTelegram()
@@ -228,12 +161,41 @@ export default function App() {
       .then((u) => {
         if (!u) return
         setSynced('Аккаунт подключён')
+        setCanEdit(true)
         setXp(u.progress)
         setMe(u.profile)
         setEditing(!u.profile) // first visit: questionnaire before anything else
+        setFoodDay({ date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } })
+        return refreshJournal()
       })
       .catch(() => setSynced('Сервер недоступен'))
-  }, [])
+    publicGet<Program[]>('/api/programs')
+      .then(setPrograms)
+      .catch(() => setPrograms(demoPrograms))
+  }, [refreshJournal])
+
+  function flash(text: string) {
+    setToast(text)
+    setTimeout(() => setToast(''), 2500)
+  }
+
+  async function addFood(productId: number, grams: number, meal: MealType) {
+    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal }))
+    await refreshJournal()
+    flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
+  }
+
+  async function workoutChanged(xpAwarded: number) {
+    await refreshJournal()
+    if (xpAwarded) flash(`Тренировка завершена · +${xpAwarded} XP`)
+  }
+
+  function selectProgram(id: number | null) {
+    setProgramId(id)
+    try { if (id) localStorage.setItem(PROGRAM_KEY, String(id)); else localStorage.removeItem(PROGRAM_KEY) } catch { /* private mode */ }
+  }
+
+  const program = programs?.find((p) => p.id === programId)
 
   const go = (t: Tab) => {
     tg?.HapticFeedback?.selectionChanged()
@@ -264,9 +226,12 @@ export default function App() {
   return (
     <div className="app">
       <main className="screen" key={tab}>
-        {tab === 'home' && <Home go={go} targets={me?.targets} />}
-        {tab === 'food' && <Food targets={me?.targets} />}
-        {tab === 'workouts' && <Workouts />}
+        {tab === 'home' && <Home go={go} targets={me?.targets} day={foodDay} program={program} logs={logs} weight={me?.weight_kg} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} />}
+        {tab === 'workouts' && (
+          <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram}
+            canEdit={canEdit} onChanged={workoutChanged} />
+        )}
         {tab === 'profile' && <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} />}
       </main>
       <nav className="nav">
@@ -279,6 +244,7 @@ export default function App() {
           ))}
         </div>
       </nav>
+      {toast && <div className="toast" role="status">{toast}</div>}
     </div>
   )
 }

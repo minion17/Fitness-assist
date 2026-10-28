@@ -4,7 +4,7 @@ import App from './App'
 
 afterEach(cleanup)
 
-test('bottom navigation opens all four sections', () => {
+test('bottom navigation opens all four sections', async () => {
   window.scrollTo = () => {}
   render(<App />)
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Привет, Гость')
@@ -13,11 +13,15 @@ test('bottom navigation opens all four sections', () => {
 
   nav('Питание')
   expect(screen.getByText('КБЖУ за сегодня')).toBeTruthy()
-  expect(screen.getByText('+ Добавить приём пищи')).toBeTruthy()
+  expect(screen.getByText('Куриная грудка')).toBeTruthy() // demo diary outside Telegram
+  expect(screen.getByText(/Демо-режим: чтобы вести дневник/)).toBeTruthy()
 
   nav('Тренировки')
-  expect(screen.getByText('Упражнения')).toBeTruthy()
+  // API is unreachable in tests -> demo program list
+  fireEvent.click(await screen.findByRole('button', { name: 'Выбрать' }))
+  expect(screen.getByText('Следующая тренировка')).toBeTruthy()
   expect(screen.getByText('История')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Сменить программу' }))
 
   nav('Профиль')
   expect(screen.getByText('Параметры тела')).toBeTruthy()

@@ -22,6 +22,8 @@ test('bottom navigation opens all four sections', () => {
   nav('Профиль')
   expect(screen.getByText('Параметры тела')).toBeTruthy()
   expect(screen.getByText('Демо-режим')).toBeTruthy()
+  expect(screen.getByText('Уровень 1')).toBeTruthy()
+  expect(screen.getByText('0 / 100 XP до уровня 2')).toBeTruthy()
 
   nav('Главная')
   expect(screen.getByText('Тренировка дня')).toBeTruthy()

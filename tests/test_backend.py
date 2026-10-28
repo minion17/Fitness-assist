@@ -80,3 +80,41 @@ def test_bot_start_button_opens_webapp():
     btn = open_app_keyboard().inline_keyboard[0][0]
     assert btn.text == "Открыть Fitness Assistant"
     assert btn.web_app.url == "https://example.test"
+
+
+def test_level_progress():
+    from backend.core.gamification import level_progress
+
+    assert level_progress(0) == {"xp": 0, "level": 1, "level_xp": 0, "level_xp_needed": 100}
+    assert level_progress(99)["level"] == 1
+    assert level_progress(100) == {"xp": 100, "level": 2, "level_xp": 0, "level_xp_needed": 150}
+    assert level_progress(260)["level"] == 3  # 100 + 150 = 250
+
+
+def test_award_xp_is_idempotent(client):
+    import uuid
+
+    from backend.core.gamification import level_progress
+    from backend.database.db import SessionLocal
+    from backend.database.models import User
+    from backend.database.rewards import award_xp
+
+    headers = {"Authorization": f"tma {make_init_data(USER)}"}
+    before = client.post("/api/auth", headers=headers).json()
+    key = f"workout:{uuid.uuid4()}"
+
+    async def run():
+        async with SessionLocal() as s:
+            granted = [await award_xp(s, before["id"], "workout_completed", key) for _ in range(3)]
+            with pytest.raises(ValueError):
+                await award_xp(s, before["id"], "no_such_rule", "x:1")
+        async with SessionLocal() as s:
+            user = await s.get(User, before["id"])
+        return granted, user
+
+    # run on the app's event loop: the connection pool is bound to it
+    granted, user = client.portal.call(run)
+    assert granted == [50, 0, 0]
+    assert user.xp == before["progress"]["xp"] + 50
+    assert user.level == level_progress(user.xp)["level"]
+    assert client.post("/api/auth", headers=headers).json()["progress"]["xp"] == user.xp

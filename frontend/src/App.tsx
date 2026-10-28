@@ -147,7 +147,23 @@ function Workouts() {
   )
 }
 
-function Profile({ synced }: { synced: string }) {
+type Progress = { xp: number; level: number; level_xp: number; level_xp_needed: number }
+const NEW_USER: Progress = { xp: 0, level: 1, level_xp: 0, level_xp_needed: 100 }
+
+function LevelCard({ p }: { p: Progress }) {
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Уровень {p.level}</h2>
+        <span className="sub">{p.xp} XP всего</span>
+      </div>
+      <Bar value={p.level_xp} goal={p.level_xp_needed} />
+      <span className="sub">{p.level_xp} / {p.level_xp_needed} XP до уровня {p.level + 1}</span>
+    </section>
+  )
+}
+
+function Profile({ synced, progress }: { synced: string; progress: Progress }) {
   return (
     <>
       <section className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
@@ -158,6 +174,7 @@ function Profile({ synced }: { synced: string }) {
           <div className="sub">{synced}</div>
         </div>
       </section>
+      <LevelCard p={progress} />
       <div className="grid2">
         <section className="card"><span className="sub">Возраст</span><div className="stat">{profile.age}<small>лет</small></div></section>
         <section className="card"><span className="sub">Рост</span><div className="stat">{profile.height}<small>см</small></div></section>
@@ -179,11 +196,16 @@ function Profile({ synced }: { synced: string }) {
 export default function App() {
   const [tab, setTab] = useState<Tab>('home')
   const [synced, setSynced] = useState('Демо-режим')
+  const [xp, setXp] = useState<Progress>(NEW_USER)
 
   useEffect(() => {
     initTelegram()
-    api<{ id: number }>('/api/auth', { method: 'POST' })
-      .then((u) => u && setSynced('Аккаунт подключён'))
+    api<{ id: number; progress: Progress }>('/api/auth', { method: 'POST' })
+      .then((u) => {
+        if (!u) return
+        setSynced('Аккаунт подключён')
+        setXp(u.progress)
+      })
       .catch(() => setSynced('Сервер недоступен'))
   }, [])
 
@@ -199,7 +221,7 @@ export default function App() {
         {tab === 'home' && <Home go={go} />}
         {tab === 'food' && <Food />}
         {tab === 'workouts' && <Workouts />}
-        {tab === 'profile' && <Profile synced={synced} />}
+        {tab === 'profile' && <Profile synced={synced} progress={xp} />}
       </main>
       <nav className="nav">
         <div className="nav-inner">

@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import select, text
 
 from backend.core.config import settings
+from backend.core.gamification import level_progress
 from backend.core.telegram_auth import InitDataError, validate_init_data
 from backend.database.db import AsyncSession, get_session, init_db
 from backend.database.models import User
@@ -63,7 +64,13 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
     user.language_code = tg.get("language_code")
     await session.commit()
     await session.refresh(user)
-    return {"id": user.id, "telegram_id": user.telegram_id, "first_name": user.first_name, "username": user.username}
+    return {
+        "id": user.id,
+        "telegram_id": user.telegram_id,
+        "first_name": user.first_name,
+        "username": user.username,
+        "progress": level_progress(user.xp),
+    }
 
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.

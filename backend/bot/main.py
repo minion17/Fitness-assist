@@ -12,7 +12,7 @@ from aiogram.types import (
     WebAppInfo,
 )
 
-from backend.core.config import settings
+from backend.core.config import Settings, settings
 
 log = logging.getLogger("bot")
 router = Router()
@@ -24,16 +24,29 @@ WELCOME = (
 )
 
 
-def open_app_keyboard() -> InlineKeyboardMarkup:
+def current_webapp_url() -> str:
+    # Re-read .env each time: the tunnel script rewrites WEBAPP_URL when the tunnel reconnects.
+    return Settings().webapp_url
+
+
+def open_app_keyboard(url: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Открыть Fitness Assistant", web_app=WebAppInfo(url=settings.webapp_url))]]
+        inline_keyboard=[[InlineKeyboardButton(text="Открыть Fitness Assistant", web_app=WebAppInfo(url=url))]]
     )
 
 
 @router.message(CommandStart())
 async def start(message: Message) -> None:
+    url = current_webapp_url()
     name = message.from_user.first_name if message.from_user else "друг"
-    await message.answer(WELCOME.format(name=name), reply_markup=open_app_keyboard(), parse_mode="HTML")
+    await message.answer(WELCOME.format(name=name), reply_markup=open_app_keyboard(url), parse_mode="HTML")
+    if url.startswith("https://"):
+        try:  # keep this chat's menu button on the current address too
+            await message.bot.set_chat_menu_button(
+                chat_id=message.chat.id, menu_button=MenuButtonWebApp(text="Открыть", web_app=WebAppInfo(url=url))
+            )
+        except Exception:
+            log.warning("could not update menu button", exc_info=True)
 
 
 @router.error()

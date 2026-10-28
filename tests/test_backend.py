@@ -75,9 +75,9 @@ def test_auth_rejects_bad_init_data(client):
 
 
 def test_bot_start_button_opens_webapp():
-    from backend.bot.main import open_app_keyboard
+    from backend.bot.main import current_webapp_url, open_app_keyboard
 
-    btn = open_app_keyboard().inline_keyboard[0][0]
+    btn = open_app_keyboard(current_webapp_url()).inline_keyboard[0][0]
     assert btn.text == "Открыть Fitness Assistant"
     assert btn.web_app.url == "https://example.test"
 

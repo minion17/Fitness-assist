@@ -66,10 +66,10 @@ C:\pgsql\bin\pg_ctl.exe -D C:\pgsql\data -l C:\pgsql\log.txt start
 cd $HOME\Fitness-assist
 .venv\Scripts\python -m uvicorn backend.api.main:app --port 8000
 
-# 3. Туннель (окно не закрывать) → скопировать https://….lhr.life в WEBAPP_URL в .env
-ssh -R 80:localhost:8000 nokey@localhost.run
+# 3. Туннель (окно не закрывать): сам переподключается и сам пишет адрес в WEBAPP_URL
+powershell -ExecutionPolicy Bypass -File $HOME\Fitness-assist\scripts\tunnel.ps1
 
-# 4. Бот (окно не закрывать; запускать после правки WEBAPP_URL)
+# 4. Бот (окно не закрывать). Адрес берёт из .env при каждом /start — после смены туннеля просто отправьте /start
 cd $HOME\Fitness-assist
 .venv\Scripts\python -m backend.bot.main
 ```

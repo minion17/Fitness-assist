@@ -22,10 +22,14 @@ if (-not (Test-Path $py)) { throw "Нет .venv — сначала запуст�
 if (-not (Test-Path (Join-Path $root 'frontend\dist\index.html'))) { throw "Интерфейс не собран — сначала запустите update.bat" }
 
 # 1. Database
-& "$pgBin\pg_ctl.exe" -D $pgData status *> $null
+& "$pgBin\pg_ctl.exe" -D $pgData status | Out-Null  # status exits at once, no child process
 if ($LASTEXITCODE -ne 0) {
     Write-Host "База данных: запускаю..."
-    & "$pgBin\pg_ctl.exe" -D $pgData -l C:\pgsql\log.txt -w start | Out-Null
+    # Not `& pg_ctl ... | Out-Null`: postgres inherits the pipe and the script would wait forever.
+    $p = Start-Process "$pgBin\pg_ctl.exe" -ArgumentList '-D', $pgData, '-l', 'C:\pgsql\log.txt', '-w', 'start' `
+        -WindowStyle Hidden -PassThru
+    $p.WaitForExit()
+    if ($p.ExitCode -ne 0) { throw "База данных не запустилась, см. C:\pgsql\log.txt" }
 } else { Write-Host "База данных: уже работает" }
 
 # 2. API server + Mini App

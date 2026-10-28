@@ -52,6 +52,32 @@ cloudflared tunnel --url http://localhost:8000
 
 Разработка интерфейса с горячей перезагрузкой: `cd frontend && npm run dev` (порт 5173, `/api` проксируется на 8000).
 
+## Запуск на Windows (PowerShell, без Docker)
+
+Разовая подготовка уже описана выше; PostgreSQL — из zip-архива в `C:\pgsql`, база `fitness`, вход без пароля (`DATABASE_URL=postgresql+asyncpg://postgres@localhost:5432/fitness`).
+
+Каждый раз после перезагрузки компьютера — 4 окна PowerShell:
+
+```powershell
+# 1. База
+C:\pgsql\bin\pg_ctl.exe -D C:\pgsql\data -l C:\pgsql\log.txt start
+
+# 2. Сервер (окно не закрывать)
+cd $HOME\Fitness-assist
+.venv\Scripts\python -m uvicorn backend.api.main:app --port 8000
+
+# 3. Туннель (окно не закрывать) → скопировать https://….lhr.life в WEBAPP_URL в .env
+ssh -R 80:localhost:8000 nokey@localhost.run
+
+# 4. Бот (окно не закрывать; запускать после правки WEBAPP_URL)
+cd $HOME\Fitness-assist
+.venv\Scripts\python -m backend.bot.main
+```
+
+Cloudflare-туннель в этой сети не работает (заблокирован порт 7844), поэтому localhost.run. Запасной вариант: `ssh -p 443 -R0:localhost:8000 a.pinggy.io`.
+
+Если изменился код интерфейса: `cd frontend; npm.cmd run build; cd ..` и перезапустить сервер.
+
 ## Тесты
 
 ```bash

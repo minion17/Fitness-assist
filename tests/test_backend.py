@@ -161,3 +161,94 @@ def test_profile_validation(client, bad):
 
 def test_profile_requires_telegram(client):
     assert client.put("/api/profile", json=PROFILE).status_code == 401
+
+
+# ---- merged: reference data, food diary, workouts ----
+
+
+def new_user_headers():
+    import random
+
+    return {"Authorization": f"tma {make_init_data({**USER, 'id': random.randint(3 * 10**9, 4 * 10**9)})}"}
+
+
+@pytest.fixture(scope="module")
+def seeded(client):
+    from backend.database.db import SessionLocal
+    from backend.database.models import Product
+    from backend.seed.import_data import run
+
+    async def seed():
+        first = await run()
+        second = await run()
+        async with SessionLocal() as s:
+            for name, kcal in [("Тестовый творог 5%", 121), ("Тестовый творог обезжиренный", 71)]:
+                from sqlalchemy import select
+
+                if not await s.scalar(select(Product.id).where(Product.name == name)):
+                    s.add(Product(name=name, brand="Тест", kcal=kcal, protein_g=17, fat_g=5, carbs_g=3))
+            await s.commit()
+        return first, second
+
+    return client.portal.call(seed)
+
+
+def test_import_is_idempotent(seeded):
+    _, second = seeded
+    assert second == {"products": 0, "exercises": 0, "programs": 0}
+
+
+def test_programs_and_exercises(client, seeded):
+    programs = client.get("/api/programs").json()
+    ppl = next(p for p in programs if p["name"] == "Тяни-Толкай-Ноги (PPL)")
+    assert [d["day_order"] for d in ppl["days"]] == [1, 2, 3]
+    assert ppl["days"][0]["exercises"][0]["name"] == "Жим штанги лежа"
+    assert len(client.get("/api/exercises").json()) >= 29
+
+
+def test_product_search_escapes_wildcards(client, seeded):
+    names = [p["name"] for p in client.get("/api/products/search", params={"q": "творог 5%"}).json()]
+    assert names == ["Тестовый творог 5%"]
+    assert len(client.get("/api/products/search", params={"q": "тестовый творог"}).json()) == 2
+    assert client.get("/api/products/search", params={"q": "т"}).status_code == 422
+
+
+def test_food_diary_totals_and_xp(client, seeded):
+    h = new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "творог 5%"}).json()[0]["id"]
+
+    first = client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "breakfast"})
+    assert first.status_code == 200
+    assert first.json()["kcal"] == 242 and first.json()["xp_awarded"] == 10
+    second = client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 50, "meal_type": "breakfast"})
+    assert second.json()["xp_awarded"] == 0  # same meal type today: no extra XP
+
+    day = client.get("/api/food-logs", headers=h).json()
+    assert len(day["items"]) == 2
+    assert day["totals"]["kcal"] == 242 + 60  # 121 * 0.5 = 60.5 -> 60
+
+    assert client.post("/api/food-logs", headers=h, json={"product_id": 10**9, "amount_g": 100, "meal_type": "lunch"}).status_code == 404
+    assert client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 0, "meal_type": "lunch"}).status_code == 422
+    assert client.post("/api/food-logs", json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"}).status_code == 401
+
+
+def test_workout_flow(client, seeded):
+    h, other = new_user_headers(), new_user_headers()
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+
+    w = client.post("/api/workout-logs", headers=h, json={"program_day_id": day_id, "title": "День 1"}).json()
+    assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).status_code == 400  # empty
+
+    s = {"exercise_id": ex_id, "set_number": 1, "reps": 8, "weight_kg": 60}
+    assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=other, json=s).status_code == 404  # not yours
+    assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json=s).status_code == 200
+
+    assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 50
+    assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 0
+    assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json=s).status_code == 409
+
+    logs = client.get("/api/workout-logs", headers=h).json()
+    assert logs[0]["sets"] == 1 and logs[0]["completed_at"]
+    assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == 50
+    assert client.post("/api/workout-logs", headers=h, json={"program_day_id": 10**9}).status_code == 404

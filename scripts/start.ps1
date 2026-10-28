@@ -33,6 +33,11 @@ if ($LASTEXITCODE -ne 0) {
     if ($p.ExitCode -ne 0) { throw "База данных не запустилась, см. C:\pgsql\log.txt" }
 } else { Write-Host "База данных: уже работает" }
 
+# 1b. Reference data from content/ (idempotent: only new rows are added)
+Write-Host "Данные (продукты, упражнения, программы):"
+& $py -m backend.seed.import_data
+if ($LASTEXITCODE -ne 0) { Write-Host "  Импорт не удался — см. сообщение выше. Остальное запускаю." -ForegroundColor Yellow }
+
 # 2. API server + Mini App
 if (Running 'uvicorn backend.api.main') { Write-Host "Сервер: уже работает" }
 else {

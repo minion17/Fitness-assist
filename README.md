@@ -86,6 +86,28 @@ cd frontend && npm test
 
 При первом входе из Telegram Mini App показывает анкету: пол, год рождения, рост, вес, цель, уровень активности. Ответы хранятся в таблице `profiles`. По ним `backend/core/nutrition.py` считает дневную норму (формула Миффлина — Сан Жеора × коэффициент активности; −15 % при снижении веса, +10 % при наборе; белок 1,6–2 г/кг, жиры 0,9 г/кг, остальное — углеводы). Норма подставляется в карточки КБЖУ; съеденное пока демо — появится вместе с дневником питания.
 
+## Данные и журналы
+
+Справочники лежат в `content/` в JSON и загружаются в базу командой `python -m backend.seed.import_data` (`start.bat` делает это сам при каждом запуске). Повторный импорт безопасен: существующие записи (по названию) пропускаются.
+
+| Файл | Поля |
+|---|---|
+| `content/products/products.json` | `name`, `brand`, `barcode`, `category`, `kcal`, `protein_g`, `fat_g`, `carbs_g` (на 100 г) |
+| `content/exercises/exercises.json` | `name`, `muscle_groups[]`, `equipment[]`, `difficulty`, `description`, `is_bodyweight` |
+| `content/programs/programs.json` | `name`, `goal`, `level`, `days_per_week`, `description`, `days[]` → `day_name`, `day_order`, `exercises[]` → `name` (из exercises.json), `sets`, `reps`, `rest_seconds`, `notes` |
+
+API:
+
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/api/products/search?q=` | Поиск продуктов (от 2 символов, без учёта регистра) |
+| GET | `/api/exercises`, `/api/programs` | Упражнения; программы с днями и упражнениями |
+| POST/GET | `/api/food-logs` | Добавить запись `{product_id, amount_g, meal_type}` / записи и итоги КБЖУ за день (`?day=YYYY-MM-DD`) |
+| POST | `/api/workout-logs` → `/{id}/sets` → `/{id}/complete` | Начать тренировку, записать подходы, завершить |
+| GET | `/api/workout-logs` | История тренировок |
+
+XP: приём пищи — 10 XP один раз на тип приёма в день; тренировка — 50 XP, только если есть хотя бы один подход.
+
 ## Геймификация (заготовка)
 
 - `users.xp`, `users.level` — общий опыт и уровень.
@@ -93,8 +115,8 @@ cd frontend && npm test
 - `backend/database/rewards.py` — `award_xp(session, user_id, event_type, event_key)`. Таблица `xp_events` с уникальным ключом `(user_id, event_key)` не даёт начислить XP дважды за одно событие, даже при повторах и параллельных запросах. `event_key` — идентификатор источника, например `meal:123`.
 - `/api/auth` возвращает `progress`, профиль показывает уровень и прогресс-бар.
 
-Начисление пока нигде не вызывается — подключим после сохранения питания и тренировок.
+Начисляется за дневник питания и завершённые тренировки (см. выше).
 
 ## Дальше
 
-Дневник питания → тренировочные программы → AI-интеграции.
+Экраны «Питание» и «Тренировки» на реальных данных (backend готов) → AI-интеграции.

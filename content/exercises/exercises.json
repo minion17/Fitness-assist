@@ -1,0 +1,392 @@
+[
+  {
+    "name": "Жим штанги лежа",
+    "muscle_groups": [
+      "Грудь",
+      "Трицепс",
+      "Передняя дельта"
+    ],
+    "equipment": [
+      "Штанга",
+      "Скамья"
+    ],
+    "difficulty": "intermediate",
+    "description": "Лопатки сведены, ноги уперты в пол.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Приседания со штангой",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы",
+      "Кор"
+    ],
+    "equipment": [
+      "Штанга",
+      "Стойки"
+    ],
+    "difficulty": "intermediate",
+    "description": "Гриф на трапециях, колени смотрят в сторону носков.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Становая тяга",
+    "muscle_groups": [
+      "Разгибатели спины",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "advanced",
+    "description": "Спина нейтральна, движение начинается с отталкивания ногами.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Подтягивания широким хватом",
+    "muscle_groups": [
+      "Широчайшие",
+      "Бицепс",
+      "Задняя дельта"
+    ],
+    "equipment": [
+      "Турник"
+    ],
+    "difficulty": "intermediate",
+    "description": "Тяга грудью к перекладине.",
+    "is_bodyweight": true
+  },
+  {
+    "name": "Тяга штанги в наклоне",
+    "muscle_groups": [
+      "Широчайшие",
+      "Ромбовидные",
+      "Бицепс"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "intermediate",
+    "description": "Корпус под углом 45 градусов, спина прямая.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Армейский жим",
+    "muscle_groups": [
+      "Дельты",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Штанга",
+      "Скамья"
+    ],
+    "difficulty": "intermediate",
+    "description": "Жим штанги стоя или сидя, без прогиба в пояснице.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Отжимания от пола",
+    "muscle_groups": [
+      "Грудь",
+      "Трицепс",
+      "Кор"
+    ],
+    "equipment": [
+      "Собственный вес"
+    ],
+    "difficulty": "beginner",
+    "description": "Тело — прямая линия, локти под углом 45°.",
+    "is_bodyweight": true
+  },
+  {
+    "name": "Выпады с гантелями",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": "Шаг вперёд, колено задней ноги почти касается пола.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Румынская тяга",
+    "muscle_groups": [
+      "Бицепс бедра",
+      "Ягодицы",
+      "Разгибатели спины"
+    ],
+    "equipment": [
+      "Штанга",
+      "Гантели"
+    ],
+    "difficulty": "intermediate",
+    "description": "Отведение таза назад, гриф скользит вдоль ног.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Жим ногами в тренажёре",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы"
+    ],
+    "equipment": [
+      "Тренажёр"
+    ],
+    "difficulty": "beginner",
+    "description": "Стопы на ширине плеч, колени не выпрямляются до конца.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Разгибание ног в тренажёре",
+    "muscle_groups": [
+      "Квадрицепс"
+    ],
+    "equipment": [
+      "Тренажёр"
+    ],
+    "difficulty": "beginner",
+    "description": "Плавное движение без рывков, задержка в верхней точке.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Сгибание ног в тренажёре",
+    "muscle_groups": [
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Тренажёр"
+    ],
+    "difficulty": "beginner",
+    "description": "Плавное сгибание без отрыва таза от скамьи.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Махи гантелями в стороны",
+    "muscle_groups": [
+      "Средняя дельта"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": "Локти слегка согнуты, мизинец выше большого пальца.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Подъём штанги на бицепс",
+    "muscle_groups": [
+      "Бицепс"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "beginner",
+    "description": "Локти прижаты к корпусу, подъём без раскачки.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Французский жим",
+    "muscle_groups": [
+      "Трицепс"
+    ],
+    "equipment": [
+      "Штанга",
+      "Скамья"
+    ],
+    "difficulty": "intermediate",
+    "description": "Локти зафиксированы, сгибание только в локтевом суставе.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Разгибание рук на блоке",
+    "muscle_groups": [
+      "Трицепс"
+    ],
+    "equipment": [
+      "Тренажёр"
+    ],
+    "difficulty": "beginner",
+    "description": "Локти прижаты к бокам, разгибание до полного выпрямления.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Отжимания на брусьях",
+    "muscle_groups": [
+      "Грудь",
+      "Трицепс",
+      "Передняя дельта"
+    ],
+    "equipment": [
+      "Брусья"
+    ],
+    "difficulty": "intermediate",
+    "description": "Корпус слегка наклонён вперёд для акцента на грудь.",
+    "is_bodyweight": true
+  },
+  {
+    "name": "Тяга гантели в наклоне",
+    "muscle_groups": [
+      "Широчайшие",
+      "Ромбовидные"
+    ],
+    "equipment": [
+      "Гантель",
+      "Скамья"
+    ],
+    "difficulty": "beginner",
+    "description": "Опора коленом и рукой о скамью, спина прямая.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Тяга верхнего блока к груди",
+    "muscle_groups": [
+      "Широчайшие",
+      "Бицепс"
+    ],
+    "equipment": [
+      "Тренажёр"
+    ],
+    "difficulty": "beginner",
+    "description": "Корпус слегка отклонён назад, тяга к верхней части груди.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Молотки с гантелями",
+    "muscle_groups": [
+      "Бицепс",
+      "Брахиалис"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": "Нейтральный хват, локти прижаты к корпусу.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Жим гантелей сидя",
+    "muscle_groups": [
+      "Дельты",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гантели",
+      "Скамья"
+    ],
+    "difficulty": "beginner",
+    "description": "Спина прижата к спинке, локти под углом 90°.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Гиперэкстензия",
+    "muscle_groups": [
+      "Разгибатели спины",
+      "Ягодицы"
+    ],
+    "equipment": [
+      "Римский стул"
+    ],
+    "difficulty": "beginner",
+    "description": "Плавное опускание и подъём до прямой линии с ногами.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Ягодичный мост",
+    "muscle_groups": [
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Штанга",
+      "Скамья"
+    ],
+    "difficulty": "beginner",
+    "description": "Толчок пятками, пиковое сокращение ягодиц.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Планка",
+    "muscle_groups": [
+      "Кор",
+      "Плечи"
+    ],
+    "equipment": [
+      "Собственный вес",
+      "Коврик"
+    ],
+    "difficulty": "beginner",
+    "description": "Тело образует прямую линию, не проваливать поясницу.",
+    "is_bodyweight": true
+  },
+  {
+    "name": "Скручивания на полу",
+    "muscle_groups": [
+      "Прямая мышца живота"
+    ],
+    "equipment": [
+      "Собственный вес",
+      "Коврик"
+    ],
+    "difficulty": "beginner",
+    "description": "Поясница прижата к полу, отрыв только лопаток.",
+    "is_bodyweight": true
+  },
+  {
+    "name": "Подъём ног в висе",
+    "muscle_groups": [
+      "Нижняя часть пресса",
+      "Подвздошно-поясничная"
+    ],
+    "equipment": [
+      "Турник"
+    ],
+    "difficulty": "advanced",
+    "description": "Подъём без раскачки, до параллели или выше.",
+    "is_bodyweight": true
+  },
+  {
+    "name": "Болгарские сплит-приседания",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы"
+    ],
+    "equipment": [
+      "Гантели",
+      "Скамья"
+    ],
+    "difficulty": "intermediate",
+    "description": "Задняя нога на скамье, корпус слегка наклонён вперёд.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Берпи",
+    "muscle_groups": [
+      "Все тело",
+      "Сердечно-сосудистая система"
+    ],
+    "equipment": [
+      "Собственный вес"
+    ],
+    "difficulty": "advanced",
+    "description": "Присед, упор лёжа, отжимание, прыжок вверх.",
+    "is_bodyweight": true
+  },
+  {
+    "name": "Скакалка",
+    "muscle_groups": [
+      "Икры",
+      "Предплечья",
+      "Сердечно-сосудистая система"
+    ],
+    "equipment": [
+      "Скакалка"
+    ],
+    "difficulty": "beginner",
+    "description": "Прыжки на носках, вращение только кистями.",
+    "is_bodyweight": false
+  }
+]

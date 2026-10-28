@@ -28,6 +28,7 @@ if ($LASTEXITCODE -ne 0) {
     # Not `& pg_ctl ... | Out-Null`: postgres inherits the pipe and the script would wait forever.
     $p = Start-Process "$pgBin\pg_ctl.exe" -ArgumentList '-D', $pgData, '-l', 'C:\pgsql\log.txt', '-w', 'start' `
         -WindowStyle Hidden -PassThru
+    $null = $p.Handle  # Windows PowerShell 5 quirk: without this ExitCode stays empty
     $p.WaitForExit()
     if ($p.ExitCode -ne 0) { throw "База данных не запустилась, см. C:\pgsql\log.txt" }
 } else { Write-Host "База данных: уже работает" }

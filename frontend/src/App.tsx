@@ -1,12 +1,15 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
 import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
+import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
+import Reward from './Reward'
+import { ACCENTS, THEMES, useTheme, type ThemePref } from './theme'
 import Questionnaire from './Questionnaire'
-import { GOALS, YEAR, type ProfileData, type Recommendation, type Targets } from './profile'
+import { GOALS, YEAR, type ProfileData, type Recommendation } from './profile'
 import { api, initTelegram, postJson, publicGet, tg, tgUser } from './telegram'
-import { completedThisWeek, nextDay, weightTrend, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
+import type { FoodDay, MealType, Measurement, Program, WorkoutLog } from './types'
 import { Bar } from './ui'
 import Workouts from './Workouts'
 
@@ -28,52 +31,6 @@ const TABS: { id: Tab; label: string }[] = [
 const name = tgUser?.first_name ?? 'Гость'
 const PROGRAM_KEY = 'fa.programId'
 
-function Home({ go, targets, day, program, logs, measurements, weight, aiEnabled }: {
-  go: (t: Tab) => void; targets?: Targets; day: FoodDay; program?: Program; logs: WorkoutLog[]
-  measurements: Measurement[]; weight?: number; aiEnabled: boolean
-}) {
-  const trend = weightTrend(measurements)
-  const goal = targets?.calories ?? 2000
-  const next = program && nextDay(program, logs)
-  return (
-    <>
-      <div>
-        <p className="hello">Сегодня</p>
-        <h1>Привет, {name}</h1>
-      </div>
-      <section className="card">
-        <div className="card-head"><h2>Питание</h2><button className="link" onClick={() => go('food')}>Открыть</button></div>
-        <div className="stat">{Math.round(day.totals.kcal)}<small>/ {goal} ккал</small></div>
-        <Bar value={day.totals.kcal} goal={goal} />
-      </section>
-      <section className="card">
-        <div className="card-head"><h2>Тренировка дня</h2><button className="link" onClick={() => go('workouts')}>Открыть</button></div>
-        {next ? (
-          <>
-            <div className="row-title">{next.day_name}</div>
-            <div className="sub">{next.exercises.length} упражнения · {program.name}</div>
-          </>
-        ) : <div className="sub">Выберите программу тренировок</div>}
-      </section>
-      <div className="grid2">
-        <section className="card">
-          <span className="sub">Вес</span>
-          <div className="stat">{trend?.latest ?? weight ?? profile.weight}<small>кг</small></div>
-          {trend?.delta != null
-            ? <span className={trend.delta <= 0 ? 'sub pos' : 'sub'}>{trend.delta > 0 ? '+' : ''}{trend.delta} кг за месяц</span>
-            : <button className="link" style={{ textAlign: 'left' }} onClick={() => go('profile')}>Записать вес</button>}
-        </section>
-        <section className="card">
-          <span className="sub">Тренировки</span>
-          <div className="stat">{completedThisWeek(logs)}<small>/ {program?.days_per_week ?? 3}</small></div>
-          <Bar value={completedThisWeek(logs)} goal={program?.days_per_week ?? 3} />
-        </section>
-      </div>
-      {aiEnabled && <AiSummary />}
-    </>
-  )
-}
-
 type Progress = { xp: number; level: number; level_xp: number; level_xp_needed: number }
 const NEW_USER: Progress = { xp: 0, level: 1, level_xp: 0, level_xp_needed: 100 }
 
@@ -90,8 +47,29 @@ function LevelCard({ p }: { p: Progress }) {
   )
 }
 
-function Profile({ synced, progress, data, onEdit, body }: {
+function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
+  return (
+    <section className="card">
+      <h2>Оформление</h2>
+      <div className="seg">
+        {(Object.keys(THEMES) as ThemePref[]).map((p) => (
+          <button key={p} aria-pressed={t.pref === p} onClick={() => t.setPref(p)}>{THEMES[p]}</button>
+        ))}
+      </div>
+      {t.theme !== 'green' && (
+        <div className="swatches" role="group" aria-label="Акцентный цвет">
+          {ACCENTS.map((a) => (
+            <button key={a} aria-label={`Акцент ${a}`} aria-pressed={t.accent === a} style={{ background: a }} onClick={() => t.setAccent(a)} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function Profile({ synced, progress, data, onEdit, body, theme }: {
   synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void; body: React.ReactNode
+  theme: ReturnType<typeof useTheme>
 }) {
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
@@ -125,6 +103,7 @@ function Profile({ synced, progress, data, onEdit, body }: {
         </section>
       )}
       <button className="btn btn-ghost" onClick={onEdit}>{data ? 'Изменить анкету' : 'Заполнить анкету'}</button>
+      <ThemeCard t={theme} />
       {body}
     </>
   )
@@ -148,14 +127,29 @@ export default function App() {
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [aiEnabled, setAiEnabled] = useState(false)
   const [recommended, setRecommended] = useState<Recommendation | null>(null)
+  const [water, setWater] = useState<Water>({ ml: 0, goal_ml: 2000 })
+  const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>({ streak: 0, days: [] })
+  const [foodIntent, setFoodIntent] = useState<FoodIntent | null>(null)
+  const [reward, setReward] = useState(false)
+  const theme = useTheme()
+  // Level known before the latest refresh; null until the account is loaded, so the first load never celebrates.
+  const knownLevel = useRef<number | null>(null)
+  useEffect(() => {
+    if (knownLevel.current !== null && xp.level > knownLevel.current) setReward(true)
+    if (knownLevel.current !== null) knownLevel.current = xp.level
+  }, [xp.level])
 
   const refreshJournal = useCallback(async () => {
-    const [day, ws, ms, u] = await Promise.all([
+    const [day, ws, ms, u, wt, wk] = await Promise.all([
       api<FoodDay>('/api/food-logs'),
       api<WorkoutLog[]>('/api/workout-logs'),
       api<Measurement[]>('/api/measurements'),
       api<{ progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null }>('/api/auth', { method: 'POST' }),
+      api<Water>('/api/water'),
+      api<{ streak: number; days: WeekDay[] }>('/api/week'),
     ])
+    if (wt) setWater(wt)
+    if (wk) setWeek(wk)
     if (day) setFoodDay(day)
     if (ws) setLogs(ws)
     if (ms) setMeasurements(ms)
@@ -169,6 +163,7 @@ export default function App() {
         if (!u) return
         setSynced('Аккаунт подключён')
         setCanEdit(true)
+        knownLevel.current = u.progress.level
         setXp(u.progress)
         setMe(u.profile)
         setRecommended(u.recommended_program)
@@ -222,6 +217,22 @@ export default function App() {
     if (xpAwarded) flash(`Тренировка завершена · +${xpAwarded} XP`)
   }
 
+  async function changeWater(delta: number) {
+    tg?.HapticFeedback?.impactOccurred?.('light')
+    const r = await api<Water & { xp_awarded: number }>('/api/water', postJson({ delta_ml: delta }))
+    if (!r) { // demo mode: local only
+      setWater((w) => ({ ...w, ml: Math.max(0, w.ml + delta) }))
+      return
+    }
+    setWater(r)
+    if (r.xp_awarded) {
+      flash(`Норма воды · +${r.xp_awarded} XP`)
+      await refreshJournal()
+    } else {
+      api<{ streak: number; days: WeekDay[] }>('/api/week').then((wk) => wk && setWeek(wk)).catch(() => {})
+    }
+  }
+
   function selectProgram(id: number | null) {
     setProgramId(id)
     try { if (id) localStorage.setItem(PROGRAM_KEY, String(id)); else localStorage.removeItem(PROGRAM_KEY) } catch { /* private mode */ }
@@ -231,6 +242,7 @@ export default function App() {
 
   const go = (t: Tab) => {
     tg?.HapticFeedback?.selectionChanged()
+    setFoodIntent(null)
     setTab(t)
     window.scrollTo(0, 0)
   }
@@ -259,14 +271,19 @@ export default function App() {
   return (
     <div className="app">
       <main className="screen" key={tab}>
-        {tab === 'home' && <Home go={go} targets={me?.targets} day={foodDay} program={program} logs={logs} measurements={measurements} weight={me?.weight_kg} aiEnabled={aiEnabled} />}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} />}
+        {tab === 'home' && (
+          <Home name={name} level={xp.level} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
+            water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
+            onFood={(i) => { go('food'); setFoodIntent(i) }} onWorkouts={() => go('workouts')} onWater={changeWater}
+            summary={aiEnabled && <AiSummary />} />
+        )}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} />
         )}
         {tab === 'profile' && (
-          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)}
+          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
         )}
       </main>
@@ -281,6 +298,7 @@ export default function App() {
         </div>
       </nav>
       {toast && <div className="toast" role="status">{toast}</div>}
+      {reward && <Reward level={xp.level} levelXp={xp.level_xp} needed={xp.level_xp_needed} streak={week.streak} onClose={() => setReward(false)} />}
     </div>
   )
 }

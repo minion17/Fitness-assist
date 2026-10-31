@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Targets } from './profile'
 import AiMeal from './AiMeal'
+import type { FoodIntent } from './Home'
 import { api, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type MealType, type Product } from './types'
 import { Bar, Ring, Sheet } from './ui'
@@ -14,7 +15,7 @@ const MACROS = [
 
 const r1 = (n: number) => Math.round(n * 10) / 10
 
-export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled = false, onAiDone = async () => {} }: {
+export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled = false, onAiDone = async () => {}, intent = null }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
@@ -22,11 +23,12 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
   onDelete: (id: number) => Promise<void>
   aiEnabled?: boolean
   onAiDone?: (xp: number) => Promise<void>
+  intent?: FoodIntent | null // shortcut from Home: open the matching sheet right away
 }) {
   const goals = targets ?? DEFAULT_GOALS
-  const [adding, setAdding] = useState<MealType | null>(null)
+  const [adding, setAdding] = useState<MealType | null>(intent === 'search' ? mealNow() : null)
   const [confirm, setConfirm] = useState<number | null>(null)
-  const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(null)
+  const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
   const t = day.totals
 
   return (

@@ -1,7 +1,4 @@
-"""Reward rules and XP/level math. No DB access here — see backend/database/rewards.py.
-
-XP is not awarded anywhere yet: it will be wired in once meals and workouts are saved.
-"""
+"""Reward rules and XP/level math. No DB access here — see backend/database/rewards.py."""
 
 # event_type -> XP. Add rules here; unknown event types are rejected.
 RULES: dict[str, int] = {
@@ -9,6 +6,7 @@ RULES: dict[str, int] = {
     "daily_nutrition_goal": 30,
     "workout_completed": 50,
     "body_measurement": 15,
+    "water_goal": 10,
 }
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...

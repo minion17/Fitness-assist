@@ -6,9 +6,17 @@ type WebApp = {
   initDataUnsafe: { user?: TgUser }
   ready(): void
   expand(): void
+  colorScheme?: 'light' | 'dark'
+  onEvent?(event: 'themeChanged', cb: () => void): void
+  offEvent?(event: 'themeChanged', cb: () => void): void
   setHeaderColor?(color: string): void
   setBackgroundColor?(color: string): void
-  HapticFeedback?: { selectionChanged(): void }
+  setBottomBarColor?(color: string): void
+  HapticFeedback?: {
+    selectionChanged(): void
+    impactOccurred?(style: 'light' | 'medium' | 'heavy'): void
+    notificationOccurred?(type: 'success' | 'warning' | 'error'): void
+  }
 }
 
 declare global {
@@ -24,8 +32,6 @@ export function initTelegram() {
   if (!tg) return
   tg.ready()
   tg.expand()
-  tg.setHeaderColor?.('#16171a')
-  tg.setBackgroundColor?.('#16171a')
 }
 
 /** Public reference data (products, programs) — works outside Telegram too. */

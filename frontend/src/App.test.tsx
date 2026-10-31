@@ -95,3 +95,22 @@ test('step-by-step questionnaire validates each step and saves all answers', asy
   expect(screen.getByText(String(new Date().getFullYear() - 1995))).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Изменить анкету' })).toBeTruthy()
 })
+
+test('home water tracker, food shortcut and theme picker work in demo mode', () => {
+  window.scrollTo = () => {}
+  render(<App />)
+  // demo: no account -> no edit buttons, ring still shows the goal
+  expect(screen.getByText('из 2 000 ккал')).toBeTruthy()
+  expect(screen.getByText(/Вода · 0/)).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button', { name: 'Профиль' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Салатовая' }))
+  expect(document.documentElement.dataset.theme).toBe('green')
+  expect(screen.queryByRole('group', { name: 'Акцентный цвет' })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Светлая' }))
+  expect(document.documentElement.dataset.theme).toBe('light')
+  fireEvent.click(screen.getByRole('button', { name: 'Акцент #a98bff' }))
+  expect(document.documentElement.style.getPropertyValue('--accent')).toBe('#a98bff')
+  fireEvent.click(screen.getByRole('button', { name: 'Как в Telegram' }))
+  expect(document.documentElement.dataset.theme).toBe('dark')
+})

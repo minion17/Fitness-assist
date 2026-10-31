@@ -304,3 +304,55 @@ def test_old_goals_migrated_on_startup(client):
             return await s.scalar(text("select goal from profiles where user_id = :u").bindparams(u=uid))
 
     assert client.portal.call(run) == "maintenance"
+
+
+def test_water_tracker(client):
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)  # 78.4 kg -> 2587 ml -> 2500 ml goal
+    assert client.get("/api/water", headers=h).json() == {"ml": 0, "goal_ml": 2500}
+
+    for _ in range(9):
+        r = client.post("/api/water", headers=h, json={"delta_ml": 250}).json()
+    assert r == {"ml": 2250, "goal_ml": 2500, "xp_awarded": 0}
+    assert client.post("/api/water", headers=h, json={"delta_ml": 250}).json()["xp_awarded"] == 10
+    assert client.post("/api/water", headers=h, json={"delta_ml": 250}).json()["xp_awarded"] == 0  # once a day
+    assert client.post("/api/water", headers=h, json={"delta_ml": -1000}).json()["ml"] == 1750
+    for _ in range(3):
+        last = client.post("/api/water", headers=h, json={"delta_ml": -1000}).json()
+    assert last["ml"] == 0  # never negative
+    assert client.post("/api/water", headers=h, json={"delta_ml": 5000}).status_code == 422
+    assert client.get("/api/water", headers=new_user_headers()).json() == {"ml": 0, "goal_ml": 2000}  # no profile
+
+
+def test_week_and_streak(client, seeded):
+    from datetime import date, timedelta
+
+    from sqlalchemy import update
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, WaterIntake
+
+    h = new_user_headers()
+    uid = client.post("/api/auth", headers=h).json()["id"]
+    assert client.get("/api/week", headers=h).json()["streak"] == 0
+
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    log_id = client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "lunch"}).json()["id"]
+
+    async def backdate():
+        from datetime import datetime, time
+
+        async with SessionLocal() as s:
+            two_days_ago = datetime.combine(date.today() - timedelta(days=2), time(12)).astimezone()
+            await s.execute(update(FoodLog).where(FoodLog.id == log_id).values(logged_at=two_days_ago))
+            s.add(WaterIntake(user_id=uid, day=date.today() - timedelta(days=1), ml=500))
+            await s.commit()
+
+    client.portal.call(backdate)
+    week = client.get("/api/week", headers=h).json()
+    assert week["streak"] == 2  # 2 days ago food + yesterday water; empty today doesn't break it
+    assert [d["date"] for d in week["days"]][-1] == date.today().isoformat() and len(week["days"]) == 7
+    assert week["days"][-3]["kcal"] == 242 and week["days"][-2]["water_ml"] == 500
+
+    client.post("/api/water", headers=h, json={"delta_ml": 250})
+    assert client.get("/api/week", headers=h).json()["streak"] == 3

@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=Path(__file__).resolve().parents[2] / ".env", extra="ignore")
 
     bot_token: str = ""
+    bot_proxy: str = ""  # e.g. socks5://127.0.0.1:1080 if Telegram is blocked
     webapp_url: str = "http://localhost:5173"
     database_url: str = "postgresql+asyncpg://fitness:fitness@localhost:5432/fitness"
     # initData older than this is rejected (replay protection)

@@ -2,6 +2,8 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher, Router
+from aiogram.client.session.aiohttp import AiohttpSession
+from aiogram.exceptions import TelegramNetworkError
 from aiogram.filters import CommandStart
 from aiogram.types import (
     ErrorEvent,
@@ -67,11 +69,19 @@ async def main() -> None:
         raise SystemExit("BOT_TOKEN не задан в .env")
     if not settings.webapp_url.startswith("https://"):
         log.warning("WEBAPP_URL не HTTPS — Telegram не откроет Mini App")
-    # No network calls before polling: start_polling retries on its own if the connection drops,
-    # and the menu button is set per chat in /start.
     dp = Dispatcher()
     dp.include_router(router)
-    await dp.start_polling(Bot(settings.bot_token))
+    # Optional proxy for networks where api.telegram.org is blocked (http:// or socks5://).
+    session = AiohttpSession(proxy=settings.bot_proxy) if settings.bot_proxy else None
+    bot = Bot(settings.bot_token, session=session)
+    # start_polling fails right away if Telegram is unreachable at startup; keep retrying instead of exiting.
+    while True:
+        try:
+            await dp.start_polling(bot)
+            return
+        except TelegramNetworkError as e:
+            log.error("Нет связи с Telegram (%s). Проверьте интернет/VPN или BOT_PROXY в .env. Повтор через 15 с…", e)
+            await asyncio.sleep(15)
 
 
 if __name__ == "__main__":

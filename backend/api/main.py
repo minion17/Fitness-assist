@@ -13,6 +13,7 @@ from sqlalchemy.orm import selectinload
 from backend.core.config import settings
 from backend.core.gamification import level_progress
 from backend.core.nutrition import daily_targets
+from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
 from backend.database.db import AsyncSession, get_session, init_db
@@ -61,7 +62,16 @@ def profile_out(profile: Profile | None) -> dict | None:
     if profile is None:
         return None
     data = ProfileIn.model_validate(profile, from_attributes=True).model_dump()
-    return {**data, "targets": daily_targets(**data)}
+    return {**data, "targets": daily_targets(**{k: data[k] for k in BASE_FIELDS})}
+
+
+async def recommended_program(session: AsyncSession, profile: Profile | None) -> dict | None:
+    if profile is None:
+        return None
+    programs = await session.scalars(
+        select(Program).options(selectinload(Program.days).selectinload(ProgramDay.items).selectinload(ProgramExercise.exercise))
+    )
+    return recommend(programs.all(), profile)
 
 
 @app.post("/api/auth")
@@ -74,8 +84,14 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
         "first_name": user.first_name,
         "username": user.username,
         "progress": level_progress(user.xp),
-        "profile": profile_out(await session.get(Profile, user.id)),
+        "profile": profile_out(profile := await session.get(Profile, user.id)),
+        "recommended_program": await recommended_program(session, profile),
     }
+
+
+Equipment = Literal["bodyweight", "dumbbells", "barbell", "bench", "pullup_bar", "cable_machine", "machine", "treadmill", "exercise_bike"]
+Allergy = Literal["dairy", "eggs", "gluten", "nuts", "fish"]
+BASE_FIELDS = ("sex", "birth_year", "height_cm", "weight_kg", "activity", "goal")
 
 
 class ProfileIn(BaseModel):
@@ -84,7 +100,17 @@ class ProfileIn(BaseModel):
     height_cm: int = Field(ge=120, le=230)
     weight_kg: float = Field(ge=30, le=300)
     activity: Literal["low", "light", "moderate", "high", "very_high"]
-    goal: Literal["lose", "maintain", "gain"]
+    goal: Literal["weight_loss", "fat_loss", "maintenance", "muscle_gain", "mass_gain"]
+    # extended questionnaire; optional so older clients/profiles keep working
+    experience: Literal["beginner", "intermediate", "advanced"] | None = None
+    equipment: list[Equipment] | None = Field(default=None, max_length=9)
+    sessions_per_week: int | None = Field(default=None, ge=1, le=7)
+    session_minutes: Literal[20, 30, 45, 60, 90] | None = None
+    allergies: list[Allergy] | None = Field(default=None, max_length=5)
+    meals_per_day: Literal[3, 4, 5] | None = None
+    sleep_hours: float | None = Field(default=None, ge=3, le=12)
+    stress: Literal["low", "moderate", "high"] | None = None
+    injury: Literal["knees", "back", "shoulders", "other"] | None = None
 
 
 @app.get("/api/profile")

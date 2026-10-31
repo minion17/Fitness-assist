@@ -34,6 +34,16 @@ class Profile(Base):
     weight_kg: Mapped[float] = mapped_column(Float)
     activity: Mapped[str] = mapped_column(String(16))
     goal: Mapped[str] = mapped_column(String(16))
+    # Extended questionnaire (Logos engine). Nullable: profiles saved before it stay valid.
+    experience: Mapped[str | None] = mapped_column(String(16))
+    equipment: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    sessions_per_week: Mapped[int | None] = mapped_column(Integer)
+    session_minutes: Mapped[int | None] = mapped_column(Integer)
+    allergies: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    meals_per_day: Mapped[int | None] = mapped_column(Integer)
+    sleep_hours: Mapped[float | None] = mapped_column(Float)
+    stress: Mapped[str | None] = mapped_column(String(16))
+    injury: Mapped[str | None] = mapped_column(String(16))  # None = no injuries; knees | back | shoulders | other
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

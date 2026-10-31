@@ -35,7 +35,7 @@ def client():
         yield c
 
 
-PROFILE = {"sex": "male", "birth_year": 1998, "height_cm": 182, "weight_kg": 78.4, "activity": "moderate", "goal": "lose"}
+PROFILE = {"sex": "male", "birth_year": 1998, "height_cm": 182, "weight_kg": 78.4, "activity": "moderate", "goal": "weight_loss"}
 
 
 def new_user_headers():

@@ -34,29 +34,62 @@ test('bottom navigation opens all four sections', async () => {
   expect(screen.getByRole('button', { name: 'Главная' }).getAttribute('aria-current')).toBe('page')
 })
 
-test('questionnaire validates input and updates the profile', async () => {
+test('step-by-step questionnaire validates each step and saves all answers', async () => {
   window.scrollTo = () => {}
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }))
   fireEvent.click(screen.getByRole('button', { name: 'Заполнить анкету' }))
+  const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
+  const alert = () => screen.getByRole('alert').textContent
 
-  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
-  expect(screen.getByRole('alert').textContent).toBe('Выберите пол, цель и уровень активности')
-
-  fireEvent.click(screen.getByRole('button', { name: 'Женский' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Набор массы' }))
-  fireEvent.click(screen.getByRole('button', { name: /Средняя/ }))
+  // 1. О себе
+  click('Далее')
+  expect(alert()).toBe('Выберите пол')
+  click('Женский')
   const [year, height, weight] = screen.getAllByRole('textbox')
   fireEvent.change(year, { target: { value: '1995' } })
   fireEvent.change(height, { target: { value: '400' } })
   fireEvent.change(weight, { target: { value: '61,5' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
-  expect(screen.getByRole('alert').textContent).toBe('Рост: от 120 до 230')
-
+  click('Далее')
+  expect(alert()).toBe('Рост: от 120 до 230')
   fireEvent.change(height, { target: { value: '168' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+  click('Далее')
 
-  expect(await screen.findByText('Набор массы')).toBeTruthy()
+  // 2. Цель (5 целей)
+  expect(screen.getByText('Шаг 2 из 6')).toBeTruthy()
+  click('Набор мышечной массы')
+  click('Далее')
+
+  // 3. Опыт и активность
+  click('Далее')
+  expect(alert()).toBe('Выберите уровень подготовки')
+  click(/Новичок/)
+  click(/Умеренная/)
+  click('Далее')
+
+  // 4. Тренировки: multi-select toggles
+  click('Гантели'); click('Турник / брусья'); click('Гантели')
+  expect(screen.getByRole('button', { name: 'Гантели' }).getAttribute('aria-pressed')).toBe('false')
+  click('3'); click('45 мин')
+  click('Далее')
+
+  // 5. Питание: allergies optional; back keeps answers
+  click('Назад')
+  expect(screen.getByRole('button', { name: 'Турник / брусья' }).getAttribute('aria-pressed')).toBe('true')
+  click('Далее')
+  click('Орехи'); click('4 раза')
+  click('Далее')
+
+  // 6. Восстановление: conditional injury zone
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '7,5' } })
+  click('Высокий')
+  click('Да')
+  click('Готово')
+  expect(alert()).toBe('Выберите зону ограничения')
+  click('Колени')
+  click('Готово')
+
+  expect(await screen.findByText('Набор мышц')).toBeTruthy()
   expect(screen.getByText('168')).toBeTruthy()
   expect(screen.getByText('61.5')).toBeTruthy()
   expect(screen.getByText(String(new Date().getFullYear() - 1995))).toBeTruthy()

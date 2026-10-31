@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import ai
 from backend.core.config import settings
-from backend.core.nutrition import daily_targets
+from backend.core.nutrition import GOAL_RU, daily_targets
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import (
     AiRequest,
@@ -26,6 +26,10 @@ from backend.database.models import (
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api/ai")
+
+STRESS_RU = {"low": "низкий", "moderate": "умеренный", "high": "высокий"}
+INJURY_RU = {"knees": "колени", "back": "спина", "shoulders": "плечи", "other": "есть травма"}
+ALLERGY_RU = {"dairy": "молочное", "eggs": "яйца", "gluten": "глютен", "nuts": "орехи", "fish": "рыба"}
 
 MealType = Literal["breakfast", "lunch", "dinner", "snack"]
 MAX_IMAGE_BYTES = 6 * 1024 * 1024
@@ -240,8 +244,16 @@ async def summary_data(session: AsyncSession, user: User, period: str) -> str:
     lines = [f"Период: {'сегодня' if period == 'day' else 'последние 7 дней'} (по {today.isoformat()})."]
     if profile:
         t = daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal)
-        goal = {"lose": "снижение веса", "maintain": "поддержание", "gain": "набор массы"}[profile.goal]
-        lines.append(f"Цель: {goal}. Норма в день: {t['calories']} ккал, Б {t['protein']} г, Ж {t['fat']} г, У {t['carbs']} г.")
+        lines.append(f"Цель: {GOAL_RU.get(profile.goal, profile.goal)}. "
+                     f"Норма в день: {t['calories']} ккал, Б {t['protein']} г, Ж {t['fat']} г, У {t['carbs']} г.")
+        extra = [
+            profile.sleep_hours and f"сон ~{profile.sleep_hours} ч",
+            profile.stress and f"стресс: {STRESS_RU[profile.stress]}",
+            profile.injury and f"ограничение: {INJURY_RU[profile.injury]}",
+            profile.allergies and f"аллергии: {', '.join(ALLERGY_RU[a] for a in profile.allergies)}",
+        ]
+        if any(extra):
+            lines.append("Из анкеты: " + "; ".join(x for x in extra if x) + ".")
     else:
         lines.append("Анкета не заполнена — нормы нет.")
 

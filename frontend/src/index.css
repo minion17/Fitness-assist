@@ -144,3 +144,13 @@ h2 { font-size: 15px; font-weight: 600; }
 .seg-inline { display: flex; gap: 4px; }
 .seg-inline button { padding: 6px 10px; font-size: 13px; text-align: center; }
 .summary { font-size: 15px; line-height: 1.45; white-space: pre-line; }
+
+.steps { display: flex; gap: 6px; }
+.steps i { flex: 1; height: 4px; border-radius: 99px; background: var(--card-2); transition: background .25s; }
+.steps i.on { background: var(--accent); }
+.seg button { transition: border-color .15s, color .15s; }
+.chip-accent { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.card-best { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.chip-accent { align-self: flex-start; }
+.seg-row { display: flex; gap: 6px; }
+.seg-row button { flex: 1; text-align: center; padding: 12px 4px; }

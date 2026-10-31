@@ -4,7 +4,7 @@ import AiSummary from './AiSummary'
 import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Questionnaire from './Questionnaire'
-import { GOALS, YEAR, type ProfileData, type Targets } from './profile'
+import { GOALS, YEAR, type ProfileData, type Recommendation, type Targets } from './profile'
 import { api, initTelegram, postJson, publicGet, tg, tgUser } from './telegram'
 import { completedThisWeek, nextDay, weightTrend, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar } from './ui'
@@ -147,29 +147,31 @@ export default function App() {
   const [toast, setToast] = useState('')
   const [measurements, setMeasurements] = useState<Measurement[]>([])
   const [aiEnabled, setAiEnabled] = useState(false)
+  const [recommended, setRecommended] = useState<Recommendation | null>(null)
 
   const refreshJournal = useCallback(async () => {
     const [day, ws, ms, u] = await Promise.all([
       api<FoodDay>('/api/food-logs'),
       api<WorkoutLog[]>('/api/workout-logs'),
       api<Measurement[]>('/api/measurements'),
-      api<{ progress: Progress; profile: ProfileData | null }>('/api/auth', { method: 'POST' }),
+      api<{ progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null }>('/api/auth', { method: 'POST' }),
     ])
     if (day) setFoodDay(day)
     if (ws) setLogs(ws)
     if (ms) setMeasurements(ms)
-    if (u) { setXp(u.progress); setMe(u.profile) } // weight changes the daily targets
+    if (u) { setXp(u.progress); setMe(u.profile); setRecommended(u.recommended_program) } // weight changes the daily targets
   }, [])
 
   useEffect(() => {
     initTelegram()
-    api<{ id: number; progress: Progress; profile: ProfileData | null }>('/api/auth', { method: 'POST' })
+    api<{ id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null }>('/api/auth', { method: 'POST' })
       .then((u) => {
         if (!u) return
         setSynced('Аккаунт подключён')
         setCanEdit(true)
         setXp(u.progress)
         setMe(u.profile)
+        setRecommended(u.recommended_program)
         setEditing(!u.profile) // first visit: questionnaire before anything else
         setFoodDay({ date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } })
         api<{ enabled: boolean }>('/api/ai/status').then((s) => setAiEnabled(Boolean(s?.enabled))).catch(() => {})
@@ -243,6 +245,7 @@ export default function App() {
     setMe(saved ?? p)
     setEditing(false)
     window.scrollTo(0, 0)
+    if (saved) refreshJournal().catch(() => {}) // new answers -> new program recommendation
   }
 
   if (editing) {
@@ -259,7 +262,7 @@ export default function App() {
         {tab === 'home' && <Home go={go} targets={me?.targets} day={foodDay} program={program} logs={logs} measurements={measurements} weight={me?.weight_kg} aiEnabled={aiEnabled} />}
         {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} />}
         {tab === 'workouts' && (
-          <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram}
+          <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} />
         )}
         {tab === 'profile' && (

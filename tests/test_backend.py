@@ -96,8 +96,12 @@ def test_daily_targets():
     from backend.core.nutrition import daily_targets
 
     t = daily_targets(**{**PROFILE, "birth_year": date.today().year - 30})
-    # BMR = 784 + 1137.5 - 150 + 5 = 1776.5; *1.55*0.85 = 2340.5
-    assert t == {"calories": 2341, "protein": 157, "fat": 71, "carbs": 268}
+    # BMR = 784 + 1137.5 - 150 + 5 = 1776.5; *1.55*0.80 = 2202.9
+    assert t == {"calories": 2203, "protein": 157, "fat": 71, "carbs": 234}
+    assert daily_targets(**{**PROFILE, "goal": "lose"}) == daily_targets(**PROFILE)  # old saved goal still works
+    # tiny woman, sedentary, aggressive deficit -> safety floor
+    floor = daily_targets("female", date.today().year - 60, 150, 42, "low", "weight_loss")
+    assert floor["calories"] == 1200
 
 
 def test_profile_save_and_read(client):
@@ -112,8 +116,8 @@ def test_profile_save_and_read(client):
     assert saved.status_code == 200
     assert saved.json()["targets"]["calories"] > 0
 
-    updated = client.put("/api/profile", headers=headers, json={**PROFILE, "goal": "gain"}).json()
-    assert updated["goal"] == "gain" and updated["targets"]["calories"] > saved.json()["targets"]["calories"]
+    updated = client.put("/api/profile", headers=headers, json={**PROFILE, "goal": "muscle_gain"}).json()
+    assert updated["goal"] == "muscle_gain" and updated["targets"]["calories"] > saved.json()["targets"]["calories"]
     assert client.post("/api/auth", headers=headers).json()["profile"] == updated
 
 
@@ -246,3 +250,57 @@ def test_measurements(client):
     assert client.delete(f"/api/measurements/{old['id']}", headers=other).status_code == 404
     assert client.delete(f"/api/measurements/{old['id']}", headers=h).json() == {"ok": True}
     assert len(client.get("/api/measurements", headers=h).json()) == 1
+
+
+EXTENDED = {
+    "experience": "beginner", "equipment": ["bodyweight", "dumbbells"], "sessions_per_week": 2, "session_minutes": 45,
+    "allergies": ["nuts"], "meals_per_day": 4, "sleep_hours": 6.5, "stress": "high", "injury": "knees",
+}
+
+
+def test_extended_questionnaire_and_program_recommendation(client, seeded):
+    h = new_user_headers()
+    saved = client.put("/api/profile", headers=h, json={**PROFILE, **EXTENDED}).json()
+    assert {k: saved[k] for k in EXTENDED} == EXTENDED
+
+    rec = client.post("/api/auth", headers=h).json()["recommended_program"]
+    programs = {p["id"]: p["name"] for p in client.get("/api/programs").json()}
+    assert programs[rec["program_id"]] == "Домашняя тренировка (без инвентаря)"  # beginner, 2 days, no barbell
+
+    gym = {**EXTENDED, "experience": "intermediate", "sessions_per_week": 3,
+           "equipment": ["barbell", "bench", "pullup_bar", "dumbbells", "machine"]}
+    client.put("/api/profile", headers=h, json={**PROFILE, **gym})
+    rec = client.post("/api/auth", headers=h).json()["recommended_program"]
+    assert programs[rec["program_id"]] == "Тяни-Толкай-Ноги (PPL)" and "всё оборудование у вас есть" in rec["reasons"]
+
+    # old-style profile (no extended answers) is still valid
+    assert client.put("/api/profile", headers=h, json=PROFILE).json()["experience"] is None
+
+
+@pytest.mark.parametrize("bad", [
+    {"equipment": ["spaceship"]}, {"sessions_per_week": 9}, {"session_minutes": 25}, {"meals_per_day": 7},
+    {"sleep_hours": 20}, {"stress": "extreme"}, {"injury": "toe"}, {"allergies": ["pizza"]}, {"goal": "lose"},
+])
+def test_extended_validation(client, bad):
+    h = new_user_headers()
+    assert client.put("/api/profile", headers=h, json={**PROFILE, **EXTENDED, **bad}).status_code == 422
+
+
+def test_old_goals_migrated_on_startup(client):
+    from sqlalchemy import text
+
+    from backend.database.db import SessionLocal, init_db
+    from backend.database.models import Profile
+
+    h = new_user_headers()
+    uid = client.post("/api/auth", headers=h).json()["id"]
+
+    async def run():
+        async with SessionLocal() as s:
+            s.add(Profile(user_id=uid, sex="male", birth_year=1998, height_cm=182, weight_kg=78, activity="moderate", goal="maintain"))
+            await s.commit()
+        await init_db()
+        async with SessionLocal() as s:
+            return await s.scalar(text("select goal from profiles where user_id = :u").bindparams(u=uid))
+
+    assert client.portal.call(run) == "maintenance"

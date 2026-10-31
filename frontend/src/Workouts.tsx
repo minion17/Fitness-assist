@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { Recommendation } from './profile'
 import { api, postJson } from './telegram'
 import { completedThisWeek, nextDay, type Program, type ProgramDay, type WorkoutLog } from './types'
 
@@ -6,7 +7,8 @@ const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
 const dateRu = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 
-export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged }: {
+export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null }: {
+  recommended?: Recommendation | null
   programs: Program[] | null
   logs: WorkoutLog[]
   programId: number | null
@@ -29,14 +31,19 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         <h1>Тренировки</h1>
         <p className="sub">Выберите программу — дальше приложение будет предлагать тренировки по порядку.</p>
         {programs.length === 0 && <p className="sub">Программы ещё не загружены.</p>}
-        {programs.map((p) => (
-          <section className="card" key={p.id}>
-            <div className="card-head"><h2>{p.name}</h2><span className="chip">{LEVEL[p.level] ?? p.level}</span></div>
-            <div className="sub">{p.goal} · {p.days_per_week} раза в неделю</div>
-            {p.description && <div className="sub">{p.description}</div>}
-            <button className="btn btn-ghost" onClick={() => onSelectProgram(p.id)}>Выбрать</button>
-          </section>
-        ))}
+        {[...programs].sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id)).map((p) => {
+          const best = p.id === recommended?.program_id
+          return (
+            <section className={best ? 'card card-best' : 'card'} key={p.id}>
+              {best && <span className="chip chip-accent">★ Подходит вам</span>}
+              <div className="card-head"><h2>{p.name}</h2><span className="chip">{LEVEL[p.level] ?? p.level}</span></div>
+              <div className="sub">{p.goal} · {p.days_per_week} раза в неделю</div>
+              {p.description && <div className="sub">{p.description}</div>}
+              {best && recommended!.reasons.length > 0 && <div className="sub pos">{recommended!.reasons.join(' · ')}</div>}
+              <button className={best ? 'btn' : 'btn btn-ghost'} onClick={() => onSelectProgram(p.id)}>Выбрать</button>
+            </section>
+          )
+        })}
       </>
     )
   }

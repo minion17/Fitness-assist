@@ -401,3 +401,55 @@ def test_recent_favorites_and_copy_meal(client, seeded):
     assert client.post("/api/food-logs/copy", headers=h, json={"from_day": today, "meal_type": "breakfast"}).status_code == 422
     # another user can't copy someone else's meal
     assert client.post("/api/food-logs/copy", headers=new_user_headers(), json={"from_day": yesterday, "meal_type": "breakfast"}).status_code == 404
+
+
+def test_off_parse():
+    from backend.core.off import parse
+
+    ok = {"status": 1, "product": {"product_name": "Milk", "product_name_ru": "Молоко 3,2%", "brands": "Простоквашино, ПепсиКо",
+          "nutriments": {"energy-kcal_100g": 59, "proteins_100g": 2.9, "fat_100g": 3.2, "carbohydrates_100g": 4.7}}}
+    assert parse(ok) == {"name": "Молоко 3,2%", "brand": "Простоквашино", "kcal": 59, "protein_g": 2.9, "fat_g": 3.2, "carbs_g": 4.7}
+    kj = {"status": 1, "product": {"product_name": "Сок", "nutriments": {"energy_100g": 188}}}
+    assert parse(kj)["kcal"] == 45 and parse(kj)["protein_g"] == 0  # kJ converted, missing macros = 0
+    assert parse({"status": 0}) is None
+    assert parse({"status": 1, "product": {"product_name": "Без КБЖУ", "nutriments": {}}}) is None
+    assert parse({"status": 1, "product": {"product_name": "Мусор", "nutriments": {"energy-kcal_100g": 5000}}}) is None
+
+
+def test_barcode_lookup_and_custom_product(client, monkeypatch):
+    import httpx
+
+    from backend.core import off
+
+    calls = []
+
+    async def fake_fetch(code):
+        calls.append(code)
+        if code == "4600000000017":
+            return {"name": "Ряженка 4%", "brand": "Тестовый завод", "kcal": 67, "protein_g": 2.8, "fat_g": 4.0, "carbs_g": 4.2}
+        if code == "4600000000024":
+            raise httpx.ConnectError("offline")
+        return None
+
+    monkeypatch.setattr(off, "fetch", fake_fetch)
+    h = new_user_headers()
+    r = client.get("/api/products/barcode/4600000000017", headers=h)
+    assert r.status_code == 200 and r.json()["name"] == "Ряженка 4%"
+    pid = r.json()["id"]
+    # second scan (any user) is served from our catalog, no network
+    assert client.get("/api/products/barcode/4600000000017", headers=new_user_headers()).json()["id"] == pid
+    assert calls == ["4600000000017"]
+    assert client.get("/api/products/search", params={"q": "ряженка"}).json()[0]["id"] == pid  # shared catalog now
+
+    assert client.get("/api/products/barcode/4600000000031", headers=h).status_code == 404
+    assert client.get("/api/products/barcode/4600000000024", headers=h).status_code == 503
+    assert client.get("/api/products/barcode/12ab", headers=h).status_code == 422
+
+    # custom product: private to its author
+    body = {"name": " Сырник домашний ", "kcal": 220, "protein_g": 15, "fat_g": 9, "carbs_g": 20}
+    p = client.post("/api/products", headers=h, json=body).json()
+    assert p["name"] == "Сырник домашний"
+    assert [x["id"] for x in client.get("/api/products/search", params={"q": "сырник"}, headers=h).json()] == [p["id"]]
+    assert client.get("/api/products/search", params={"q": "сырник"}, headers=new_user_headers()).json() == []
+    assert client.post("/api/products", headers=h, json={**body, "protein_g": 60, "fat_g": 30, "carbs_g": 20}).status_code == 422
+    assert client.post("/api/products", headers=h, json={**body, "kcal": 2000}).status_code == 422

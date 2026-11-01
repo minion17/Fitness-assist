@@ -204,3 +204,25 @@ test('AI errors are shown in plain words', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Обновить' }))
   await waitFor(() => expect(apiMock.mock.calls[2]?.[0]).toBe('/api/ai/summary?period=day&refresh=true'))
 })
+
+test('food: custom product form validates and returns the new product', async () => {
+  apiMock.mockImplementation(async (path: string) => {
+    if (path === '/api/products/recent' || path === '/api/favorites') return []
+    if (path === '/api/products') return { id: 77, name: 'Сырник домашний', brand: null, category: 'Мои продукты', kcal: 220, protein_g: 15, fat_g: 9, carbs_g: 20 }
+    return null
+  })
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  render(<Food day={empty} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  fireEvent.click(await screen.findByRole('button', { name: '+ Свой продукт' }))
+  const [name, kcal, p, f, c] = screen.getAllByRole('textbox')
+  fireEvent.change(name, { target: { value: 'Сырник домашний' } })
+  fireEvent.change(kcal, { target: { value: '220' } })
+  fireEvent.change(p, { target: { value: '60' } }); fireEvent.change(f, { target: { value: '30' } }); fireEvent.change(c, { target: { value: '20' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить продукт' }))
+  expect(screen.getByRole('alert').textContent).toBe('Белков, жиров и углеводов вместе не больше 100 г')
+  fireEvent.change(p, { target: { value: '15' } }); fireEvent.change(f, { target: { value: '9,0' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить продукт' }))
+  expect(await screen.findByRole('button', { name: /Добавить в «Завтрак»/ })).toBeTruthy()
+  expect(apiMock).toHaveBeenCalledWith('/api/products', expect.objectContaining({ body: JSON.stringify({ name: 'Сырник домашний', kcal: 220, protein_g: 15, fat_g: 9, carbs_g: 20 }) }))
+})

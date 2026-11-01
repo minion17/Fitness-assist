@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import type { Targets } from './profile'
 import AiMeal from './AiMeal'
 import type { FoodIntent } from './Home'
-import { api, publicGet } from './telegram'
+import { readBarcode } from './barcode'
+import { api, ApiError, postJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type MealType, type Product } from './types'
 import { Bar, Ring, Sheet } from './ui'
 
@@ -133,6 +134,9 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [list, setList] = useState<'recent' | 'favorites'>('recent')
+  const [custom, setCustom] = useState<false | true | 'notFound'>(false)
+  const [scan, setScan] = useState<'idle' | 'busy' | 'manual'>('idle')
+  const [code, setCode] = useState('')
   const [recent, setRecent] = useState<RecentProduct[] | null>(null)
   const [favorites, setFavorites] = useState<Product[] | null>(null)
 
@@ -147,6 +151,28 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
     setFavorites((fs) => (was ? (fs ?? []).filter((f) => f.id !== p.id) : [p, ...(fs ?? [])])) // optimistic
     try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Не удалось обновить избранное') }
   }
+  async function lookup(c: string) {
+    setScan('busy')
+    setError('')
+    try {
+      const p = await api<Product>(`/api/products/barcode/${c}`)
+      if (p) { pick(p); setScan('idle'); return }
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) { setScan('idle'); setCustom('notFound'); return }
+      setError(e instanceof ApiError ? e.message : 'Не удалось связаться с сервером')
+    }
+    setScan('manual')
+  }
+  async function onPhoto(file?: File) {
+    if (!file) return
+    setScan('busy')
+    setError('')
+    const c = await readBarcode(file).catch(() => null)
+    if (c) return lookup(c)
+    setError('Не получилось распознать штрихкод. Сфотографируйте ближе и ровнее или введите цифры.')
+    setScan('manual')
+  }
+
   function pick(p: Product | RecentProduct) {
     setPicked(p)
     if ('last_amount_g' in p) setGrams(String(p.last_amount_g))
@@ -189,12 +215,33 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
         ))}
       </div>
 
-      {!picked ? (
+      {custom && !picked ? (
+        <CustomProduct notFound={custom === 'notFound'} onCreated={(p) => { setCustom(false); setError(''); pick(p) }} onCancel={() => setCustom(false)} />
+      ) : !picked ? (
         <>
           <div className="input-wrap">
             <input autoFocus placeholder="Поиск: творог, гречка…" value={q}
               onChange={(e) => { setQ(e.target.value); setError(''); if (e.target.value.trim().length < 2) setResults(null) }} />
           </div>
+          {recent && (
+            <div className="meal-actions">
+              <label className={scan === 'busy' ? 'link disabled' : 'link'}>
+                {scan === 'busy' ? 'Ищем товар…' : '▥ Штрихкод'}
+                <input type="file" accept="image/*" capture="environment" hidden disabled={scan === 'busy'}
+                  onChange={(e) => { onPhoto(e.target.files?.[0]); e.target.value = '' }} />
+              </label>
+              <button type="button" className="link" onClick={() => setCustom(true)}>+ Свой продукт</button>
+            </div>
+          )}
+          {scan === 'manual' && (
+            <div className="code-row">
+              <div className="input-wrap">
+                <input inputMode="numeric" placeholder="Цифры под штрихкодом" value={code} aria-label="Цифры штрихкода"
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 14))} />
+              </div>
+              <button className="btn btn-side" disabled={code.length < 8} onClick={() => lookup(code)}>Найти</button>
+            </div>
+          )}
           {q.trim().length < 2 && recent && favorites && (
             <>
               <div className="seg seg-inline">
@@ -218,7 +265,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
               )}
             </>
           )}
-          {results && results.length === 0 && <p className="sub">Ничего не найдено. Если база продуктов ещё пустая — её скоро наполнят.</p>}
+          {results && results.length === 0 && <p className="sub">Ничего не найдено. Отсканируйте штрихкод или добавьте свой продукт.</p>}
           {results && results.length > 0 && (
             <div className="list scroll-list">
               {results.map((p) => (
@@ -264,5 +311,52 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
       )}
       {error && <p className="error" role="alert">{error}</p>}
     </Sheet>
+  )
+}
+
+function CustomProduct({ notFound, onCreated, onCancel }: { notFound: boolean; onCreated: (p: Product) => void; onCancel: () => void }) {
+  const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '' })
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const num = (x: string) => Number(x.replace(',', '.'))
+  const fields = [['kcal', 'Ккал', 900], ['protein_g', 'Белки, г', 100], ['fat_g', 'Жиры, г', 100], ['carbs_g', 'Углеводы, г', 100]] as const
+
+  async function save() {
+    if (v.name.trim().length < 2) return setError('Введите название')
+    for (const [k, label, max] of fields) {
+      const n = num(v[k])
+      if (v[k] === '' || !Number.isFinite(n) || n < 0 || n > max) return setError(`${label}: от 0 до ${max}`)
+    }
+    if (num(v.protein_g) + num(v.fat_g) + num(v.carbs_g) > 100) return setError('Белков, жиров и углеводов вместе не больше 100 г')
+    setBusy(true)
+    try {
+      const p = await api<Product>('/api/products', postJson({ name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g) }))
+      if (p) onCreated(p)
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить')
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      {notFound && <p className="row-title strong">Этого товара пока нет в базе — добавьте его, это займёт минуту.</p>}
+      <p className="sub">Значения — на 100 г, они есть на упаковке. Продукт будет виден только вам.</p>
+      <label className="field">
+        <span>Название</span>
+        <div className="input-wrap"><input autoFocus value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></div>
+      </label>
+      <div className="grid2">
+        {fields.map(([k, label]) => (
+          <label className="field" key={k}>
+            <span>{label}</span>
+            <div className="input-wrap"><input inputMode="decimal" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} /></div>
+          </label>
+        ))}
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      <button className="btn" disabled={busy} onClick={save}>{busy ? 'Сохраняем…' : 'Сохранить продукт'}</button>
+      <button className="link" onClick={onCancel}>Назад к поиску</button>
+    </>
   )
 }

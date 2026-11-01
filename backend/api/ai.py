@@ -388,3 +388,80 @@ async def read_label(
     out = {k: round(clamp(raw.get(f"{k}_100g", 0), 0, hi), 1) for k, hi in (("kcal", 900), ("protein", 100), ("fat", 100), ("carbs", 100))}
     return {"found": True, "name": str(raw.get("name") or "")[:200], "kcal": out["kcal"], "protein_g": out["protein"],
             "fat_g": out["fat"], "carbs_g": out["carbs"], "note": str(raw.get("note") or "")}
+
+
+# ---- Restaurant menu / delivery-app dish card ----
+
+MENU_SYSTEM = """Ты читаешь фото меню ресторана, карточки блюда в приложении доставки или упаковки готовой еды.
+Перепиши блюда, для которых на фото напечатана пищевая ценность.
+Правила:
+- Только напечатанные числа, ничего не оценивай «на глаз». Блюдо без КБЖУ на фото — пропусти.
+- Нужны значения на 100 г. Если КБЖУ даны на порцию и вес порции напечатан — пересчитай на 100 г. Если вес порции не указан — пропусти блюдо.
+- portion_g — вес порции/выход, если он напечатан, иначе null. portion_name — «порция», «пицца», «кусок», «шт» и т. п.
+- Название — как в меню, с размером если он есть («Пепперони 30 см»).
+- venue — название заведения или бренда, если оно видно на фото (логотип, шапка меню, заголовок приложения), иначе пустая строка.
+- Если ни у одного блюда нет КБЖУ — пустой список и объясни в note, что снять (например, раскрыть «Пищевая ценность» в карточке)."""
+
+MENU_TOOL = {
+    "name": "menu_dishes",
+    "description": "Блюда с напечатанной пищевой ценностью",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "venue": {"type": "string"},
+            "items": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "portion_g": {"type": ["number", "null"]},
+                        "portion_name": {"type": "string"},
+                        "kcal_100g": {"type": "number"},
+                        "protein_100g": {"type": "number"},
+                        "fat_100g": {"type": "number"},
+                        "carbs_100g": {"type": "number"},
+                    },
+                    "required": ["name", "portion_g", "portion_name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g"],
+                },
+            },
+            "note": {"type": "string"},
+        },
+        "required": ["venue", "items", "note"],
+    },
+}
+
+
+@router.post("/menu")
+async def read_menu(
+    file: UploadFile = File(...), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
+):
+    """Dishes with printed nutrition from a menu / delivery-app photo, for the user to pick and save."""
+    if file.content_type not in IMAGE_TYPES:
+        raise HTTPException(415, "Нужна фотография (JPEG, PNG или WebP)")
+    data = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(413, "Фото слишком большое (до 6 МБ)")
+    user = await get_or_create_user(tg, session)
+    await use_quota(session, user, "menu")
+    image = {"type": "image", "source": {"type": "base64", "media_type": file.content_type, "data": base64.b64encode(data).decode()}}
+    try:
+        raw = await ai.call_tool(MENU_SYSTEM, [image, {"type": "text", "text": "Перепиши блюда с КБЖУ."}], MENU_TOOL, 3000)
+    except ai.AIUnavailable as e:
+        raise ai_errors(e)
+    items = []
+    for it in (raw.get("items") or [])[:40]:
+        name = str(it.get("name") or "").strip()[:200]
+        if len(name) < 2:
+            continue
+        macros = {k: clamp(it.get(f"{k}_100g"), 0, 100) for k in ("protein", "fat", "carbs")}
+        if sum(macros.values()) > 101:  # misread: physically impossible per 100 g
+            continue
+        portion = it.get("portion_g")
+        items.append({
+            "name": name, "kcal": clamp(it.get("kcal_100g"), 0, 900),
+            "protein_g": macros["protein"], "fat_g": macros["fat"], "carbs_g": macros["carbs"],
+            "portion_g": clamp(portion, 1, 3000) if isinstance(portion, (int, float)) and portion > 0 else None,
+            "portion_name": (str(it.get("portion_name") or "").strip() or "порция")[:40],
+        })
+    return {"venue": str(raw.get("venue") or "").strip()[:100], "items": items, "note": str(raw.get("note") or "")}

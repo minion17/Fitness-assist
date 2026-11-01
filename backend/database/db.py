@@ -32,6 +32,11 @@ ADDED_COLUMNS = [
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
     "CREATE INDEX IF NOT EXISTS ix_products_owner_user_id ON products (owner_user_id)",
     "ALTER TABLE food_logs ADD COLUMN IF NOT EXISTS snack_slot VARCHAR(5)",
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS portion_g FLOAT",
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS portion_name VARCHAR(40)",
+    # name+brand unique only among shared products (was: across all, which blocked users' own dishes)
+    "ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_brand_key",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_products_shared_name_brand ON products (name, brand) WHERE owner_user_id IS NULL",
     *(f"ALTER TABLE profiles ADD COLUMN IF NOT EXISTS {c}" for c in (
         "experience VARCHAR(16)", "equipment VARCHAR[]", "sessions_per_week INTEGER", "session_minutes INTEGER",
         "allergies VARCHAR[]", "meals_per_day INTEGER", "sleep_hours FLOAT", "stress VARCHAR(16)", "injury VARCHAR(16)",

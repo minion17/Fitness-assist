@@ -531,3 +531,34 @@ def test_reminder_settings_and_collect(client, seeded):
     client.post("/api/water", headers=h2, json={"delta_ml": 250})
     noon = [t for chat, t in client.portal.call(run, (12, 1)) if chat == tg2]
     assert noon == ["💧 Выпито 0,25 л из 2,5 л. Стакан воды сейчас — самое время."]
+
+
+def test_user_products_become_shared_after_three_confirmations(client):
+    import random
+
+    tag = random.randint(10**5, 10**6)  # the local test DB persists between runs
+    dish = {"name": f"Пепперони 30 см {tag}", "brand": "Додо", "kcal": 260, "protein_g": 11, "fat_g": 10, "carbs_g": 30,
+            "portion_g": 610, "portion_name": "пицца"}
+    users = [new_user_headers() for _ in range(4)]
+    find = lambda h: client.get("/api/products/search", params={"q": f"пепперони 30 см {tag}"}, headers=h).json()
+
+    a = client.post("/api/products", headers=users[0], json=dish).json()
+    assert a["shared"] is False and a["portion_g"] == 610
+    again = client.post("/api/products", headers=users[0], json={**dish, "kcal": 262}).json()
+    assert again["id"] == a["id"]  # same user, same name+brand: updated, not duplicated
+    client.post("/api/products", headers=users[1], json={**dish, "kcal": 400})  # disagrees: doesn't count
+    assert client.post("/api/products", headers=users[2], json={**dish, "kcal": 258}).json()["shared"] is False
+    third = client.post("/api/products", headers=users[3], json={**dish, "protein_g": 11.5}).json()
+    assert third["shared"] is True
+    shared = [p for p in find(new_user_headers()) if p["category"] == "Проверено пользователями"]
+    assert len(shared) == 1 and shared[0]["kcal"] == 260 and shared[0]["portion_g"] == 610  # average of the 3 that agree
+    # no brand -> stays private no matter how many people enter it
+    plain = {**dish, "brand": None, "name": f"Сырник домашний {tag}"}
+    assert not any(client.post("/api/products", headers=h, json=plain).json()["shared"] for h in users)
+
+    # barcode: 3 users enter the same unknown code -> everyone finds it by scanning
+    code = "48" + str(random.randint(10**10, 10**11 - 1))
+    for h in users[:3]:
+        r = client.post("/api/products", headers=h, json={**plain, "name": f"Кефир {tag}", "barcode": code}).json()
+    assert r["shared"] is True
+    assert client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()["category"] == "Проверено пользователями"

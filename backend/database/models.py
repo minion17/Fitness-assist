@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.db import Base
@@ -79,13 +79,19 @@ class Product(Base):
     fat_g: Mapped[float] = mapped_column(Float, default=0)
     carbs_g: Mapped[float] = mapped_column(Float, default=0)
     category: Mapped[str | None] = mapped_column(String(100))
+    # a typical serving, e.g. 350 g "порция" of a restaurant dish: lets the user log "1 порция" instead of grams
+    portion_g: Mapped[float | None] = mapped_column(Float)
+    portion_name: Mapped[str | None] = mapped_column(String(40))
     # NULL = shared catalog; otherwise a custom product (e.g. recognised by AI) visible only to its owner.
     owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     # Lower-cased in Python: Postgres with the C locale can't case-fold Cyrillic in ILIKE/lower().
     search_text: Mapped[str] = mapped_column(
         Text, default=lambda ctx: _search_text(ctx.get_current_parameters()), index=True
     )
-    __table_args__ = (UniqueConstraint("name", "brand"),)
+    # name+brand is unique in the shared catalog only: several users may each keep their own "Пепперони" from "Додо"
+    __table_args__ = (
+        Index("uq_products_shared_name_brand", "name", "brand", unique=True, postgresql_where=owner_user_id.is_(None)),
+    )
 
 
 def _search_text(row: dict) -> str:

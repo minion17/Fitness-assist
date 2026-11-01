@@ -141,3 +141,21 @@ def test_label_photo_fills_product_form(client, fake_ai):
     replies["tool"] = {"found": False, "name": "", "kcal_100g": 0, "protein_100g": 0, "fat_100g": 0, "carbs_100g": 0, "note": "Таблицы не видно"}
     assert client.post("/api/ai/label", headers=h, files=jpg).json() == {"found": False, "note": "Таблицы не видно"}
     assert client.post("/api/ai/label", headers=h, files={"file": ("a.txt", b"x", "text/plain")}).status_code == 415
+
+
+def test_menu_photo_lists_dishes_clamped(client, fake_ai):
+    calls, replies = fake_ai
+    h = new_user_headers()
+    jpg = {"file": ("menu.jpg", b"\xff\xd8\xff fake jpeg", "image/jpeg")}
+    replies["tool"] = {"venue": "Додо Пицца", "note": "", "items": [
+        {"name": "Пепперони 30 см", "portion_g": 610, "portion_name": "пицца", "kcal_100g": 260.1, "protein_100g": 10.6, "fat_100g": 8.3, "carbs_100g": 34},
+        {"name": "Морс", "portion_g": None, "portion_name": "", "kcal_100g": 40, "protein_100g": 0, "fat_100g": 0, "carbs_100g": 10},
+        {"name": "Бред", "portion_g": -5, "portion_name": "шт", "kcal_100g": 100, "protein_100g": 90, "fat_100g": 90, "carbs_100g": 90},
+        {"name": "", "portion_g": 100, "portion_name": "шт", "kcal_100g": 100, "protein_100g": 1, "fat_100g": 1, "carbs_100g": 1},
+    ]}
+    r = client.post("/api/ai/menu", headers=h, files=jpg).json()
+    assert r["venue"] == "Додо Пицца"
+    assert [i["name"] for i in r["items"]] == ["Пепперони 30 см", "Морс"]  # impossible macros and empty names dropped
+    assert r["items"][0] == {"name": "Пепперони 30 см", "kcal": 260.1, "protein_g": 10.6, "fat_g": 8.3, "carbs_g": 34,
+                             "portion_g": 610, "portion_name": "пицца"}
+    assert r["items"][1]["portion_g"] is None and r["items"][1]["portion_name"] == "порция"

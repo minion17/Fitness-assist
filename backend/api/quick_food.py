@@ -29,6 +29,7 @@ def product_out(p: Product) -> dict:
     return {
         "id": p.id, "name": p.name, "brand": p.brand, "category": p.category,
         "kcal": p.kcal, "protein_g": p.protein_g, "fat_g": p.fat_g, "carbs_g": p.carbs_g,
+        "portion_g": p.portion_g, "portion_name": p.portion_name,
     }
 
 
@@ -145,26 +146,86 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
 
 class ProductIn(BaseModel):
     name: str = Field(min_length=2, max_length=200)
+    brand: str | None = Field(default=None, max_length=100)  # brand or restaurant, e.g. "Додо"
     barcode: str | None = Field(default=None, pattern=r"^\d{8,14}$")  # scanned but unknown: remember it for this user
     kcal: float = Field(ge=0, le=900)
     protein_g: float = Field(ge=0, le=100)
     fat_g: float = Field(ge=0, le=100)
     carbs_g: float = Field(ge=0, le=100)
+    portion_g: float | None = Field(default=None, gt=0, le=3000)
+    portion_name: str | None = Field(default=None, max_length=40)
+
+
+# A user's product joins the shared catalog once this many different people entered the same thing with the same
+# numbers. Only branded items (brand/restaurant) or barcodes: "домашний сырник" differs from kitchen to kitchen.
+CONFIRMATIONS = 3
+
+
+def close(a: float, b: float, rel: float, floor: float) -> bool:
+    return abs(a - b) <= max(floor, rel * max(a, b))
+
+
+def same_numbers(a: Product, b: Product) -> bool:
+    return close(a.kcal, b.kcal, 0.05, 5) and all(
+        close(getattr(a, k), getattr(b, k), 0.1, 1) for k in ("protein_g", "fat_g", "carbs_g")
+    )
+
+
+async def promote(session: AsyncSession, product: Product, barcode: str | None) -> Product | None:
+    """Copy `product` to the shared catalog if enough other users confirmed it. Returns the shared product if created."""
+    if barcode:
+        if await session.scalar(select(Product.id).where(Product.barcode == barcode)):
+            return None
+        peers = await session.scalars(
+            select(Product).join(UserBarcode, UserBarcode.product_id == Product.id).where(UserBarcode.barcode == barcode)
+        )
+    elif product.brand:
+        if await session.scalar(select(Product.id).where(
+            Product.owner_user_id.is_(None), Product.name == product.name, Product.brand == product.brand
+        )):
+            return None
+        peers = await session.scalars(
+            select(Product).where(Product.owner_user_id.is_not(None), Product.search_text == product.search_text)
+        )
+    else:
+        return None
+    agree = [p for p in peers if same_numbers(p, product)]
+    if len({p.owner_user_id for p in agree}) < CONFIRMATIONS:
+        return None
+    avg = {k: round(sum(getattr(p, k) for p in agree) / len(agree), 1) for k in ("kcal", "protein_g", "fat_g", "carbs_g")}
+    shared = Product(name=product.name, brand=product.brand, barcode=barcode, category="Проверено пользователями",
+                     portion_g=product.portion_g, portion_name=product.portion_name, **avg)
+    session.add(shared)
+    await session.flush()
+    return shared
 
 
 @router.post("/products")
 async def create_product(body: ProductIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    """A custom product, visible only to its author (values per 100 g)."""
+    """A custom product, visible only to its author (values per 100 g). Same name+brand again updates it."""
     user = await get_or_create_user(tg, session)
     if body.protein_g + body.fat_g + body.carbs_g > 100:
         raise HTTPException(422, "Белков, жиров и углеводов вместе не может быть больше 100 г на 100 г")
-    product = Product(owner_user_id=user.id, category="Мои продукты", **{**body.model_dump(exclude={"barcode"}), "name": body.name.strip()})
-    session.add(product)
+    data = {**body.model_dump(exclude={"barcode"}), "name": body.name.strip(), "brand": (body.brand or "").strip() or None}
+    product = await session.scalar(select(Product).where(
+        Product.owner_user_id == user.id, Product.name == data["name"], Product.brand.is_not_distinct_from(data["brand"])
+    ))
+    if product:
+        for k, v in data.items():
+            setattr(product, k, v)
+    else:
+        product = Product(owner_user_id=user.id, category="Мои продукты", **data)
+        session.add(product)
     await session.flush()
     if body.barcode:
         await session.execute(
             insert(UserBarcode).values(user_id=user.id, barcode=body.barcode, product_id=product.id)
             .on_conflict_do_update(index_elements=["user_id", "barcode"], set_={"product_id": product.id})
         )
+    try:
+        async with session.begin_nested():  # savepoint: a lost promotion race must not lose the user's product
+            shared = await promote(session, product, body.barcode)
+    except IntegrityError:  # someone promoted it a moment ago
+        shared = None
     await session.commit()
-    return product_out(product)
+    return {**product_out(product), "shared": shared is not None}

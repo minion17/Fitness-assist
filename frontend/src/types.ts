@@ -1,7 +1,10 @@
 // Shapes returned by the backend API.
 export type Macros = { kcal: number; protein_g: number; fat_g: number; carbs_g: number }
 
-export type Product = Macros & { id: number; name: string; brand: string | null; category: string | null }
+export type Product = Macros & {
+  id: number; name: string; brand: string | null; category: string | null
+  portion_g?: number | null; portion_name?: string | null // typical serving, e.g. 610 g «пицца»
+}
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 export const MEALS: Record<MealType, string> = { breakfast: 'Завтрак', lunch: 'Обед', dinner: 'Ужин', snack: 'Перекус' }

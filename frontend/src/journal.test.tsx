@@ -224,7 +224,7 @@ test('food: custom product form validates and returns the new product', async ()
   fireEvent.change(p, { target: { value: '15' } }); fireEvent.change(f, { target: { value: '9,0' } })
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить продукт' }))
   expect(await screen.findByRole('button', { name: /Добавить в «Завтрак»/ })).toBeTruthy()
-  expect(apiMock).toHaveBeenCalledWith('/api/products', expect.objectContaining({ body: JSON.stringify({ name: 'Сырник домашний', kcal: 220, protein_g: 15, fat_g: 9, carbs_g: 20 }) }))
+  expect(apiMock).toHaveBeenCalledWith('/api/products', expect.objectContaining({ body: JSON.stringify({ name: 'Сырник домашний', kcal: 220, protein_g: 15, fat_g: 9, carbs_g: 20, brand: null, portion_g: null }) }))
 })
 
 test('food: each snack is its own card in time order; adding to a snack keeps its time', async () => {
@@ -278,4 +278,31 @@ test('home water: portions, custom volume and undo of the last one', async () =>
   fireEvent.click(screen.getByRole('button', { name: 'Убрать последние 400 мл' }))
   fireEvent.click(screen.getByRole('button', { name: 'Убрать последние 330 мл' }))
   expect(onWater.mock.calls.map((c) => c[0])).toEqual([330, 400, -400, -330])
+})
+
+test('menu photo: pick dishes, save with the restaurant, then quick portions', async () => {
+  const pizza = { name: 'Пепперони 30 см', kcal: 260, protein_g: 10.6, fat_g: 8.3, carbs_g: 34, portion_g: 610, portion_name: 'пицца' }
+  const posted: Record<string, unknown>[] = []
+  apiMock.mockImplementation(async (path: string, init?: RequestInit) => {
+    if (path === '/api/products/recent' || path === '/api/favorites') return []
+    if (path === '/api/ai/menu') return { venue: 'Додо Пицца', note: '', items: [pizza, { ...pizza, name: 'Морс', portion_g: null, portion_name: 'порция' }] }
+    if (path === '/api/products') { const b = JSON.parse(String(init!.body)); posted.push(b); return { id: 90 + posted.length, brand: b.brand, category: 'Мои продукты', ...b, shared: false } }
+    return null
+  })
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  const onAdd = vi.fn().mockResolvedValue(undefined)
+  const { container } = render(<Food day={empty} canEdit aiEnabled onAdd={onAdd} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  fireEvent.click(await screen.findByRole('button', { name: '📷 Меню ресторана' }))
+  const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' })
+  fireEvent.change(container.ownerDocument.querySelector('.sheet input[type=file]')!, { target: { files: [file] } })
+  const boxes = await screen.findAllByRole('checkbox')
+  fireEvent.click(boxes[1]) // keep only the pizza
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбранные (1)' }))
+  fireEvent.click(await screen.findByRole('button', { name: /Пепперони 30 см/ }))
+  expect(posted).toEqual([{ ...pizza, brand: 'Додо Пицца' }])
+  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('610') // one pizza by default
+  fireEvent.click(screen.getByRole('button', { name: /½ · 305 г/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Добавить в/ }))
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(91, 305, 'breakfast', null))
 })

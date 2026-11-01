@@ -4,6 +4,7 @@ import AiMeal from './AiMeal'
 import { shrink } from './image'
 import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
+import MenuImport from './MenuImport'
 import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
@@ -161,6 +162,8 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   const [scan, setScan] = useState<'idle' | 'busy' | 'manual'>('idle')
   const [code, setCode] = useState('')
   const [scanner, setScanner] = useState(false)
+  const [menuMode, setMenuMode] = useState(false)
+  const [thanks, setThanks] = useState(false)
   const [recent, setRecent] = useState<RecentProduct[] | null>(null)
   const [favorites, setFavorites] = useState<Product[] | null>(null)
 
@@ -200,6 +203,7 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   function pick(p: Product | RecentProduct) {
     setPicked(p)
     if ('last_amount_g' in p) setGrams(String(p.last_amount_g))
+    else if (p.portion_g) setGrams(String(p.portion_g))
   }
 
   useEffect(() => {
@@ -240,7 +244,9 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
       </div>
 
       {custom && !picked ? (
-        <CustomProduct aiEnabled={aiEnabled} barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
+        <CustomProduct aiEnabled={aiEnabled} barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); setThanks(!!p.shared); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
+      ) : menuMode && !picked ? (
+        <MenuImport onPick={(p) => { setMenuMode(false); pick(p) }} onCancel={() => setMenuMode(false)} />
       ) : !picked ? (
         <>
           <div className="input-wrap">
@@ -253,6 +259,7 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
                 {scan === 'busy' ? 'Ищем товар…' : '▥ Сканировать штрихкод'}
               </button>
               <button type="button" className="link" onClick={() => setCustom(true)}>+ Свой продукт</button>
+              {aiEnabled && <button type="button" className="link" onClick={() => setMenuMode(true)}>📷 Меню ресторана</button>}
             </div>
           )}
           {scan === 'manual' && (
@@ -316,6 +323,19 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
             )}
             <button className="link" onClick={() => setPicked(null)}>Другой</button>
           </div>
+          {thanks && <p className="sub pos">Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем.</p>}
+          {picked.portion_g ? (
+            <div className="seg seg-row portions">
+              {[0.5, 1, 2].map((k) => {
+                const v = String(Math.round(picked.portion_g! * k))
+                return (
+                  <button type="button" key={k} aria-pressed={grams === v} onClick={() => setGrams(v)}>
+                    {k === 1 ? `1 ${picked.portion_name ?? 'порция'}` : k === 0.5 ? '½' : '×2'} · {v} г
+                  </button>
+                )
+              })}
+            </div>
+          ) : null}
           <label className="field">
             <span>Количество</span>
             <div className="input-wrap">
@@ -343,9 +363,9 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
 type Label = { found: true; name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; note: string } | { found: false; note: string }
 
 function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
-  barcode: string | null; aiEnabled: boolean; onCreated: (p: Product) => void; onCancel: () => void
+  barcode: string | null; aiEnabled: boolean; onCreated: (p: Product & { shared?: boolean }) => void; onCancel: () => void
 }) {
-  const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '' })
+  const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '', brand: '', portion_g: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [reading, setReading] = useState(false)
@@ -364,7 +384,7 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       if (!r) return
       if (!r.found) { setError(r.note); return }
       const s = (n: number) => String(n).replace('.', ',')
-      setV((old) => ({ name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g) }))
+      setV((old) => ({ ...old, name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g) }))
       setHint(r.note || 'Проверьте цифры с упаковкой и сохраните.')
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось прочитать этикетку')
@@ -381,9 +401,14 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       if (v[k] === '' || !Number.isFinite(n) || n < 0 || n > max) return setError(`${label}: от 0 до ${max}`)
     }
     if (num(v.protein_g) + num(v.fat_g) + num(v.carbs_g) > 100) return setError('Белков, жиров и углеводов вместе не больше 100 г')
+    const portion = v.portion_g ? num(v.portion_g) : null
+    if (portion !== null && !(portion > 0 && portion <= 3000)) return setError('Порция: от 1 до 3000 г')
     setBusy(true)
     try {
-      const p = await api<Product>('/api/products', postJson({ name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g), ...(barcode ? { barcode } : {}) }))
+      const p = await api<Product & { shared: boolean }>('/api/products', postJson({
+        name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g),
+        brand: v.brand.trim() || null, portion_g: portion, ...(barcode ? { barcode } : {}),
+      }))
       if (p) onCreated(p)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось сохранить')
@@ -414,6 +439,16 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
             <div className="input-wrap"><input inputMode="decimal" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} /></div>
           </label>
         ))}
+      </div>
+      <div className="grid2">
+        <label className="field">
+          <span>Бренд / заведение</span>
+          <div className="input-wrap"><input value={v.brand} placeholder="необязательно" onChange={(e) => setV({ ...v, brand: e.target.value })} /></div>
+        </label>
+        <label className="field">
+          <span>Порция, г</span>
+          <div className="input-wrap"><input inputMode="decimal" value={v.portion_g} placeholder="необязательно" onChange={(e) => setV({ ...v, portion_g: e.target.value })} /></div>
+        </label>
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       <button className="btn" disabled={busy} onClick={save}>{busy ? 'Сохраняем…' : 'Сохранить продукт'}</button>

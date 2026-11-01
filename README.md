@@ -1,4 +1,4 @@
-# Fitness Assistant
+# Setly
 
 Telegram-бот с Mini App для дневника питания, тренировок и отслеживания прогресса.
 

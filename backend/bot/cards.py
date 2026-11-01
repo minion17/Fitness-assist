@@ -94,7 +94,7 @@ class Card:
 
     def brand(self, right: str = "") -> None:
         self.d.ellipse([64 * K, 62 * K, 84 * K, 82 * K], fill=self.p["accent"])
-        self.text((98, 56), "Fitness Assistant", 26, "text", 700)
+        self.text((98, 56), "Setly", 26, "text", 700)
         if right:
             self.text((W - 64, 56), right, 24, "muted", 500, anchor="ra")
 

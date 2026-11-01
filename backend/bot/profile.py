@@ -1,4 +1,4 @@
-"""Bot's own profile: avatar, description (shown in an empty chat) and short description (the "about" line).
+"""Bot's own profile: display name, avatar, description (shown in an empty chat) and short description (the "about" line).
 
 Applied by the bot on startup, but only when something here changed: Telegram keeps every uploaded photo,
 so re-uploading on each start would pile them up. Edit the texts or assets/avatar.jpg and restart the bot.
@@ -14,9 +14,10 @@ log = logging.getLogger("bot.profile")
 AVATAR = Path(__file__).parent / "assets" / "avatar.jpg"
 STAMP = Path(__file__).resolve().parents[2] / ".bot_profile"  # in the project root, git-ignored
 
-SHORT_DESCRIPTION = "Дневник питания, тренировки и вода в одном приложении. Сканер штрихкодов, AI по фото, напоминания."
+NAME = "Setly"
+SHORT_DESCRIPTION = "Setly — питание, тренировки и вода в одном приложении. Сканер штрихкодов, AI по фото, напоминания."
 
-DESCRIPTION = """Помогу питаться и тренироваться осознанно — без таблиц и подсчётов на бумажке.
+DESCRIPTION = """Setly помогает питаться и тренироваться осознанно — без таблиц и подсчётов на бумажке.
 
 🍽 Питание: норма КБЖУ под вашу цель, сканер штрихкодов, еда по фото и меню ресторанов с AI
 💪 Тренировки: программа под ваш уровень и инвентарь
@@ -28,6 +29,7 @@ DESCRIPTION = """Помогу питаться и тренироваться о�
 
 def fingerprint() -> str:
     h = hashlib.sha256(AVATAR.read_bytes())
+    h.update(NAME.encode())
     h.update(DESCRIPTION.encode())
     h.update(SHORT_DESCRIPTION.encode())
     return h.hexdigest()
@@ -39,6 +41,7 @@ async def sync(bot) -> None:
     try:
         if STAMP.exists() and STAMP.read_text().strip() == fp:
             return
+        await bot.set_my_name(name=NAME)
         await bot.set_my_description(description=DESCRIPTION)
         await bot.set_my_short_description(short_description=SHORT_DESCRIPTION)
         await bot.set_my_profile_photo(photo=InputProfilePhotoStatic(photo=FSInputFile(AVATAR)))

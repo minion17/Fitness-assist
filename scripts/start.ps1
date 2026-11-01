@@ -16,7 +16,7 @@ function Open-Window($title, $command) {
     Start-Process powershell -WorkingDirectory $root -ArgumentList '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command', $cmd
 }
 
-Write-Host "== Fitness Assistant: запуск ==" -ForegroundColor Cyan
+Write-Host "== Setly: запуск ==" -ForegroundColor Cyan
 
 if (-not (Test-Path $py)) { throw "Нет .venv — сначала запустите update.bat" }
 if (-not (Test-Path (Join-Path $root 'frontend\dist\index.html'))) { throw "Интерфейс не собран — сначала запустите update.bat" }

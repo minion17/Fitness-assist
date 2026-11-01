@@ -42,7 +42,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Fitness Assistant API", lifespan=lifespan)
+app = FastAPI(title="Setly API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),

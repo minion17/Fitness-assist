@@ -586,6 +586,10 @@ def test_bot_profile_synced_only_when_changed(tmp_path, monkeypatch):
     calls = []
 
     class FakeBot:
+        async def set_my_name(self, name):
+            calls.append("name")
+            assert 0 < len(name) <= 64
+
         async def set_my_description(self, description):
             calls.append("description")
             assert len(description) <= 512
@@ -600,10 +604,10 @@ def test_bot_profile_synced_only_when_changed(tmp_path, monkeypatch):
     monkeypatch.setattr(profile, "STAMP", tmp_path / ".bot_profile")
     asyncio.run(profile.sync(FakeBot()))
     asyncio.run(profile.sync(FakeBot()))
-    assert calls == ["description", "short", "photo"]  # second start: nothing changed, nothing re-uploaded
+    assert calls == ["name", "description", "short", "photo"]  # second start: nothing changed, nothing re-uploaded
     monkeypatch.setattr(profile, "SHORT_DESCRIPTION", profile.SHORT_DESCRIPTION + "!")
     asyncio.run(profile.sync(FakeBot()))
-    assert len(calls) == 6
+    assert len(calls) == 8
 
 
 def test_cards_render_in_every_theme():

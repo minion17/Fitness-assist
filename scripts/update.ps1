@@ -2,7 +2,7 @@
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 Set-Location $root
-Write-Host "== Fitness Assistant: обновление ==" -ForegroundColor Cyan
+Write-Host "== Setly: обновление ==" -ForegroundColor Cyan
 
 Write-Host "`n[1/4] Код с GitHub"
 git pull

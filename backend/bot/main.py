@@ -14,6 +14,7 @@ from aiogram.types import (
     WebAppInfo,
 )
 
+from backend.bot import reminders
 from backend.core.config import Settings, settings
 
 log = logging.getLogger("bot")
@@ -74,6 +75,13 @@ async def main() -> None:
     # Optional proxy for networks where api.telegram.org is blocked (http:// or socks5://).
     session = AiohttpSession(proxy=settings.bot_proxy) if settings.bot_proxy else None
     bot = Bot(settings.bot_token, session=session)
+
+    def reminder_keyboard() -> InlineKeyboardMarkup | None:
+        url = current_webapp_url()
+        return open_app_keyboard(url) if url.startswith("https://") else None
+
+    # runs alongside polling; the reference keeps the task from being garbage-collected
+    reminder_task = asyncio.create_task(reminders.run(bot, reminder_keyboard))
     # start_polling fails right away if Telegram is unreachable at startup; keep retrying instead of exiting.
     while True:
         try:

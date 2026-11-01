@@ -245,3 +245,37 @@ test('food: each snack is its own card in time order; adding to a snack keeps it
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 50, 'snack', '11:30'))
   expect(screen.getByRole('button', { name: '+ Перекус' })).toBeTruthy()
 })
+
+test('reminders: toggles and times are saved', async () => {
+  const saved: unknown[] = []
+  apiMock.mockImplementation(async (_path: string, init?: RequestInit) => {
+    if (init?.method === 'PUT') { saved.push(JSON.parse(String(init.body))); return null }
+    return { meals: true, water: true, streak: true, breakfast_at: '10:00', lunch_at: '14:00', dinner_at: '20:00', streak_at: '21:00' }
+  })
+  const { default: Reminders } = await import('./Reminders')
+  render(<Reminders />)
+  fireEvent.click(await screen.findByRole('switch', { name: 'Напоминать о воде' }))
+  expect(screen.getByRole('switch', { name: 'Напоминать о воде' }).getAttribute('aria-checked')).toBe('false')
+  fireEvent.change(screen.getByLabelText('Обед, время'), { target: { value: '13:30' } })
+  fireEvent.click(screen.getByRole('switch', { name: 'Напоминать о приёмах пищи' }))
+  expect(screen.queryByLabelText('Обед, время')).toBeNull() // times hide when meals are off
+  await waitFor(() => expect(saved).toHaveLength(3))
+  expect(saved[2]).toMatchObject({ meals: false, water: false, lunch_at: '13:30' })
+})
+
+test('home water: portions, custom volume and undo of the last one', async () => {
+  const { default: Home } = await import('./Home')
+  const onWater = vi.fn()
+  const day: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  render(<Home name="Егор" level={1} streak={0} day={day} logs={[]} water={{ ml: 500, goal_ml: 2500 }} week={[]}
+    aiEnabled={false} canEdit onFood={vi.fn()} onWorkouts={vi.fn()} onWater={onWater} summary={null} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить 330 мл' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Свой объём' }))
+  fireEvent.change(screen.getByLabelText('Объём, мл'), { target: { value: '5000' } })
+  expect((screen.getByRole('button', { name: 'Добавить' }) as HTMLButtonElement).disabled).toBe(true) // over 1000 ml
+  fireEvent.change(screen.getByLabelText('Объём, мл'), { target: { value: '400' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать последние 400 мл' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать последние 330 мл' }))
+  expect(onWater.mock.calls.map((c) => c[0])).toEqual([330, 400, -400, -330])
+})

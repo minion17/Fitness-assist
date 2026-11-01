@@ -44,6 +44,47 @@ function MiniRing({ frac, today }: { frac: number; today: boolean }) {
   )
 }
 
+const PORTIONS = [150, 250, 330, 500]
+
+function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean; onWater: (delta: number) => void }) {
+  const [added, setAdded] = useState<number[]>([]) // this session's additions, so "undo" removes exactly the last one
+  const [custom, setCustom] = useState<string | null>(null)
+  const ml = Number(custom)
+  const customOk = Number.isInteger(ml) && ml >= 10 && ml <= 1000
+  const add = (n: number) => { setAdded((a) => [...a, n]); onWater(n) }
+  const undo = () => { const n = added.at(-1) ?? 250; setAdded((a) => a.slice(0, -1)); onWater(-Math.min(n, water.ml)) }
+
+  return (
+    <section className="card water">
+      <div className="water-row">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--water)" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" /></svg>
+        <div className="row-title strong row-main">Вода · {liters(water.ml)} <span className="muted">/ {liters(water.goal_ml)} л</span></div>
+        {canEdit && water.ml > 0 && (
+          <button className="water-undo" aria-label={`Убрать последние ${added.at(-1) ?? 250} мл`} onClick={undo}>↶ {added.at(-1) ?? 250}</button>
+        )}
+      </div>
+      <div className="bar water-bar"><i style={{ width: `${Math.min(100, (water.ml / water.goal_ml) * 100)}%`, background: 'var(--water)' }} /></div>
+      {canEdit && (custom === null ? (
+        <div className="water-chips">
+          {PORTIONS.map((n) => <button key={n} aria-label={`Добавить ${n} мл`} onClick={() => add(n)}>+{n}</button>)}
+          <button aria-label="Свой объём" onClick={() => setCustom('')}>Своё</button>
+        </div>
+      ) : (
+        <div className="water-chips">
+          <div className="input-wrap water-input">
+            <input autoFocus inputMode="numeric" aria-label="Объём, мл" placeholder="мл" value={custom}
+              onChange={(e) => setCustom(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              onKeyDown={(e) => { if (e.key === 'Enter' && customOk) { add(ml); setCustom(null) } }} />
+            <i>мл</i>
+          </div>
+          <button disabled={!customOk} onClick={() => { add(ml); setCustom(null) }}>Добавить</button>
+          <button className="water-cancel" onClick={() => setCustom(null)}>Отмена</button>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 export default function Home(props: {
   name: string
   level: number
@@ -69,8 +110,6 @@ export default function Home(props: {
   const goal = targets?.calories ?? 2000
   const left = goal - day.totals.kcal
   const next = props.program && nextDay(props.program, props.logs)
-  const glasses = Math.min(16, Math.round(water.goal_ml / 250))
-  const filled = Math.round(water.ml / 250)
   const macros = [
     { label: 'Белки', v: day.totals.protein_g, g: targets?.protein ?? 120, color: 'var(--protein)' },
     { label: 'Жиры', v: day.totals.fat_g, g: targets?.fat ?? 70, color: 'var(--fat)' },
@@ -135,23 +174,7 @@ export default function Home(props: {
         </span>
       </button>
 
-      <section className="card water">
-        <div className="water-row">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--water)" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" /></svg>
-          <div className="row-main">
-            <div className="row-title strong">Вода · {liters(water.ml)} <span className="muted">/ {liters(water.goal_ml)} л</span></div>
-            <div className="glasses" role="img" aria-label={`${filled} из ${glasses} стаканов`}>
-              {Array.from({ length: glasses }, (_, i) => <i key={i} className={i < filled ? 'on' : ''} />)}
-            </div>
-          </div>
-          {props.canEdit && (
-            <div className="water-btns">
-              {water.ml > 0 && <button className="water-minus" aria-label="Убрать стакан" onClick={() => props.onWater(-250)}>−</button>}
-              <button className="water-plus" aria-label="Добавить стакан воды, 250 мл" onClick={() => props.onWater(250)}>+250</button>
-            </div>
-          )}
-        </div>
-      </section>
+      <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} />
 
       {week.length === 7 && (
         <section className="card">

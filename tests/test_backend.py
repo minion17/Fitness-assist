@@ -483,3 +483,51 @@ def test_several_snacks_a_day(client, seeded):
     assert add(meal_type="snack", snack_slot="25:00").status_code == 422
     slots = sorted({i["snack_slot"] for i in client.get("/api/food-logs", headers=h).json()["items"] if i["meal_type"] == "snack"})
     assert slots == sorted({"11:30", auto})
+
+
+def test_reminder_settings_and_collect(client, seeded):
+    from datetime import datetime
+
+    from backend.bot.reminders import collect, due
+    from backend.database.db import SessionLocal
+
+    now = datetime.now().astimezone()
+    assert due("14:00", now.replace(hour=14, minute=20)) and not due("14:00", now.replace(hour=15, minute=0))
+    assert not due("14:00", now.replace(hour=13, minute=59))
+
+    import random
+
+    from conftest import USER, make_init_data
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    assert client.get("/api/reminders", headers=h).json()["lunch_at"] == "14:00"  # defaults
+    bad = {"meals": True, "water": True, "streak": True, "breakfast_at": "9:00", "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00"}
+    assert client.put("/api/reminders", headers=h, json=bad).status_code == 422
+    cfg = {**bad, "breakfast_at": "09:00", "water": False}
+    assert client.put("/api/reminders", headers=h, json=cfg).json() == cfg
+    client.put("/api/profile", headers=h, json=PROFILE)  # reminders go to registered users only
+
+    async def run(at):
+        async with SessionLocal() as s:
+            return await collect(s, now.replace(hour=at[0], minute=at[1], second=0, microsecond=0))
+
+    def texts(at):
+        return [t for chat, t in client.portal.call(run, at) if chat == tg_id]  # other test users get theirs too
+
+    lunch = texts((14, 5))
+    assert any("обед" in t for t in lunch)
+    assert not any("обед" in t for t in texts((14, 6)))  # sent once
+    assert not any("Выпито" in t for t in texts((12, 5)))  # water reminders switched off for this user
+
+    # lunch already logged -> no dinner nag for lunch, but dinner still reminded at its time
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": "dinner"})
+    assert not any("ужин" in t for t in texts((20, 1)))
+    # defaults (water on): behind schedule at noon -> one water reminder with liters in Russian format
+    tg2 = random.randint(3 * 10**9, 4 * 10**9)
+    h2 = {"Authorization": f"tma {make_init_data({**USER, 'id': tg2})}"}
+    client.put("/api/profile", headers=h2, json=PROFILE)
+    client.post("/api/water", headers=h2, json={"delta_ml": 250})
+    noon = [t for chat, t in client.portal.call(run, (12, 1)) if chat == tg2]
+    assert noon == ["💧 Выпито 0,25 л из 2,5 л. Стакан воды сейчас — самое время."]

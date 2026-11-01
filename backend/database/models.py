@@ -177,6 +177,29 @@ class UserBarcode(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
 
 
+class ReminderSettings(Base):
+    """What the bot may remind the user about, and when (server-local "HH:MM")."""
+    __tablename__ = "reminder_settings"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    meals: Mapped[bool] = mapped_column(Boolean, default=True)
+    water: Mapped[bool] = mapped_column(Boolean, default=True)
+    streak: Mapped[bool] = mapped_column(Boolean, default=True)
+    breakfast_at: Mapped[str] = mapped_column(String(5), default="10:00")
+    lunch_at: Mapped[str] = mapped_column(String(5), default="14:00")
+    dinner_at: Mapped[str] = mapped_column(String(5), default="20:00")
+    streak_at: Mapped[str] = mapped_column(String(5), default="21:00")
+
+
+class ReminderSent(Base):
+    """One row per sent reminder, so a restart or a slow loop never sends the same one twice."""
+    __tablename__ = "reminders_sent"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    key: Mapped[str] = mapped_column(String(40), primary_key=True)  # "2026-11-01:lunch"
+    sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class WorkoutLog(Base):
     __tablename__ = "workout_logs"
 

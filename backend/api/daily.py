@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FoodLog, Product, Profile, User, WaterIntake, WorkoutLog
+from backend.database.models import FoodLog, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -106,3 +106,39 @@ async def week(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
         "streak": streak(days, today),
         "days": [{"date": d.isoformat(), **{**empty, **days.get(d, {})}, "kcal": round(days.get(d, empty)["kcal"])} for d in last7],
     }
+
+
+# ---- Reminder settings (the bot sends them, see backend/bot/reminders.py) ----
+
+HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
+REMINDER_FIELDS = ("meals", "water", "streak", "breakfast_at", "lunch_at", "dinner_at", "streak_at")
+REMINDER_DEFAULTS = {"meals": True, "water": True, "streak": True,
+                     "breakfast_at": "10:00", "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00"}
+
+
+class RemindersIn(BaseModel):
+    meals: bool
+    water: bool
+    streak: bool
+    breakfast_at: str = Field(pattern=HHMM)
+    lunch_at: str = Field(pattern=HHMM)
+    dinner_at: str = Field(pattern=HHMM)
+    streak_at: str = Field(pattern=HHMM)
+
+
+@router.get("/reminders")
+async def get_reminders(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    cfg = await session.get(ReminderSettings, user.id)
+    return {k: getattr(cfg, k) for k in REMINDER_FIELDS} if cfg else REMINDER_DEFAULTS
+
+
+@router.put("/reminders")
+async def save_reminders(body: RemindersIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    await session.execute(
+        insert(ReminderSettings).values(user_id=user.id, **body.model_dump())
+        .on_conflict_do_update(index_elements=["user_id"], set_=body.model_dump())
+    )
+    await session.commit()
+    return body.model_dump()

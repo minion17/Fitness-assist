@@ -4,6 +4,7 @@ import AiSummary from './AiSummary'
 import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
+import Reminders from './Reminders'
 import Reward from './Reward'
 import { ACCENTS, THEMES, useTheme, type ThemePref } from './theme'
 import Questionnaire from './Questionnaire'
@@ -67,9 +68,10 @@ function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
   )
 }
 
-function Profile({ synced, progress, data, onEdit, body, theme }: {
+function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
   synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void; body: React.ReactNode
   theme: ReturnType<typeof useTheme>
+  canEdit: boolean
 }) {
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
@@ -103,6 +105,7 @@ function Profile({ synced, progress, data, onEdit, body, theme }: {
         </section>
       )}
       <button className="btn btn-ghost" onClick={onEdit}>{data ? 'Изменить анкету' : 'Заполнить анкету'}</button>
+      {canEdit && <Reminders />}
       <ThemeCard t={theme} />
       {body}
     </>
@@ -289,7 +292,7 @@ export default function App() {
             canEdit={canEdit} onChanged={workoutChanged} />
         )}
         {tab === 'profile' && (
-          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme}
+          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
         )}
       </main>

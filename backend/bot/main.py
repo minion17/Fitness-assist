@@ -1,4 +1,5 @@
 import asyncio
+import html
 import logging
 
 from aiogram import Bot, Dispatcher, Router
@@ -7,6 +8,7 @@ from aiogram.exceptions import TelegramNetworkError
 from aiogram.filters import CommandStart
 from aiogram.types import (
     ErrorEvent,
+    BufferedInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     MenuButtonWebApp,
@@ -14,7 +16,11 @@ from aiogram.types import (
     WebAppInfo,
 )
 
-from backend.bot import profile, reminders
+from sqlalchemy import select
+
+from backend.bot import cards, profile, reminders
+from backend.database.db import SessionLocal
+from backend.database.models import User
 from backend.core.config import Settings, settings
 
 log = logging.getLogger("bot")
@@ -22,9 +28,15 @@ router = Router()
 
 WELCOME = (
     "Привет, {name}! 👋\n\n"
-    "Я <b>Fitness Assistant</b> — помогу вести дневник питания, тренировок "
-    "и следить за прогрессом.\n\nНажми кнопку ниже, чтобы открыть приложение."
+    "Я <b>Fitness Assistant</b> — посчитаю твою норму КБЖУ, помогу вести дневник питания "
+    "и тренировок и напомню про воду.\n\nНажми кнопку ниже — анкета займёт пару минут."
 )
+
+
+async def account(telegram_id: int) -> User | None:
+    """The user's account if they opened the app before (for their theme)."""
+    async with SessionLocal() as s:
+        return await s.scalar(select(User).where(User.telegram_id == telegram_id))
 
 
 def current_webapp_url() -> str:
@@ -42,7 +54,15 @@ def open_app_keyboard(url: str) -> InlineKeyboardMarkup:
 async def start(message: Message) -> None:
     url = current_webapp_url()
     name = message.from_user.first_name if message.from_user else "друг"
-    await message.answer(WELCOME.format(name=name), reply_markup=open_app_keyboard(url), parse_mode="HTML")
+    caption = WELCOME.format(name=html.escape(name))
+    try:
+        user = await account(message.from_user.id) if message.from_user else None
+        png = await asyncio.to_thread(cards.welcome, user and user.theme, user and user.accent)
+        await message.answer_photo(BufferedInputFile(png, "welcome.png"), caption=caption,
+                                   reply_markup=open_app_keyboard(url), parse_mode="HTML")
+    except Exception:
+        log.warning("welcome card failed, sending text", exc_info=True)
+        await message.answer(caption, reply_markup=open_app_keyboard(url), parse_mode="HTML")
     if url.startswith("https://"):
         try:  # keep this chat's menu button on the current address too
             await message.bot.set_chat_menu_button(

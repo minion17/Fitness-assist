@@ -10,13 +10,18 @@ from datetime import datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
+from functools import partial
+
 from backend.api.daily import active_days, local_start, streak, water_goal
+from backend.bot import cards
+from backend.core.nutrition import daily_targets
 from backend.database.db import SessionLocal
-from backend.database.models import FoodLog, Profile, ReminderSent, ReminderSettings, User, WaterIntake
+from backend.database.models import FoodLog, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake
 
 log = logging.getLogger("reminders")
 
 MEALS = {"breakfast": "завтрак", "lunch": "обед", "dinner": "ужин"}
+Render = partial  # a deferred card drawing: called in a worker thread just before sending
 # (time, share of the daily goal that should be drunk by then)
 WATER_CHECKS = (("12:00", 0.35), ("16:00", 0.6), ("19:00", 0.85))
 WINDOW = timedelta(minutes=45)  # a reminder missed by a restart is still sent within this window, not hours later
@@ -32,18 +37,31 @@ def due(at: str, now: datetime) -> bool:
     return start <= now < start + WINDOW
 
 
-async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) -> list[tuple[str, str]]:
-    """(key, text) of reminders that are due for this user right now and still make sense."""
+async def eaten_today(session, user: User, start: datetime) -> tuple[set[str], dict[str, float]]:
+    """Meal types logged today and totals (kcal, protein, fat, carbs)."""
+    rows = (await session.execute(
+        select(FoodLog.meal_type, FoodLog.amount_g, Product.kcal, Product.protein_g, Product.fat_g, Product.carbs_g)
+        .join(Product, Product.id == FoodLog.product_id)
+        .where(FoodLog.user_id == user.id, FoodLog.logged_at >= start)
+    )).all()
+    totals = {k: sum(r[i + 2] * r[1] / 100 for r in rows) for i, k in enumerate(("kcal", "protein", "fat", "carbs"))}
+    return {r[0] for r in rows}, totals
+
+
+async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) -> list[tuple[str, str, Render]]:
+    """(key, caption, card) of reminders that are due for this user right now and still make sense."""
     today = now.date()
+    look = {"theme": user.theme if user.theme in cards.THEMES else None, "accent": user.accent}
     out = []
     if cfg.meals:
         todo = [m for m in MEALS if due(getattr(cfg, f"{m}_at"), now)]
         if todo:
-            start = local_start(today)
-            eaten = set(await session.scalars(
-                select(FoodLog.meal_type).where(FoodLog.user_id == user.id, FoodLog.logged_at >= start)
-            ))
-            out += [(f"{today}:{m}", f"🍽 Не забудьте записать {MEALS[m]} — так норма КБЖУ будет честной.")
+            eaten, t = await eaten_today(session, user, local_start(today))
+            p = await session.get(Profile, user.id)
+            goal = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal)
+            macros = {"Белки": (t["protein"], goal["protein"]), "Жиры": (t["fat"], goal["fat"]), "Углеводы": (t["carbs"], goal["carbs"])}
+            out += [(f"{today}:{m}", f"🍽 Не забудьте записать {MEALS[m]} — так норма КБЖУ будет честной.",
+                     Render(cards.meal, MEALS[m].capitalize(), t["kcal"], goal["calories"], macros, **look))
                     for m in todo if m not in eaten]
     if cfg.water:
         for at, share in WATER_CHECKS:
@@ -53,17 +71,20 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                     select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)
                 ) or 0
                 if ml < goal * share:
-                    out.append((f"{today}:water{at}", f"💧 Выпито {liters(ml)} л из {liters(goal)} л. Стакан воды сейчас — самое время."))
+                    out.append((f"{today}:water{at}", f"💧 Выпито {liters(ml)} л из {liters(goal)} л. Стакан воды сейчас — самое время.",
+                                Render(cards.water, ml, goal, at, **look)))
     if cfg.streak and due(cfg.streak_at, now):
         days = await active_days(session, user, today - timedelta(days=365))
         n = streak(days, today)
         if n > 0 and today not in days:
-            out.append((f"{today}:streak", f"🔥 Серия {n} дн. подряд сгорит сегодня — запишите хоть что-нибудь: еду, воду или тренировку."))
+            week = [today - timedelta(days=i) in days for i in range(6, -1, -1)]
+            out.append((f"{today}:streak", f"🔥 Серия {n} дн. подряд сгорит сегодня — запишите хоть что-нибудь: еду, воду или тренировку.",
+                        Render(cards.streak, n, week, **look)))
     return out
 
 
-async def collect(session, now: datetime) -> list[tuple[int, str]]:
-    """(telegram_id, text) to send now. Each reminder is recorded first, so it is sent at most once."""
+async def collect(session, now: datetime) -> list[tuple[int, str, Render]]:
+    """(telegram_id, caption, card) to send now. Each reminder is recorded first, so it is sent at most once."""
     rows = await session.execute(
         select(User, ReminderSettings).join(Profile, Profile.user_id == User.id)  # registered users only
         .outerjoin(ReminderSettings, ReminderSettings.user_id == User.id)
@@ -72,12 +93,12 @@ async def collect(session, now: datetime) -> list[tuple[int, str]]:
     for user, cfg in rows.all():
         cfg = cfg or ReminderSettings(meals=True, water=True, streak=True, breakfast_at="10:00",
                                       lunch_at="14:00", dinner_at="20:00", streak_at="21:00")
-        for key, text in await candidates(session, user, cfg, now):
+        for key, text, card in await candidates(session, user, cfg, now):
             fresh = await session.scalar(
                 insert(ReminderSent).values(user_id=user.id, key=key).on_conflict_do_nothing().returning(ReminderSent.key)
             )
             if fresh:
-                messages.append((user.telegram_id, text))
+                messages.append((user.telegram_id, text, card))
     await session.commit()
     return messages
 
@@ -85,14 +106,23 @@ async def collect(session, now: datetime) -> list[tuple[int, str]]:
 async def run(bot, keyboard) -> None:
     """Check once a minute; never let one failure stop the loop."""
     from aiogram.exceptions import TelegramForbiddenError
+    from aiogram.types import BufferedInputFile
 
     while True:
         try:
             async with SessionLocal() as session:
                 batch = await collect(session, datetime.now().astimezone())
-            for chat_id, text in batch:
+            for chat_id, text, card in batch:
                 try:
-                    await bot.send_message(chat_id, text, reply_markup=keyboard())
+                    try:
+                        png = await asyncio.to_thread(card)  # ~0.3 s of drawing: keep it off the event loop
+                    except Exception:
+                        log.warning("card for %s failed, sending text only", chat_id, exc_info=True)
+                        png = None
+                    if png:
+                        await bot.send_photo(chat_id, BufferedInputFile(png, "card.png"), caption=text, reply_markup=keyboard())
+                    else:
+                        await bot.send_message(chat_id, text, reply_markup=keyboard())
                 except TelegramForbiddenError:
                     log.info("user %s blocked the bot", chat_id)  # nothing to do; they can /start again
                 except Exception:

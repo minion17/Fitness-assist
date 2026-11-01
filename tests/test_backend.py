@@ -513,7 +513,7 @@ def test_reminder_settings_and_collect(client, seeded):
             return await collect(s, now.replace(hour=at[0], minute=at[1], second=0, microsecond=0))
 
     def texts(at):
-        return [t for chat, t in client.portal.call(run, at) if chat == tg_id]  # other test users get theirs too
+        return [t for chat, t, _ in client.portal.call(run, at) if chat == tg_id]  # other test users get theirs too
 
     lunch = texts((14, 5))
     assert any("обед" in t for t in lunch)
@@ -529,8 +529,9 @@ def test_reminder_settings_and_collect(client, seeded):
     h2 = {"Authorization": f"tma {make_init_data({**USER, 'id': tg2})}"}
     client.put("/api/profile", headers=h2, json=PROFILE)
     client.post("/api/water", headers=h2, json={"delta_ml": 250})
-    noon = [t for chat, t in client.portal.call(run, (12, 1)) if chat == tg2]
-    assert noon == ["💧 Выпито 0,25 л из 2,5 л. Стакан воды сейчас — самое время."]
+    noon = [(t, card) for chat, t, card in client.portal.call(run, (12, 1)) if chat == tg2]
+    assert [t for t, _ in noon] == ["💧 Выпито 0,25 л из 2,5 л. Стакан воды сейчас — самое время."]
+    assert noon[0][1]().startswith(b"\x89PNG")  # the card renders
 
 
 def test_user_products_become_shared_after_three_confirmations(client):
@@ -603,3 +604,17 @@ def test_bot_profile_synced_only_when_changed(tmp_path, monkeypatch):
     monkeypatch.setattr(profile, "SHORT_DESCRIPTION", profile.SHORT_DESCRIPTION + "!")
     asyncio.run(profile.sync(FakeBot()))
     assert len(calls) == 6
+
+
+def test_cards_render_in_every_theme():
+    from backend.bot import cards
+
+    for theme in (None, "dark", "light", "green"):
+        for png in (
+            cards.welcome(theme, "#a98bff"),
+            cards.meal("Обед", 2600, 2375, {"Белки": (170, 160), "Жиры": (0, 72), "Углеводы": (10, 0)}, theme),
+            cards.water(0, 2500, "12:00", theme),
+            cards.water(3000, 2500, "19:00", theme),
+            cards.streak(365, [True] * 6 + [False], theme),
+        ):
+            assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) < 400_000

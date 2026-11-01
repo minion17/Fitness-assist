@@ -17,7 +17,7 @@ from backend.api.daily import local_start
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import off
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FavoriteProduct, FoodLog, Product
+from backend.database.models import FavoriteProduct, FoodLog, Product, UserBarcode
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -110,8 +110,13 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
     """Our catalog first; otherwise Open Food Facts, and the found product is saved to the shared catalog."""
     if not BARCODE.fullmatch(code):
         raise HTTPException(422, "Штрихкод — это 8–14 цифр")
-    await get_or_create_user(tg, session)
-    product = await session.scalar(select(Product).where(Product.barcode == code))
+    if len(code) == 14 and code.startswith("0"):
+        code = code[1:]  # GTIN-14 with a leading zero is the same product as its EAN-13
+    user = await get_or_create_user(tg, session)
+    product = await session.scalar(select(Product).where(Product.barcode == code)) or await session.scalar(
+        select(Product).join(UserBarcode, UserBarcode.product_id == Product.id)
+        .where(UserBarcode.user_id == user.id, UserBarcode.barcode == code)
+    )
     if product:
         return product_out(product)
     try:
@@ -137,6 +142,7 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
 
 class ProductIn(BaseModel):
     name: str = Field(min_length=2, max_length=200)
+    barcode: str | None = Field(default=None, pattern=r"^\d{8,14}$")  # scanned but unknown: remember it for this user
     kcal: float = Field(ge=0, le=900)
     protein_g: float = Field(ge=0, le=100)
     fat_g: float = Field(ge=0, le=100)
@@ -149,7 +155,13 @@ async def create_product(body: ProductIn, tg: dict = Depends(telegram_user), ses
     user = await get_or_create_user(tg, session)
     if body.protein_g + body.fat_g + body.carbs_g > 100:
         raise HTTPException(422, "Белков, жиров и углеводов вместе не может быть больше 100 г на 100 г")
-    product = Product(owner_user_id=user.id, category="Мои продукты", **{**body.model_dump(), "name": body.name.strip()})
+    product = Product(owner_user_id=user.id, category="Мои продукты", **{**body.model_dump(exclude={"barcode"}), "name": body.name.strip()})
     session.add(product)
+    await session.flush()
+    if body.barcode:
+        await session.execute(
+            insert(UserBarcode).values(user_id=user.id, barcode=body.barcode, product_id=product.id)
+            .on_conflict_do_update(index_elements=["user_id", "barcode"], set_={"product_id": product.id})
+        )
     await session.commit()
     return product_out(product)

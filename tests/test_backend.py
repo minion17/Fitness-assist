@@ -455,4 +455,14 @@ def test_barcode_lookup_and_custom_product(client, monkeypatch):
     assert [x["id"] for x in client.get("/api/products/search", params={"q": "сырник"}, headers=h).json()] == [p["id"]]
     assert client.get("/api/products/search", params={"q": "сырник"}, headers=new_user_headers()).json() == []
     assert client.post("/api/products", headers=h, json={**body, "protein_g": 60, "fat_g": 30, "carbs_g": 20}).status_code == 422
+
+    # unknown code -> user's own product remembered for that code (only for them)
+    unknown = "47" + code[2:]
+    assert client.get(f"/api/products/barcode/{unknown}", headers=h).status_code == 404
+    mine = client.post("/api/products", headers=h, json={**body, "name": "Йогурт Ирбитский", "barcode": unknown}).json()
+    n = len(calls)
+    assert client.get(f"/api/products/barcode/{unknown}", headers=h).json()["id"] == mine["id"]
+    assert len(calls) == n  # served locally
+    assert client.get(f"/api/products/barcode/{unknown}", headers=new_user_headers()).status_code == 404
+    assert client.get(f"/api/products/barcode/0{code}", headers=h).json()["id"] == pid  # GTIN-14 form of the EAN
     assert client.post("/api/products", headers=h, json={**body, "kcal": 2000}).status_code == 422

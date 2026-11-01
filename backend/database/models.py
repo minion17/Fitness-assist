@@ -166,6 +166,15 @@ class FavoriteProduct(Base):
     product: Mapped[Product] = relationship()
 
 
+class UserBarcode(Base):
+    """A barcode the user linked to their own product (not in the shared catalog or Open Food Facts)."""
+    __tablename__ = "user_barcodes"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    barcode: Mapped[str] = mapped_column(String(32), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
+
+
 class WorkoutLog(Base):
     __tablename__ = "workout_logs"
 

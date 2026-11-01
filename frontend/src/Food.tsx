@@ -135,6 +135,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
   const [busy, setBusy] = useState(false)
   const [list, setList] = useState<'recent' | 'favorites'>('recent')
   const [custom, setCustom] = useState<false | true | 'notFound'>(false)
+  const [lastCode, setLastCode] = useState<string | null>(null) // unknown scanned code, linked to the custom product
   const [scan, setScan] = useState<'idle' | 'busy' | 'manual'>('idle')
   const [code, setCode] = useState('')
   const [recent, setRecent] = useState<RecentProduct[] | null>(null)
@@ -158,7 +159,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
       const p = await api<Product>(`/api/products/barcode/${c}`)
       if (p) { pick(p); setScan('idle'); return }
     } catch (e) {
-      if (e instanceof ApiError && e.status === 404) { setScan('idle'); setCustom('notFound'); return }
+      if (e instanceof ApiError && e.status === 404) { setScan('idle'); setLastCode(c); setCustom('notFound'); return }
       setError(e instanceof ApiError ? e.message : 'Не удалось связаться с сервером')
     }
     setScan('manual')
@@ -216,7 +217,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
       </div>
 
       {custom && !picked ? (
-        <CustomProduct notFound={custom === 'notFound'} onCreated={(p) => { setCustom(false); setError(''); pick(p) }} onCancel={() => setCustom(false)} />
+        <CustomProduct barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
       ) : !picked ? (
         <>
           <div className="input-wrap">
@@ -314,7 +315,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
   )
 }
 
-function CustomProduct({ notFound, onCreated, onCancel }: { notFound: boolean; onCreated: (p: Product) => void; onCancel: () => void }) {
+function CustomProduct({ barcode, onCreated, onCancel }: { barcode: string | null; onCreated: (p: Product) => void; onCancel: () => void }) {
   const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -330,7 +331,7 @@ function CustomProduct({ notFound, onCreated, onCancel }: { notFound: boolean; o
     if (num(v.protein_g) + num(v.fat_g) + num(v.carbs_g) > 100) return setError('Белков, жиров и углеводов вместе не больше 100 г')
     setBusy(true)
     try {
-      const p = await api<Product>('/api/products', postJson({ name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g) }))
+      const p = await api<Product>('/api/products', postJson({ name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g), ...(barcode ? { barcode } : {}) }))
       if (p) onCreated(p)
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось сохранить')
@@ -340,7 +341,7 @@ function CustomProduct({ notFound, onCreated, onCancel }: { notFound: boolean; o
 
   return (
     <>
-      {notFound && <p className="row-title strong">Этого товара пока нет в базе — добавьте его, это займёт минуту.</p>}
+      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе — добавьте его один раз, дальше он будет находиться по штрихкоду.</p>}
       <p className="sub">Значения — на 100 г, они есть на упаковке. Продукт будет виден только вам.</p>
       <label className="field">
         <span>Название</span>

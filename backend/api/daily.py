@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FoodLog, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
+from backend.database.models import FoodLog, FrozenDay, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -83,9 +83,13 @@ async def active_days(session: AsyncSession, user: User, since: date) -> dict[da
     return days
 
 
+def is_active(v: dict) -> bool:
+    return v.get("frozen") or v["kcal"] > 0 or v["water_ml"] > 0 or v["workouts"] > 0
+
+
 def streak(days: dict[date, dict], today: date) -> int:
-    """Consecutive active days up to today; today may still be empty without breaking the streak."""
-    active = {d for d, v in days.items() if v["kcal"] > 0 or v["water_ml"] > 0 or v["workouts"] > 0}
+    """Consecutive active (or frozen) days up to today; today may still be empty without breaking the streak."""
+    active = {d for d, v in days.items() if is_active(v)}
     d = today if today in active else today - timedelta(days=1)
     n = 0
     while d in active:
@@ -94,17 +98,49 @@ def streak(days: dict[date, dict], today: date) -> int:
     return n
 
 
+MAX_FREEZES = 2
+
+
+async def streak_state(session: AsyncSession, user: User, today: date) -> tuple[int, dict[date, dict]]:
+    """Current streak and per-day activity, after spending freezes on a fresh gap and granting earned ones."""
+    # shortcut: streak looks back at most a year; extend if anyone gets there
+    days = await active_days(session, user, today - timedelta(days=365))
+    for d in await session.scalars(select(FrozenDay.day).where(FrozenDay.user_id == user.id, FrozenDay.day >= today - timedelta(days=365))):
+        days.setdefault(d, {"kcal": 0.0, "water_ml": 0, "workouts": 0})["frozen"] = True
+    # missed days right before today (today itself can still be filled) are covered if there are enough freezes
+    gap, d = [], today - timedelta(days=1)
+    while d not in days and len(gap) < user.streak_freezes:
+        gap.append(d)
+        d -= timedelta(days=1)
+    if gap and d in days and is_active(days[d]):
+        for g in gap:
+            await session.execute(insert(FrozenDay).values(user_id=user.id, day=g).on_conflict_do_nothing())
+            days[g] = {"kcal": 0.0, "water_ml": 0, "workouts": 0, "frozen": True}
+        user.streak_freezes -= len(gap)
+        await session.commit()
+    n = streak(days, today)
+    if n >= 7:
+        first = (today if today in days and is_active(days[today]) else today - timedelta(days=1)) - timedelta(days=n - 1)
+        for k in range(7, n + 1, 7):  # each full week of this streak, once
+            if await award_xp(session, user.id, "streak_week", f"streak:{first}:{k}"):
+                await session.refresh(user)
+                user.streak_freezes = min(MAX_FREEZES, user.streak_freezes + 1)
+                await session.commit()
+    return n, days
+
+
 @router.get("/week")
 async def week(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     today = date.today()
-    # shortcut: streak looks back at most a year; extend if anyone gets there
-    days = await active_days(session, user, today - timedelta(days=365))
+    n, days = await streak_state(session, user, today)
     last7 = [today - timedelta(days=i) for i in range(6, -1, -1)]
     empty = {"kcal": 0.0, "water_ml": 0, "workouts": 0}
     return {
-        "streak": streak(days, today),
-        "days": [{"date": d.isoformat(), **{**empty, **days.get(d, {})}, "kcal": round(days.get(d, empty)["kcal"])} for d in last7],
+        "streak": n,
+        "freezes": user.streak_freezes,
+        "days": [{"date": d.isoformat(), **{**empty, **days.get(d, {})}, "kcal": round(days.get(d, empty)["kcal"]),
+                  "frozen": bool(days.get(d, {}).get("frozen"))} for d in last7],
     }
 
 

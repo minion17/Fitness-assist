@@ -629,3 +629,85 @@ def test_bot_greeting_handles_empty_and_invisible_names():
     assert greeting(None, False).startswith("Привет! 👋")
     assert greeting("<b>Хакер</b>", False).startswith("Привет, &lt;b&gt;Хакер&lt;/b&gt;!")  # HTML caption
     assert greeting("Анна Мария", True).startswith("С возвращением, Анна Мария!")
+
+
+def test_stats_for_charts(client, seeded):
+    from datetime import date
+
+    h = new_user_headers()
+    assert client.get("/api/stats", headers=h).json()["goal"] is None  # no questionnaire yet
+    client.put("/api/profile", headers=h, json=PROFILE)
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "lunch"})
+    client.post("/api/water", headers=h, json={"delta_ml": 500})
+    client.put("/api/measurements", headers=h, json={"weight_kg": 78.0})
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    w = client.post("/api/workout-logs", headers=h, json={"program_day_id": day_id, "title": "День 1"}).json()
+    for n, (reps, kg) in enumerate([(10, 50), (8, 60), (12, 60)], 1):
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={"exercise_id": ex_id, "set_number": n, "reps": reps, "weight_kg": kg})
+    client.post(f"/api/workout-logs/{w['id']}/complete", headers=h)
+
+    s = client.get("/api/stats", params={"days": 7}, headers=h).json()
+    assert len(s["days"]) == 7 and s["days"][-1]["date"] == date.today().isoformat()
+    today = s["days"][-1]
+    assert (today["kcal"], today["water_ml"], today["workouts"]) == (242, 500, 1) and today["protein"] > 0
+    assert s["days"][0]["kcal"] == 0  # empty days are present, as zeros
+    assert s["goal"]["calories"] > 1000 and s["goal"]["water_ml"] == 2500
+    assert s["weight"] == [{"date": date.today().isoformat(), "kg": 78.0}]
+    assert s["exercises"][0]["points"] == [{"date": date.today().isoformat(), "kg": 60, "reps": 12}]  # heaviest, then most reps
+    assert client.get("/api/stats", params={"days": 3}, headers=h).status_code == 422
+
+
+def test_streak_freeze_earned_and_spent(client):
+    from datetime import date, timedelta
+
+    from sqlalchemy import delete
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import WaterIntake
+
+    h = new_user_headers()
+    uid = client.post("/api/auth", headers=h).json()["id"]
+    today = date.today()
+
+    async def water_days(*offsets):
+        async with SessionLocal() as s:
+            s.add_all(WaterIntake(user_id=uid, day=today - timedelta(days=o), ml=250) for o in offsets)
+            await s.commit()
+
+    async def drop_yesterday():
+        async with SessionLocal() as s:
+            await s.execute(delete(WaterIntake).where(WaterIntake.user_id == uid, WaterIntake.day == today - timedelta(days=1)))
+            await s.commit()
+
+    client.portal.call(water_days, *range(1, 8))  # 7 days up to yesterday
+    xp0 = client.post("/api/auth", headers=h).json()["progress"]["xp"]
+    w = client.get("/api/week", headers=h).json()
+    assert (w["streak"], w["freezes"]) == (7, 1)
+    assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == xp0 + 20
+    assert client.get("/api/week", headers=h).json()["freezes"] == 1  # earned once per week of streak
+
+    client.portal.call(drop_yesterday)  # missed yesterday -> the freeze covers it
+    w = client.get("/api/week", headers=h).json()
+    assert (w["streak"], w["freezes"]) == (7, 0) and w["days"][-2]["frozen"] is True
+    assert client.get("/api/week", headers=h).json()["streak"] == 7  # stays covered, no double spend
+
+
+def test_achievements_unlock_once(client, seeded):
+    h = new_user_headers()
+    a = client.get("/api/achievements", headers=h).json()
+    assert a["new"] == [] and all(i["unlocked_at"] is None for i in a["items"])
+    first = next(i for i in a["items"] if i["code"] == "first_meal")
+    assert (first["progress"], first["target"]) == (0, 1)
+
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})
+    xp0 = client.post("/api/auth", headers=h).json()["progress"]["xp"]
+    a = client.get("/api/achievements", headers=h).json()
+    assert [i["code"] for i in a["new"]] == ["first_meal"]
+    assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == xp0 + 25
+    assert client.get("/api/achievements", headers=h).json()["new"][0]["code"] == "first_meal"  # until seen
+    client.post("/api/achievements/seen", headers=h)
+    assert client.get("/api/achievements", headers=h).json()["new"] == []
+    assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == xp0 + 25  # no second award

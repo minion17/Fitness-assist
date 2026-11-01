@@ -5,7 +5,8 @@ import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
-import Reward from './Reward'
+import Progress, { type Achievement } from './Progress'
+import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, type ProfileData, type Recommendation } from './profile'
@@ -14,18 +15,20 @@ import type { FoodDay, MealType, Measurement, Program, WorkoutLog } from './type
 import { Bar } from './ui'
 import Workouts from './Workouts'
 
-type Tab = 'home' | 'food' | 'workouts' | 'profile'
+type Tab = 'home' | 'food' | 'workouts' | 'progress' | 'profile'
 
 const ICONS: Record<Tab, string> = {
   home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
   food: 'M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 3c-2 0-3 2-3 5s1 4 3 4v9',
   workouts: 'M6 8v8M3 10v4M18 8v8M21 10v4M6 12h12',
+  progress: 'M4 20V11M10 20V5M16 20v-6M3 20h18',
   profile: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6',
 }
 const TABS: { id: Tab; label: string }[] = [
   { id: 'home', label: 'Главная' },
   { id: 'food', label: 'Питание' },
   { id: 'workouts', label: 'Тренировки' },
+  { id: 'progress', label: 'Прогресс' },
   { id: 'profile', label: 'Профиль' },
 ]
 
@@ -132,6 +135,7 @@ export default function App() {
   const [recommended, setRecommended] = useState<Recommendation | null>(null)
   const [water, setWater] = useState<Water>({ ml: 0, goal_ml: 2000 })
   const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>({ streak: 0, days: [] })
+  const [ach, setAch] = useState<{ items: Achievement[]; new: Achievement[]; freezes: number }>({ items: [], new: [], freezes: 0 })
   const [foodIntent, setFoodIntent] = useState<FoodIntent | null>(null)
   const [reward, setReward] = useState(false)
   const theme = useTheme((patch) => { api('/api/settings', putJson(patch)).catch(() => {}) })
@@ -146,14 +150,16 @@ export default function App() {
   }, [xp.level])
 
   const refreshJournal = useCallback(async () => {
-    const [day, ws, ms, u, wt, wk] = await Promise.all([
+    const [day, ws, ms, u, wt, wk, ac] = await Promise.all([
       api<FoodDay>('/api/food-logs'),
       api<WorkoutLog[]>('/api/workout-logs'),
       api<Measurement[]>('/api/measurements'),
       api<{ progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null }>('/api/auth', { method: 'POST' }),
       api<Water>('/api/water'),
       api<{ streak: number; days: WeekDay[] }>('/api/week'),
+      api<{ items: Achievement[]; new: Achievement[]; freezes: number }>('/api/achievements').catch(() => null),
     ])
+    if (ac) setAch(ac)
     if (wt) setWater(wt)
     if (wk) setWeek(wk)
     if (day) setFoodDay(day)
@@ -299,9 +305,12 @@ export default function App() {
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} />
         )}
+        {tab === 'progress' && (
+          <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
+            body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
+        )}
         {tab === 'profile' && (
-          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
-            body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
+          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit} body={null} />
         )}
       </main>
       <nav className="nav">
@@ -315,6 +324,13 @@ export default function App() {
         </div>
       </nav>
       {toast && <div className="toast" role="status">{toast}</div>}
+      {!reward && ach.new.length > 0 && (
+        <AchievementUnlocked {...ach.new[0]} more={ach.new.length - 1} onClose={() => {
+          setAch((a) => ({ ...a, new: [] }))
+          api('/api/achievements/seen', { method: 'POST' }).catch(() => {})
+          refreshJournal().catch(() => {}) // +25 XP may have raised the level
+        }} />
+      )}
       {reward && <Reward level={xp.level} levelXp={xp.level_xp} needed={xp.level_xp_needed} streak={week.streak} onClose={() => setReward(false)} />}
     </div>
   )

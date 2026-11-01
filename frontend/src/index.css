@@ -142,7 +142,7 @@ h2 { font-size: 15px; font-weight: 700; }
   padding: 0 12px calc(12px + env(safe-area-inset-bottom));
 }
 .nav-inner {
-  max-width: 536px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 6px;
+  max-width: 536px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 6px;
   background: var(--nav-bg); border: 1px solid var(--card-border); border-radius: 26px;
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
 }
@@ -291,3 +291,24 @@ label.link { cursor: pointer; }
 .portions button { font-size: 13px; padding: 10px 4px; }
 .check-row { cursor: pointer; }
 .check-row input { width: 20px; height: 20px; accent-color: var(--accent); flex-shrink: 0; }
+
+/* Progress */
+.chart { margin: 0; }
+.chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.chart-read { display: flex; align-items: baseline; gap: 6px; font-size: 13px; color: var(--muted); margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+.chart-read b { font-size: 20px; color: var(--text); font-weight: 800; }
+.chart-read span { margin-left: auto; }
+.tile-stat { gap: 4px; }
+.chips-scroll { display: flex; gap: 6px; overflow-x: auto; margin: 0 -16px; padding: 0 16px 2px; scrollbar-width: none; }
+.chips-scroll .chip { flex-shrink: 0; padding: 7px 12px; font-size: 13px; border: 1px solid transparent; }
+.chips-scroll .chip[aria-pressed='true'] { border-color: var(--accent); color: var(--accent-text); }
+.badges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.badge-item { background: var(--card-2); border-radius: 16px; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; min-width: 0; }
+.badge-item b { font-size: 12px; line-height: 1.2; }
+.badge-item .sub { font-size: 11px; line-height: 1.25; }
+.badge-item .bar { width: 100%; height: 4px; margin-top: 2px; }
+.badge-icon { font-size: 30px; line-height: 1.1; filter: grayscale(1); opacity: .45; }
+.badge-item.on .badge-icon { filter: none; opacity: 1; }
+.badge-item.on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.badge-emoji span { font-size: 64px; }
+.nav button { font-size: 10px; }

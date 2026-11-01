@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from functools import partial
 
-from backend.api.daily import active_days, local_start, streak, water_goal
+from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.bot import cards
 from backend.core.nutrition import daily_targets
 from backend.database.db import SessionLocal
@@ -74,10 +74,9 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                     out.append((f"{today}:water{at}", f"💧 Выпито {liters(ml)} л из {liters(goal)} л. Стакан воды сейчас — самое время.",
                                 Render(cards.water, ml, goal, at, **look)))
     if cfg.streak and due(cfg.streak_at, now):
-        days = await active_days(session, user, today - timedelta(days=365))
-        n = streak(days, today)
-        if n > 0 and today not in days:
-            week = [today - timedelta(days=i) in days for i in range(6, -1, -1)]
+        n, days = await streak_state(session, user, today)
+        if n > 0 and not (today in days and is_active(days[today])):
+            week = [today - timedelta(days=i) in days and is_active(days[today - timedelta(days=i)]) for i in range(6, -1, -1)]
             out.append((f"{today}:streak", f"🔥 Серия {n} дн. подряд сгорит сегодня — запишите хоть что-нибудь: еду, воду или тренировку.",
                         Render(cards.streak, n, week, **look)))
     return out

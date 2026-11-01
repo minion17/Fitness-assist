@@ -27,3 +27,25 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
     </div>
   )
 }
+
+/** Same celebration for a newly unlocked achievement. */
+export function AchievementUnlocked({ icon, title, more, onClose }: {
+  icon: string; title: string; more: number; onClose: () => void
+}) {
+  useEffect(() => { tg?.HapticFeedback?.notificationOccurred?.('success') }, [])
+  return (
+    <div className="reward" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`}>
+      <div className="confetti" aria-hidden="true">
+        {CONFETTI.map((i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${(i % 6) * 0.15}s` }} />)}
+      </div>
+      <div className="reward-body">
+        <div className="badge badge-emoji" aria-hidden="true"><span>{icon}</span></div>
+        <p className="sub">Новое достижение!</p>
+        <h1 className="reward-title">{title}</h1>
+        <p className="sub">+25 XP</p>
+        {more > 0 && <p className="sub">И ещё {more} — посмотрите в «Прогрессе»</p>}
+      </div>
+      <button className="btn" onClick={onClose} autoFocus>Отлично</button>
+    </div>
+  )
+}

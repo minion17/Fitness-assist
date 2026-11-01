@@ -21,8 +21,9 @@ function Sparkline({ values }: { values: number[] }) {
   )
 }
 
-export default function Body({ measurements, canEdit, onSave, onDelete }: {
+export default function Body({ measurements, canEdit, onSave, onDelete, hideWeight = false }: {
   measurements: Measurement[]
+  hideWeight?: boolean // the Progress screen draws the weight chart itself
   canEdit: boolean
   onSave: (m: MeasurementInput) => Promise<void>
   onDelete: (id: number) => Promise<void>
@@ -35,14 +36,14 @@ export default function Body({ measurements, canEdit, onSave, onDelete }: {
 
   return (
     <>
-      <section className="card">
+      {!hideWeight && <section className="card">
         <div className="card-head">
           <h2>Вес</h2>
           {trend?.delta != null && <span className={trend.delta <= 0 ? 'sub pos' : 'sub'}>{trend.delta > 0 ? '+' : ''}{trend.delta} кг за 30 дней</span>}
         </div>
         {trend ? <div className="stat">{trend.latest}<small>кг</small></div> : <span className="sub">Пока нет замеров</span>}
         <Sparkline values={weights} />
-      </section>
+      </section>}
 
       <section className="card">
         <h2>Параметры тела</h2>

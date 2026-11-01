@@ -7,6 +7,8 @@ RULES: dict[str, int] = {
     "workout_completed": 50,
     "body_measurement": 15,
     "water_goal": 10,
+    "streak_week": 20,  # every 7 days in a row (also earns a streak freeze)
+    "achievement": 25,
 }
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...

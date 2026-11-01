@@ -33,6 +33,7 @@ ADDED_COLUMNS = [
     "CREATE INDEX IF NOT EXISTS ix_products_owner_user_id ON products (owner_user_id)",
     "ALTER TABLE food_logs ADD COLUMN IF NOT EXISTS snack_slot VARCHAR(5)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(8)",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_freezes INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS accent VARCHAR(7)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS program_id INTEGER REFERENCES programs(id) ON DELETE SET NULL",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS portion_g FLOAT",

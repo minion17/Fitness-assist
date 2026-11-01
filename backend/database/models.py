@@ -20,6 +20,8 @@ class User(Base):
     theme: Mapped[str | None] = mapped_column(String(8))
     accent: Mapped[str | None] = mapped_column(String(7))
     program_id: Mapped[int | None] = mapped_column(ForeignKey("programs.id", ondelete="SET NULL"))
+    # earned every 7 days of streak (max 2); a missed day spends one instead of breaking the streak
+    streak_freezes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -199,6 +201,23 @@ class ReminderSettings(Base):
     lunch_at: Mapped[str] = mapped_column(String(5), default="14:00")
     dinner_at: Mapped[str] = mapped_column(String(5), default="20:00")
     streak_at: Mapped[str] = mapped_column(String(5), default="21:00")
+
+
+class FrozenDay(Base):
+    """A missed day covered by a streak freeze."""
+    __tablename__ = "frozen_days"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+
+
+class UserAchievement(Base):
+    __tablename__ = "user_achievements"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    unlocked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    seen: Mapped[bool] = mapped_column(Boolean, default=False)  # the unlock celebration was shown
 
 
 class ReminderSent(Base):

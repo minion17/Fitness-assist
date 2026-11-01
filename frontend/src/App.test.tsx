@@ -4,7 +4,7 @@ import App from './App'
 
 afterEach(cleanup)
 
-test('bottom navigation opens all four sections', async () => {
+test('bottom navigation opens all five sections', async () => {
   window.scrollTo = () => {}
   render(<App />)
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Привет, Гость')
@@ -23,8 +23,11 @@ test('bottom navigation opens all four sections', async () => {
   expect(screen.getByText('История')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Сменить программу' }))
 
+  nav('Прогресс')
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Прогресс')
+  expect(screen.getByText('Параметры тела')).toBeTruthy() // measurements live next to the charts
+
   nav('Профиль')
-  expect(screen.getByText('Параметры тела')).toBeTruthy()
   expect(screen.getByText('Демо-режим')).toBeTruthy()
   expect(screen.getByText('Уровень 1')).toBeTruthy()
   expect(screen.getByText('0 / 100 XP до уровня 2')).toBeTruthy()

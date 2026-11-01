@@ -306,3 +306,17 @@ test('menu photo: pick dishes, save with the restaurant, then quick portions', a
   fireEvent.click(screen.getByRole('button', { name: /Добавить в/ }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(91, 305, 'breakfast', null))
 })
+
+test('charts: tap a bar to read its value; goal line shown', async () => {
+  const { BarChart, LineChart } = await import('./charts')
+  const data = [{ date: '2026-10-30', value: 1800 }, { date: '2026-10-31', value: 2600 }, { date: '2026-11-01', value: 0 }]
+  const { container } = render(<BarChart data={data} color="red" goal={2375} unit="ккал" />)
+  expect(container.querySelector('.chart-read b')!.textContent).toBe('0') // latest day by default
+  fireEvent.click(container.querySelectorAll('svg g')[1])
+  expect(container.querySelector('.chart-read b')!.textContent!.replace(/\s/g, ' ')).toBe('2 600')
+  expect(screen.getByText('норма')).toBeTruthy()
+  expect(container.querySelectorAll('path')).toHaveLength(2) // empty day draws no bar
+  cleanup()
+  const line = render(<LineChart points={[{ date: '2026-10-01', value: 80.4 }, { date: '2026-10-29', value: 78.9 }]} color="red" unit="кг" />)
+  expect(line.container.querySelector('.chart-read b')!.textContent).toBe('78,9')
+})

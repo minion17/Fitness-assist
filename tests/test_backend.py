@@ -417,29 +417,32 @@ def test_off_parse():
 
 
 def test_barcode_lookup_and_custom_product(client, monkeypatch):
+    import random
+
     import httpx
 
     from backend.core import off
 
+    code = "46" + "".join(random.choices("0123456789", k=11))  # fresh per run: the local test DB persists
     calls = []
 
-    async def fake_fetch(code):
-        calls.append(code)
-        if code == "4600000000017":
-            return {"name": "Ряженка 4%", "brand": "Тестовый завод", "kcal": 67, "protein_g": 2.8, "fat_g": 4.0, "carbs_g": 4.2}
-        if code == "4600000000024":
+    async def fake_fetch(c):
+        calls.append(c)
+        if c == code:
+            return {"name": f"Ряженка {code}", "brand": "Тестовый завод", "kcal": 67, "protein_g": 2.8, "fat_g": 4.0, "carbs_g": 4.2}
+        if c == "4600000000024":
             raise httpx.ConnectError("offline")
         return None
 
     monkeypatch.setattr(off, "fetch", fake_fetch)
     h = new_user_headers()
-    r = client.get("/api/products/barcode/4600000000017", headers=h)
-    assert r.status_code == 200 and r.json()["name"] == "Ряженка 4%"
+    r = client.get(f"/api/products/barcode/{code}", headers=h)
+    assert r.status_code == 200 and r.json()["name"] == f"Ряженка {code}"
     pid = r.json()["id"]
     # second scan (any user) is served from our catalog, no network
-    assert client.get("/api/products/barcode/4600000000017", headers=new_user_headers()).json()["id"] == pid
-    assert calls == ["4600000000017"]
-    assert client.get("/api/products/search", params={"q": "ряженка"}).json()[0]["id"] == pid  # shared catalog now
+    assert client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()["id"] == pid
+    assert calls == [code]
+    assert client.get("/api/products/search", params={"q": f"ряженка {code}"}).json()[0]["id"] == pid  # shared catalog now
 
     assert client.get("/api/products/barcode/4600000000031", headers=h).status_code == 404
     assert client.get("/api/products/barcode/4600000000024", headers=h).status_code == 503

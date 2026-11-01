@@ -575,3 +575,31 @@ def test_settings_are_kept_on_the_account(client, seeded):
     assert client.put("/api/settings", headers=h, json={"theme": "neon"}).status_code == 422
     assert client.put("/api/settings", headers=h, json={"accent": "red"}).status_code == 422
     assert client.put("/api/settings", headers=h, json={"program_id": 999999}).status_code == 404
+
+
+def test_bot_profile_synced_only_when_changed(tmp_path, monkeypatch):
+    import asyncio
+
+    from backend.bot import profile
+
+    calls = []
+
+    class FakeBot:
+        async def set_my_description(self, description):
+            calls.append("description")
+            assert len(description) <= 512
+
+        async def set_my_short_description(self, short_description):
+            calls.append("short")
+            assert len(short_description) <= 120
+
+        async def set_my_profile_photo(self, photo):
+            calls.append("photo")
+
+    monkeypatch.setattr(profile, "STAMP", tmp_path / ".bot_profile")
+    asyncio.run(profile.sync(FakeBot()))
+    asyncio.run(profile.sync(FakeBot()))
+    assert calls == ["description", "short", "photo"]  # second start: nothing changed, nothing re-uploaded
+    monkeypatch.setattr(profile, "SHORT_DESCRIPTION", profile.SHORT_DESCRIPTION + "!")
+    asyncio.run(profile.sync(FakeBot()))
+    assert len(calls) == 6

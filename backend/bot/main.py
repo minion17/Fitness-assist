@@ -14,7 +14,7 @@ from aiogram.types import (
     WebAppInfo,
 )
 
-from backend.bot import reminders
+from backend.bot import profile, reminders
 from backend.core.config import Settings, settings
 
 log = logging.getLogger("bot")
@@ -83,8 +83,12 @@ async def main() -> None:
     # runs alongside polling; the reference keeps the task from being garbage-collected
     reminder_task = asyncio.create_task(reminders.run(bot, reminder_keyboard))
     # start_polling fails right away if Telegram is unreachable at startup; keep retrying instead of exiting.
+    profile_synced = False
     while True:
         try:
+            if not profile_synced:  # first moment Telegram is reachable
+                await profile.sync(bot)
+                profile_synced = True
             await dp.start_polling(bot)
             return
         except TelegramNetworkError as e:

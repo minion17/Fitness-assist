@@ -8,3 +8,4 @@ frontend/dist/
 .DS_Store
 .idea/
 .vscode/
+.bot_profile

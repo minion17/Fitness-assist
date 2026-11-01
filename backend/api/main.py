@@ -88,7 +88,31 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
         "progress": level_progress(user.xp),
         "profile": profile_out(profile := await session.get(Profile, user.id)),
         "recommended_program": await recommended_program(session, profile),
+        "settings": settings_out(user),
     }
+
+
+def settings_out(user: User) -> dict:
+    return {"theme": user.theme, "accent": user.accent, "program_id": user.program_id}
+
+
+class SettingsIn(BaseModel):
+    """Partial update: only the fields sent are changed."""
+    theme: Literal["auto", "dark", "light", "green"] | None = None
+    accent: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
+    program_id: int | None = None
+
+
+@app.put("/api/settings")
+async def save_settings(body: SettingsIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    changes = body.model_dump(exclude_unset=True)
+    if changes.get("program_id") is not None and not await session.get(Program, changes["program_id"]):
+        raise HTTPException(404, "Программа не найдена")
+    for k, v in changes.items():
+        setattr(user, k, v)
+    await session.commit()
+    return settings_out(user)
 
 
 Equipment = Literal["bodyweight", "dumbbells", "barbell", "bench", "pullup_bar", "cable_machine", "machine", "treadmill", "exercise_bike"]

@@ -562,3 +562,16 @@ def test_user_products_become_shared_after_three_confirmations(client):
         r = client.post("/api/products", headers=h, json={**plain, "name": f"Кефир {tag}", "barcode": code}).json()
     assert r["shared"] is True
     assert client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()["category"] == "Проверено пользователями"
+
+
+def test_settings_are_kept_on_the_account(client, seeded):
+    h = new_user_headers()
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None}
+    pid = client.get("/api/programs").json()[0]["id"]
+    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None}
+    assert client.put("/api/settings", headers=h, json={"accent": "#a98bff", "program_id": pid}).json()["theme"] == "green"  # partial
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid}
+    assert client.put("/api/settings", headers=h, json={"program_id": None}).json()["program_id"] is None
+    assert client.put("/api/settings", headers=h, json={"theme": "neon"}).status_code == 422
+    assert client.put("/api/settings", headers=h, json={"accent": "red"}).status_code == 422
+    assert client.put("/api/settings", headers=h, json={"program_id": 999999}).status_code == 404

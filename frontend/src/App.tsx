@@ -6,10 +6,10 @@ import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
 import Reward from './Reward'
-import { ACCENTS, THEMES, useTheme, type ThemePref } from './theme'
+import { ACCENTS, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, type ProfileData, type Recommendation } from './profile'
-import { api, initTelegram, postJson, publicGet, tg, tgUser } from './telegram'
+import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import type { FoodDay, MealType, Measurement, Program, WorkoutLog } from './types'
 import { Bar } from './ui'
 import Workouts from './Workouts'
@@ -122,7 +122,7 @@ export default function App() {
   const [foodDay, setFoodDay] = useState<FoodDay>(demoFoodDay)
   const [programs, setPrograms] = useState<Program[] | null>(null)
   const [logs, setLogs] = useState<WorkoutLog[]>([])
-  // shortcut: chosen program is remembered per device; move to the user's profile when it must sync across devices
+  // kept on the account (see /api/settings); localStorage only until the account loads
   const [programId, setProgramId] = useState<number | null>(() => {
     try { return Number(localStorage.getItem(PROGRAM_KEY)) || null } catch { return null }
   })
@@ -134,7 +134,10 @@ export default function App() {
   const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>({ streak: 0, days: [] })
   const [foodIntent, setFoodIntent] = useState<FoodIntent | null>(null)
   const [reward, setReward] = useState(false)
-  const theme = useTheme()
+  const theme = useTheme((patch) => { api('/api/settings', putJson(patch)).catch(() => {}) })
+  // latest values for the one-time startup effect (it must not re-run when they change)
+  const startup = useRef({ theme, programId, selectProgram: (_id: number | null, _sync?: boolean) => {} })
+  useEffect(() => { startup.current = { theme, programId, selectProgram } })
   // Level known before the latest refresh; null until the account is loaded, so the first load never celebrates.
   const knownLevel = useRef<number | null>(null)
   useEffect(() => {
@@ -161,12 +164,16 @@ export default function App() {
 
   useEffect(() => {
     initTelegram()
-    api<{ id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null }>('/api/auth', { method: 'POST' })
+    api<{ id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null; settings: ThemeSettings & { program_id: number | null } }>('/api/auth', { method: 'POST' })
       .then((u) => {
         if (!u) return
         setSynced('Аккаунт подключён')
         setCanEdit(true)
         knownLevel.current = u.progress.level
+        startup.current.theme.load(u.settings)
+        const local = startup.current.programId
+        if (u.settings.program_id) startup.current.selectProgram(u.settings.program_id, false)
+        else if (local) api('/api/settings', putJson({ program_id: local })).catch(() => {}) // upload this device's choice once
         setXp(u.progress)
         setMe(u.profile)
         setRecommended(u.recommended_program)
@@ -242,8 +249,9 @@ export default function App() {
     }
   }
 
-  function selectProgram(id: number | null) {
+  function selectProgram(id: number | null, sync = true) {
     setProgramId(id)
+    if (sync) api('/api/settings', putJson({ program_id: id })).catch(() => {})
     try { if (id) localStorage.setItem(PROGRAM_KEY, String(id)); else localStorage.removeItem(PROGRAM_KEY) } catch { /* private mode */ }
   }
 

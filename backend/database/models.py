@@ -16,6 +16,10 @@ class User(Base):
     language_code: Mapped[str | None] = mapped_column(String(8))
     xp: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    # app preferences kept on the account: the Mini App's address (and so its browser storage) changes with the tunnel
+    theme: Mapped[str | None] = mapped_column(String(8))
+    accent: Mapped[str | None] = mapped_column(String(7))
+    program_id: Mapped[int | None] = mapped_column(ForeignKey("programs.id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

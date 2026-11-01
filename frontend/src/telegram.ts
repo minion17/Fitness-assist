@@ -46,6 +46,7 @@ export const postJson = (body: unknown): RequestInit => ({
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(body),
 })
+export const putJson = (body: unknown): RequestInit => ({ ...postJson(body), method: 'PUT' })
 
 /** Calls backend with signed initData; returns null outside Telegram. */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T | null> {

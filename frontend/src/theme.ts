@@ -1,6 +1,7 @@
 // Theme choice: 'auto' follows Telegram (light -> light, otherwise dark), or a fixed theme.
-// shortcut: stored per device in localStorage; move to the profile if it should sync across devices.
-import { useEffect, useState } from 'react'
+// Saved on the account (the Mini App's address changes with the tunnel, so browser storage alone gets lost);
+// localStorage is only a fast first paint before the account loads.
+import { useEffect, useRef, useState } from 'react'
 import { tg } from './telegram'
 
 export type ThemePref = 'auto' | 'dark' | 'light' | 'green'
@@ -24,11 +25,15 @@ export function resolveTheme(pref: ThemePref, telegramScheme = tg?.colorScheme):
   return telegramScheme === 'light' ? 'light' : 'dark'
 }
 
-export function useTheme() {
+export type ThemeSettings = { theme: ThemePref | null; accent: string | null }
+
+export function useTheme(save?: (patch: Partial<ThemeSettings>) => void) {
   const [pref, setPref] = useState<ThemePref>(() => read('fa.theme', 'auto') as ThemePref)
   const [accent, setAccent] = useState(() => read('fa.accent', ACCENTS[0]))
   const [scheme, setScheme] = useState(tg?.colorScheme)
   const theme = resolveTheme(pref, scheme)
+  const saveRef = useRef(save)
+  useEffect(() => { saveRef.current = save })
 
   useEffect(() => {
     const onChange = () => setScheme(tg?.colorScheme)
@@ -49,7 +54,16 @@ export function useTheme() {
 
   return {
     pref, theme, accent,
-    setPref: (p: ThemePref) => { setPref(p); write('fa.theme', p) },
-    setAccent: (a: string) => { setAccent(a); write('fa.accent', a) },
+    setPref: (p: ThemePref) => { setPref(p); write('fa.theme', p); saveRef.current?.({ theme: p }) },
+    setAccent: (a: string) => { setAccent(a); write('fa.accent', a); saveRef.current?.({ accent: a }) },
+    /** Values from the account win; a choice made on this device before accounts kept it is uploaded once. */
+    load: (s: ThemeSettings) => {
+      if (s.theme) { setPref(s.theme); write('fa.theme', s.theme) }
+      if (s.accent) { setAccent(s.accent); write('fa.accent', s.accent) }
+      const local = { theme: s.theme ? undefined : read('fa.theme', 'auto'), accent: s.accent ? undefined : read('fa.accent', ACCENTS[0]) }
+      const upload = { ...(local.theme && local.theme !== 'auto' ? { theme: local.theme as ThemePref } : {}),
+        ...(local.accent && local.accent !== ACCENTS[0] ? { accent: local.accent } : {}) }
+      if (Object.keys(upload).length) saveRef.current?.(upload)
+    },
   }
 }

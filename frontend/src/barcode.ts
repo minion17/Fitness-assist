@@ -14,7 +14,9 @@ export function toGtin(raw: string): string | null {
   return m.length === 14 && m.startsWith('0') ? m.slice(1) : m // GTIN-14 with a leading 0 is the EAN-13
 }
 
-async function native(file: Blob): Promise<string | null> {
+type Source = Blob | ImageData
+
+async function native(file: Source): Promise<string | null> {
   if (!window.BarcodeDetector) return null
   try {
     const hits = await new window.BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e', 'data_matrix'] })
@@ -25,7 +27,7 @@ async function native(file: Blob): Promise<string | null> {
   }
 }
 
-async function wasm(file: Blob): Promise<string | null> {
+async function wasm(file: Source): Promise<string | null> {
   const [{ readBarcodes, prepareZXingModule }, { default: wasmUrl }] = await Promise.all([
     import('zxing-wasm/reader'),
     import('zxing-wasm/reader/zxing_reader.wasm?url'),
@@ -35,6 +37,7 @@ async function wasm(file: Blob): Promise<string | null> {
   return hits.map((h) => toGtin(h.text)).find(Boolean) ?? null
 }
 
-export async function readBarcode(file: Blob): Promise<string | null> {
+/** A photo or a camera frame. */
+export async function readBarcode(file: Source): Promise<string | null> {
   return (await native(file)) ?? (await wasm(file))
 }

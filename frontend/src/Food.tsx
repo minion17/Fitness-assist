@@ -3,6 +3,7 @@ import type { Targets } from './profile'
 import AiMeal from './AiMeal'
 import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
+import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type MealType, type Product } from './types'
 import { Bar, Ring, Sheet } from './ui'
@@ -138,6 +139,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
   const [lastCode, setLastCode] = useState<string | null>(null) // unknown scanned code, linked to the custom product
   const [scan, setScan] = useState<'idle' | 'busy' | 'manual'>('idle')
   const [code, setCode] = useState('')
+  const [scanner, setScanner] = useState(false)
   const [recent, setRecent] = useState<RecentProduct[] | null>(null)
   const [favorites, setFavorites] = useState<Product[] | null>(null)
 
@@ -226,11 +228,9 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
           </div>
           {recent && (
             <div className="meal-actions">
-              <label className={scan === 'busy' ? 'link disabled' : 'link'}>
-                {scan === 'busy' ? 'Ищем товар…' : '▥ Штрихкод'}
-                <input type="file" accept="image/*" capture="environment" hidden disabled={scan === 'busy'}
-                  onChange={(e) => { onPhoto(e.target.files?.[0]); e.target.value = '' }} />
-              </label>
+              <button type="button" className="link" disabled={scan === 'busy'} onClick={() => { setError(''); setScanner(true) }}>
+                {scan === 'busy' ? 'Ищем товар…' : '▥ Сканировать штрихкод'}
+              </button>
               <button type="button" className="link" onClick={() => setCustom(true)}>+ Свой продукт</button>
             </div>
           )}
@@ -311,6 +311,10 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
         </>
       )}
       {error && <p className="error" role="alert">{error}</p>}
+      {scanner && (
+        <Scanner onCode={(c) => { setScanner(false); lookup(c) }} onClose={() => setScanner(false)}
+          onPhoto={(f) => { setScanner(false); onPhoto(f) }} onManual={() => { setScanner(false); setScan('manual') }} />
+      )}
     </Sheet>
   )
 }

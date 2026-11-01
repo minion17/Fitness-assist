@@ -207,13 +207,19 @@ class FoodLogIn(BaseModel):
     product_id: int
     amount_g: float = Field(gt=0, le=5000)
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
+    snack_slot: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # which snack of the day
+
+
+def snack_slot(meal_type: str, slot: str | None) -> str | None:
+    """Snacks without an explicit slot start a new one at the current time; other meals have none."""
+    return (slot or datetime.now().strftime("%H:%M")) if meal_type == "snack" else None
 
 
 def food_log_out(log: FoodLog) -> dict:
     k = log.amount_g / 100  # product nutrition is per 100 g
     p = log.product
     return {
-        "id": log.id, "meal_type": log.meal_type, "amount_g": log.amount_g, "logged_at": log.logged_at.isoformat(),
+        "id": log.id, "meal_type": log.meal_type, "snack_slot": log.snack_slot, "amount_g": log.amount_g, "logged_at": log.logged_at.isoformat(),
         "product": product_out(p),
         "kcal": round(p.kcal * k), "protein_g": round(p.protein_g * k, 1),
         "fat_g": round(p.fat_g * k, 1), "carbs_g": round(p.carbs_g * k, 1),
@@ -226,7 +232,7 @@ async def add_food_log(body: FoodLogIn, tg: dict = Depends(telegram_user), sessi
     product = await session.get(Product, body.product_id)
     if product is None or product.owner_user_id not in (None, user.id):
         raise HTTPException(404, "Продукт не найден")
-    log = FoodLog(user_id=user.id, **body.model_dump())
+    log = FoodLog(user_id=user.id, **{**body.model_dump(), "snack_slot": snack_slot(body.meal_type, body.snack_slot)})
     session.add(log)
     await session.commit()
     log = await session.scalar(select(FoodLog).options(selectinload(FoodLog.product)).where(FoodLog.id == log.id))

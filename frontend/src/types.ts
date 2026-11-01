@@ -6,7 +6,7 @@ export type Product = Macros & { id: number; name: string; brand: string | null;
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 export const MEALS: Record<MealType, string> = { breakfast: 'Завтрак', lunch: 'Обед', dinner: 'Ужин', snack: 'Перекус' }
 
-export type FoodItem = Macros & { id: number; meal_type: MealType; amount_g: number; logged_at: string; product: Product }
+export type FoodItem = Macros & { id: number; meal_type: MealType; snack_slot?: string | null; amount_g: number; logged_at: string; product: Product }
 export type FoodDay = { date: string; items: FoodItem[]; totals: Macros }
 
 export type PlannedExercise = {

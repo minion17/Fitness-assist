@@ -153,6 +153,8 @@ class FoodLog(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     amount_g: Mapped[float] = mapped_column(Float)
     meal_type: Mapped[str] = mapped_column(String(20))  # breakfast | lunch | dinner | snack
+    # snacks can happen several times a day: each one is a separate group, labelled by its start time ("11:30")
+    snack_slot: Mapped[str | None] = mapped_column(String(5))
     logged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
     product: Mapped[Product] = relationship()
 

@@ -99,7 +99,10 @@ async def copy_meal(body: CopyIn, tg: dict = Depends(telegram_user), session: As
     )).all()
     if not src:
         raise HTTPException(404, "В этот день такого приёма пищи нет")
-    session.add_all(FoodLog(user_id=user.id, product_id=s.product_id, amount_g=s.amount_g, meal_type=s.meal_type) for s in src)
+    session.add_all(
+        FoodLog(user_id=user.id, product_id=s.product_id, amount_g=s.amount_g, meal_type=s.meal_type, snack_slot=s.snack_slot)
+        for s in src
+    )
     await session.commit()
     xp = await award_xp(session, user.id, "meal_logged", f"meal:{today}:{body.meal_type}")
     return {"copied": len(src), "xp_awarded": xp}

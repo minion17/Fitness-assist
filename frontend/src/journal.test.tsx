@@ -84,7 +84,7 @@ test('food: search a product and add grams to a meal', async () => {
   fireEvent.change(screen.getByDisplayValue('100'), { target: { value: '200' } })
   expect(screen.getByText(/242 ккал/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Добавить в «Ужин»' }))
-  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 200, 'dinner'))
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 200, 'dinner', null))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
 
@@ -130,7 +130,7 @@ test('food: repeat yesterday, recent with last portion, favourite star', async (
   expect(screen.getByRole('button', { name: 'В избранное' }).getAttribute('aria-pressed')).toBe('true')
   expect(apiMock).toHaveBeenCalledWith('/api/favorites/5', { method: 'PUT' })
   fireEvent.click(screen.getByRole('button', { name: /Добавить в «Завтрак»/ }))
-  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 180, 'breakfast'))
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 180, 'breakfast', null))
 })
 
 const m = (id: number, on: string, weight: number | null, waist: number | null = null): Measurement =>
@@ -225,4 +225,23 @@ test('food: custom product form validates and returns the new product', async ()
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить продукт' }))
   expect(await screen.findByRole('button', { name: /Добавить в «Завтрак»/ })).toBeTruthy()
   expect(apiMock).toHaveBeenCalledWith('/api/products', expect.objectContaining({ body: JSON.stringify({ name: 'Сырник домашний', kcal: 220, protein_g: 15, fat_g: 9, carbs_g: 20 }) }))
+})
+
+test('food: each snack is its own card in time order; adding to a snack keeps its time', async () => {
+  const curd = { id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 }
+  const item = (id: number, meal: FoodDay['items'][number]['meal_type'], slot: string | null, kcal: number) =>
+    ({ id, meal_type: meal, snack_slot: slot, amount_g: 100, logged_at: '', kcal, protein_g: 1, fat_g: 1, carbs_g: 1, product: { ...curd, name: `П${id}` } })
+  const day: FoodDay = { date: '', totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 },
+    items: [item(1, 'lunch', null, 400), item(2, 'snack', '16:40', 150), item(3, 'snack', '11:30', 120), item(4, 'snack', '11:30', 60)] }
+  apiMock.mockImplementation(async (path: string) => (path === '/api/products/recent' ? [{ ...curd, last_amount_g: 50 }] : path === '/api/favorites' ? [] : null))
+  const onAdd = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={day} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
+  const titles = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
+  expect(titles).toEqual(['КБЖУ за сегодня', 'Завтрак', 'Перекус 11:30', 'Обед', 'Перекус 16:40', 'Ужин'])
+  expect(screen.getByText('180 ккал')).toBeTruthy() // 11:30 snack total
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[1]) // into the 11:30 snack
+  fireEvent.click(await screen.findByRole('button', { name: /Творог 5%/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Добавить в «Перекус»/ }))
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 50, 'snack', '11:30'))
+  expect(screen.getByRole('button', { name: '+ Перекус' })).toBeTruthy()
 })

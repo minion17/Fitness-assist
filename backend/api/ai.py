@@ -198,6 +198,7 @@ class ConfirmIn(BaseModel):
 async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """Write the (possibly edited) draft to the diary. Unknown products become the user's own products."""
     user = await get_or_create_user(tg, session)
+    slot = datetime.now().strftime("%H:%M") if body.meal_type == "snack" else None  # one snack per recognised meal
     logs = []
     for it in body.items:
         if it.product_id is not None:
@@ -215,7 +216,8 @@ async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), sessi
             product.kcal, product.protein_g = it.kcal_100g, it.protein_100g
             product.fat_g, product.carbs_g = it.fat_100g, it.carbs_100g
             await session.flush()
-        logs.append(FoodLog(user_id=user.id, product_id=product.id, amount_g=it.grams, meal_type=body.meal_type))
+        logs.append(FoodLog(user_id=user.id, product_id=product.id, amount_g=it.grams, meal_type=body.meal_type,
+                            snack_slot=slot))
     session.add_all(logs)
     await session.commit()
     # same key as the manual diary, so XP stays once per meal type per day

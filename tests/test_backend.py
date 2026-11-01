@@ -469,3 +469,17 @@ def test_barcode_lookup_and_custom_product(client, monkeypatch):
     assert client.get(f"/api/products/barcode/{unknown}", headers=new_user_headers()).status_code == 404
     assert client.get(f"/api/products/barcode/0{code}", headers=h).json()["id"] == pid  # GTIN-14 form of the EAN
     assert client.post("/api/products", headers=h, json={**body, "kcal": 2000}).status_code == 422
+
+
+def test_several_snacks_a_day(client, seeded):
+    h = new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    add = lambda **kw: client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, **kw})
+    assert add(meal_type="snack", snack_slot="11:30").json()["snack_slot"] == "11:30"
+    assert add(meal_type="snack", snack_slot="11:30").json()["snack_slot"] == "11:30"  # same snack
+    auto = add(meal_type="snack").json()["snack_slot"]  # new snack at the current time
+    assert auto and len(auto) == 5 and auto[2] == ":"
+    assert add(meal_type="lunch", snack_slot="12:00").json()["snack_slot"] is None  # only snacks have slots
+    assert add(meal_type="snack", snack_slot="25:00").status_code == 422
+    slots = sorted({i["snack_slot"] for i in client.get("/api/food-logs", headers=h).json()["items"] if i["meal_type"] == "snack"})
+    assert slots == sorted({"11:30", auto})

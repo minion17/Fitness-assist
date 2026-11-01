@@ -31,6 +31,7 @@ async def init_db() -> None:
 ADDED_COLUMNS = [
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
     "CREATE INDEX IF NOT EXISTS ix_products_owner_user_id ON products (owner_user_id)",
+    "ALTER TABLE food_logs ADD COLUMN IF NOT EXISTS snack_slot VARCHAR(5)",
     *(f"ALTER TABLE profiles ADD COLUMN IF NOT EXISTS {c}" for c in (
         "experience VARCHAR(16)", "equipment VARCHAR[]", "sessions_per_week INTEGER", "session_minutes INTEGER",
         "allergies VARCHAR[]", "meals_per_day INTEGER", "sleep_hours FLOAT", "stress VARCHAR(16)", "injury VARCHAR(16)",

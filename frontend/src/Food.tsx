@@ -6,7 +6,7 @@ import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
 import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
-import { MEALS, mealNow, type FoodDay, type MealType, type Product } from './types'
+import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { Bar, Ring, Sheet } from './ui'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
@@ -19,11 +19,28 @@ const MACROS = [
 const r1 = (n: number) => Math.round(n * 10) / 10
 type RecentProduct = Product & { last_amount_g: number }
 
+const MEAL_TIME: Record<MealType, string> = { breakfast: '07:00', lunch: '13:00', dinner: '19:00', snack: '16:00' }
+const nowSlot = () => new Date().toTimeString().slice(0, 5)
+
+/** Breakfast, lunch, dinner always; each snack (by its start time) as its own card; all in time order. */
+function mealGroups(day: FoodDay) {
+  const groups = (['breakfast', 'lunch', 'dinner'] as MealType[]).map((meal) => ({
+    key: meal as string, meal, slot: null as string | null, title: MEALS[meal], time: MEAL_TIME[meal],
+    items: day.items.filter((i) => i.meal_type === meal),
+  }))
+  const snacks = new Map<string, FoodItem[]>()
+  for (const i of day.items) if (i.meal_type === 'snack') snacks.set(i.snack_slot ?? '', [...(snacks.get(i.snack_slot ?? '') ?? []), i])
+  for (const [slot, items] of snacks) {
+    groups.push({ key: `snack-${slot}`, meal: 'snack', slot: slot || null, title: slot ? `Перекус ${slot}` : 'Перекус', time: slot || MEAL_TIME.snack, items })
+  }
+  return groups.sort((a, b) => a.time.localeCompare(b.time))
+}
+
 export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
-  onAdd: (productId: number, grams: number, meal: MealType) => Promise<void>
+  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null) => Promise<void>
   onDelete: (id: number) => Promise<void>
   aiEnabled?: boolean
   onAiDone?: (xp: number) => Promise<void>
@@ -31,7 +48,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
   onCopy?: (fromDay: string, meal: MealType) => Promise<void>
 }) {
   const goals = targets ?? DEFAULT_GOALS
-  const [adding, setAdding] = useState<MealType | null>(intent === 'search' ? mealNow() : null)
+  const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
   const [confirm, setConfirm] = useState<number | null>(null)
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
   const t = day.totals
@@ -62,7 +79,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
         </div>
         {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
       </section>
-      {canEdit && <button className="btn" onClick={() => setAdding(mealNow())}>+ Добавить продукт</button>}
+      {canEdit && <button className="btn" onClick={() => setAdding({ meal: mealNow() })}>+ Добавить продукт</button>}
       {canEdit && aiEnabled && (
         <div className="ai-row">
           <button className="btn btn-ghost" onClick={() => setAiMode('text')}>✨ Текстом</button>
@@ -70,13 +87,13 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
         </div>
       )}
 
-      {(Object.keys(MEALS) as MealType[]).map((meal) => {
-        const items = day.items.filter((i) => i.meal_type === meal)
+      {mealGroups(day).map(({ key, meal, slot, title, items }) => {
         const kcal = items.reduce((s, i) => s + i.kcal, 0)
+        const main = meal !== 'snack'
         return (
-          <section className="card" key={meal}>
+          <section className="card" key={key}>
             <div className="card-head">
-              <h2>{MEALS[meal]}</h2>
+              <h2>{title}</h2>
               <span className="sub">{items.length ? `${Math.round(kcal)} ккал` : ''}</span>
             </div>
             {items.length > 0 && (
@@ -104,8 +121,8 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
             )}
             {canEdit && (
               <div className="meal-actions">
-                <button className="link" onClick={() => setAdding(meal)}>+ Добавить</button>
-                {items.length === 0 && yesterday?.items.some((i) => i.meal_type === meal) && (
+                <button className="link" onClick={() => setAdding({ meal, slot })}>+ Добавить</button>
+                {main && items.length === 0 && yesterday?.items.some((i) => i.meal_type === meal) && (
                   <button className="link" disabled={copying === meal}
                     onClick={() => { setCopying(meal); onCopy(yesterday.date, meal).finally(() => setCopying(null)) }}>
                     ↻ Как вчера · {Math.round(yesterday.items.filter((i) => i.meal_type === meal).reduce((a, i) => a + i.kcal, 0))} ккал
@@ -116,18 +133,20 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
           </section>
         )
       })}
+      {canEdit && <button className="btn btn-ghost" onClick={() => setAdding({ meal: 'snack', slot: nowSlot() })}>+ Перекус</button>}
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
       {aiMode && <AiMeal mode={aiMode} onClose={() => setAiMode(null)} onDone={onAiDone} />}
-      {adding && <AddFood meal={adding} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled} />}
+      {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled} />}
     </>
   )
 }
 
-function AddFood({ meal: initialMeal, onClose, onAdd, aiEnabled = false }: {
+function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = false }: {
   meal: MealType
+  slot?: string | null
   aiEnabled?: boolean
   onClose: () => void
-  onAdd: (productId: number, grams: number, meal: MealType) => Promise<void>
+  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null) => Promise<void>
 }) {
   const [meal, setMeal] = useState(initialMeal)
   const [q, setQ] = useState('')
@@ -204,7 +223,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd, aiEnabled = false }: {
     setBusy(true)
     setError('')
     try {
-      await onAdd(picked.id, g, meal)
+      await onAdd(picked.id, g, meal, meal === 'snack' ? slot : null)
       onClose()
     } catch {
       setError('Не удалось добавить. Попробуйте ещё раз.')

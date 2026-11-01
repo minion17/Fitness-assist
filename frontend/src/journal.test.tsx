@@ -250,7 +250,7 @@ test('reminders: toggles and times are saved', async () => {
   const saved: unknown[] = []
   apiMock.mockImplementation(async (_path: string, init?: RequestInit) => {
     if (init?.method === 'PUT') { saved.push(JSON.parse(String(init.body))); return null }
-    return { meals: true, water: true, streak: true, breakfast_at: '10:00', lunch_at: '14:00', dinner_at: '20:00', streak_at: '21:00' }
+    return { meals: true, water: true, streak: true, weekly: true, breakfast_at: '10:00', lunch_at: '14:00', dinner_at: '20:00', streak_at: '21:00', weekly_at: '19:00' }
   })
   const { default: Reminders } = await import('./Reminders')
   render(<Reminders />)
@@ -259,8 +259,9 @@ test('reminders: toggles and times are saved', async () => {
   fireEvent.change(screen.getByLabelText('Обед, время'), { target: { value: '13:30' } })
   fireEvent.click(screen.getByRole('switch', { name: 'Напоминать о приёмах пищи' }))
   expect(screen.queryByLabelText('Обед, время')).toBeNull() // times hide when meals are off
-  await waitFor(() => expect(saved).toHaveLength(3))
-  expect(saved[2]).toMatchObject({ meals: false, water: false, lunch_at: '13:30' })
+  fireEvent.click(screen.getByRole('switch', { name: 'Присылать итоги недели' }))
+  await waitFor(() => expect(saved).toHaveLength(4))
+  expect(saved[3]).toMatchObject({ meals: false, water: false, lunch_at: '13:30', weekly: false })
 })
 
 test('home water: portions, custom volume and undo of the last one', async () => {

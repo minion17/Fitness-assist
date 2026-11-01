@@ -201,6 +201,8 @@ class ReminderSettings(Base):
     lunch_at: Mapped[str] = mapped_column(String(5), default="14:00")
     dinner_at: Mapped[str] = mapped_column(String(5), default="20:00")
     streak_at: Mapped[str] = mapped_column(String(5), default="21:00")
+    weekly: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")  # Sunday summary
+    weekly_at: Mapped[str] = mapped_column(String(5), default="19:00", server_default="19:00")
 
 
 class FrozenDay(Base):

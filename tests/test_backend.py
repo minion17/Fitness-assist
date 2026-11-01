@@ -505,7 +505,7 @@ def test_reminder_settings_and_collect(client, seeded):
     bad = {"meals": True, "water": True, "streak": True, "breakfast_at": "9:00", "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00"}
     assert client.put("/api/reminders", headers=h, json=bad).status_code == 422
     cfg = {**bad, "breakfast_at": "09:00", "water": False}
-    assert client.put("/api/reminders", headers=h, json=cfg).json() == cfg
+    assert client.put("/api/reminders", headers=h, json=cfg).json().items() >= cfg.items()  # + weekly defaults
     client.put("/api/profile", headers=h, json=PROFILE)  # reminders go to registered users only
 
     async def run(at):
@@ -711,3 +711,41 @@ def test_achievements_unlock_once(client, seeded):
     client.post("/api/achievements/seen", headers=h)
     assert client.get("/api/achievements", headers=h).json()["new"] == []
     assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == xp0 + 25  # no second award
+
+
+def test_weekly_summary_on_sunday(client, seeded, monkeypatch):
+    import random
+    from datetime import datetime, timedelta
+
+    from backend.api import ai as ai_api
+    from backend.bot.reminders import collect
+    from backend.database.db import SessionLocal
+    from conftest import USER, make_init_data
+
+    async def tip(session, user):
+        return "Совет: больше белка на ужин."
+    monkeypatch.setattr(ai_api, "weekly_tip", tip)
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 300, "meal_type": "lunch"})
+
+    now = datetime.now().astimezone()
+    sunday = (now + timedelta(days=(6 - now.weekday()) % 7)).replace(hour=19, minute=3, second=0, microsecond=0)
+    monday = (sunday + timedelta(days=1))
+
+    async def run(at):
+        async with SessionLocal() as s:
+            return [(t, card) for chat, t, card in await collect(s, at) if chat == tg_id]
+
+    assert not any("Итоги недели" in t for t, _ in client.portal.call(run, monday))  # only on Sundays
+    weekly = [(t, card) for t, card in client.portal.call(run, sunday) if "Итоги недели" in t]
+    if sunday.date() == now.date():  # the food entry is inside that week only when the test runs on a Sunday
+        assert "в среднем" in weekly[0][0]
+    assert len(weekly) == 1 and weekly[0][0].endswith("Совет: больше белка на ужин.")
+    assert weekly[0][1]()[:4] == b"\x89PNG"
+    assert not any("Итоги недели" in t for t, _ in client.portal.call(run, sunday))  # once
+    off = client.get("/api/reminders", headers=h).json() | {"weekly": False}
+    assert client.put("/api/reminders", headers=h, json=off).json()["weekly"] is False

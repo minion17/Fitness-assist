@@ -188,3 +188,43 @@ def streak(days: int, week: list[bool], theme=None, accent=None) -> bytes:
             c.d.ellipse(box, outline=c.p["streak"] if last else c.p["track"], width=(5 if last else 4) * K)
         c.text((x + 30, 668), names[(today - (len(week) - 1 - i)) % 7], 20, "text" if last else "muted", 700 if last else 600, anchor="ma")
     return c.png()
+
+
+def weekly(days: list[dict], goal: float | None, streak_days: int, workouts: int, water_avg_ml: float,
+           weight_delta: float | None, theme=None, accent=None) -> bytes:
+    """Sunday summary. days: last 7 {date, kcal} oldest first."""
+    c = Card(theme, accent, glow=(870, 360, "accent"))
+    c.brand("Итоги недели")
+    logged = [d for d in days if d["kcal"] > 0]
+    in_norm = sum(1 for d in logged if goal and abs(d["kcal"] - goal) <= 0.1 * goal)
+    avg = sum(d["kcal"] for d in logged) / len(logged) if logged else 0
+    c.text((64, 150), f"{in_norm} из 7", 92, "accent", 700, "Unbounded")
+    c.text((64, 262), "дней в норме калорий", 30, "muted", 600)
+    tiles = [("В среднем", f"{num(avg)} ккал"), ("Вода", f"{liters(water_avg_ml)} л/день"),
+             ("Тренировок", str(workouts)), ("Серия", f"{streak_days} дн.")]
+    if weight_delta is not None:
+        tiles[3] = ("Вес", f"{'+' if weight_delta > 0 else '−' if weight_delta < 0 else ''}{abs(weight_delta):.1f} кг".replace(".", ","))
+    for i, (label, value) in enumerate(tiles):
+        x, y = 64 + (i % 2) * 260, 340 + (i // 2) * 150
+        c.rect((x, y, x + 240, y + 128), 22, "card")
+        c.text((x + 22, y + 22), label, 22, "muted", 600)
+        c.text((x + 22, y + 60), value, 34, "text", 700)
+    # 7 bars with the goal line
+    x0, y0, bw, gap, hmax = 640, 200, 54, 16, 360
+    top = max([goal or 0] + [d["kcal"] for d in days]) * 1.1 or 1
+    names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+    for i, d in enumerate(days[-7:]):
+        x = x0 + i * (bw + gap)
+        h = hmax * d["kcal"] / top
+        c.rect((x, y0, x + bw, y0 + hmax), 14, "track")
+        if h > 0:
+            ok = goal and abs(d["kcal"] - goal) <= 0.1 * goal
+            c.rect((x, y0 + hmax - max(h, 28), x + bw, y0 + hmax), 14, "accent" if ok else "muted")
+        wd = names[date.fromisoformat(d["date"]).weekday()]
+        c.text((x + bw / 2, y0 + hmax + 22), wd, 22, "muted", 600, anchor="ma")
+    if goal:
+        gy = y0 + hmax - hmax * goal / top
+        for x in range(x0 - 8, x0 + 7 * (bw + gap) - gap + 8, 18):  # dashed goal line
+            c.d.line([x * K, gy * K, (x + 9) * K, gy * K], fill=c.p["text"], width=2 * K)
+        c.text((x0 + 7 * (bw + gap) - gap + 8, gy - 34), "норма", 20, "text", 600, anchor="ra")
+    return c.png()

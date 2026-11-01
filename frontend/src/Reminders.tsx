@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react'
 import { api, ApiError } from './telegram'
 
 type Settings = {
-  meals: boolean; water: boolean; streak: boolean
-  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string
+  meals: boolean; water: boolean; streak: boolean; weekly: boolean
+  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string; weekly_at: string
 }
 
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) {
@@ -70,6 +70,14 @@ export default function Reminders() {
           <Switch on={s.streak} label="Напоминать о серии" onChange={(v) => save({ streak: v })} />
         </div>
         {s.streak && <div className="time-row"><Time label="Вечером в" value={s.streak_at} onChange={(v) => save({ streak_at: v })} /></div>}
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">Итоги недели 📊</div>
+            <div className="row-sub">По воскресеньям: карточка недели и совет</div>
+          </div>
+          <Switch on={s.weekly} label="Присылать итоги недели" onChange={(v) => save({ weekly: v })} />
+        </div>
+        {s.weekly && <div className="time-row"><Time label="В воскресенье в" value={s.weekly_at} onChange={(v) => save({ weekly_at: v })} /></div>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
     </section>

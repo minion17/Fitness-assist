@@ -147,15 +147,17 @@ async def week(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
 # ---- Reminder settings (the bot sends them, see backend/bot/reminders.py) ----
 
 HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
-REMINDER_FIELDS = ("meals", "water", "streak", "breakfast_at", "lunch_at", "dinner_at", "streak_at")
-REMINDER_DEFAULTS = {"meals": True, "water": True, "streak": True,
-                     "breakfast_at": "10:00", "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00"}
+REMINDER_FIELDS = ("meals", "water", "streak", "weekly", "breakfast_at", "lunch_at", "dinner_at", "streak_at", "weekly_at")
+REMINDER_DEFAULTS = {"meals": True, "water": True, "streak": True, "weekly": True,
+                     "breakfast_at": "10:00", "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00", "weekly_at": "19:00"}
 
 
 class RemindersIn(BaseModel):
     meals: bool
     water: bool
     streak: bool
+    weekly: bool = True  # optional: older clients don't send it
+    weekly_at: str = Field(default="19:00", pattern=HHMM)
     breakfast_at: str = Field(pattern=HHMM)
     lunch_at: str = Field(pattern=HHMM)
     dinner_at: str = Field(pattern=HHMM)

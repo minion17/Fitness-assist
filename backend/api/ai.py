@@ -465,3 +465,24 @@ async def read_menu(
             "portion_name": (str(it.get("portion_name") or "").strip() or "порция")[:40],
         })
     return {"venue": str(raw.get("venue") or "").strip()[:100], "items": items, "note": str(raw.get("note") or "")}
+
+
+async def weekly_tip(session: AsyncSession, user: User) -> str | None:
+    """The week's AI summary for the Sunday bot message: today's cached one or a fresh one; None if AI is off/fails.
+    Sent by the app itself, so it doesn't count against the user's daily AI limit."""
+    if not settings.anthropic_api_key:
+        return None
+    today = date.today()
+    cached = await session.scalar(
+        select(AiSummary).where(AiSummary.user_id == user.id, AiSummary.period == "week", AiSummary.day == today)
+    )
+    if cached:
+        return cached.text
+    try:
+        text = await ai.call_text(SUMMARY_SYSTEM, [{"type": "text", "text": await summary_data(session, user, "week")}])
+    except ai.AIUnavailable:
+        return None
+    if text:
+        await session.execute(insert(AiSummary).values(user_id=user.id, period="week", day=today, text=text).on_conflict_do_nothing())
+        await session.commit()
+    return text or None

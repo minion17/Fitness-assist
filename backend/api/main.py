@@ -16,6 +16,7 @@ from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
+from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
 from backend.database.db import AsyncSession, get_session, init_db
 from backend.database.models import (
@@ -151,17 +152,11 @@ async def search_products(
     rows = await session.scalars(
         select(Product)
         .where(owner, Product.search_text.like(f"%{q}%", escape="\\"))
-        .order_by(Product.name)
+        # names starting with the query first, then shorter (more generic) names
+        .order_by(Product.search_text.like(f"{q}%", escape="\\").desc(), func.length(Product.name), Product.name)
         .limit(20)
     )
     return [product_out(p) for p in rows]
-
-
-def product_out(p: Product) -> dict:
-    return {
-        "id": p.id, "name": p.name, "brand": p.brand, "category": p.category,
-        "kcal": p.kcal, "protein_g": p.protein_g, "fat_g": p.fat_g, "carbs_g": p.carbs_g,
-    }
 
 
 @app.get("/api/exercises")
@@ -434,6 +429,7 @@ async def list_workout_logs(tg: dict = Depends(telegram_user), session: AsyncSes
 
 app.include_router(ai_router)
 app.include_router(daily_router)
+app.include_router(quick_food_router)
 
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.

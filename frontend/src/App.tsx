@@ -189,6 +189,12 @@ export default function App() {
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
   }
 
+  async function copyMeal(fromDay: string, meal: MealType) {
+    const r = await api<{ copied: number; xp_awarded: number }>('/api/food-logs/copy', postJson({ from_day: fromDay, meal_type: meal }))
+    await refreshJournal()
+    flash(r?.xp_awarded ? `Повторено · +${r.xp_awarded} XP` : 'Повторено')
+  }
+
   async function aiMealDone(xpAwarded: number) {
     await refreshJournal()
     flash(xpAwarded ? `Добавлено · +${xpAwarded} XP` : 'Добавлено')
@@ -277,7 +283,7 @@ export default function App() {
             onFood={(i) => { go('food'); setFoodIntent(i) }} onWorkouts={() => go('workouts')} onWater={changeWater}
             summary={aiEnabled && <AiSummary />} />
         )}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} />

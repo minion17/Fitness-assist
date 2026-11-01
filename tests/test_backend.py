@@ -356,3 +356,48 @@ def test_week_and_streak(client, seeded):
 
     client.post("/api/water", headers=h, json={"delta_ml": 250})
     assert client.get("/api/week", headers=h).json()["streak"] == 3
+
+
+def test_recent_favorites_and_copy_meal(client, seeded):
+    from datetime import date, datetime, time, timedelta
+
+    from sqlalchemy import update
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog
+
+    h = new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    assert client.get("/api/products/recent", headers=h).json() == []
+
+    ids = [client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": g, "meal_type": "breakfast"}).json()["id"]
+           for g in (150, 200)]
+    recent = client.get("/api/products/recent", headers=h).json()
+    assert [(p["id"], p["last_amount_g"]) for p in recent] == [(pid, 200)]  # deduplicated, last portion
+
+    # favourites: idempotent add, unknown product rejected, remove
+    assert client.put(f"/api/favorites/{pid}", headers=h).status_code == 200
+    assert client.put(f"/api/favorites/{pid}", headers=h).status_code == 200
+    assert [p["id"] for p in client.get("/api/favorites", headers=h).json()] == [pid]
+    assert client.put("/api/favorites/999999", headers=h).status_code == 404
+    assert client.get("/api/favorites", headers=new_user_headers()).json() == []  # per user
+    client.delete(f"/api/favorites/{pid}", headers=h)
+    assert client.get("/api/favorites", headers=h).json() == []
+
+    # copy yesterday's breakfast into today
+    async def to_yesterday():
+        async with SessionLocal() as s:
+            y = datetime.combine(date.today() - timedelta(days=1), time(9)).astimezone()
+            await s.execute(update(FoodLog).where(FoodLog.id.in_(ids)).values(logged_at=y))
+            await s.commit()
+    client.portal.call(to_yesterday)
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    r = client.post("/api/food-logs/copy", headers=h, json={"from_day": yesterday, "meal_type": "breakfast"}).json()
+    assert r == {"copied": 2, "xp_awarded": 0}  # breakfast XP for today was granted when they were first logged
+    day = client.get("/api/food-logs", headers=h).json()
+    assert [i["amount_g"] for i in day["items"]] == [150, 200]
+    assert client.post("/api/food-logs/copy", headers=h, json={"from_day": yesterday, "meal_type": "dinner"}).status_code == 404
+    today = date.today().isoformat()
+    assert client.post("/api/food-logs/copy", headers=h, json={"from_day": today, "meal_type": "breakfast"}).status_code == 422
+    # another user can't copy someone else's meal
+    assert client.post("/api/food-logs/copy", headers=new_user_headers(), json={"from_day": yesterday, "meal_type": "breakfast"}).status_code == 404

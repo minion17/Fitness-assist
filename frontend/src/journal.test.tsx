@@ -15,7 +15,7 @@ vi.mock('./telegram', () => {
 const apiMock = vi.mocked(api)
 const publicGetMock = vi.mocked(publicGet)
 
-beforeEach(() => { apiMock.mockReset(); publicGetMock.mockReset() })
+beforeEach(() => { apiMock.mockReset(); apiMock.mockResolvedValue(null); publicGetMock.mockReset() })
 afterEach(cleanup)
 
 const program: Program = {
@@ -102,6 +102,35 @@ test('food: delete asks for confirmation', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Удалить Творог 5%' }))
   fireEvent.click(screen.getByRole('button', { name: 'Удалить' }))
   await waitFor(() => expect(onDelete).toHaveBeenCalledWith(42))
+})
+
+test('food: repeat yesterday, recent with last portion, favourite star', async () => {
+  const curd = { id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 }
+  const yesterday: FoodDay = {
+    date: '2026-10-31', totals: { kcal: 242, protein_g: 34, fat_g: 10, carbs_g: 6 },
+    items: [{ id: 1, meal_type: 'breakfast', amount_g: 200, logged_at: '', kcal: 242, protein_g: 34, fat_g: 10, carbs_g: 6, product: curd }],
+  }
+  apiMock.mockImplementation(async (path: string) => {
+    if (path.startsWith('/api/food-logs?day=')) return yesterday
+    if (path === '/api/products/recent') return [{ ...curd, last_amount_g: 180 }]
+    if (path === '/api/favorites') return []
+    return { ok: true }
+  })
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  const onCopy = vi.fn().mockResolvedValue(undefined)
+  const onAdd = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={empty} canEdit onAdd={onAdd} onDelete={vi.fn()} onCopy={onCopy} />)
+  fireEvent.click(await screen.findByRole('button', { name: /Как вчера · 242 ккал/ }))
+  expect(onCopy).toHaveBeenCalledWith('2026-10-31', 'breakfast')
+  expect(screen.getAllByRole('button', { name: /Как вчера/ })).toHaveLength(1) // only meals eaten yesterday
+
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  fireEvent.click(await screen.findByRole('button', { name: /Творог 5%.*180 г/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'В избранное' }))
+  expect(screen.getByRole('button', { name: 'В избранное' }).getAttribute('aria-pressed')).toBe('true')
+  expect(apiMock).toHaveBeenCalledWith('/api/favorites/5', { method: 'PUT' })
+  fireEvent.click(screen.getByRole('button', { name: /Добавить в «Завтрак»/ }))
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 180, 'breakfast'))
 })
 
 const m = (id: number, on: string, weight: number | null, waist: number | null = null): Measurement =>

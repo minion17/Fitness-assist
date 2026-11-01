@@ -255,3 +255,8 @@ h2 { font-size: 15px; font-weight: 700; }
 .confetti i:nth-child(3n+1) { background: var(--fat); }
 @keyframes fall { to { transform: translateY(105dvh) rotate(540deg); opacity: .2; } }
 @media (prefers-reduced-motion: reduce) { .confetti { display: none; } .badge { animation: none; } }
+
+.meal-actions { display: flex; gap: 16px; flex-wrap: wrap; }
+.link:disabled { opacity: .5; }
+.star { font-size: 22px; color: var(--muted); }
+.star.on { color: var(--streak); }

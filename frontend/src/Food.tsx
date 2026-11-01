@@ -14,8 +14,9 @@ const MACROS = [
 ] as const
 
 const r1 = (n: number) => Math.round(n * 10) / 10
+type RecentProduct = Product & { last_amount_g: number }
 
-export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled = false, onAiDone = async () => {}, intent = null }: {
+export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
@@ -24,12 +25,21 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
   aiEnabled?: boolean
   onAiDone?: (xp: number) => Promise<void>
   intent?: FoodIntent | null // shortcut from Home: open the matching sheet right away
+  onCopy?: (fromDay: string, meal: MealType) => Promise<void>
 }) {
   const goals = targets ?? DEFAULT_GOALS
   const [adding, setAdding] = useState<MealType | null>(intent === 'search' ? mealNow() : null)
   const [confirm, setConfirm] = useState<number | null>(null)
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
   const t = day.totals
+  const [yesterday, setYesterday] = useState<FoodDay | null>(null)
+  const [copying, setCopying] = useState<MealType | null>(null)
+  useEffect(() => {
+    if (!canEdit) return
+    const d = new Date(Date.now() - 864e5)
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    api<FoodDay>(`/api/food-logs?day=${iso}`).then(setYesterday).catch(() => {})
+  }, [canEdit])
 
   return (
     <>
@@ -89,7 +99,17 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
                 ))}
               </div>
             )}
-            {canEdit && <button className="link add-link" onClick={() => setAdding(meal)}>+ Добавить</button>}
+            {canEdit && (
+              <div className="meal-actions">
+                <button className="link" onClick={() => setAdding(meal)}>+ Добавить</button>
+                {items.length === 0 && yesterday?.items.some((i) => i.meal_type === meal) && (
+                  <button className="link" disabled={copying === meal}
+                    onClick={() => { setCopying(meal); onCopy(yesterday.date, meal).finally(() => setCopying(null)) }}>
+                    ↻ Как вчера · {Math.round(yesterday.items.filter((i) => i.meal_type === meal).reduce((a, i) => a + i.kcal, 0))} ккал
+                  </button>
+                )}
+              </div>
+            )}
           </section>
         )
       })}
@@ -112,6 +132,25 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
   const [grams, setGrams] = useState('100')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [list, setList] = useState<'recent' | 'favorites'>('recent')
+  const [recent, setRecent] = useState<RecentProduct[] | null>(null)
+  const [favorites, setFavorites] = useState<Product[] | null>(null)
+
+  useEffect(() => {
+    api<RecentProduct[]>('/api/products/recent').then(setRecent).catch(() => {})
+    api<Product[]>('/api/favorites').then(setFavorites).catch(() => {})
+  }, [])
+
+  const isFav = picked != null && favorites?.some((f) => f.id === picked.id)
+  async function toggleFav(p: Product) {
+    const was = favorites?.some((f) => f.id === p.id)
+    setFavorites((fs) => (was ? (fs ?? []).filter((f) => f.id !== p.id) : [p, ...(fs ?? [])])) // optimistic
+    try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Не удалось обновить избранное') }
+  }
+  function pick(p: Product | RecentProduct) {
+    setPicked(p)
+    if ('last_amount_g' in p) setGrams(String(p.last_amount_g))
+  }
 
   useEffect(() => {
     if (q.trim().length < 2) return
@@ -156,11 +195,34 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
             <input autoFocus placeholder="Поиск: творог, гречка…" value={q}
               onChange={(e) => { setQ(e.target.value); setError(''); if (e.target.value.trim().length < 2) setResults(null) }} />
           </div>
+          {q.trim().length < 2 && recent && favorites && (
+            <>
+              <div className="seg seg-inline">
+                <button type="button" aria-pressed={list === 'recent'} onClick={() => setList('recent')}>Недавние</button>
+                <button type="button" aria-pressed={list === 'favorites'} onClick={() => setList('favorites')}>Избранное</button>
+              </div>
+              {(list === 'recent' ? recent : favorites).length === 0 ? (
+                <p className="sub">{list === 'recent' ? 'Здесь появятся продукты, которые вы добавляли.' : 'Отметьте продукт звёздочкой — он появится здесь.'}</p>
+              ) : (
+                <div className="list scroll-list">
+                  {(list === 'recent' ? recent : favorites).map((p) => (
+                    <button className="row row-btn" key={p.id} onClick={() => pick(p)}>
+                      <div className="row-main">
+                        <div className="row-title">{p.name}</div>
+                        <div className="row-sub">{'last_amount_g' in p ? `${p.last_amount_g} г · ${Math.round((p.kcal * Number(p.last_amount_g)) / 100)} ккал` : `${Math.round(p.kcal)} ккал на 100 г`}</div>
+                      </div>
+                      <span className="row-end">›</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
           {results && results.length === 0 && <p className="sub">Ничего не найдено. Если база продуктов ещё пустая — её скоро наполнят.</p>}
           {results && results.length > 0 && (
             <div className="list scroll-list">
               {results.map((p) => (
-                <button className="row row-btn" key={p.id} onClick={() => setPicked(p)}>
+                <button className="row row-btn" key={p.id} onClick={() => pick(p)}>
                   <div className="row-main">
                     <div className="row-title">{p.name}</div>
                     <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}на 100 г: Б {p.protein_g} · Ж {p.fat_g} · У {p.carbs_g}</div>
@@ -178,6 +240,11 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
               <div className="row-title">{picked.name}</div>
               <div className="row-sub">{picked.brand ?? ''}</div>
             </div>
+            {favorites && (
+              <button className={isFav ? 'icon-btn star on' : 'icon-btn star'} aria-pressed={isFav} aria-label="В избранное" onClick={() => toggleFav(picked)}>
+                {isFav ? '★' : '☆'}
+              </button>
+            )}
             <button className="link" onClick={() => setPicked(null)}>Другой</button>
           </div>
           <label className="field">

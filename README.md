@@ -96,7 +96,7 @@ cd frontend && npm test
 
 | Файл | Поля |
 |---|---|
-| `content/products/products.json` | `name`, `brand`, `barcode`, `category`, `kcal`, `protein_g`, `fat_g`, `carbs_g` (на 100 г) |
+| `content/products/products.json` (~340 продуктов: базовые позиции коллеги + обычные продукты с КБЖУ из USDA SR28 — лабораторные данные Минсельхоза США, названия переведены) | `name`, `brand`, `barcode`, `category`, `kcal`, `protein_g`, `fat_g`, `carbs_g` (на 100 г) |
 | `content/exercises/exercises.json` | `name`, `muscle_groups[]`, `equipment[]`, `difficulty`, `description`, `is_bodyweight` |
 | `content/programs/programs.json` | `name`, `goal`, `level`, `days_per_week`, `description`, `days[]` → `day_name`, `day_order`, `exercises[]` → `name` (из exercises.json), `sets`, `reps`, `rest_seconds`, `notes` |
 
@@ -112,6 +112,9 @@ API:
 | DELETE | `/api/food-logs/{id}` | Удалить запись из дневника питания |
 | PUT/GET | `/api/measurements` | Замер за день `{measured_on?, weight_kg, waist_cm, chest_cm, hips_cm, body_fat_pct}` (повторное сохранение за тот же день заменяет запись; новый вес обновляет анкету и норму) / история, новые сверху |
 | DELETE | `/api/measurements/{id}` | Удалить замер |
+| GET | `/api/products/recent` | Недавние продукты пользователя с последней порцией |
+| GET, PUT/DELETE | `/api/favorites`, `/api/favorites/{product_id}` | Избранные продукты |
+| POST | `/api/food-logs/copy` | Повторить приём пищи `{from_day, meal_type}` из последних 30 дней в сегодня |
 | GET/POST | `/api/water` | Вода за сегодня `{ml, goal_ml}` / изменить `{delta_ml}` (±1000). Норма — 33 мл на кг веса, 1,5–4 л |
 | GET | `/api/week` | Последние 7 дней (ккал, вода, тренировки) и серия активных дней подряд |
 

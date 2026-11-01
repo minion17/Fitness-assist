@@ -157,6 +157,15 @@ class FoodLog(Base):
     product: Mapped[Product] = relationship()
 
 
+class FavoriteProduct(Base):
+    __tablename__ = "favorite_products"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    product: Mapped[Product] = relationship()
+
+
 class WorkoutLog(Base):
     __tablename__ = "workout_logs"
 

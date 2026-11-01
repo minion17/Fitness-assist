@@ -122,3 +122,22 @@ def test_summary_cached_and_uses_real_data(client, seeded, fake_ai):
 
     week = client.get("/api/ai/summary", headers=h, params={"period": "week"}).json()
     assert week["cached"] is False and "Дней с записями питания: 1 из 7" in calls["text"][-1][0]["text"]
+
+
+def test_label_photo_fills_product_form(client, fake_ai):
+    calls, replies = fake_ai
+    h = new_user_headers()
+    jpg = {"file": ("label.jpg", b"\xff\xd8\xff fake jpeg", "image/jpeg")}
+    replies["tool"] = {"found": True, "name": "Йогурт Ирбитский 2,5%", "kcal_100g": 64.1, "protein_100g": 5.7,
+                       "fat_100g": 2.5, "carbs_100g": 4.7, "note": ""}
+    r = client.post("/api/ai/label", headers=h, files=jpg).json()
+    assert r == {"found": True, "name": "Йогурт Ирбитский 2,5%", "kcal": 64.1, "protein_g": 5.7, "fat_g": 2.5, "carbs_g": 4.7, "note": ""}
+    assert calls["tool"][-1][0]["type"] == "image"
+
+    replies["tool"] = {"found": True, "name": "x", "kcal_100g": 5000, "protein_100g": -3, "fat_100g": "?", "carbs_100g": 4, "note": ""}
+    r = client.post("/api/ai/label", headers=h, files=jpg).json()
+    assert (r["kcal"], r["protein_g"], r["fat_g"]) == (900, 0, 0)  # model output is clamped
+
+    replies["tool"] = {"found": False, "name": "", "kcal_100g": 0, "protein_100g": 0, "fat_100g": 0, "carbs_100g": 0, "note": "Таблицы не видно"}
+    assert client.post("/api/ai/label", headers=h, files=jpg).json() == {"found": False, "note": "Таблицы не видно"}
+    assert client.post("/api/ai/label", headers=h, files={"file": ("a.txt", b"x", "text/plain")}).status_code == 415

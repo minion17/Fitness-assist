@@ -38,6 +38,9 @@ ADDED_COLUMNS = [
     # 3 old goals -> 5 Logos goals
     "UPDATE profiles SET goal = CASE goal WHEN 'lose' THEN 'weight_loss' WHEN 'maintain' THEN 'maintenance' "
     "WHEN 'gain' THEN 'muscle_gain' ELSE goal END WHERE goal IN ('lose', 'maintain', 'gain')",
+    # products saved from Open Food Facts before HTML entities were decoded
+    *(f"""UPDATE products SET {c} = replace(replace(replace({c}, '&quot;', '"'), '&#39;', ''''), '&amp;', '&')
+          WHERE {c} LIKE '%&%;%'""" for c in ("name", "brand", "search_text")),
 ]
 
 

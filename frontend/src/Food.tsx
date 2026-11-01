@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Targets } from './profile'
 import AiMeal from './AiMeal'
+import { shrink } from './image'
 import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
 import Scanner from './Scanner'
@@ -117,13 +118,14 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
       })}
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
       {aiMode && <AiMeal mode={aiMode} onClose={() => setAiMode(null)} onDone={onAiDone} />}
-      {adding && <AddFood meal={adding} onClose={() => setAdding(null)} onAdd={onAdd} />}
+      {adding && <AddFood meal={adding} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled} />}
     </>
   )
 }
 
-function AddFood({ meal: initialMeal, onClose, onAdd }: {
+function AddFood({ meal: initialMeal, onClose, onAdd, aiEnabled = false }: {
   meal: MealType
+  aiEnabled?: boolean
   onClose: () => void
   onAdd: (productId: number, grams: number, meal: MealType) => Promise<void>
 }) {
@@ -219,7 +221,7 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
       </div>
 
       {custom && !picked ? (
-        <CustomProduct barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
+        <CustomProduct aiEnabled={aiEnabled} barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
       ) : !picked ? (
         <>
           <div className="input-wrap">
@@ -319,11 +321,38 @@ function AddFood({ meal: initialMeal, onClose, onAdd }: {
   )
 }
 
-function CustomProduct({ barcode, onCreated, onCancel }: { barcode: string | null; onCreated: (p: Product) => void; onCancel: () => void }) {
+type Label = { found: true; name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; note: string } | { found: false; note: string }
+
+function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
+  barcode: string | null; aiEnabled: boolean; onCreated: (p: Product) => void; onCancel: () => void
+}) {
   const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '' })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [reading, setReading] = useState(false)
+  const [hint, setHint] = useState('')
   const num = (x: string) => Number(x.replace(',', '.'))
+
+  async function readLabel(file?: File) {
+    if (!file) return
+    setReading(true)
+    setError('')
+    setHint('')
+    try {
+      const form = new FormData()
+      form.append('file', await shrink(file, 1600).catch(() => file), 'label.jpg')
+      const r = await api<Label>('/api/ai/label', { method: 'POST', body: form })
+      if (!r) return
+      if (!r.found) { setError(r.note); return }
+      const s = (n: number) => String(n).replace('.', ',')
+      setV((old) => ({ name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g) }))
+      setHint(r.note || 'Проверьте цифры с упаковкой и сохраните.')
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Не удалось прочитать этикетку')
+    } finally {
+      setReading(false)
+    }
+  }
   const fields = [['kcal', 'Ккал', 900], ['protein_g', 'Белки, г', 100], ['fat_g', 'Жиры, г', 100], ['carbs_g', 'Углеводы, г', 100]] as const
 
   async function save() {
@@ -347,6 +376,14 @@ function CustomProduct({ barcode, onCreated, onCancel }: { barcode: string | nul
     <>
       {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе — добавьте его один раз, дальше он будет находиться по штрихкоду.</p>}
       <p className="sub">Значения — на 100 г, они есть на упаковке. Продукт будет виден только вам.</p>
+      {aiEnabled && (
+        <label className={reading ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
+          {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку — заполню сам'}
+          <input type="file" accept="image/*" capture="environment" hidden disabled={reading}
+            onChange={(e) => { readLabel(e.target.files?.[0]); e.target.value = '' }} />
+        </label>
+      )}
+      {hint && <p className="sub pos">{hint}</p>}
       <label className="field">
         <span>Название</span>
         <div className="input-wrap"><input autoFocus value={v.name} onChange={(e) => setV({ ...v, name: e.target.value })} /></div>

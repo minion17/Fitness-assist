@@ -411,6 +411,9 @@ def test_off_parse():
     assert parse(ok) == {"name": "Молоко 3,2%", "brand": "Простоквашино", "kcal": 59, "protein_g": 2.9, "fat_g": 3.2, "carbs_g": 4.7}
     kj = {"status": 1, "product": {"product_name": "Сок", "nutriments": {"energy_100g": 188}}}
     assert parse(kj)["kcal"] == 45 and parse(kj)["protein_g"] == 0  # kJ converted, missing macros = 0
+    quoted = {"status": 1, "product": {"product_name": "Сок &quot;яблоко вишня&quot;", "brands": "Сады &amp; Ко",
+              "nutriments": {"energy-kcal_100g": 45}}}
+    assert (parse(quoted)["name"], parse(quoted)["brand"]) == ('Сок "яблоко вишня"', "Сады & Ко")
     assert parse({"status": 0}) is None
     assert parse({"status": 1, "product": {"product_name": "Без КБЖУ", "nutriments": {}}}) is None
     assert parse({"status": 1, "product": {"product_name": "Мусор", "nutriments": {"energy-kcal_100g": 5000}}}) is None

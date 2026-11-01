@@ -1,4 +1,6 @@
 """Open Food Facts lookup by barcode (free open database, many Russian products)."""
+import html
+
 import httpx
 
 URL = "https://world.openfoodfacts.org/api/v2/product/{code}.json"
@@ -19,7 +21,8 @@ def parse(data: dict) -> dict | None:
     if data.get("status") != 1:
         return None
     p = data.get("product") or {}
-    name = (p.get("product_name_ru") or p.get("product_name") or p.get("generic_name_ru") or "").strip()
+    # some OFF entries keep HTML entities (&quot;) in names
+    name = html.unescape(p.get("product_name_ru") or p.get("product_name") or p.get("generic_name_ru") or "").strip()
     n = p.get("nutriments") or {}
     kcal = _num(n, "energy-kcal_100g")
     if kcal is None and (kj := _num(n, "energy_100g")) is not None:
@@ -31,7 +34,7 @@ def parse(data: dict) -> dict | None:
     # crowd-sourced data: reject physically impossible values instead of storing them
     if not (0 <= kcal <= 900 and all(0 <= m <= 100 for m in (protein, fat, carbs)) and protein + fat + carbs <= 101):
         return None
-    brand = (p.get("brands") or "").split(",")[0].strip() or None
+    brand = html.unescape(p.get("brands") or "").split(",")[0].strip() or None
     return {
         "name": name[:200], "brand": brand[:100] if brand else None, "kcal": round(kcal),
         "protein_g": round(protein, 1), "fat_g": round(fat, 1), "carbs_g": round(carbs, 1),

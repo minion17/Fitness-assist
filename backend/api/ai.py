@@ -332,3 +332,57 @@ async def status(tg: dict = Depends(telegram_user), session: AsyncSession = Depe
         select(func.count(AiRequest.id)).where(AiRequest.user_id == user.id, AiRequest.created_at >= day_start(date.today()))
     )
     return {"enabled": bool(settings.anthropic_api_key), "used_today": used, "daily_limit": settings.ai_daily_limit}
+
+
+# ---- Nutrition label (for products missing from every database) ----
+
+LABEL_SYSTEM = """Ты читаешь фото упаковки продукта и переписываешь пищевую ценность из таблицы на этикетке.
+Правила:
+- Бери только числа, напечатанные на упаковке, ничего не придумывай и не подставляй «типичные» значения.
+- Нужны значения на 100 г (или 100 мл). Если указано только на порцию и вес порции напечатан — пересчитай на 100 г.
+- Если энергия дана только в кДж — переведи в ккал (кДж / 4.184).
+- Десятичная запятая: «5,7» = 5.7.
+- Название — коротко, как на упаковке (вид продукта, марка, жирность), если оно видно; иначе пустая строка.
+- Если таблицы пищевой ценности на фото нет или её нельзя прочитать — found = false и объясни в note, как переснять."""
+
+LABEL_TOOL = {
+    "name": "nutrition_label",
+    "description": "Пищевая ценность с этикетки на 100 г",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "found": {"type": "boolean"},
+            "name": {"type": "string"},
+            "kcal_100g": {"type": "number"},
+            "protein_100g": {"type": "number"},
+            "fat_100g": {"type": "number"},
+            "carbs_100g": {"type": "number"},
+            "note": {"type": "string"},
+        },
+        "required": ["found", "name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g", "note"],
+    },
+}
+
+
+@router.post("/label")
+async def read_label(
+    file: UploadFile = File(...), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
+):
+    """Fill the custom-product form from a photo of the package's nutrition table."""
+    if file.content_type not in IMAGE_TYPES:
+        raise HTTPException(415, "Нужна фотография (JPEG, PNG или WebP)")
+    data = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(413, "Фото слишком большое (до 6 МБ)")
+    user = await get_or_create_user(tg, session)
+    await use_quota(session, user, "label")
+    image = {"type": "image", "source": {"type": "base64", "media_type": file.content_type, "data": base64.b64encode(data).decode()}}
+    try:
+        raw = await ai.call_tool(LABEL_SYSTEM, [image, {"type": "text", "text": "Перепиши пищевую ценность на 100 г."}], LABEL_TOOL, 500)
+    except ai.AIUnavailable as e:
+        raise ai_errors(e)
+    if not raw.get("found"):
+        return {"found": False, "note": str(raw.get("note") or "Не удалось прочитать таблицу пищевой ценности — снимите её ближе и ровнее.")}
+    out = {k: round(clamp(raw.get(f"{k}_100g", 0), 0, hi), 1) for k, hi in (("kcal", 900), ("protein", 100), ("fat", 100), ("carbs", 100))}
+    return {"found": True, "name": str(raw.get("name") or "")[:200], "kcal": out["kcal"], "protein_g": out["protein"],
+            "fat_g": out["fat"], "carbs_g": out["carbs"], "note": str(raw.get("note") or "")}

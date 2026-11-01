@@ -48,7 +48,7 @@ def test_bot_start_button_opens_webapp():
     from backend.bot.main import current_webapp_url, open_app_keyboard
 
     btn = open_app_keyboard(current_webapp_url()).inline_keyboard[0][0]
-    assert btn.text == "Открыть Fitness Assistant"
+    assert btn.text == "Открыть приложение"
     assert btn.web_app.url == "https://example.test"
 
 
@@ -618,3 +618,14 @@ def test_cards_render_in_every_theme():
             cards.streak(365, [True] * 6 + [False], theme),
         ):
             assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) < 400_000
+
+
+def test_bot_greeting_handles_empty_and_invisible_names():
+    from backend.bot.main import greeting
+
+    assert greeting("Егор", False).startswith("Привет, Егор! 👋")
+    assert greeting("­", False).startswith("Привет! 👋")  # soft hyphen only: Telegram shows it as blank
+    assert greeting("​ ⁣", False).startswith("Привет! 👋")
+    assert greeting(None, False).startswith("Привет! 👋")
+    assert greeting("<b>Хакер</b>", False).startswith("Привет, &lt;b&gt;Хакер&lt;/b&gt;!")  # HTML caption
+    assert greeting("Анна Мария", True).startswith("С возвращением, Анна Мария!")

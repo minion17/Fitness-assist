@@ -1,6 +1,7 @@
 import asyncio
 import html
 import logging
+import unicodedata
 
 from aiogram import Bot, Dispatcher, Router
 from aiogram.client.session.aiohttp import AiohttpSession
@@ -20,23 +21,37 @@ from sqlalchemy import select
 
 from backend.bot import cards, profile, reminders
 from backend.database.db import SessionLocal
-from backend.database.models import User
+from backend.database.models import Profile, User
 from backend.core.config import Settings, settings
 
 log = logging.getLogger("bot")
 router = Router()
 
 WELCOME = (
-    "Привет, {name}! 👋\n\n"
-    "Я <b>Fitness Assistant</b> — посчитаю твою норму КБЖУ, помогу вести дневник питания "
-    "и тренировок и напомню про воду.\n\nНажми кнопку ниже — анкета займёт пару минут."
+    "{hello} 👋\n\n"
+    "Я помогаю не бросить питание и тренировки через неделю. Сфоткал тарелку — "
+    "я посчитал калории. Забыл про воду — напомню. Пропускаешь — тоже напомню, но по-доброму 🙂\n\n"
+    "Для начала пара вопросов о тебе, чтобы норма была твоя, а не «средняя по больнице». "
+    "Это пара минут, честно."
+)
+WELCOME_BACK = (
+    "{hello} 👋\n\n"
+    "Рад снова видеть. Дневник, тренировки и вода — всё на месте, жми «Открыть» и продолжаем."
 )
 
 
-async def account(telegram_id: int) -> User | None:
-    """The user's account if they opened the app before (for their theme)."""
+def greeting(first_name: str | None, back: bool) -> str:
+    """"Привет, Егор!" — or just "Привет!" when the name is empty or made only of invisible characters."""
+    name = "".join(ch for ch in (first_name or "") if unicodedata.category(ch)[0] not in "CZ" or ch == " ").strip()
+    hello = ("С возвращением" if back else "Привет") + (f", {html.escape(name)}!" if name else "!")
+    return (WELCOME_BACK if back else WELCOME).format(hello=hello)
+
+
+async def account(telegram_id: int) -> tuple[User | None, bool]:
+    """The user's account if they opened the app before (for their theme), and whether they filled the questionnaire."""
     async with SessionLocal() as s:
-        return await s.scalar(select(User).where(User.telegram_id == telegram_id))
+        user = await s.scalar(select(User).where(User.telegram_id == telegram_id))
+        return user, bool(user and await s.get(Profile, user.id))
 
 
 def current_webapp_url() -> str:
@@ -44,25 +59,22 @@ def current_webapp_url() -> str:
     return Settings().webapp_url
 
 
-def open_app_keyboard(url: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text="Открыть Fitness Assistant", web_app=WebAppInfo(url=url))]]
-    )
+def open_app_keyboard(url: str, text: str = "Открыть приложение") -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=text, web_app=WebAppInfo(url=url))]])
 
 
 @router.message(CommandStart())
 async def start(message: Message) -> None:
     url = current_webapp_url()
-    name = message.from_user.first_name if message.from_user else "друг"
-    caption = WELCOME.format(name=html.escape(name))
+    user, back = await account(message.from_user.id) if message.from_user else (None, False)
+    caption = greeting(message.from_user and message.from_user.first_name, back)
+    keyboard = open_app_keyboard(url, "Открыть" if back else "Поехали →")
     try:
-        user = await account(message.from_user.id) if message.from_user else None
         png = await asyncio.to_thread(cards.welcome, user and user.theme, user and user.accent)
-        await message.answer_photo(BufferedInputFile(png, "welcome.png"), caption=caption,
-                                   reply_markup=open_app_keyboard(url), parse_mode="HTML")
+        await message.answer_photo(BufferedInputFile(png, "welcome.png"), caption=caption, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         log.warning("welcome card failed, sending text", exc_info=True)
-        await message.answer(caption, reply_markup=open_app_keyboard(url), parse_mode="HTML")
+        await message.answer(caption, reply_markup=keyboard, parse_mode="HTML")
     if url.startswith("https://"):
         try:  # keep this chat's menu button on the current address too
             await message.bot.set_chat_menu_button(

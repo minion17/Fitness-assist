@@ -51,6 +51,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
   const goals = targets ?? DEFAULT_GOALS
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
   const [confirm, setConfirm] = useState<number | null>(null)
+  const [expandedMeals, setExpandedMeals] = useState<string[]>([])
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
   const t = day.totals
   const [yesterday, setYesterday] = useState<FoodDay | null>(null)
@@ -65,7 +66,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
   return (
     <>
       <h1>Питание</h1>
-      <section className="card">
+      <section className="card nutrition-summary">
         <div className="card-head"><h2>КБЖУ за сегодня</h2><span className="sub">{Math.round(t.kcal)} / {goals.calories}</span></div>
         <div className="ring-wrap">
           <Ring value={t.kcal} goal={goals.calories} />
@@ -80,7 +81,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
         </div>
         {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
       </section>
-      {canEdit && <button className="btn" onClick={() => setAdding({ meal: mealNow() })}>+ Добавить продукт</button>}
+      {canEdit && <button className="btn nutrition-add" onClick={() => setAdding({ meal: mealNow() })}>+ Добавить продукт</button>}
       {canEdit && aiEnabled && (
         <div className="ai-row">
           <button className="btn btn-ghost" onClick={() => setAiMode('text')}>✨ Текстом</button>
@@ -88,16 +89,18 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
         </div>
       )}
 
+      <section className="meal-diary">
+      <h2>Приёмы пищи</h2>
       {mealGroups(day).map(({ key, meal, slot, title, items }) => {
         const kcal = items.reduce((s, i) => s + i.kcal, 0)
         const main = meal !== 'snack'
         return (
-          <section className="card" key={key}>
-            <div className="card-head">
-              <h2>{title}</h2>
-              <span className="sub">{items.length ? `${Math.round(kcal)} ккал` : ''}</span>
-            </div>
-            {items.length > 0 && (
+          <section className="meal-group" key={key}>
+            <button className="meal-toggle" aria-expanded={expandedMeals.includes(key)} onClick={() => setExpandedMeals(current => current.includes(key) ? current.filter(k => k !== key) : [...current, key])}>
+              <h2>{title}</h2><span className="meal-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div className="meal-totals">{Math.round(kcal)} ккал · Б {r1(items.reduce((n, i) => n + i.protein_g, 0))} · Ж {r1(items.reduce((n, i) => n + i.fat_g, 0))} · У {r1(items.reduce((n, i) => n + i.carbs_g, 0))}</div>
+            {expandedMeals.includes(key) && (items.length === 0 ? <p className="sub">Пока нет продуктов</p> : (
               <div className="list">
                 {items.map((i) => (
                   <div className="row" key={i.id}>
@@ -119,12 +122,12 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
                   </div>
                 ))}
               </div>
-            )}
+            ))}
             {canEdit && (
               <div className="meal-actions">
                 <button className="link" onClick={() => setAdding({ meal, slot })}>+ Добавить</button>
                 {main && items.length === 0 && yesterday?.items.some((i) => i.meal_type === meal) && (
-                  <button className="link" disabled={copying === meal}
+                  <button className="link meal-repeat" disabled={copying === meal}
                     onClick={() => { setCopying(meal); onCopy(yesterday.date, meal).finally(() => setCopying(null)) }}>
                     ↻ Как вчера · {Math.round(yesterday.items.filter((i) => i.meal_type === meal).reduce((a, i) => a + i.kcal, 0))} ккал
                   </button>
@@ -134,7 +137,8 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
           </section>
         )
       })}
-      {canEdit && <button className="btn btn-ghost" onClick={() => setAdding({ meal: 'snack', slot: nowSlot() })}>+ Перекус</button>}
+      {canEdit && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: nowSlot() })}>+ Перекус</button>}
+      </section>
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
       {aiMode && <AiMeal mode={aiMode} onClose={() => setAiMode(null)} onDone={onAiDone} />}
       {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled} />}

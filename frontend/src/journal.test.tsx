@@ -96,6 +96,7 @@ test('food: delete asks for confirmation', async () => {
   }
   const onDelete = vi.fn().mockResolvedValue(undefined)
   render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Обед' }))
   fireEvent.click(screen.getByRole('button', { name: 'Удалить Творог 5%' }))
   fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
   expect(onDelete).not.toHaveBeenCalled()
@@ -237,8 +238,8 @@ test('food: each snack is its own card in time order; adding to a snack keeps it
   const onAdd = vi.fn().mockResolvedValue(undefined)
   render(<Food day={day} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
   const titles = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
-  expect(titles).toEqual(['КБЖУ за сегодня', 'Завтрак', 'Перекус 11:30', 'Обед', 'Перекус 16:40', 'Ужин'])
-  expect(screen.getByText('180 ккал')).toBeTruthy() // 11:30 snack total
+  expect(titles).toEqual(['КБЖУ за сегодня', 'Приёмы пищи', 'Завтрак', 'Перекус 11:30', 'Обед', 'Перекус 16:40', 'Ужин'])
+  expect(screen.getByText(/180 ккал · Б/)).toBeTruthy() // 11:30 snack total
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[1]) // into the 11:30 snack
   fireEvent.click(await screen.findByRole('button', { name: /Творог 5%/ }))
   fireEvent.click(screen.getByRole('button', { name: /Добавить в «Перекус»/ }))
@@ -254,7 +255,11 @@ test('reminders: toggles and times are saved', async () => {
   })
   const { default: Reminders } = await import('./Reminders')
   render(<Reminders />)
-  fireEvent.click(await screen.findByRole('switch', { name: 'Напоминать о воде' }))
+  const toggle = await screen.findByRole('button', { name: 'Напоминания в боте' })
+  expect(toggle.getAttribute('aria-expanded')).toBe('false')
+  fireEvent.click(toggle)
+  expect(toggle.getAttribute('aria-expanded')).toBe('true')
+  fireEvent.click(screen.getByRole('switch', { name: 'Напоминать о воде' }))
   expect(screen.getByRole('switch', { name: 'Напоминать о воде' }).getAttribute('aria-checked')).toBe('false')
   fireEvent.change(screen.getByLabelText('Обед, время'), { target: { value: '13:30' } })
   fireEvent.click(screen.getByRole('switch', { name: 'Напоминать о приёмах пищи' }))

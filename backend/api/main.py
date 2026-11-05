@@ -243,7 +243,7 @@ async def list_programs(tg: dict | None = Depends(optional_telegram_user), sessi
                     "exercises": [
                         {
                             "exercise_id": i.exercise_id, "name": i.exercise.name, "sets": i.sets,
-                            "reps": i.reps, "rest_seconds": i.rest_seconds, "notes": i.notes, "unit": i.unit, "superset": i.superset,
+                            "reps": i.reps, "rest_seconds": i.rest_seconds, "notes": i.notes, "unit": i.unit, "superset": i.superset, "planned_weights": i.planned_weights,
                         }
                         for i in d.items
                     ],
@@ -262,6 +262,7 @@ class PersonalExerciseIn(BaseModel):
     rest_seconds: int = Field(ge=0, le=3600)
     unit: Literal["reps", "seconds"] = "reps"
     superset: int | None = Field(default=None, ge=1, le=50)
+    planned_weights: list[float | None] | None = Field(default=None, max_length=50)
 
 
 class PersonalDayIn(BaseModel):
@@ -276,6 +277,8 @@ class PersonalProgramIn(BaseModel):
 
 
 async def save_personal_program(body: PersonalProgramIn, user: User, session: AsyncSession, tg: dict, program: Program | None = None):
+    if any(e.planned_weights is not None and (len(e.planned_weights) != e.sets or any(w is not None and not 0 <= w <= 500 for w in e.planned_weights)) for d in body.days for e in d.exercises):
+        raise HTTPException(422, "Проверьте веса подходов")
     ids = {item.exercise_id for day in body.days for item in day.exercises}
     existing = set((await session.scalars(select(Exercise.id).where(Exercise.id.in_(ids), (Exercise.owner_user_id.is_(None)) | (Exercise.owner_user_id == user.id)))).all())
     if ids != existing or not body.name.strip() or any(not d.name.strip() or any(not e.reps.strip() for e in d.exercises) for d in body.days):
@@ -299,7 +302,7 @@ async def save_personal_program(body: PersonalProgramIn, user: User, session: As
             program.days.append(day)
         day.day_name, day.day_order = day_data.name.strip(), index + 1
         for pos, item in enumerate(day_data.exercises, 1):
-            day.items.append(ProgramExercise(exercise_id=item.exercise_id, sets=item.sets, reps=item.reps.strip(), rest_seconds=item.rest_seconds, position=pos, unit=item.unit, superset=item.superset))
+            day.items.append(ProgramExercise(exercise_id=item.exercise_id, sets=item.sets, reps=item.reps.strip(), rest_seconds=item.rest_seconds, position=pos, unit=item.unit, superset=item.superset, planned_weights=item.planned_weights))
     for day in existing_days.values():
         if day.id not in requested_ids:
             program.days.remove(day)

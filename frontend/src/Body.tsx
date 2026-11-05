@@ -45,9 +45,9 @@ export default function Body({ measurements, canEdit, onSave, onDelete, hideWeig
         <Sparkline values={weights} />
       </section>}
 
-      <section className="card">
+      <section className="card body-measures">
         <h2>Параметры тела</h2>
-        <div className="list">
+        <div className="body-measures-grid">
           {MEASURES.filter((m) => m.key !== 'weight_kg').map((m) => (
             <div className="row" key={m.key}>
               <div className="row-main row-title">{m.label}</div>
@@ -61,7 +61,7 @@ export default function Body({ measurements, canEdit, onSave, onDelete, hideWeig
       </section>
 
       {measurements.length > 0 && (
-        <section className="card">
+        <section className="card body-history">
           <h2>История замеров</h2>
           <div className="list">
             {measurements.slice(0, 10).map((m) => (

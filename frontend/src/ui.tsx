@@ -15,11 +15,11 @@ export function Ring({ value, goal }: { value: number; goal: number }) {
   const left = Math.round(goal - value)
   return (
     <svg width="104" height="104" viewBox="0 0 104 104" role="img" aria-label={`${Math.round(value)} из ${goal} ккал`}>
-      <circle cx="52" cy="52" r={r} fill="none" stroke="var(--card-2)" strokeWidth="9" />
+      <circle cx="52" cy="52" r={r} fill="none" stroke="var(--nutrition-ring-track)" strokeWidth="9" />
       {frac > 0 && <circle cx="52" cy="52" r={r} fill="none" stroke={left < 0 ? 'var(--fat)' : 'var(--accent)'} strokeWidth="9"
         strokeLinecap="round" strokeDasharray={`${c * frac} ${c}`} transform="rotate(-90 52 52)" />}
-      <text x="52" y="50" textAnchor="middle" fill="var(--text)" fontSize="20" fontWeight="650">{Math.abs(left)}</text>
-      <text x="52" y="67" textAnchor="middle" fill="var(--muted)" fontSize="11">{left < 0 ? 'ккал сверх нормы' : 'ккал осталось'}</text>
+      <text x="52" y="50" textAnchor="middle" fill="var(--text)" fontSize="20" fontWeight="650" textLength={String(Math.abs(left)).length > 5 ? 65 : undefined} lengthAdjust="spacingAndGlyphs">{Math.abs(left)}</text>
+      <text x="52" y="67" textAnchor="middle" fill="var(--muted)" fontSize="11">{left < 0 ? 'сверх нормы' : 'осталось'}</text>
     </svg>
   )
 }

@@ -153,6 +153,7 @@ class ProgramExercise(Base):
     unit: Mapped[str] = mapped_column(String(10), default="reps", server_default="reps")
     superset: Mapped[int | None] = mapped_column(Integer)
     rest_seconds: Mapped[int] = mapped_column(Integer)
+    planned_weights: Mapped[list[float | None] | None] = mapped_column(ARRAY(Float), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer)
     exercise: Mapped[Exercise] = relationship()

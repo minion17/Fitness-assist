@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Recommendation } from './profile'
 import { api, postJson } from './telegram'
-import { completedThisWeek, nextDay, type Program, type ProgramDay, type WorkoutLog } from './types'
+import { nextDay, type Program, type ProgramDay, type WorkoutLog } from './types'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -24,6 +24,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   const [exercises, setExercises] = useState<ExerciseOption[]>([])
   const [builderError, setBuilderError] = useState('')
   const program = programs?.find((p) => p.id === programId)
+  const programsButton = <button className="programs-entry" aria-label="Программы" onClick={() => setPersonalList(true)}><span className="programs-entry-text"><strong>Программы</strong><span>{program ? `Выбрана: ${program.name}` : 'Программа не выбрана'}</span></span><span className="programs-entry-action">Открыть <span aria-hidden="true">→</span></span></button>
 
   async function openBuilder(p: Program | 'new') {
     try {
@@ -55,60 +56,40 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   }
 
   if (personalList) return <div className="personal-programs">
-    <div className="card-head"><h1>Мои программы</h1><button className="link" onClick={() => setPersonalList(false)}>Назад</button></div>
-    <div className={programs.some(p => p.is_personal) ? 'personal-programs-list' : 'personal-programs-empty'}>
-    {programs.filter(p => p.is_personal).length === 0 && <p className="sub">У вас пока нет программ</p>}
-    {programs.filter(p => p.is_personal).map(p => <section className="card" key={p.id}><h2>{p.name}</h2><span className="sub">Тренировок: {p.days.length}</span><button className="btn btn-ghost" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>Открыть</button><button className="link" onClick={() => openBuilder(p)}>Изменить</button></section>)}
+    <div className="card-head programs-page-head"><h1>Программы</h1><button className="link" onClick={() => setPersonalList(false)}>Назад</button></div>
+    <div className="personal-programs-list">
+      <div className="programs-section-title"><h2>Мои программы</h2><span className="sub">{programs.filter(p => p.is_personal).length}</span></div>
+      {!programs.some(p => p.is_personal) && <div className="programs-empty"><p>У вас пока нет своих программ</p><span className="sub">Создайте программу под свои тренировки</span></div>}
+      {programs.filter(p => p.is_personal).map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
+        <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
+        <span className="sub">Тренировок: {p.days.length}</span>
+        <div className="program-card-actions"><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button>{canEdit && <button className="link" onClick={() => openBuilder(p)}>Изменить</button>}</div>
+      </section>)}
+      {programs.some(p => !p.is_personal) && <div className="programs-section-title"><h2>Готовые программы</h2></div>}
+      {programs.filter(p => !p.is_personal).sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id)).map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
+        <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
+        {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит вам</span>}
+        <span className="sub">{LEVEL[p.level] ?? p.level} · {p.days_per_week} в неделю</span>
+        {p.description && <span className="sub program-description">{p.description}</span>}
+        <div className="program-card-actions"><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button></div>
+      </section>)}
     </div>
     {canEdit && <button className="btn" onClick={() => openBuilder('new')}>Создать программу</button>}
     {builderError && <p className="error" role="alert">{builderError}</p>}
   </div>
 
-  if (!program) {
-    return (
-      <>
-        <h1>Тренировки</h1>
-        {canEdit && <button className="btn btn-ghost" onClick={() => setPersonalList(true)}>Мои программы</button>}
-        {builderError && <p className="error" role="alert">{builderError}</p>}
-        <p className="sub">Выберите программу — дальше приложение будет предлагать тренировки по порядку.</p>
-        {programs.length === 0 && <p className="sub">Программы ещё не загружены.</p>}
-        {[...programs].sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id)).map((p) => {
-          const best = p.id === recommended?.program_id
-          return (
-            <section className={best ? 'card card-best' : 'card'} key={p.id}>
-              {best && <span className="chip chip-accent">★ Подходит вам</span>}
-              <div className="card-head"><h2>{p.name}</h2><span className="chip">{LEVEL[p.level] ?? p.level}</span></div>
-              <div className="sub">{p.goal} · {p.days_per_week} раза в неделю</div>
-              {p.description && <div className="sub">{p.description}</div>}
-              {best && recommended!.reasons.length > 0 && <div className="sub pos">{recommended!.reasons.join(' · ')}</div>}
-              <button className={best ? 'btn' : 'btn btn-ghost'} onClick={() => onSelectProgram(p.id)}>Выбрать</button>
-            </section>
-          )
-        })}
-      </>
-    )
-  }
+  if (!program) return <><h1>Тренировки</h1>{programsButton}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>
 
   const next = nextDay(program, logs)
-  const done = completedThisWeek(logs)
   return (
     <>
       <h1>Тренировки</h1>
-      {canEdit && <button className="btn btn-ghost" onClick={() => setPersonalList(true)}>Мои программы</button>}
-      <section className="card">
-        <div className="card-head">
-          <span className="chip">{done} / {program.days_per_week} за неделю</span>
-          <button className="link" onClick={() => onSelectProgram(null)}>Сменить программу</button>
-          {canEdit && program.is_personal && <button className="link" onClick={() => openBuilder(program)}>Изменить программу</button>}
-        </div>
-        <div className="row-title">{program.name}</div>
-        <div className="sub">{program.goal} · {LEVEL[program.level] ?? program.level}</div>
-      </section>
+      {programsButton}
       {builderError && <p className="error" role="alert">{builderError}</p>}
 
-      <section className="card">
+      <section className="card workout-feature">
         <div className="card-head"><h2>Следующая тренировка</h2></div>
-        <div className="row-title">{next.day_name}</div>
+        <div className="workout-next-title">{next.day_name}</div>
         <div className="list">
           {next.exercises.map((e, i) => (
             <div className="row" key={i}>
@@ -164,7 +145,7 @@ function Session({ program, day, onExit, onChanged }: {
   // shortcut: unsaved inputs live in component state and are lost on tab switch; saved sets are on the server
   const [logId, setLogId] = useState<number | null>(null)
   const [sets, setSets] = useState<SetState[][]>(() =>
-    day.exercises.map((e) => Array.from({ length: e.sets }, () => ({ reps: firstNumber(e.reps), weight: '', saved: false }))),
+    day.exercises.map((e) => Array.from({ length: e.sets }, (_, i) => ({ reps: firstNumber(e.reps), weight: e.planned_weights?.[i] == null ? '' : String(e.planned_weights[i]), saved: false }))),
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -224,12 +205,13 @@ function Session({ program, day, onExit, onChanged }: {
         <button className="link" onClick={exit}>Назад</button>
       </div>
       {day.exercises.map((e, ei) => (
-        <section className="card" key={ei}>
-          <div>
+        <section className="card session-exercise" key={ei}>
+          <div className="session-exercise-title">
             <div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div>
             <div className="sub">План: {e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''} · отдых {e.rest_seconds} с</div>
             {e.notes && <div className="sub">{e.notes}</div>}
           </div>
+          <div className="session-set-labels" aria-hidden="true"><span>Подход</span><span>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'Время' : 'Повторы'}</span><span>Вес</span><span>Готово</span></div>
           {sets[ei].map((s, si) => (
             <div className="set-row" key={si}>
               <span className="sub">{si + 1}</span>

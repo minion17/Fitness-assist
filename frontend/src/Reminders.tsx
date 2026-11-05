@@ -22,6 +22,7 @@ function Time({ value, label, onChange }: { value: string; label: string; onChan
 
 export default function Reminders() {
   const [s, setS] = useState<Settings | null>(null)
+  const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState('')
   useEffect(() => { api<Settings>('/api/reminders').then(setS).catch(() => setError('Не удалось загрузить напоминания')) }, [])
   if (!s) return error ? <p className="error">{error}</p> : null
@@ -38,9 +39,9 @@ export default function Reminders() {
   }
 
   return (
-    <section className="card">
-      <div className="card-head"><h2>Напоминания в боте</h2></div>
-      <div className="list">
+    <section className="card reminders-card">
+      <button className="reminders-toggle" aria-expanded={expanded} aria-controls="reminders-panel" onClick={() => setExpanded(v => !v)}><span>Напоминания в боте</span><span className="reminders-chevron" aria-hidden="true">⌄</span></button>
+      <div className="reminders-panel" id="reminders-panel" data-open={expanded} inert={!expanded}><div className="reminders-inner"><div className="list">
         <div className="row">
           <div className="row-main">
             <div className="row-title">Приёмы пищи</div>
@@ -80,6 +81,7 @@ export default function Reminders() {
         {s.weekly && <div className="time-row"><Time label="В воскресенье в" value={s.weekly_at} onChange={(v) => save({ weekly_at: v })} /></div>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
+      </div></div>
     </section>
   )
 }

@@ -55,3 +55,14 @@ def test_custom_exercise_timed_sets_and_superset(client, seeded):
     log = client.post('/api/workout-logs', headers=owner, json={'program_day_id': day['id']}).json()['id']
     result = client.post(f'/api/workout-logs/{log}/sets', headers=owner, json={'exercise_id': exercise_id, 'set_number': 1, 'duration_seconds': 45, 'weight_kg': 0})
     assert result.status_code == 200, result.text
+
+
+def test_personal_program_preserves_planned_weights(client, seeded):
+    owner = new_user_headers()
+    exercise = client.get('/api/exercises').json()[0]
+    item = {'exercise_id': exercise['id'], 'sets': 3, 'reps': '10', 'rest_seconds': 60, 'planned_weights': [20, 25, None]}
+    created = client.post('/api/programs', headers=owner, json={'name': 'План весов', 'days': [{'name': 'День', 'exercises': [item]}]})
+    assert created.status_code == 200, created.text
+    assert created.json()['days'][0]['exercises'][0]['planned_weights'] == [20, 25, None]
+    pid = created.json()['id']
+    assert next(p for p in client.get('/api/programs', headers=owner).json() if p['id'] == pid)['days'][0]['exercises'][0]['planned_weights'] == [20, 25, None]

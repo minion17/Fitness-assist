@@ -112,27 +112,47 @@ export default function Home(props: {
         </div>
       </header>
 
+      <div className="home-today">
       <section className="daily-progress" aria-label={`Прогресс дня: ${progress}%`}>
         <div className="daily-progress-ring">
           <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{progress > 0 && <circle className="daily-ring-value" cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${progress} 100`} />}</svg>
-          <div className="daily-progress-center"><strong>{progress}%</strong><span>Прогресс дня</span></div>
+          <div className="daily-progress-center"><strong>{progress}%</strong></div>
         </div>
-        <p className="sub daily-progress-caption">Питание и вода · равный вес</p>
+        <p className="sub daily-progress-caption">Прогресс дня</p>
       </section>
 
       <div className="home-overview">
         <button className="card home-overview-card" onClick={props.onNutrition}>
-          <span className="sub">Питание</span>
+          <span className="overview-link">Питание <span aria-hidden="true">→</span></span>
           <span className="overview-value">{fmt(day.totals.kcal)}</span>
           <span className="sub">из {fmt(goal)} ккал</span>
-          <span className="bar overview-bar" aria-hidden="true"><i style={{ width: `${goal > 0 ? Math.min(100, Math.max(0, day.totals.kcal / goal * 100)) : 0}%`, background: 'var(--accent)' }} /></span>
         </button>
         <button className="card home-overview-card" onClick={props.onWorkouts}>
-          <span className="sub">Тренировка дня</span>
+          <span className="overview-link">Тренировка дня <span aria-hidden="true">→</span></span>
           <span className="overview-workout">{next ? next.day_name : 'Выберите программу'}</span>
-          <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Перейти к тренировкам'} →</span>
+          <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Перейти к тренировкам'}</span>
         </button>
       </div>
+
+      </div>
+
+      {week.length === 7 && (
+        <section className="card">
+          <div className="card-head">
+            <h2>Неделя</h2>
+            <span className="sub">{daysInNorm} из 7 дней в норме</span>
+          </div>
+          <div className="week">
+            {week.map((d, i) => (
+              <div key={d.date} className={i === 6 ? 'week-day today' : 'week-day'}>
+                <MiniRing frac={d.kcal / goal} today={i === 6} />
+                <span>{WEEKDAY[new Date(d.date + 'T12:00').getDay()]}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
 
       {props.canEdit && (
         <div className="home-actions">
@@ -152,22 +172,6 @@ export default function Home(props: {
 
       <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} />
 
-      {week.length === 7 && (
-        <section className="card">
-          <div className="card-head">
-            <h2>Неделя</h2>
-            <span className="sub">{daysInNorm} из 7 дней в норме</span>
-          </div>
-          <div className="week">
-            {week.map((d, i) => (
-              <div key={d.date} className={i === 6 ? 'week-day today' : 'week-day'}>
-                <MiniRing frac={d.kcal / goal} today={i === 6} />
-                <span>{WEEKDAY[new Date(d.date + 'T12:00').getDay()]}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       {props.summary}
     </>

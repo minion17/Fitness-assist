@@ -2,12 +2,13 @@ import { useState } from 'react'
 import type { Recommendation } from './profile'
 import { api, postJson } from './telegram'
 import { completedThisWeek, nextDay, type Program, type ProgramDay, type WorkoutLog } from './types'
+import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
 const dateRu = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 
-export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null }: {
+export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange }: {
   recommended?: Recommendation | null
   programs: Program[] | null
   logs: WorkoutLog[]
@@ -15,9 +16,37 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   onSelectProgram: (id: number | null) => void
   canEdit: boolean
   onChanged: (xp: number) => void
+  onProgramsChange?: (programs: Program[]) => void
 }) {
+  const [personalList, setPersonalList] = useState(false)
   const [session, setSession] = useState<ProgramDay | null>(null)
+  const [editing, setEditing] = useState<Program | 'new' | null>(null)
+  const [exercises, setExercises] = useState<ExerciseOption[]>([])
+  const [builderError, setBuilderError] = useState('')
   const program = programs?.find((p) => p.id === programId)
+
+  async function openBuilder(p: Program | 'new') {
+    try {
+      const list = await api<ExerciseOption[]>('/api/exercises')
+      setExercises(list ?? [])
+      setEditing(p)
+    } catch { setBuilderError('Не удалось загрузить упражнения. Попробуйте ещё раз.') }
+  }
+  async function saveProgram(draft: ProgramDraft) {
+    const path = editing === 'new' ? '/api/programs' : `/api/programs/${(editing as Program).id}`
+    const result = await api<Program>(path, { ...postJson(draft), method: editing === 'new' ? 'POST' : 'PUT' })
+    if (!result) throw new Error('No account')
+    onProgramsChange?.([...(programs ?? []).filter(p => p.id !== result.id), result])
+    onSelectProgram(result.id)
+    setEditing(null)
+  }
+
+  if (editing) return <ProgramBuilder exercises={exercises} initial={editing === 'new' ? undefined : editing} onSave={saveProgram} onCancel={() => setEditing(null)} onCreateExercise={async name => {
+    const created = await api<ExerciseOption>('/api/exercises', postJson({ name }))
+    if (!created) throw new Error('No account')
+    setExercises(prev => [...prev.filter(e => e.id !== created.id), created])
+    return created
+  }} />
 
   if (programs === null) return <><h1>Тренировки</h1><p className="sub">Загружаем программы…</p></>
 
@@ -25,10 +54,22 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     return <Session program={program} day={session} onExit={() => setSession(null)} onChanged={onChanged} />
   }
 
+  if (personalList) return <div className="personal-programs">
+    <div className="card-head"><h1>Мои программы</h1><button className="link" onClick={() => setPersonalList(false)}>Назад</button></div>
+    <div className={programs.some(p => p.is_personal) ? 'personal-programs-list' : 'personal-programs-empty'}>
+    {programs.filter(p => p.is_personal).length === 0 && <p className="sub">У вас пока нет программ</p>}
+    {programs.filter(p => p.is_personal).map(p => <section className="card" key={p.id}><h2>{p.name}</h2><span className="sub">Тренировок: {p.days.length}</span><button className="btn btn-ghost" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>Открыть</button><button className="link" onClick={() => openBuilder(p)}>Изменить</button></section>)}
+    </div>
+    {canEdit && <button className="btn" onClick={() => openBuilder('new')}>Создать программу</button>}
+    {builderError && <p className="error" role="alert">{builderError}</p>}
+  </div>
+
   if (!program) {
     return (
       <>
         <h1>Тренировки</h1>
+        {canEdit && <button className="btn btn-ghost" onClick={() => setPersonalList(true)}>Мои программы</button>}
+        {builderError && <p className="error" role="alert">{builderError}</p>}
         <p className="sub">Выберите программу — дальше приложение будет предлагать тренировки по порядку.</p>
         {programs.length === 0 && <p className="sub">Программы ещё не загружены.</p>}
         {[...programs].sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id)).map((p) => {
@@ -53,14 +94,17 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   return (
     <>
       <h1>Тренировки</h1>
+      {canEdit && <button className="btn btn-ghost" onClick={() => setPersonalList(true)}>Мои программы</button>}
       <section className="card">
         <div className="card-head">
           <span className="chip">{done} / {program.days_per_week} за неделю</span>
           <button className="link" onClick={() => onSelectProgram(null)}>Сменить программу</button>
+          {canEdit && program.is_personal && <button className="link" onClick={() => openBuilder(program)}>Изменить программу</button>}
         </div>
         <div className="row-title">{program.name}</div>
         <div className="sub">{program.goal} · {LEVEL[program.level] ?? program.level}</div>
       </section>
+      {builderError && <p className="error" role="alert">{builderError}</p>}
 
       <section className="card">
         <div className="card-head"><h2>Следующая тренировка</h2></div>
@@ -69,7 +113,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
           {next.exercises.map((e, i) => (
             <div className="row" key={i}>
               <div className="dot">{i + 1}</div>
-              <div className="row-main"><div className="row-title">{e.name}</div><div className="row-sub">{e.sets} × {e.reps}</div></div>
+              <div className="row-main"><div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div><div className="row-sub">{e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''}</div></div>
             </div>
           ))}
         </div>
@@ -139,14 +183,15 @@ function Session({ program, day, onExit, onChanged }: {
   async function saveSet(ei: number, si: number) {
     const s = sets[ei][si]
     const reps = Number(s.reps)
+    const timed = day.exercises[ei].unit === 'seconds' || /сек/i.test(day.exercises[ei].reps)
     const weight = s.weight ? Number(s.weight.replace(',', '.')) : 0
-    if (!Number.isInteger(reps) || reps <= 0 || reps > 500) return setError('Повторы: целое число от 1 до 500')
+    if (!Number.isInteger(reps) || reps <= 0 || reps > (timed ? 86400 : 500)) return setError(timed ? 'Время: укажите секунды' : 'Повторы: целое число от 1 до 500')
     if (!Number.isFinite(weight) || weight < 0 || weight > 500) return setError('Вес: от 0 до 500 кг')
     setError('')
     setBusy(true)
     try {
       const id = await ensureLog()
-      await api(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, reps, weight_kg: weight }))
+      await api(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
       update(ei, si, { saved: true })
     } catch {
       setError('Не удалось сохранить подход. Проверьте соединение.')
@@ -181,15 +226,15 @@ function Session({ program, day, onExit, onChanged }: {
       {day.exercises.map((e, ei) => (
         <section className="card" key={ei}>
           <div>
-            <div className="row-title">{e.name}</div>
-            <div className="sub">План: {e.sets} × {e.reps} · отдых {e.rest_seconds} с</div>
+            <div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div>
+            <div className="sub">План: {e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''} · отдых {e.rest_seconds} с</div>
             {e.notes && <div className="sub">{e.notes}</div>}
           </div>
           {sets[ei].map((s, si) => (
             <div className="set-row" key={si}>
               <span className="sub">{si + 1}</span>
-              <div className="input-wrap"><input inputMode="numeric" aria-label={`${e.name}, подход ${si + 1}, повторы`} value={s.reps}
-                disabled={s.saved} onChange={(ev) => update(ei, si, { reps: ev.target.value })} /><i>повт</i></div>
+              <div className="input-wrap"><input inputMode="numeric" aria-label={`${e.name}, подход ${si + 1}, ${e.unit === 'seconds' || /сек/i.test(e.reps) ? 'секунды' : 'повторы'}`} value={s.reps}
+                disabled={s.saved} onChange={(ev) => update(ei, si, { reps: ev.target.value })} /><i>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'сек' : 'повт'}</i></div>
               <div className="input-wrap"><input inputMode="decimal" aria-label={`${e.name}, подход ${si + 1}, вес`} value={s.weight}
                 disabled={s.saved} placeholder="0" onChange={(ev) => update(ei, si, { weight: ev.target.value })} /><i>кг</i></div>
               <button className="check" aria-label={`Сохранить подход ${si + 1}`} aria-pressed={s.saved}

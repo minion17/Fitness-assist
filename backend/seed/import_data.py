@@ -56,7 +56,7 @@ async def import_products(s) -> int:
 async def import_exercises(s) -> int:
     added = 0
     for e in load("exercises/exercises.json"):
-        if await s.scalar(select(Exercise.id).where(Exercise.name == e["name"])):
+        if await s.scalar(select(Exercise.id).where(Exercise.name == e["name"], Exercise.owner_user_id.is_(None))):
             continue
         s.add(Exercise(
             name=e["name"], muscle_groups=e.get("muscle_groups", []), equipment=e.get("equipment", []),
@@ -69,10 +69,10 @@ async def import_exercises(s) -> int:
 
 
 async def import_programs(s) -> int:
-    exercise_ids = dict((await s.execute(select(Exercise.name, Exercise.id))).all())
+    exercise_ids = dict((await s.execute(select(Exercise.name, Exercise.id).where(Exercise.owner_user_id.is_(None)))).all())
     added = 0
     for p in load("programs/programs.json"):
-        if await s.scalar(select(Program.id).where(Program.name == p["name"])):
+        if await s.scalar(select(Program.id).where(Program.name == p["name"], Program.owner_user_id.is_(None))):
             continue
         program = Program(
             name=p["name"], goal=p["goal"], level=p["level"],

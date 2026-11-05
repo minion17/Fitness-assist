@@ -189,8 +189,8 @@ export default function App() {
         return refreshJournal()
       })
       .catch(() => setSynced('Сервер недоступен'))
-    publicGet<Program[]>('/api/programs')
-      .then(setPrograms)
+    const programsRequest = tg?.initData ? api<Program[]>('/api/programs').then(p => p ?? []) : publicGet<Program[]>('/api/programs')
+    programsRequest.then(setPrograms)
       .catch(() => setPrograms(demoPrograms))
   }, [refreshJournal])
 
@@ -297,13 +297,13 @@ export default function App() {
         {tab === 'home' && (
           <Home name={name} level={xp.level} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
             water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
-            onFood={(i) => { go('food'); setFoodIntent(i) }} onWorkouts={() => go('workouts')} onWater={changeWater}
+            onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             summary={aiEnabled && <AiSummary />} />
         )}
         {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
-            canEdit={canEdit} onChanged={workoutChanged} />
+            canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />
         )}
         {tab === 'progress' && (
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}

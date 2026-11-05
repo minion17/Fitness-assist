@@ -72,7 +72,7 @@ async def recommended_program(session: AsyncSession, profile: Profile | None) ->
     if profile is None:
         return None
     programs = await session.scalars(
-        select(Program).options(selectinload(Program.days).selectinload(ProgramDay.items).selectinload(ProgramExercise.exercise))
+        select(Program).where(Program.owner_user_id.is_(None)).options(selectinload(Program.days).selectinload(ProgramDay.items).selectinload(ProgramExercise.exercise))
     )
     return recommend(programs.all(), profile)
 
@@ -108,8 +108,10 @@ class SettingsIn(BaseModel):
 async def save_settings(body: SettingsIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     changes = body.model_dump(exclude_unset=True)
-    if changes.get("program_id") is not None and not await session.get(Program, changes["program_id"]):
-        raise HTTPException(404, "Программа не найдена")
+    if changes.get("program_id") is not None:
+        selected = await session.get(Program, changes["program_id"])
+        if selected is None or selected.owner_user_id not in (None, user.id):
+            raise HTTPException(404, "Программа не найдена")
     for k, v in changes.items():
         setattr(user, k, v)
     await session.commit()
@@ -185,8 +187,12 @@ async def search_products(
 
 
 @app.get("/api/exercises")
-async def list_exercises(session: AsyncSession = Depends(get_session)):
-    rows = await session.scalars(select(Exercise).order_by(Exercise.name))
+async def list_exercises(tg: dict | None = Depends(optional_telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session) if tg else None
+    access = Exercise.owner_user_id.is_(None)
+    if user:
+        access = access | (Exercise.owner_user_id == user.id)
+    rows = await session.scalars(select(Exercise).where(access).order_by(Exercise.name))
     return [
         {
             "id": e.id, "name": e.name, "muscle_groups": e.muscle_groups, "equipment": e.equipment,
@@ -196,16 +202,40 @@ async def list_exercises(session: AsyncSession = Depends(get_session)):
     ]
 
 
+class CustomExerciseIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+
+
+@app.post("/api/exercises")
+async def create_custom_exercise(body: CustomExerciseIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    name = body.name.strip()
+    if not name:
+        raise HTTPException(422, "Введите название упражнения")
+    exercise = await session.scalar(select(Exercise).where(Exercise.name == name, Exercise.owner_user_id == user.id))
+    if exercise is None:
+        exercise = Exercise(name=name, owner_user_id=user.id, muscle_groups=[], equipment=[], difficulty="beginner", is_bodyweight=False)
+        session.add(exercise)
+        await session.commit()
+        await session.refresh(exercise)
+    return {"id": exercise.id, "name": exercise.name}
+
+
 @app.get("/api/programs")
-async def list_programs(session: AsyncSession = Depends(get_session)):
+async def list_programs(tg: dict | None = Depends(optional_telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session) if tg else None
+    access = Program.owner_user_id.is_(None)
+    if user:
+        access = access | (Program.owner_user_id == user.id)
     rows = await session.scalars(
         select(Program)
+        .where(access)
         .options(selectinload(Program.days).selectinload(ProgramDay.items).selectinload(ProgramExercise.exercise))
         .order_by(Program.id)
     )
     return [
         {
-            "id": p.id, "name": p.name, "goal": p.goal, "level": p.level,
+            "id": p.id, "name": p.name, "goal": p.goal, "level": p.level, "is_personal": p.owner_user_id is not None,
             "days_per_week": p.days_per_week, "description": p.description,
             "days": [
                 {
@@ -213,7 +243,7 @@ async def list_programs(session: AsyncSession = Depends(get_session)):
                     "exercises": [
                         {
                             "exercise_id": i.exercise_id, "name": i.exercise.name, "sets": i.sets,
-                            "reps": i.reps, "rest_seconds": i.rest_seconds, "notes": i.notes,
+                            "reps": i.reps, "rest_seconds": i.rest_seconds, "notes": i.notes, "unit": i.unit, "superset": i.superset,
                         }
                         for i in d.items
                     ],
@@ -223,6 +253,73 @@ async def list_programs(session: AsyncSession = Depends(get_session)):
         }
         for p in rows
     ]
+
+
+class PersonalExerciseIn(BaseModel):
+    exercise_id: int
+    sets: int = Field(ge=1, le=50)
+    reps: str = Field(min_length=1, max_length=30)
+    rest_seconds: int = Field(ge=0, le=3600)
+    unit: Literal["reps", "seconds"] = "reps"
+    superset: int | None = Field(default=None, ge=1, le=50)
+
+
+class PersonalDayIn(BaseModel):
+    id: int | None = None
+    name: str = Field(min_length=1, max_length=100)
+    exercises: list[PersonalExerciseIn] = Field(min_length=1, max_length=50)
+
+
+class PersonalProgramIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    days: list[PersonalDayIn] = Field(min_length=1, max_length=14)
+
+
+async def save_personal_program(body: PersonalProgramIn, user: User, session: AsyncSession, tg: dict, program: Program | None = None):
+    ids = {item.exercise_id for day in body.days for item in day.exercises}
+    existing = set((await session.scalars(select(Exercise.id).where(Exercise.id.in_(ids), (Exercise.owner_user_id.is_(None)) | (Exercise.owner_user_id == user.id)))).all())
+    if ids != existing or not body.name.strip() or any(not d.name.strip() or any(not e.reps.strip() for e in d.exercises) for d in body.days):
+        raise HTTPException(422, "Проверьте название, упражнения и повторения")
+    if program is None:
+        program = Program(name=body.name.strip(), owner_user_id=user.id, goal="Своя программа", level="beginner", days_per_week=len(body.days), days=[])
+        session.add(program)
+    program.name = body.name.strip()
+    program.days_per_week = len(body.days)
+    existing_days = {day.id: day for day in program.days}
+    requested_ids = [day.id for day in body.days if day.id is not None]
+    if len(requested_ids) != len(set(requested_ids)) or any(day_id not in existing_days for day_id in requested_ids):
+        raise HTTPException(422, "Тренировка не найдена в программе")
+    for index, day_data in enumerate(body.days):
+        if day_data.id is not None:
+            day = existing_days[day_data.id]
+            day.items.clear()
+            await session.flush()
+        else:
+            day = ProgramDay(day_name=day_data.name.strip(), day_order=index + 1, items=[])
+            program.days.append(day)
+        day.day_name, day.day_order = day_data.name.strip(), index + 1
+        for pos, item in enumerate(day_data.exercises, 1):
+            day.items.append(ProgramExercise(exercise_id=item.exercise_id, sets=item.sets, reps=item.reps.strip(), rest_seconds=item.rest_seconds, position=pos, unit=item.unit, superset=item.superset))
+    for day in existing_days.values():
+        if day.id not in requested_ids:
+            program.days.remove(day)
+    await session.commit()
+    rows = await list_programs(tg=tg, session=session)
+    return next(p for p in rows if p["id"] == program.id)
+
+
+@app.post("/api/programs")
+async def create_personal_program(body: PersonalProgramIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    return await save_personal_program(body, await get_or_create_user(tg, session), session, tg)
+
+
+@app.put("/api/programs/{program_id}")
+async def edit_personal_program(program_id: int, body: PersonalProgramIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    program = await session.scalar(select(Program).where(Program.id == program_id, Program.owner_user_id == user.id).options(selectinload(Program.days).selectinload(ProgramDay.items)))
+    if program is None:
+        raise HTTPException(404, "Программа не найдена")
+    return await save_personal_program(body, user, session, tg, program)
 
 
 # ---- Food diary ----
@@ -386,7 +483,8 @@ class WorkoutLogIn(BaseModel):
 class WorkoutSetIn(BaseModel):
     exercise_id: int
     set_number: int = Field(ge=1, le=50)
-    reps: int = Field(gt=0, le=500)
+    reps: int | None = Field(default=None, gt=0, le=500)
+    duration_seconds: int | None = Field(default=None, gt=0, le=86400)
     weight_kg: float = Field(default=0, ge=0, le=500)
 
 
@@ -400,8 +498,10 @@ async def own_workout(log_id: int, user: User, session: AsyncSession) -> Workout
 @app.post("/api/workout-logs")
 async def start_workout(body: WorkoutLogIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    if body.program_day_id is not None and not await session.get(ProgramDay, body.program_day_id):
-        raise HTTPException(404, "День программы не найден")
+    if body.program_day_id is not None:
+        program = await session.scalar(select(Program).join(ProgramDay, ProgramDay.program_id == Program.id).where(ProgramDay.id == body.program_day_id))
+        if program is None or program.owner_user_id not in (None, user.id):
+            raise HTTPException(404, "День программы не найден")
     w = WorkoutLog(user_id=user.id, **body.model_dump())
     session.add(w)
     await session.commit()
@@ -416,8 +516,11 @@ async def log_set(
     w = await own_workout(log_id, user, session)
     if w.completed_at is not None:
         raise HTTPException(409, "Тренировка уже завершена")
-    if not await session.get(Exercise, body.exercise_id):
+    exercise = await session.get(Exercise, body.exercise_id)
+    if exercise is None or exercise.owner_user_id not in (None, user.id):
         raise HTTPException(404, "Упражнение не найдено")
+    if (body.reps is None) == (body.duration_seconds is None):
+        raise HTTPException(422, "Укажите повторы или время")
     ws = WorkoutSet(workout_log_id=w.id, **body.model_dump())
     session.add(ws)
     await session.commit()

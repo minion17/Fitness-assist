@@ -269,7 +269,7 @@ test('home water: portions, custom volume and undo of the last one', async () =>
   const onWater = vi.fn()
   const day: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
   render(<Home name="Егор" level={1} streak={0} day={day} logs={[]} water={{ ml: 500, goal_ml: 2500 }} week={[]}
-    aiEnabled={false} canEdit onFood={vi.fn()} onWorkouts={vi.fn()} onWater={onWater} summary={null} />)
+    aiEnabled={false} canEdit onFood={vi.fn()} onNutrition={vi.fn()} onWorkouts={vi.fn()} onWater={onWater} summary={null} />)
   fireEvent.click(screen.getByRole('button', { name: 'Добавить 330 мл' }))
   fireEvent.click(screen.getByRole('button', { name: 'Свой объём' }))
   fireEvent.change(screen.getByLabelText('Объём, мл'), { target: { value: '5000' } })

@@ -29,6 +29,15 @@ async def init_db() -> None:
 
 
 ADDED_COLUMNS = [
+    "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+    "ALTER TABLE exercises DROP CONSTRAINT IF EXISTS exercises_name_key",
+    "ALTER TABLE program_exercises ADD COLUMN IF NOT EXISTS unit VARCHAR(10) NOT NULL DEFAULT 'reps'",
+    "ALTER TABLE program_exercises ADD COLUMN IF NOT EXISTS superset INTEGER",
+    "ALTER TABLE program_exercises ADD COLUMN IF NOT EXISTS planned_weights DOUBLE PRECISION[]",
+    "ALTER TABLE workout_sets ALTER COLUMN reps DROP NOT NULL",
+    "ALTER TABLE workout_sets ADD COLUMN IF NOT EXISTS duration_seconds INTEGER",
+    "ALTER TABLE programs ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
+    "ALTER TABLE programs DROP CONSTRAINT IF EXISTS programs_name_key",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
     "CREATE INDEX IF NOT EXISTS ix_products_owner_user_id ON products (owner_user_id)",
     "ALTER TABLE food_logs ADD COLUMN IF NOT EXISTS snack_slot VARCHAR(5)",

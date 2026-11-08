@@ -13,11 +13,11 @@ export type FoodItem = Macros & { id: number; meal_type: MealType; snack_slot?: 
 export type FoodDay = { date: string; items: FoodItem[]; totals: Macros }
 
 export type PlannedExercise = {
-  exercise_id: number; name: string; sets: number; reps: string; rest_seconds: number; notes: string | null
+  exercise_id: number; name: string; sets: number; reps: string; rest_seconds: number; notes: string | null; unit?: 'reps' | 'seconds'; superset?: number | null; planned_weights?: (number | null)[] | null
 }
 export type ProgramDay = { id: number; day_name: string; day_order: number; exercises: PlannedExercise[] }
 export type Program = {
-  id: number; name: string; goal: string; level: string; days_per_week: number; description: string | null
+  id: number; name: string; goal: string; level: string; days_per_week: number; description: string | null; is_personal?: boolean
   days: ProgramDay[]
 }
 

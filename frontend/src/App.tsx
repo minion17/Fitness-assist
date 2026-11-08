@@ -40,7 +40,7 @@ const NEW_USER: Progress = { xp: 0, level: 1, level_xp: 0, level_xp_needed: 100 
 
 function LevelCard({ p }: { p: Progress }) {
   return (
-    <section className="card">
+    <section className="card profile-level">
       <div className="card-head">
         <h2>Уровень {p.level}</h2>
         <span className="sub">{p.xp} XP всего</span>
@@ -53,7 +53,7 @@ function LevelCard({ p }: { p: Progress }) {
 
 function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
   return (
-    <section className="card">
+    <section className="card theme-card">
       <h2>Оформление</h2>
       <div className="seg">
         {(Object.keys(THEMES) as ThemePref[]).map((p) => (
@@ -81,23 +81,28 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
     : profile
   return (
     <>
-      <section className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+      <section className="card profile-identity">
+        <div className="profile-person">
         <div className="avatar">{tgUser?.photo_url ? <img src={tgUser.photo_url} alt="" /> : name[0]}</div>
         <div>
           <h1 style={{ fontSize: 22 }}>{name}</h1>
           <div className="sub">{tgUser?.username ? `@${tgUser.username}` : 'Открыто вне Telegram'}</div>
           <div className="sub">{synced}</div>
         </div>
+        </div>
+        <LevelCard p={progress} />
       </section>
-      <LevelCard p={progress} />
-      <div className="grid2">
+      <section className="card profile-overview">
+        <div className="card-head"><h2>Мои данные</h2><button className="link" aria-label={data ? 'Изменить анкету' : 'Заполнить анкету'} onClick={onEdit}>{data ? 'Изменить' : 'Заполнить'}</button></div>
+      <div className="grid2 profile-metrics">
         <section className="card"><span className="sub">Возраст</span><div className="stat">{shown.age}<small>лет</small></div></section>
         <section className="card"><span className="sub">Рост</span><div className="stat">{shown.height}<small>см</small></div></section>
         <section className="card"><span className="sub">Вес</span><div className="stat">{shown.weight}<small>кг</small></div></section>
         <section className="card"><span className="sub">Цель</span><div className="row-title" style={{ marginTop: 6 }}>{shown.goal}</div></section>
       </div>
+      </section>
       {data?.targets && (
-        <section className="card">
+        <section className="card profile-targets">
           <h2>Дневная норма</h2>
           <div className="list">
             <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{data.targets.calories} ккал</div></div>
@@ -107,7 +112,6 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
           </div>
         </section>
       )}
-      <button className="btn btn-ghost" onClick={onEdit}>{data ? 'Изменить анкету' : 'Заполнить анкету'}</button>
       {canEdit && <Reminders />}
       <ThemeCard t={theme} />
       {body}
@@ -189,8 +193,8 @@ export default function App() {
         return refreshJournal()
       })
       .catch(() => setSynced('Сервер недоступен'))
-    publicGet<Program[]>('/api/programs')
-      .then(setPrograms)
+    const programsRequest = tg?.initData ? api<Program[]>('/api/programs').then(p => p ?? []) : publicGet<Program[]>('/api/programs')
+    programsRequest.then(setPrograms)
       .catch(() => setPrograms(demoPrograms))
   }, [refreshJournal])
 
@@ -297,13 +301,13 @@ export default function App() {
         {tab === 'home' && (
           <Home name={name} level={xp.level} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
             water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
-            onFood={(i) => { go('food'); setFoodIntent(i) }} onWorkouts={() => go('workouts')} onWater={changeWater}
+            onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             summary={aiEnabled && <AiSummary />} />
         )}
         {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
-            canEdit={canEdit} onChanged={workoutChanged} />
+            canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />
         )}
         {tab === 'progress' && (
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}

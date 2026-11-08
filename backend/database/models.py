@@ -108,7 +108,8 @@ class Exercise(Base):
     __tablename__ = "exercises"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), unique=True)
+    name: Mapped[str] = mapped_column(String(200))
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     muscle_groups: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     equipment: Mapped[list[str]] = mapped_column(ARRAY(String), default=list)
     difficulty: Mapped[str] = mapped_column(String(20), default="beginner")
@@ -120,7 +121,8 @@ class Program(Base):
     __tablename__ = "programs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(200), unique=True)
+    name: Mapped[str] = mapped_column(String(200))
+    owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     goal: Mapped[str] = mapped_column(String(50))
     level: Mapped[str] = mapped_column(String(20))
     days_per_week: Mapped[int] = mapped_column(Integer)
@@ -148,7 +150,10 @@ class ProgramExercise(Base):
     exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"))
     sets: Mapped[int] = mapped_column(Integer)
     reps: Mapped[str] = mapped_column(String(30))  # "8-10", "Max", "45-60 сек"
+    unit: Mapped[str] = mapped_column(String(10), default="reps", server_default="reps")
+    superset: Mapped[int | None] = mapped_column(Integer)
     rest_seconds: Mapped[int] = mapped_column(Integer)
+    planned_weights: Mapped[list[float | None] | None] = mapped_column(ARRAY(Float), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text)
     position: Mapped[int] = mapped_column(Integer)
     exercise: Mapped[Exercise] = relationship()
@@ -250,7 +255,8 @@ class WorkoutSet(Base):
     workout_log_id: Mapped[int] = mapped_column(ForeignKey("workout_logs.id", ondelete="CASCADE"), index=True)
     exercise_id: Mapped[int] = mapped_column(ForeignKey("exercises.id"))
     set_number: Mapped[int] = mapped_column(Integer)
-    reps: Mapped[int] = mapped_column(Integer)
+    reps: Mapped[int | None] = mapped_column(Integer)
+    duration_seconds: Mapped[int | None] = mapped_column(Integer)
     weight_kg: Mapped[float] = mapped_column(Float, default=0)
 
 

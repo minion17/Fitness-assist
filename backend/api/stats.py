@@ -78,7 +78,7 @@ async def stats(
         select(Exercise.id, Exercise.name, WorkoutLog.started_at, WorkoutSet.weight_kg, WorkoutSet.reps)
         .join(WorkoutLog, WorkoutLog.id == WorkoutSet.workout_log_id)
         .join(Exercise, Exercise.id == WorkoutSet.exercise_id)
-        .where(WorkoutLog.user_id == user.id, WorkoutLog.started_at >= local_start(since))
+        .where(WorkoutLog.user_id == user.id, WorkoutLog.started_at >= local_start(since), WorkoutSet.reps.is_not(None))
         .order_by(WorkoutLog.started_at)
     )
     best: dict[int, dict] = {}

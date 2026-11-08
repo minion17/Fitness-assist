@@ -23,6 +23,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
   const [s, setS] = useState<Stats | null>(null)
   const [error, setError] = useState('')
   const [ex, setEx] = useState<number | null>(null)
+  const [chart, setChart] = useState<'calories' | 'water' | 'weight'>('calories')
 
   useEffect(() => {
     if (!canEdit) return
@@ -48,7 +49,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
       <h1>Прогресс</h1>
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
       {canEdit && (
-        <div className="seg seg-row" role="group" aria-label="Период">
+        <div className="seg seg-row progress-period" role="group" aria-label="Период">
           {PERIODS.map(([n, label]) => <button key={n} aria-pressed={days === n} onClick={() => setDays(n)}>{label}</button>)}
         </div>
       )}
@@ -56,7 +57,9 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
 
       {s && (
         <>
-          <div className="grid2">
+          <section className="card progress-overview">
+          <div className="card-head"><h2>Итоги периода</h2><span className="sub">{PERIODS.find(([n]) => n === days)?.[1]}</span></div>
+          <div className="grid2 progress-summary">
             <section className="card tile-stat">
               <span className="sub">Калории в среднем</span>
               <div className="stat">{fmt(avg('kcal'))}<small>ккал</small></div>
@@ -81,21 +84,17 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
             </section>
           </div>
 
-          <section className="card">
-            <h2>Калории</h2>
-            <BarChart data={s.days.map((d) => ({ date: d.date, value: d.kcal }))} color="var(--accent)" goal={s.goal?.calories} unit="ккал" />
           </section>
-
-          {w.length > 0 && (
-            <section className="card">
-              <h2>Вес</h2>
-              <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" />
-            </section>
-          )}
-
-          <section className="card">
-            <h2>Вода</h2>
-            <BarChart data={s.days.map((d) => ({ date: d.date, value: d.water_ml }))} color="var(--water)" goal={s.goal?.water_ml} unit="мл" height={110} />
+          <section className="card progress-chart">
+            <h2>Динамика</h2>
+            <div className="seg seg-row progress-chart-tabs" role="group" aria-label="Показатель графика">
+              <button aria-pressed={chart === 'calories'} onClick={() => setChart('calories')}>Калории</button>
+              <button aria-pressed={chart === 'water'} onClick={() => setChart('water')}>Вода</button>
+              <button aria-pressed={chart === 'weight'} onClick={() => setChart('weight')}>Вес</button>
+            </div>
+            {chart === 'calories' && <BarChart data={s.days.map((d) => ({ date: d.date, value: d.kcal }))} color="var(--accent)" goal={s.goal?.calories} unit="ккал" height={76} />}
+            {chart === 'water' && <BarChart data={s.days.map((d) => ({ date: d.date, value: d.water_ml }))} color="var(--water)" goal={s.goal?.water_ml} unit="мл" height={76} />}
+            {chart === 'weight' && (w.length ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={76} /> : <p className="sub">Пока нет записей веса</p>)}
           </section>
 
           {s.goal && logged.length > 0 && (
@@ -119,7 +118,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
                 ))}
               </div>
               {exercise.points.some((p) => p.kg > 0)
-                ? <LineChart points={exercise.points.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" />
+                ? <LineChart points={exercise.points.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={76} />
                 : <p className="sub">Упражнение с собственным весом: лучший подход — {Math.max(...exercise.points.map((p) => p.reps))} повт.</p>}
             </section>
           )}
@@ -127,11 +126,8 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
       )}
 
       {canEdit && achievements.length > 0 && (
-        <section className="card">
-          <div className="card-head">
-            <h2>Достижения</h2>
-            <span className="sub">{unlocked} из {achievements.length}</span>
-          </div>
+        <details className="card achievements-disclosure">
+          <summary><span>Достижения</span><span className="sub">{unlocked} из {achievements.length} <span aria-hidden="true">⌄</span></span></summary>
           <p className="sub">❄ Заморозок серии: {freezes} из 2 — даются за каждые 7 дней подряд и спасают серию, если день пропущен.</p>
           <div className="badges">
             {achievements.map((a) => (
@@ -147,7 +143,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
               </div>
             ))}
           </div>
-        </section>
+        </details>
       )}
       {body}
     </>

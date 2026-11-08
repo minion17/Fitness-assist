@@ -13,15 +13,20 @@ test('bottom navigation opens all five sections', async () => {
 
   nav('Питание')
   expect(screen.getByText('КБЖУ за сегодня')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Обед' }))
   expect(screen.getByText('Куриная грудка')).toBeTruthy() // demo diary outside Telegram
   expect(screen.getByText(/Демо-режим: чтобы вести дневник/)).toBeTruthy()
 
   nav('Тренировки')
   // API is unreachable in tests -> demo program list
-  fireEvent.click(await screen.findByRole('button', { name: 'Выбрать' }))
+  expect((await screen.findByRole('button', { name: 'Программы' })).textContent).toContain('Программа не выбрана')
+  fireEvent.click(screen.getByRole('button', { name: 'Программы' }))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Выбрать' })[0])
+  expect(screen.getByRole('button', { name: 'Программы' }).textContent).toContain('Выбрана:')
   expect(screen.getByText('Следующая тренировка')).toBeTruthy()
   expect(screen.getByText('История')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: 'Сменить программу' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Программы' }))
+  expect(screen.getByText('Готовые программы')).toBeTruthy()
 
   nav('Прогресс')
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Прогресс')

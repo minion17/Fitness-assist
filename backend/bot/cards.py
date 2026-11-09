@@ -262,8 +262,8 @@ def welcome_back(kind: str, theme: str | None = None, accent: str | None = None)
     cx, cy = 925, 390
     if art == "ring":
         c.ring(cx, cy, 170, 32, 0.62)
-        c.text((cx, cy - 18), "день", 50, "text", 700, "Unbounded", anchor="mm")
-        c.text((cx, cy + 40), "в процессе", 24, "muted", 600, anchor="mm")
+        c.text((cx, cy - 18), "сегодня", 44, "text", 700, "Unbounded", anchor="mm")
+        c.text((cx, cy + 38), "новый день", 24, "muted", 600, anchor="mm")
     elif art == "streak":
         for i, on in enumerate((1, 1, 1, 1, 1, 0, 0)):
             x = 760 + i * 56

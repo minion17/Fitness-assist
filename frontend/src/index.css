@@ -605,14 +605,31 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .builder-day > .btn:not(.btn-ghost) { box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 17%, transparent); }
 @media (max-width: 350px) { .builder-day { padding: 13px; } .builder-params { gap: 4px; } .program-builder label { font-size: 11px; } }
 
-/* Light theme: depth from neutral shadows (accent halos look like smudges on white), clearer tinted surfaces. */
-[data-theme='light'] { --card-border: #e6e8ec; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 18px rgba(16,24,40,.06); }
-[data-theme='light'] .card:not(.card .card, .home-today .card), [data-theme='light'] .home-today, [data-theme='light'] .meal-group, [data-theme='light'] .meal-snack,
-[data-theme='light'] .builder-day, [data-theme='light'] .builder-day-entry { box-shadow: var(--shadow); }
+/* Light theme. Quiet white cards on a cool grey page; the colour goes into one place per screen — the hero card
+   (day, nutrition, profile, period summary) is filled with a light tint of the accent, as the glow does in dark. */
+[data-theme='light'] {
+  --bg: #eef0f3; --card-2: #f3f5f7; --line: #e6e9ed; --card-border: #e4e7eb; --muted: #59606a;
+  --ring-track: #e6e9ed; --nutrition-ring-track: #e1e5ea;
+  --nav-active-bg: color-mix(in srgb, var(--accent) 16%, #fff); --nav-active-fg: var(--accent-text);
+  --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.06);
+}
+[data-theme='light'] .card:not(.card .card, .home-today .card), [data-theme='light'] .home-today, [data-theme='light'] .meal-group,
+[data-theme='light'] .meal-snack, [data-theme='light'] .builder-day, [data-theme='light'] .builder-day-entry { box-shadow: var(--shadow); }
+[data-theme='light'] :is(.home-today, .nutrition-summary, .profile-identity, .progress-overview, .workout-feature) {
+  background: color-mix(in srgb, var(--accent-tint, var(--accent)) 26%, #fff); border-color: color-mix(in srgb, var(--accent-tint, var(--accent)) 45%, #fff);
+  --ring-track: rgba(255,255,255,.75); --nutrition-ring-track: rgba(255,255,255,.75); --line: color-mix(in srgb, var(--accent-text) 14%, transparent);
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--accent-text) 14%, transparent);
+}
+[data-theme='light'] :is(.nutrition-summary, .profile-identity, .progress-overview) .bar,
+[data-theme='light'] :is(.profile-identity) .avatar { background: rgba(255,255,255,.75); }
+[data-theme='light'] .progress-overview .progress-summary > .card { background: rgba(255,255,255,.7); }
+[data-theme='light'] .progress-overview .progress-summary { background: transparent; gap: 6px; }
+[data-theme='light'] .home-today .daily-progress-ring::before { display: none; }
+[data-theme='light'] .nutrition-summary .ring-wrap svg { filter: none; }
 [data-theme='light'] .nutrition-add, [data-theme='light'] .workout-feature .btn,
 [data-theme='light'] .builder-day > .btn:not(.btn-ghost) { box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-text) 22%, transparent); }
-[data-theme='light'] .home-chips .pill { box-shadow: none; }
-[data-theme='light'] .home-today .daily-progress-ring::before { opacity: .5; }
+[data-theme='light'] .home-chips .pill { background: #fff; border-color: var(--card-border); box-shadow: 0 1px 2px rgba(16,24,40,.06); }
 [data-theme='light'] .nav-inner { box-shadow: 0 -4px 20px rgba(16,24,40,.08); }
+[data-theme='light'] .nav button[aria-current='page'] { border-color: transparent; }
 [data-theme='light'] .profile-metrics > .card, [data-theme='light'] .progress-summary > .card { box-shadow: none; }
-[data-theme='light'] .nav button[aria-current='page'] { color: var(--accent-text); }
+[data-theme='light'] :is(.home-today, .nutrition-summary) { --accent: var(--accent-text); }

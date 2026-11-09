@@ -57,6 +57,7 @@ export function useTheme(save?: (patch: Partial<ThemeSettings>) => void) {
       '--accent': theme === 'green' ? null : light?.fill ?? accent,
       '--accent-text': light?.text ?? null,
       '--primary-bg': light?.text ?? null,
+      '--accent-tint': light ? accent : null,
     })) { if (v) root.style.setProperty(k, v); else root.style.removeProperty(k) }
     tg?.setHeaderColor?.(BG[theme])
     tg?.setBackgroundColor?.(BG[theme])

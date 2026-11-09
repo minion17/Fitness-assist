@@ -9,6 +9,7 @@ RULES: dict[str, int] = {
     "water_goal": 10,
     "streak_week": 20,  # every 7 days in a row (also earns a streak freeze)
     "achievement": 25,
+    "duel_win": 40,  # no stakes: the loser keeps everything
 }
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...

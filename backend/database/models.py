@@ -25,6 +25,7 @@ class User(Base):
     # IANA zone: chosen in the profile, else the phone's (sent by the Mini App on every request)
     timezone: Mapped[str | None] = mapped_column(String(64))
     device_tz: Mapped[str | None] = mapped_column(String(64))
+    invite_code: Mapped[str | None] = mapped_column(String(16), unique=True)  # t.me/<bot>?start=f<code> makes friends
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -314,3 +315,47 @@ class WaterIntake(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     day: Mapped[date] = mapped_column(Date)
     ml: Mapped[int] = mapped_column(Integer, default=0)
+
+
+# ---- Social: friends, duels, and messages the bot should send ----
+
+class Friendship(Base):
+    """Stored both ways (a->b and b->a), so "my friends" is one simple query."""
+
+    __tablename__ = "friendships"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    friend_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Duel(Base):
+    """A friendly challenge: who gets more XP / workouts in `days` days. No stakes: the winner gets a bonus."""
+
+    __tablename__ = "duels"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    challenger_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    opponent_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    metric: Mapped[str] = mapped_column(String(10))  # xp | workouts
+    days: Mapped[int] = mapped_column(Integer)
+    status: Mapped[str] = mapped_column(String(10), default="pending")  # pending | active | declined | done
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    winner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # null + done = a draw
+
+
+class Outbox(Base):
+    """Messages for the bot to send (the API has no bot connection). kind: text | share."""
+
+    __tablename__ = "outbox"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    telegram_id: Mapped[int] = mapped_column(BigInteger)
+    kind: Mapped[str] = mapped_column(String(10), default="text")
+    text: Mapped[str] = mapped_column(Text)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))  # whose card to draw
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+

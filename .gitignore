@@ -10,3 +10,4 @@ frontend/dist/
 .vscode/
 .bot_profile
 tools/
+.bot_username

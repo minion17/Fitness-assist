@@ -1,6 +1,7 @@
 // "Прогресс": period summary, charts (calories, weight, water, macros, exercise records) and achievements.
 import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
+import Friends from './Friends'
 import { api } from './telegram'
 import { Bar } from './ui'
 
@@ -24,6 +25,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
   const [error, setError] = useState('')
   const [ex, setEx] = useState<number | null>(null)
   const [chart, setChart] = useState<'calories' | 'water' | 'weight'>('calories')
+  const [view, setView] = useState<'me' | 'friends'>('me')
 
   useEffect(() => {
     if (!canEdit) return
@@ -47,6 +49,13 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
   return (
     <>
       <h1>Прогресс</h1>
+      {canEdit && (
+        <div className="seg seg-row progress-view" role="group" aria-label="Раздел">
+          <button aria-pressed={view === 'me'} onClick={() => setView('me')}>Мой прогресс</button>
+          <button aria-pressed={view === 'friends'} onClick={() => setView('friends')}>Друзья</button>
+        </div>
+      )}
+      {view === 'friends' ? <Friends /> : <>
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
       {canEdit && (
         <div className="seg seg-row progress-period" role="group" aria-label="Период">
@@ -146,6 +155,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
         </details>
       )}
       {body}
+      </>}
     </>
   )
 }

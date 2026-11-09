@@ -629,6 +629,7 @@ def test_cards_render_in_every_theme():
             cards.water(3000, 2500, "19:00", theme),
             cards.streak(365, [True] * 6 + [False], theme),
             *(cards.welcome_back(kind, theme, "#a98bff") for kind in cards.BACK_KINDS),
+            cards.share("Егор", 21, 1340, 4, 7, theme, "#a98bff"),
         ):
             assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) < 400_000
 
@@ -831,3 +832,74 @@ def test_timezone_follows_phone_or_profile(client, seeded):
             return [txt for chat, txt, _ in await collect(s, t) if chat == tg_id]
     assert any("обед" in t for t in client.portal.call(run, at))
     assert not any("обед" in t for t in client.portal.call(run, at - timedelta(hours=3)))
+
+
+def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
+    import random
+    from datetime import timedelta
+
+    from sqlalchemy import select, update
+
+    from backend.api import social
+    from backend.database.db import SessionLocal
+    from backend.database.models import Duel, Outbox, User
+    from conftest import USER, make_init_data
+
+    monkeypatch.setattr(social, "bot_username", lambda: "setly_test_bot")
+    ids = [random.randint(3 * 10**9, 4 * 10**9) for _ in range(2)]
+    ha, hb = ({"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Борис")))
+    link = client.get("/api/friends", headers=ha).json()["invite_link"]
+    assert link.startswith("https://t.me/setly_test_bot?start=f")
+    code = link.split("start=f")[1]
+
+    async def befriend(c, tg_id):
+        async with SessionLocal() as s:
+            return await social.befriend(s, c, tg_id, "Борис")
+    assert client.portal.call(befriend, code, ids[1]).first_name == "Аня"  # Борис opened Аня's link (new user)
+    assert client.portal.call(befriend, code, ids[1]) is None  # already friends
+    assert client.portal.call(befriend, code, ids[0]) is None  # own link
+    assert client.portal.call(befriend, "nope", ids[1]) is None
+
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})  # +10 XP
+    board = client.get("/api/friends", headers=ha).json()["board"]
+    assert [(r["name"], r["me"], r["week_xp"]) for r in board] == [("Борис", False, 10), ("Аня", True, 0)]
+    b_id = board[0]["id"]
+
+    # duel: Аня challenges, only Борис can answer, one at a time per pair
+    assert client.post("/api/duels", headers=ha, json={"friend_id": 10**9, "metric": "xp", "days": 3}).status_code == 404
+    d = client.post("/api/duels", headers=ha, json={"friend_id": b_id, "metric": "xp", "days": 3}).json()
+    assert d["status"] == "pending" and not d["incoming"]
+    assert client.post("/api/duels", headers=hb, json={"friend_id": board[1]["id"], "metric": "workouts", "days": 7}).status_code == 409
+    assert client.post(f"/api/duels/{d['id']}/accept", headers=ha).status_code == 404
+    assert client.get("/api/duels", headers=hb).json()[0]["incoming"] is True
+    assert client.post(f"/api/duels/{d['id']}/accept", headers=hb).json()["status"] == "active"
+    client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": "dinner"})  # Борис +10
+    live = client.get("/api/duels", headers=ha).json()[0]
+    assert (live["me"], live["them"], live["rival"]) == (0, 10, "Борис")
+
+    async def time_up():  # the 3 days pass: window moved back so it ends right now, after Борис's meals
+        from datetime import datetime, timezone
+        async with SessionLocal() as s:
+            end = datetime.now(timezone.utc)
+            await s.execute(update(Duel).where(Duel.id == d["id"]).values(starts_at=end - timedelta(days=3), ends_at=end))
+            await s.commit()
+            n = await social.finish_duels(s)
+            borys = await s.scalar(select(User).where(User.telegram_id == ids[1]))
+            texts = list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id.in_(ids))))
+            return n, borys.xp, texts
+    n, xp, texts = client.portal.call(time_up)
+    assert n == 1 and xp == 10 + 10 + 40  # two meals + the duel bonus
+    assert any("Победа" in t for t in texts) and any("Реванш" in t for t in texts) and any("вызывает вас на дуэль" in t for t in texts)
+    assert client.get("/api/duels", headers=ha).json()[0]["result"] == "loss"
+
+    # share: one queued card per tap burst; removing a friend works both ways
+    client.post("/api/share", headers=ha)
+    client.post("/api/share", headers=ha)
+
+    async def shares():
+        async with SessionLocal() as s:
+            return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == ids[0], Outbox.kind == "share")))
+    assert len(client.portal.call(shares)) == 1 and "start=f" in client.portal.call(shares)[0]
+    client.delete(f"/api/friends/{b_id}", headers=ha)
+    assert len(client.get("/api/friends", headers=hb).json()["board"]) == 1

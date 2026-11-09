@@ -615,7 +615,7 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 }
 [data-theme='light'] .card:not(.card .card, .home-today .card), [data-theme='light'] .home-today, [data-theme='light'] .meal-group,
 [data-theme='light'] .meal-snack, [data-theme='light'] .builder-day, [data-theme='light'] .builder-day-entry { box-shadow: var(--shadow); }
-[data-theme='light'] :is(.home-today, .nutrition-summary, .profile-identity, .progress-overview, .workout-feature) {
+[data-theme='light'] :is(.home-today, .nutrition-summary, .profile-identity, .progress-overview, .workout-feature, .friends-hero) {
   background: color-mix(in srgb, var(--accent-tint, var(--accent)) 26%, #fff); border-color: color-mix(in srgb, var(--accent-tint, var(--accent)) 45%, #fff);
   --ring-track: rgba(255,255,255,.75); --nutrition-ring-track: rgba(255,255,255,.75); --line: color-mix(in srgb, var(--accent-text) 14%, transparent);
   box-shadow: 0 10px 30px color-mix(in srgb, var(--accent-text) 14%, transparent);
@@ -635,3 +635,29 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 [data-theme='light'] :is(.home-today, .nutrition-summary) { --accent: var(--accent-text); }
 .session-last { color: var(--accent-text, var(--accent)); font-weight: 600; }
 .select { width: 100%; margin-top: 10px; min-height: 44px; font: inherit; font-size: 16px; color: var(--text); background: var(--card-2); border: 1px solid transparent; border-radius: 12px; padding: 10px; }
+
+/* Friends */
+.progress-view { margin-bottom: 12px; }
+.friends-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.friends-actions .btn { flex: 1 1 140px; }
+.friends-note { margin: 0 4px 10px; }
+.board { list-style: none; margin: 8px 0 0; padding: 0; }
+.board li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.board li:first-child { border-top: 0; }
+.board li.me .board-who b { color: var(--accent-text); }
+.board-place { width: 22px; text-align: center; font-weight: 800; color: var(--muted); }
+.board li:first-child .board-place { color: var(--streak); }
+.board-who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.board-who b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board-xp { font-weight: 800; font-variant-numeric: tabular-nums; }
+.duel { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.duel:first-of-type { border-top: 0; }
+.duel-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.duel-score { font-weight: 800; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--muted); }
+.duel-score.ahead { color: var(--accent-text); }
+.duel-answer { display: flex; align-items: center; gap: 10px; }
+.duel-answer .btn { padding: 8px 14px; min-height: 0; width: auto; }
+.duel-result { font-weight: 700; font-size: 14px; }
+.duel-result.win { color: var(--accent-text); }
+.duel-result.loss { color: var(--muted); }
+.duel-form .seg { margin-top: 10px; }

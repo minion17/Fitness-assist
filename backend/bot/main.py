@@ -7,7 +7,7 @@ import unicodedata
 from aiogram import Bot, Dispatcher, Router
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramNetworkError
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandObject, CommandStart
 from aiogram.types import (
     ErrorEvent,
     BufferedInputFile,
@@ -21,7 +21,8 @@ from aiogram.types import (
 
 from sqlalchemy import select
 
-from backend.bot import cards, profile, reminders
+from backend.api.social import USERNAME_FILE, befriend, name
+from backend.bot import cards, outbox, profile, reminders
 from backend.database.db import SessionLocal
 from backend.database.models import Profile, User
 from backend.core.config import Settings, settings
@@ -79,8 +80,12 @@ def open_app_keyboard(url: str, text: str = "Открыть приложение
 
 
 @router.message(CommandStart())
-async def start(message: Message) -> None:
+async def start(message: Message, command: CommandObject | None = None) -> None:
     url = current_webapp_url()
+    friend = None
+    if message.from_user and command and command.args and command.args.startswith("f"):  # invite link t.me/<bot>?start=f<code>
+        async with SessionLocal() as s:
+            friend = await befriend(s, command.args[1:64], message.from_user.id, message.from_user.first_name)
     user, back = await account(message.from_user.id) if message.from_user else (None, False)
     variant = pick_back(message.from_user.id) if back else 0
     caption = greeting(message.from_user and message.from_user.first_name, back, variant)
@@ -93,6 +98,8 @@ async def start(message: Message) -> None:
     except Exception:
         log.warning("welcome card failed, sending text", exc_info=True)
         await message.answer(caption, reply_markup=keyboard, parse_mode="HTML")
+    if friend:
+        await message.answer(f"🤝 Вы с {html.escape(name(friend))} теперь друзья! Рейтинг недели и дуэли — в приложении: Прогресс → Друзья.", parse_mode="HTML")
 
 
 @router.error()
@@ -163,6 +170,7 @@ async def main() -> None:
 
     # runs alongside polling; the reference keeps the task from being garbage-collected
     reminder_task = asyncio.create_task(reminders.run(bot, reminder_keyboard))
+    outbox_task = asyncio.create_task(outbox.run(bot, reminder_keyboard))
     menu_task = asyncio.create_task(keep_menu_button(bot))
     # start_polling fails right away if Telegram is unreachable at startup; keep retrying instead of exiting.
     profile_synced = False
@@ -170,6 +178,7 @@ async def main() -> None:
         try:
             if not profile_synced:  # first moment Telegram is reachable
                 await profile.sync(bot)
+                USERNAME_FILE.write_text((await bot.get_me()).username or "", encoding="utf-8")  # for invite links
                 profile_synced = True
             await dp.start_polling(bot)
             return

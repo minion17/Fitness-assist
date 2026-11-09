@@ -7,6 +7,7 @@ import Food from './Food'
 import { api, ApiError, publicGet } from './telegram'
 import { lastLabel, mealNow, nextDay, weightTrend, type FoodDay, type Measurement, type Program, type WorkoutLog } from './types'
 import Workouts from './Workouts'
+import Friends from './Friends'
 
 vi.mock('./telegram', () => {
   class ApiError extends Error { status: number; constructor(status: number, msg: string) { super(msg); this.status = status } }
@@ -339,4 +340,28 @@ test('charts: tap a bar to read its value; goal line shown', async () => {
   cleanup()
   const line = render(<LineChart points={[{ date: '2026-10-01', value: 80.4 }, { date: '2026-10-29', value: 78.9 }]} color="red" unit="кг" />)
   expect(line.container.querySelector('.chart-read b')!.textContent).toBe('78,9')
+})
+
+test('friends: leaderboard, accept an incoming duel, challenge a friend', async () => {
+  const board = [
+    { id: 2, name: 'Борис', me: false, level: 3, week_xp: 120, streak: 5 },
+    { id: 1, name: 'Аня', me: true, level: 2, week_xp: 40, streak: 2 },
+    { id: 3, name: 'Вера', me: false, level: 1, week_xp: 0, streak: 0 },
+  ]
+  const duels = [{ id: 9, metric: 'xp', days: 3, status: 'pending', incoming: true, rival: 'Борис', rival_id: 2, ends_at: null, result: null }]
+  apiMock.mockImplementation(async (path: string) => (path === '/api/friends' ? { invite_link: 'https://t.me/b?start=fx', board } : path === '/api/duels' ? duels : { ok: true }))
+  render(<Friends />)
+  expect(await screen.findByText('Рейтинг недели')).toBeTruthy()
+  expect(screen.getByText('Вы')).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Вызвать Борис на дуэль' })).toBeNull() // a duel with Борис is already open
+
+  fireEvent.click(screen.getByRole('button', { name: 'Принять' }))
+  await waitFor(() => expect(apiMock.mock.calls.some((c) => c[0] === '/api/duels/9/accept')).toBe(true))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Вызвать Вера на дуэль' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Тренировки' }))
+  fireEvent.click(screen.getByRole('button', { name: '3 дня' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Вызвать' }))
+  await waitFor(() => expect(apiMock.mock.calls.find((c) => c[0] === '/api/duels' && c[1])?.[1]?.body).toBe(JSON.stringify({ friend_id: 3, metric: 'workouts', days: 3 })))
+  expect(await screen.findByRole('status')).toBeTruthy()
 })

@@ -292,3 +292,24 @@ def welcome_back(kind: str, theme: str | None = None, accent: str | None = None)
         c.d.line([((cx - 70) * K, (cy + 5) * K), ((cx - 15) * K, (cy + 60) * K), ((cx + 80) * K, (cy - 55) * K)],
                  fill=c.p["accent"], width=30 * K, joint="curve")
     return c.png()
+
+
+def share(name: str, streak: int, week_xp: int, workouts: int, level: int, theme=None, accent=None) -> bytes:
+    """"Моя неделя" card a user forwards to friends (with their invite link in the caption)."""
+    c = Card(theme, accent, glow=(930, 380, "streak"))
+    c.brand(right="неделя в Setly")
+    c.text((64, 170), name[:22], 34, "muted", 600)
+    c.text((64, 220), "Моя неделя", 76, "text", 700, "Unbounded")
+    c.text((64, 330), f"Уровень {level}", 30, "accent_text", 700)
+    stats = ((num(week_xp), "XP за неделю", "accent"), (str(workouts), "тренировок", "text"))
+    for i, (value, label, color) in enumerate(stats):
+        x = 64 + i * 320
+        c.rect((x, 430, x + 300, 610), 34, "card")
+        c.text((x + 28, 455), value, 64, color, 700, "Unbounded")
+        c.text((x + 28, 555), label, 24, "muted", 600)
+    cx, cy = 930, 380
+    c.ring(cx, cy, 175, 30, min(1, streak / 30), "streak")
+    c.text((cx, cy - 25), str(streak), 96, "streak", 700, "Unbounded", anchor="mm")
+    word = "день" if streak % 10 == 1 and streak % 100 != 11 else "дня" if streak % 10 in (2, 3, 4) and streak % 100 not in (12, 13, 14) else "дней"
+    c.text((cx, cy + 55), f"{word} подряд", 26, "muted", 600, anchor="mm")
+    return c.png()

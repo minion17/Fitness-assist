@@ -12,6 +12,7 @@ type WebApp = {
   setHeaderColor?(color: string): void
   setBackgroundColor?(color: string): void
   setBottomBarColor?(color: string): void
+  openTelegramLink?(url: string): void
   HapticFeedback?: {
     selectionChanged(): void
     impactOccurred?(style: 'light' | 'medium' | 'heavy'): void

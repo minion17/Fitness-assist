@@ -8,6 +8,7 @@ import { api, ApiError, publicGet } from './telegram'
 import { lastLabel, mealNow, nextDay, weightTrend, type FoodDay, type Measurement, type Program, type WorkoutLog } from './types'
 import Workouts from './Workouts'
 import Friends from './Friends'
+import Quests from './Quests'
 
 vi.mock('./telegram', () => {
   class ApiError extends Error { status: number; constructor(status: number, msg: string) { super(msg); this.status = status } }
@@ -367,4 +368,17 @@ test('friends: leaderboard, accept an incoming duel, challenge a friend', async 
   fireEvent.click(screen.getByRole('button', { name: 'Вызвать' }))
   await waitFor(() => expect(apiMock.mock.calls.find((c) => c[0] === '/api/duels' && c[1])?.[1]?.body).toBe(JSON.stringify({ friend_id: 3, metric: 'workouts', days: 3 })))
   expect(await screen.findByRole('status')).toBeTruthy()
+})
+
+test('weekly tasks: progress, payout reported once', async () => {
+  apiMock.mockResolvedValueOnce({ days_left: 3, bonus: 50, xp_awarded: 50, items: [
+    { code: 'diary_days', title: 'Ведите дневник питания 5 дн.', progress: 5, target: 5, xp: 50, done: true },
+    { code: 'workouts', title: 'Проведите 3 тренировки', progress: 1, target: 3, xp: 80, done: false },
+  ] })
+  const paid = vi.fn()
+  render(<Quests onAwarded={paid} />)
+  expect(await screen.findByText('Задание выполнено — +50 XP')).toBeTruthy()
+  expect(paid).toHaveBeenCalledWith(50)
+  expect(screen.getByText('1 из 3')).toBeTruthy()
+  expect(screen.getByText('ещё 3 дня')).toBeTruthy()
 })

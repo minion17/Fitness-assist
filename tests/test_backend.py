@@ -1025,3 +1025,45 @@ def test_owner_stats_counts_visits_and_retention(client, seeded):
     back1, total1, text = client.portal.call(run)
     assert total1 >= 1 and back1 >= 1
     assert "Пользователей" in text and "Вернулись через неделю" in text and "<b>" in text
+
+
+def test_weekly_quests_assigned_once_and_paid_once(client, seeded):
+    from datetime import date, timedelta
+
+    from sqlalchemy import delete
+    from sqlalchemy.dialects.postgresql import insert
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import WeeklyQuest
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    first = client.get("/api/quests", headers=h).json()
+    assert len(first["items"]) == 3 and 1 <= first["days_left"] <= 7
+    assert client.get("/api/quests", headers=h).json()["items"] == first["items"]  # stable within the week
+    assert all(1 <= q["target"] <= first["days_left"] or q["code"] == "workouts" for q in first["items"])
+
+    # pin three easy tasks for this week to check progress and payment
+    uid = client.post("/api/auth", headers=h).json()["id"]
+    week = date.fromisoformat(first["week"])
+
+    async def pin():
+        async with SessionLocal() as s:
+            await s.execute(delete(WeeklyQuest).where(WeeklyQuest.user_id == uid))
+            for slot, code in enumerate(("diary_days", "weigh", "water_days")):
+                await s.execute(insert(WeeklyQuest).values(user_id=uid, week=week, code=code, target=1, slot=slot))
+            await s.commit()
+    client.portal.call(pin)
+
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})
+    r = client.get("/api/quests", headers=h).json()
+    assert [q["done"] for q in r["items"]] == [True, False, False] and r["xp_awarded"] == 50
+    assert client.get("/api/quests", headers=h).json()["xp_awarded"] == 0  # paid once
+
+    client.put("/api/measurements", headers=h, json={"weight_kg": 80})
+    for _ in range(5):
+        client.post("/api/water", headers=h, json={"delta_ml": 1000})
+    r = client.get("/api/quests", headers=h).json()
+    assert all(q["done"] for q in r["items"]) and r["xp_awarded"] == 30 + 50 + 50  # two tasks + the all-three bonus
+    assert r["items"][1]["title"] == "Взвесьтесь 1 раз"

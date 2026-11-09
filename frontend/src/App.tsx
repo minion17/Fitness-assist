@@ -6,6 +6,7 @@ import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
 import FirstSteps from './FirstSteps'
+import Quests from './Quests'
 import Progress, { type Achievement } from './Progress'
 import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
@@ -173,6 +174,7 @@ export default function App() {
     if (ms) setMeasurements(ms)
     if (u) { setXp(u.progress); setMe(u.profile); setRecommended(u.recommended_program) } // weight changes the daily targets
   }, [])
+  const questsPaid = useCallback(() => { refreshJournal() }, [refreshJournal]) // XP and maybe a new level
 
   useEffect(() => {
     initTelegram()
@@ -307,6 +309,7 @@ export default function App() {
             water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             summary={aiEnabled && <AiSummary />}
+            quests={canEdit && <Quests onAwarded={questsPaid} />}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },

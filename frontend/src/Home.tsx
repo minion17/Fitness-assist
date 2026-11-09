@@ -84,6 +84,7 @@ export default function Home(props: {
   onWater: (delta: number) => void
   summary: React.ReactNode
   intro?: React.ReactNode
+  quests?: React.ReactNode
 }) {
   const { targets, day, water, week } = props
   const [today] = useState(() => {
@@ -144,6 +145,8 @@ export default function Home(props: {
       </div>
 
       </div>
+
+      {props.quests}
 
       {week.length === 7 && (
         <section className="card">

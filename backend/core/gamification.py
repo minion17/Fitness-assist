@@ -10,12 +10,17 @@ RULES: dict[str, int] = {
     "streak_week": 20,  # every 7 days in a row (also earns a streak freeze)
     "achievement": 25,
     "duel_win": 40,  # no stakes: the loser keeps everything; the winner also gets BOOST for a day
-    "friend_invited": 50,  # when the invited friend fills the profile (not on the click: no farming with empty accounts)
+    "friend_invited": 50,
+    # weekly tasks: one rule per reward size (award_xp takes amounts from here)
+    "quest_30": 30,
+    "quest_50": 50,
+    "quest_80": 80,
+    "quests_all": 50,  # all three of the week done  # when the invited friend fills the profile (not on the click: no farming with empty accounts)
 }
 
 BOOST = 1.5  # XP multiplier after a duel win
 BOOST_HOURS = 24
-NOT_BOOSTED = {"duel_win", "friend_invited"}
+NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all"}
 MAX_INVITE_REWARDS = 10
 # Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling
 # 20 hours) stop "travelling" through timezones to collect the same day's XP twice.

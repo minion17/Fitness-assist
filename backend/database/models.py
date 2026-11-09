@@ -318,6 +318,18 @@ class WaterIntake(Base):
     ml: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class WeeklyQuest(Base):
+    """This week's tasks, picked once per user per week (so they don't change mid-week)."""
+
+    __tablename__ = "weekly_quests"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    week: Mapped[date] = mapped_column(Date, primary_key=True)  # the Monday, in the user's timezone
+    code: Mapped[str] = mapped_column(String(20), primary_key=True)
+    target: Mapped[int] = mapped_column(Integer)
+    slot: Mapped[int] = mapped_column(Integer)  # display order
+
+
 class Visit(Base):
     """A day the user opened the Mini App (UTC day): for the owner's /stats (active users, retention)."""
 

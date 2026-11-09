@@ -29,9 +29,10 @@ function Start-Tunnel($provider) {
     return Start-Process ssh -ArgumentList $a -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
 }
 
+$null = & (Join-Path $PSScriptRoot 'get-cloudflared.ps1') -Dest $cloudflared  # no-op once downloaded
 $providers = @('localhost.run')
 if (Test-Path $cloudflared) { $providers = @('cloudflare', 'localhost.run') }
-else { Write-Host "cloudflared не найден — запустите update.bat, чтобы скачать его. Пока использую localhost.run." -ForegroundColor Yellow }
+else { Write-Host "Без cloudflared пробую только localhost.run — он у вас сейчас может не работать." -ForegroundColor Yellow }
 $turn = 0
 
 while ($true) {

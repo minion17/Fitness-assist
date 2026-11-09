@@ -125,6 +125,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('home')
   const [synced, setSynced] = useState('Демо-режим')
   const [xp, setXp] = useState<Progress>(NEW_USER)
+  const [boostUntil, setBoostUntil] = useState<string | null>(null) // x2 XP after a duel win
   const [me, setMe] = useState<ProfileData | null>(null)
   const [editing, setEditing] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
@@ -176,13 +177,14 @@ export default function App() {
 
   useEffect(() => {
     initTelegram()
-    api<{ id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null; settings: ThemeSettings & { program_id: number | null } }>('/api/auth', { method: 'POST' })
+    api<{ id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null; settings: ThemeSettings & { program_id: number | null; boost_until?: string | null } }>('/api/auth', { method: 'POST' })
       .then((u) => {
         if (!u) return
         setSynced('Аккаунт подключён')
         setCanEdit(true)
         knownLevel.current = u.progress.level
         startup.current.theme.load(u.settings)
+        setBoostUntil(u.settings.boost_until ?? null)
         const local = startup.current.programId
         if (u.settings.program_id) startup.current.selectProgram(u.settings.program_id, false)
         else if (local) api('/api/settings', putJson({ program_id: local })).catch(() => {}) // upload this device's choice once
@@ -301,7 +303,7 @@ export default function App() {
     <div className="app">
       <main className="screen" key={tab}>
         {tab === 'home' && (
-          <Home name={name} level={xp.level} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
+          <Home name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
             water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             summary={aiEnabled && <AiSummary />} />

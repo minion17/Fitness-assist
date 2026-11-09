@@ -26,6 +26,8 @@ class User(Base):
     timezone: Mapped[str | None] = mapped_column(String(64))
     device_tz: Mapped[str | None] = mapped_column(String(64))
     invite_code: Mapped[str | None] = mapped_column(String(16), unique=True)  # t.me/<bot>?start=f<code> makes friends
+    invited_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # gets XP once we fill the profile
+    boost_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # x2 XP until then (duel win)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -15,9 +15,9 @@ from backend.api.daily import streak_state
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.core.config import settings
-from backend.core.gamification import level_progress
+from backend.core.gamification import BOOST_HOURS, MAX_INVITE_REWARDS, level_progress
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import Duel, Friendship, Outbox, User, WorkoutLog, XpEvent
+from backend.database.models import Duel, Friendship, Outbox, Profile, User, WorkoutLog, XpEvent
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -64,6 +64,8 @@ async def befriend(session: AsyncSession, code: str, telegram_id: int, first_nam
     if await session.scalar(select(func.count()).where(Friendship.user_id == inviter.id)) >= MAX_FRIENDS:
         return None
     session.add_all([Friendship(user_id=me.id, friend_id=inviter.id), Friendship(user_id=inviter.id, friend_id=me.id)])
+    if me.invited_by_id is None and not await session.get(Profile, me.id):  # only new people count as invited
+        me.invited_by_id = inviter.id
     notify(session, inviter, f"🤝 {name(me)} теперь у вас в друзьях. Посмотрите рейтинг недели или вызовите на дуэль.")
     await session.commit()
     return inviter
@@ -114,6 +116,20 @@ async def remove_friend(friend_id: int, tg: dict = Depends(telegram_user), sessi
     return {"ok": True}
 
 
+async def reward_inviter(session: AsyncSession, user: User) -> None:
+    """The invited friend just filled the profile: the inviter gets XP (for up to MAX_INVITE_REWARDS friends)."""
+    if not user.invited_by_id:
+        return
+    inviter = await session.get(User, user.invited_by_id)
+    if inviter is None or await session.scalar(
+        select(func.count()).where(XpEvent.user_id == inviter.id, XpEvent.event_type == "friend_invited")
+    ) >= MAX_INVITE_REWARDS:
+        return
+    if await award_xp(session, inviter.id, "friend_invited", f"invite:{user.id}"):
+        notify(session, inviter, f"🎉 {name(user)} присоединился(ась) по вашей ссылке — +50 XP за приглашение!")
+        await session.commit()
+
+
 # ---- Duels ----
 
 async def score(session: AsyncSession, user_id: int, metric: str, start, end) -> int:
@@ -138,12 +154,16 @@ async def finish_duels(session: AsyncSession) -> int:
         sa, sb = await score(session, a.id, d.metric, d.starts_at, d.ends_at), await score(session, b.id, d.metric, d.starts_at, d.ends_at)
         d.status, d.winner_id = "done", (a.id if sa > sb else b.id if sb > sa else None)
         for me, other, mine, theirs in ((a, b, sa, sb), (b, a, sb, sa)):
-            result = ("🏆 Победа! +40 XP." if mine > theirs else "Ничья — оба молодцы." if mine == theirs
+            result = (f"🏆 Победа! +40 XP и бустер ×2 XP на {BOOST_HOURS} часа." if mine > theirs else "Ничья — оба молодцы." if mine == theirs
                       else f"В этот раз победа за {name(other)}. Реванш?")
             notify(session, me, f"⚔️ Дуэль с {name(other)} окончена: {mine} : {theirs} {METRICS[d.metric]}. {result}")
         await session.commit()
         if d.winner_id:
-            await award_xp(session, d.winner_id, "duel_win", f"duel:{d.id}")
+            if await award_xp(session, d.winner_id, "duel_win", f"duel:{d.id}"):
+                winner = await session.get(User, d.winner_id)
+                base = max(clock.now(), winner.boost_until or clock.now())  # a second win extends the boost
+                winner.boost_until = base + timedelta(hours=BOOST_HOURS)
+                await session.commit()
         done += 1
     return done
 

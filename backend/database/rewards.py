@@ -1,7 +1,7 @@
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 
-from backend.core.gamification import level_progress, xp_for_rule
+from backend.core.gamification import BOOST, NOT_BOOSTED, level_progress, xp_for_rule
 from backend.database.db import AsyncSession
 from backend.database.models import User, XpEvent
 
@@ -13,6 +13,10 @@ async def award_xp(session: AsyncSession, user_id: int, event_type: str, event_k
     The unique constraint makes this safe under retries and concurrent requests.
     """
     amount = xp_for_rule(event_type)
+    if event_type not in NOT_BOOSTED and await session.scalar(
+        select(User.id).where(User.id == user_id, User.boost_until > func.now())
+    ):
+        amount *= BOOST
     inserted = await session.scalar(
         insert(XpEvent)
         .values(user_id=user_id, event_type=event_type, event_key=event_key, xp=amount)

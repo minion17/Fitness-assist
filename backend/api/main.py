@@ -17,7 +17,7 @@ from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
 from backend.api.quick_food import product_out, router as quick_food_router
-from backend.api.social import router as social_router
+from backend.api.social import reward_inviter, router as social_router
 from backend.api.stats import router as stats_router
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
 from backend.core import clock
@@ -97,6 +97,7 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
 
 def settings_out(user: User) -> dict:
     return {"theme": user.theme, "accent": user.accent, "program_id": user.program_id,
+            "boost_until": user.boost_until.isoformat() if user.boost_until and user.boost_until > clock.now() else None,
             "timezone": user.timezone, "device_tz": user.device_tz}
 
 
@@ -166,11 +167,14 @@ async def save_profile(
     body: ProfileIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
     user = await get_or_create_user(tg, session)
-    profile = await session.get(Profile, user.id) or Profile(user_id=user.id)
+    existing = await session.get(Profile, user.id)
+    profile = existing or Profile(user_id=user.id)
     for k, v in body.model_dump().items():
         setattr(profile, k, v)
     session.add(profile)
     await session.commit()
+    if existing is None:
+        await reward_inviter(session, user)
     return profile_out(profile)
 
 

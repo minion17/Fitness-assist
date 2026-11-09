@@ -661,3 +661,4 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .duel-result.win { color: var(--accent-text); }
 .duel-result.loss { color: var(--muted); }
 .duel-form .seg { margin-top: 10px; }
+.pill-boost { color: #1a1300; background: linear-gradient(135deg, #ffd25e, #ff9f43); border-color: transparent; font-weight: 800; }

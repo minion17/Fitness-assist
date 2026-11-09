@@ -48,7 +48,8 @@ export default function Friends() {
         <h2>{friends.length ? 'Друзья' : 'Вместе проще не бросить'}</h2>
         <p className="sub">{friends.length
           ? 'Рейтинг недели, дуэли и общий азарт.'
-          : 'Пригласите друга по ссылке — сразу станете друзьями, увидите рейтинг недели и сможете вызвать на дуэль.'}</p>
+          : 'Пригласите друга по ссылке — сразу станете друзьями, увидите рейтинг недели и сможете вызвать на дуэль.'}
+          {' '}+50 XP за каждого друга, который заполнит анкету.</p>
         <div className="friends-actions">
           <button className="btn" disabled={!link} onClick={invite}>Пригласить друга</button>
           <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешлите её кому угодно.')}>Поделиться неделей</button>
@@ -103,7 +104,7 @@ export default function Friends() {
       {challenge && (
         <section className="card duel-form" aria-label="Новая дуэль">
           <h2>Дуэль с {challenge.friend.name}</h2>
-          <p className="sub">Кто наберёт больше — без ставок, победитель получает +40 XP.</p>
+          <p className="sub">Без ставок: победитель получает +40 XP и бустер ×2 XP на 24 часа.</p>
           <div className="seg seg-row" role="group" aria-label="Что считаем">
             {(['xp', 'workouts'] as const).map((m) => <button key={m} aria-pressed={challenge.metric === m} onClick={() => setChallenge({ ...challenge, metric: m })}>{m === 'xp' ? 'XP' : 'Тренировки'}</button>)}
           </div>

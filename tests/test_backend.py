@@ -575,11 +575,11 @@ def test_user_products_become_shared_after_three_confirmations(client):
 
 def test_settings_are_kept_on_the_account(client, seeded):
     h = new_user_headers()
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None, "timezone": None, "device_tz": None}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None, "boost_until": None, "timezone": None, "device_tz": None}
     pid = client.get("/api/programs").json()[0]["id"]
-    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None, "timezone": None, "device_tz": None}
+    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None, "boost_until": None, "timezone": None, "device_tz": None}
     assert client.put("/api/settings", headers=h, json={"accent": "#a98bff", "program_id": pid}).json()["theme"] == "green"  # partial
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid, "timezone": None, "device_tz": None}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid, "boost_until": None, "timezone": None, "device_tz": None}
     assert client.put("/api/settings", headers=h, json={"program_id": None}).json()["program_id"] is None
     assert client.put("/api/settings", headers=h, json={"theme": "neon"}).status_code == 422
     assert client.put("/api/settings", headers=h, json={"accent": "red"}).status_code == 422
@@ -860,17 +860,23 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     assert client.portal.call(befriend, code, ids[0]) is None  # own link
     assert client.portal.call(befriend, "nope", ids[1]) is None
 
+    # Борис was new: when he fills the profile, Аня gets +50 XP for the invite (once)
+    xp_a = lambda: client.post("/api/auth", headers=ha).json()["progress"]["xp"]  # noqa: E731
+    client.put("/api/profile", headers=hb, json=PROFILE)
+    client.put("/api/profile", headers=hb, json=PROFILE)
+    assert xp_a() == 50
+
     pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
     client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})  # +10 XP
     board = client.get("/api/friends", headers=ha).json()["board"]
-    assert [(r["name"], r["me"], r["week_xp"]) for r in board] == [("Борис", False, 10), ("Аня", True, 0)]
-    b_id = board[0]["id"]
+    assert [(r["name"], r["me"], r["week_xp"]) for r in board] == [("Аня", True, 50), ("Борис", False, 10)]
+    b_id = board[1]["id"]
 
     # duel: Аня challenges, only Борис can answer, one at a time per pair
     assert client.post("/api/duels", headers=ha, json={"friend_id": 10**9, "metric": "xp", "days": 3}).status_code == 404
     d = client.post("/api/duels", headers=ha, json={"friend_id": b_id, "metric": "xp", "days": 3}).json()
     assert d["status"] == "pending" and not d["incoming"]
-    assert client.post("/api/duels", headers=hb, json={"friend_id": board[1]["id"], "metric": "workouts", "days": 7}).status_code == 409
+    assert client.post("/api/duels", headers=hb, json={"friend_id": board[0]["id"], "metric": "workouts", "days": 7}).status_code == 409
     assert client.post(f"/api/duels/{d['id']}/accept", headers=ha).status_code == 404
     assert client.get("/api/duels", headers=hb).json()[0]["incoming"] is True
     assert client.post(f"/api/duels/{d['id']}/accept", headers=hb).json()["status"] == "active"
@@ -878,20 +884,25 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     live = client.get("/api/duels", headers=ha).json()[0]
     assert (live["me"], live["them"], live["rival"]) == (0, 10, "Борис")
 
-    async def time_up():  # the 3 days pass: window moved back so it ends right now, after Борис's meals
+    async def time_up():  # the 3 days pass: the duel (started at accept) now ends right after Борис's dinner
         from datetime import datetime, timezone
         async with SessionLocal() as s:
             end = datetime.now(timezone.utc)
-            await s.execute(update(Duel).where(Duel.id == d["id"]).values(starts_at=end - timedelta(days=3), ends_at=end))
+            await s.execute(update(Duel).where(Duel.id == d["id"]).values(ends_at=end))
             await s.commit()
             n = await social.finish_duels(s)
-            borys = await s.scalar(select(User).where(User.telegram_id == ids[1]))
+            xp = await s.scalar(select(User.xp).where(User.telegram_id == ids[1]))
             texts = list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id.in_(ids))))
-            return n, borys.xp, texts
+            return n, xp, texts
     n, xp, texts = client.portal.call(time_up)
     assert n == 1 and xp == 10 + 10 + 40  # two meals + the duel bonus
     assert any("Победа" in t for t in texts) and any("Реванш" in t for t in texts) and any("вызывает вас на дуэль" in t for t in texts)
     assert client.get("/api/duels", headers=ha).json()[0]["result"] == "loss"
+    # the winner's boost: x2 XP for a day, shown in settings
+    assert client.get("/api/settings", headers=hb).json()["boost_until"]
+    client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": "breakfast"})
+    assert client.post("/api/auth", headers=hb).json()["progress"]["xp"] == 60 + 20
+    assert client.get("/api/settings", headers=ha).json()["boost_until"] is None
 
     # share: one queued card per tap burst; removing a friend works both ways
     client.post("/api/share", headers=ha)

@@ -68,6 +68,7 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
 export default function Home(props: {
   name: string
   level: number
+  boostUntil?: string | null
   streak: number
   targets?: Targets
   day: FoodDay
@@ -108,6 +109,11 @@ export default function Home(props: {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--streak)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3c1 3 4 4.5 4 8.5A4 4 0 0 1 8 12c0-1.5.7-2.6 1.5-3.5C10 10 11 10.5 11 10.5 11 7 12 3 12 3z" /></svg>
             {props.streak}<span className="sr-only"> дней подряд</span>
           </span>
+          {props.boostUntil && ( // the server sends it only while the boost lasts
+            <span className="pill pill-boost" title={`Бустер за победу в дуэли: ×2 XP до ${new Date(props.boostUntil).toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`}>
+              ⚡ ×2<span className="sr-only"> XP: бустер за победу в дуэли</span>
+            </span>
+          )}
           <span className="pill pill-accent">Ур. {props.level}</span>
         </div>
       </header>

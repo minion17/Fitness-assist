@@ -9,8 +9,14 @@ RULES: dict[str, int] = {
     "water_goal": 10,
     "streak_week": 20,  # every 7 days in a row (also earns a streak freeze)
     "achievement": 25,
-    "duel_win": 40,  # no stakes: the loser keeps everything
+    "duel_win": 40,  # no stakes: the loser keeps everything; the winner also gets BOOST for a day
+    "friend_invited": 50,  # when the invited friend fills the profile (not on the click: no farming with empty accounts)
 }
+
+BOOST = 2  # XP multiplier after a duel win
+BOOST_HOURS = 24
+NOT_BOOSTED = {"duel_win", "friend_invited"}
+MAX_INVITE_REWARDS = 10
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...
 BASE_STEP = 100

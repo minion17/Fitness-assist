@@ -13,10 +13,14 @@ RULES: dict[str, int] = {
     "friend_invited": 50,  # when the invited friend fills the profile (not on the click: no farming with empty accounts)
 }
 
-BOOST = 2  # XP multiplier after a duel win
+BOOST = 1.5  # XP multiplier after a duel win
 BOOST_HOURS = 24
 NOT_BOOSTED = {"duel_win", "friend_invited"}
 MAX_INVITE_REWARDS = 10
+# Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling
+# 20 hours) stop "travelling" through timezones to collect the same day's XP twice.
+ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1}
+CAP_WINDOW_HOURS = 20
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...
 BASE_STEP = 100

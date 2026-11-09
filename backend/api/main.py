@@ -17,7 +17,7 @@ from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
 from backend.api.quick_food import product_out, router as quick_food_router
-from backend.api.social import reward_inviter, router as social_router
+from backend.api.social import router as social_router
 from backend.api.stats import router as stats_router
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
 from backend.core import clock
@@ -173,8 +173,6 @@ async def save_profile(
         setattr(profile, k, v)
     session.add(profile)
     await session.commit()
-    if existing is None:
-        await reward_inviter(session, user)
     return profile_out(profile)
 
 

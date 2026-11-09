@@ -344,9 +344,10 @@ test('charts: tap a bar to read its value; goal line shown', async () => {
 
 test('friends: leaderboard, accept an incoming duel, challenge a friend', async () => {
   const board = [
-    { id: 2, name: 'Борис', me: false, level: 3, week_xp: 120, streak: 5 },
-    { id: 1, name: 'Аня', me: true, level: 2, week_xp: 40, streak: 2 },
-    { id: 3, name: 'Вера', me: false, level: 1, week_xp: 0, streak: 0 },
+    { id: 2, name: 'Борис', me: false, level: 3, week_xp: 120, streak: 5, registered: true },
+    { id: 1, name: 'Аня', me: true, level: 2, week_xp: 40, streak: 2, registered: true },
+    { id: 4, name: 'Гоша', me: false, level: 1, week_xp: 0, streak: 0, registered: false },
+    { id: 3, name: 'Вера', me: false, level: 1, week_xp: 0, streak: 0, registered: true },
   ]
   const duels = [{ id: 9, metric: 'xp', days: 3, status: 'pending', incoming: true, rival: 'Борис', rival_id: 2, ends_at: null, result: null }]
   apiMock.mockImplementation(async (path: string) => (path === '/api/friends' ? { invite_link: 'https://t.me/b?start=fx', board } : path === '/api/duels' ? duels : { ok: true }))
@@ -354,6 +355,8 @@ test('friends: leaderboard, accept an incoming duel, challenge a friend', async 
   expect(await screen.findByText('Рейтинг недели')).toBeTruthy()
   expect(screen.getByText('Вы')).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Вызвать Борис на дуэль' })).toBeNull() // a duel with Борис is already open
+  expect(screen.queryByRole('button', { name: 'Вызвать Гоша на дуэль' })).toBeNull() // no profile yet: no duels
+  expect(screen.getByText('без анкеты')).toBeTruthy()
 
   fireEvent.click(screen.getByRole('button', { name: 'Принять' }))
   await waitFor(() => expect(apiMock.mock.calls.some((c) => c[0] === '/api/duels/9/accept')).toBe(true))

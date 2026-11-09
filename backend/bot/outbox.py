@@ -6,7 +6,7 @@ from datetime import timedelta
 from sqlalchemy import func, select
 
 from backend.api.daily import streak_state
-from backend.api.social import finish_duels, name, pending_messages
+from backend.api.social import finish_duels, name, pending_messages, reward_invites
 from backend.bot import cards
 from backend.core import clock
 from backend.core.gamification import level_progress
@@ -58,6 +58,7 @@ async def run(bot, keyboard) -> None:
             if tick % 12 == 0:
                 async with SessionLocal() as session:
                     await finish_duels(session)
+                    await reward_invites(session)
             await send_pending(bot, keyboard)
         except Exception:
             log.warning("outbox loop failed, retrying", exc_info=True)

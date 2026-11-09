@@ -346,6 +346,7 @@ class Duel(Base):
     starts_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     winner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # null + done = a draw
+    rewarded: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # the win passed the anti-abuse rules
 
 
 class Outbox(Base):

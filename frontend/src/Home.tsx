@@ -110,8 +110,8 @@ export default function Home(props: {
             {props.streak}<span className="sr-only"> дней подряд</span>
           </span>
           {props.boostUntil && ( // the server sends it only while the boost lasts
-            <span className="pill pill-boost" title={`Бустер за победу в дуэли: ×2 XP до ${new Date(props.boostUntil).toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`}>
-              ⚡ ×2<span className="sr-only"> XP: бустер за победу в дуэли</span>
+            <span className="pill pill-boost" title={`Бустер за победу в дуэли: ×1,5 XP до ${new Date(props.boostUntil).toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`}>
+              ⚡ ×1,5<span className="sr-only"> XP: бустер за победу в дуэли</span>
             </span>
           )}
           <span className="pill pill-accent">Ур. {props.level}</span>

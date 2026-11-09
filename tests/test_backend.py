@@ -836,13 +836,15 @@ def test_timezone_follows_phone_or_profile(client, seeded):
 
 def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     import random
-    from datetime import timedelta
+    from datetime import date, datetime, timedelta, timezone
 
     from sqlalchemy import select, update
 
     from backend.api import social
     from backend.database.db import SessionLocal
-    from backend.database.models import Duel, Outbox, User
+    from sqlalchemy.dialects.postgresql import insert
+
+    from backend.database.models import Duel, Outbox, User, WaterIntake
     from conftest import USER, make_init_data
 
     monkeypatch.setattr(social, "bot_username", lambda: "setly_test_bot")
@@ -852,65 +854,148 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     assert link.startswith("https://t.me/setly_test_bot?start=f")
     code = link.split("start=f")[1]
 
-    async def befriend(c, tg_id):
-        async with SessionLocal() as s:
-            return await social.befriend(s, c, tg_id, "Борис")
-    assert client.portal.call(befriend, code, ids[1]).first_name == "Аня"  # Борис opened Аня's link (new user)
-    assert client.portal.call(befriend, code, ids[1]) is None  # already friends
-    assert client.portal.call(befriend, code, ids[0]) is None  # own link
-    assert client.portal.call(befriend, "nope", ids[1]) is None
+    def db(fn, *a):
+        async def run():
+            async with SessionLocal() as s:
+                return await fn(s, *a)
+        return client.portal.call(run)
 
-    # Борис was new: when he fills the profile, Аня gets +50 XP for the invite (once)
-    xp_a = lambda: client.post("/api/auth", headers=ha).json()["progress"]["xp"]  # noqa: E731
-    client.put("/api/profile", headers=hb, json=PROFILE)
-    client.put("/api/profile", headers=hb, json=PROFILE)
-    assert xp_a() == 50
+    assert db(social.befriend, code, ids[1], "Борис").first_name == "Аня"  # Борис opened Аня's link (new user)
+    assert db(social.befriend, code, ids[1], "Борис") is None  # already friends
+    assert db(social.befriend, code, ids[0], "Аня") is None  # own link
+    assert db(social.befriend, "nope", ids[1], "Борис") is None
+    xp = lambda h: client.post("/api/auth", headers=h).json()["progress"]["xp"]  # noqa: E731
 
-    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
-    client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})  # +10 XP
+    # duels only between registered users
+    a_id = client.post("/api/auth", headers=ha).json()["id"]
+    b_id = client.post("/api/auth", headers=hb).json()["id"]
+    client.put("/api/profile", headers=ha, json=PROFILE)
+    assert client.post("/api/duels", headers=ha, json={"friend_id": b_id, "metric": "xp", "days": 3}).status_code == 403
+    client.put("/api/profile", headers=hb, json=PROFILE)
+
+    # invite XP only after the invited friend is active on 3 days (an empty fake account earns nothing)
+    async def invite_check(s, active_days):
+        await s.execute(update(User).where(User.id == b_id).values(created_at=datetime.now(timezone.utc) - timedelta(days=10)))
+        for i in range(active_days):
+            await s.execute(insert(WaterIntake).values(user_id=b_id, day=date.today() - timedelta(days=i + 1), ml=250).on_conflict_do_nothing())
+        await s.commit()
+        return await social.reward_invites(s)
+    assert db(invite_check, 2) == 0 and xp(ha) == 0
+    assert db(invite_check, 3) == 1 and xp(ha) == 50
+    assert db(social.reward_invites) == 0  # once
+
     board = client.get("/api/friends", headers=ha).json()["board"]
-    assert [(r["name"], r["me"], r["week_xp"]) for r in board] == [("Аня", True, 50), ("Борис", False, 10)]
-    b_id = board[1]["id"]
+    assert {(r["name"], r["me"], r["registered"]) for r in board} == {("Аня", True, True), ("Борис", False, True)}
 
-    # duel: Аня challenges, only Борис can answer, one at a time per pair
+    # duel flow
     assert client.post("/api/duels", headers=ha, json={"friend_id": 10**9, "metric": "xp", "days": 3}).status_code == 404
     d = client.post("/api/duels", headers=ha, json={"friend_id": b_id, "metric": "xp", "days": 3}).json()
     assert d["status"] == "pending" and not d["incoming"]
-    assert client.post("/api/duels", headers=hb, json={"friend_id": board[0]["id"], "metric": "workouts", "days": 7}).status_code == 409
+    assert client.post("/api/duels", headers=hb, json={"friend_id": a_id, "metric": "workouts", "days": 7}).status_code == 409
     assert client.post(f"/api/duels/{d['id']}/accept", headers=ha).status_code == 404
     assert client.get("/api/duels", headers=hb).json()[0]["incoming"] is True
     assert client.post(f"/api/duels/{d['id']}/accept", headers=hb).json()["status"] == "active"
-    client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": "dinner"})  # Борис +10
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    for meal in ("breakfast", "lunch", "dinner"):  # Борис +30
+        client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": meal})
+    client.post("/api/food-logs", headers=ha, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})  # Аня +10
     live = client.get("/api/duels", headers=ha).json()[0]
-    assert (live["me"], live["them"], live["rival"]) == (0, 10, "Борис")
+    assert (live["me"], live["them"], live["rival"]) == (10, 30, "Борис")
 
-    async def time_up():  # the 3 days pass: the duel (started at accept) now ends right after Борис's dinner
-        from datetime import datetime, timezone
-        async with SessionLocal() as s:
-            end = datetime.now(timezone.utc)
-            await s.execute(update(Duel).where(Duel.id == d["id"]).values(ends_at=end))
-            await s.commit()
-            n = await social.finish_duels(s)
-            xp = await s.scalar(select(User.xp).where(User.telegram_id == ids[1]))
-            texts = list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id.in_(ids))))
-            return n, xp, texts
-    n, xp, texts = client.portal.call(time_up)
-    assert n == 1 and xp == 10 + 10 + 40  # two meals + the duel bonus
-    assert any("Победа" in t for t in texts) and any("Реванш" in t for t in texts) and any("вызывает вас на дуэль" in t for t in texts)
+    async def time_up(s, age_days):  # accounts of a given age; the duel ends now
+        old = datetime.now(timezone.utc) - timedelta(days=age_days)
+        await s.execute(update(User).where(User.id.in_((a_id, b_id))).values(created_at=old))
+        await s.execute(update(Duel).where(Duel.id == d["id"]).values(ends_at=datetime.now(timezone.utc)))
+        await s.commit()
+        return await social.finish_duels(s)
+    assert db(time_up, 10) == 1
+    b_xp = xp(hb)
+    assert b_xp == 30 + 40  # meals + the duel bonus
     assert client.get("/api/duels", headers=ha).json()[0]["result"] == "loss"
-    # the winner's boost: x2 XP for a day, shown in settings
+
+    async def texts(s):
+        return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id.in_(ids))))
+    t = db(texts)
+    assert any("+40 XP и бустер ×1,5" in x for x in t) and any("Реванш" in x for x in t) and any("вызывает вас на дуэль" in x for x in t)
+    assert any("+50 XP" in x for x in t)
+
+    # the winner's boost: x1.5 for a day (water goal 10 -> 15)
     assert client.get("/api/settings", headers=hb).json()["boost_until"]
-    client.post("/api/food-logs", headers=hb, json={"product_id": pid, "amount_g": 100, "meal_type": "breakfast"})
-    assert client.post("/api/auth", headers=hb).json()["progress"]["xp"] == 60 + 20
+    for _ in range(5):
+        client.post("/api/water", headers=hb, json={"delta_ml": 1000})
+    assert xp(hb) == b_xp + 15
     assert client.get("/api/settings", headers=ha).json()["boost_until"] is None
+
+    # a rematch right away: same pair within 14 days -> a win, but no reward
+    d = client.post("/api/duels", headers=hb, json={"friend_id": a_id, "metric": "xp", "days": 3}).json()
+    client.post(f"/api/duels/{d['id']}/accept", headers=ha)
+    client.post("/api/food-logs", headers=ha, json={"product_id": pid, "amount_g": 100, "meal_type": "dinner"})
+    assert db(time_up, 10) == 1
+    assert any("без награды" in x.lower() for x in db(texts))
 
     # share: one queued card per tap burst; removing a friend works both ways
     client.post("/api/share", headers=ha)
     client.post("/api/share", headers=ha)
 
-    async def shares():
-        async with SessionLocal() as s:
-            return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == ids[0], Outbox.kind == "share")))
-    assert len(client.portal.call(shares)) == 1 and "start=f" in client.portal.call(shares)[0]
+    async def shares(s):
+        return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == ids[0], Outbox.kind == "share")))
+    assert len(db(shares)) == 1 and "start=f" in db(shares)[0]
     client.delete(f"/api/friends/{b_id}", headers=ha)
     assert len(client.get("/api/friends", headers=hb).json()["board"]) == 1
+
+
+def test_fake_opponent_and_young_accounts_earn_nothing(client, seeded):
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import update
+
+    from backend.api import social
+    from backend.database.db import SessionLocal
+    from backend.database.models import Duel, Friendship, User
+    from conftest import USER, make_init_data
+
+    hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': random.randint(3 * 10**9, 4 * 10**9)})}"} for _ in range(2)]
+    a, b = (client.post("/api/auth", headers=h).json()["id"] for h in hs)
+    for h in hs:
+        client.put("/api/profile", headers=h, json=PROFILE)
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+
+    async def run(fn):
+        async with SessionLocal() as s:
+            return await fn(s)
+
+    async def friends(s):
+        s.add_all([Friendship(user_id=a, friend_id=b), Friendship(user_id=b, friend_id=a)])
+        await s.commit()
+    client.portal.call(run, friends)
+
+    def duel(age_days, fake_active):
+        d = client.post("/api/duels", headers=hs[0], json={"friend_id": b, "metric": "xp", "days": 3}).json()
+        client.post(f"/api/duels/{d['id']}/accept", headers=hs[1])
+        for meal in ("breakfast", "lunch", "dinner"):
+            client.post("/api/food-logs", headers=hs[0], json={"product_id": pid, "amount_g": 100, "meal_type": meal})
+        if fake_active:
+            client.post("/api/food-logs", headers=hs[1], json={"product_id": pid, "amount_g": 100, "meal_type": "snack"})
+
+        async def end(s):
+            old = datetime.now(timezone.utc) - timedelta(days=age_days)
+            await s.execute(update(User).where(User.id.in_((a, b))).values(created_at=old))
+            await s.execute(update(Duel).where(Duel.id == d["id"]).values(ends_at=datetime.now(timezone.utc)))
+            await s.commit()
+            await social.finish_duels(s)
+            return (await s.get(Duel, d["id"])).rewarded
+        return client.portal.call(run, end)
+
+    assert duel(age_days=1, fake_active=True) is False   # fresh accounts
+    assert duel(age_days=30, fake_active=False) is False  # the opponent did nothing
+    assert client.post("/api/auth", headers=hs[0]).json()["progress"]["xp"] < 100  # no +40 anywhere above
+
+
+def test_timezone_hopping_does_not_repeat_daily_xp(client, seeded):
+    h = new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    log = lambda hh, meal: client.post("/api/food-logs", headers=hh, json={"product_id": pid, "amount_g": 100, "meal_type": meal}).json()["xp_awarded"]  # noqa: E731
+    assert [log({**h, "X-Timezone": "Pacific/Pago_Pago"}, m) for m in ("breakfast", "lunch", "dinner", "snack")] == [10] * 4
+    # jump a day ahead by timezone: same meals again would be a "new day", but the rolling cap says no
+    assert log({**h, "X-Timezone": "Pacific/Kiritimati"}, "breakfast") == 0

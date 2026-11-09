@@ -753,3 +753,26 @@ def test_weekly_summary_on_sunday(client, seeded, monkeypatch):
     assert not any("Итоги недели" in t for t, _ in client.portal.call(run, sunday))  # once
     off = client.get("/api/reminders", headers=h).json() | {"weekly": False}
     assert client.put("/api/reminders", headers=h, json=off).json()["weekly"] is False
+
+
+def test_menu_button_follows_tunnel_address(monkeypatch):
+    import asyncio
+
+    from backend.bot import main as bot_main
+
+    calls = []
+
+    class FakeBot:
+        async def set_chat_menu_button(self, chat_id=None, menu_button=None):
+            calls.append(menu_button.web_app.url)
+
+    async def run(urls):
+        shown = None
+        for u in urls:
+            monkeypatch.setattr(bot_main, "current_webapp_url", lambda u=u: u)
+            shown = await bot_main.sync_menu_button(FakeBot(), shown)
+        return shown
+
+    last = asyncio.run(run(["https://a.lhr.life", "https://a.lhr.life", "http://localhost:8000", "https://b.lhr.life"]))
+    assert calls == ["https://a.lhr.life", "https://b.lhr.life"]  # once per change, never a non-https address
+    assert last == "https://b.lhr.life"

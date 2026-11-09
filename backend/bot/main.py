@@ -12,6 +12,7 @@ from aiogram.types import (
     BufferedInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    MenuButtonDefault,
     MenuButtonWebApp,
     Message,
     WebAppInfo,
@@ -75,13 +76,6 @@ async def start(message: Message) -> None:
     except Exception:
         log.warning("welcome card failed, sending text", exc_info=True)
         await message.answer(caption, reply_markup=keyboard, parse_mode="HTML")
-    if url.startswith("https://"):
-        try:  # keep this chat's menu button on the current address too
-            await message.bot.set_chat_menu_button(
-                chat_id=message.chat.id, menu_button=MenuButtonWebApp(text="Открыть", web_app=WebAppInfo(url=url))
-            )
-        except Exception:
-            log.warning("could not update menu button", exc_info=True)
 
 
 @router.error()
@@ -94,6 +88,44 @@ async def on_error(event: ErrorEvent) -> bool:
         except Exception:
             pass
     return True
+
+
+async def sync_menu_button(bot: Bot, shown: str | None) -> str | None:
+    """Point the shared "Setly" menu button at the current address if it changed; returns the address shown."""
+    url = current_webapp_url()
+    if not url.startswith("https://") or url == shown:
+        return shown
+    await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="Setly", web_app=WebAppInfo(url=url)))
+    log.info("Кнопка меню обновлена: %s", url)
+    return url
+
+
+async def reset_chat_menu_buttons(bot: Bot) -> None:
+    """Older versions pinned a per-chat menu button to a fixed address; drop those so the shared one shows."""
+    async with SessionLocal() as s:
+        ids = list(await s.scalars(select(User.telegram_id)))
+    for chat_id in ids:
+        try:
+            await bot.set_chat_menu_button(chat_id=chat_id, menu_button=MenuButtonDefault())
+        except Exception:
+            pass  # chat never started or bot blocked
+        await asyncio.sleep(0.05)
+
+
+async def keep_menu_button(bot: Bot) -> None:
+    """The "Setly" button next to the message box always opens the current tunnel address.
+    Message buttons keep the address they were sent with, so after a reconnect old ones show "no tunnel";
+    this one follows every address change within ~10 s, no /start needed."""
+    shown, reset = None, False
+    while True:
+        try:
+            shown = await sync_menu_button(bot, shown)
+            if shown and not reset:
+                await reset_chat_menu_buttons(bot)
+                reset = True
+        except Exception:
+            log.warning("Не удалось обновить кнопку меню, попробую снова", exc_info=True)
+        await asyncio.sleep(10)
 
 
 async def main() -> None:
@@ -114,6 +146,7 @@ async def main() -> None:
 
     # runs alongside polling; the reference keeps the task from being garbage-collected
     reminder_task = asyncio.create_task(reminders.run(bot, reminder_keyboard))
+    menu_task = asyncio.create_task(keep_menu_button(bot))
     # start_polling fails right away if Telegram is unreachable at startup; keep retrying instead of exiting.
     profile_synced = False
     while True:

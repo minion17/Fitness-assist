@@ -23,4 +23,16 @@ npm.cmd run build
 if ($LASTEXITCODE -ne 0) { throw "сборка не удалась" }
 Set-Location $root
 
+# Cloudflare quick tunnel: a more reliable free tunnel than localhost.run (see scripts\tunnel.ps1)
+$cf = Join-Path $root 'tools\cloudflared.exe'
+if (-not (Test-Path $cf)) {
+    Write-Host "`n[+] Скачиваю cloudflared (туннель Cloudflare)"
+    New-Item -ItemType Directory -Force (Join-Path $root 'tools') | Out-Null
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    try {
+        Invoke-WebRequest 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe' `
+            -OutFile $cf -UseBasicParsing
+    } catch { Write-Host "  Не удалось скачать cloudflared — туннель будет через localhost.run." -ForegroundColor Yellow }
+}
+
 Write-Host "`nОбновлено. Если сервер и бот уже запущены — закройте их окна и запустите start.bat." -ForegroundColor Green

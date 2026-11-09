@@ -9,3 +9,4 @@ frontend/dist/
 .idea/
 .vscode/
 .bot_profile
+tools/

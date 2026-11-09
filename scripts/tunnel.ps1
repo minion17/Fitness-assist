@@ -1,10 +1,13 @@
 ﻿# Keeps a public https tunnel to the local server up and writes its address into .env (WEBAPP_URL).
 # The bot follows .env by itself (menu button "Setly"), so nothing needs a restart after a reconnect.
 #
-# Two free providers, tried in turn: Cloudflare quick tunnel (tools\cloudflared.exe, downloaded by update.bat)
-# and localhost.run (plain ssh). Either can silently stop forwarding (localhost.run then shows "no tunnel"),
-# so once a minute the address is checked from outside; after two failed checks the tunnel is rebuilt with
-# the other provider.
+# Providers, tried in turn:
+#   tuna.am      - when TUNA_API_KEY (or the older TUNA_TOKEN) is in .env; not blocked in Russia/CIS.
+#                  TUNA_SUBDOMAIN in .env gives the free permanent address (same URL after every reconnect).
+#   cloudflare   - quick tunnel (tools\cloudflared.exe)
+#   localhost.run - plain ssh
+# Any of them can silently stop forwarding, so once a minute the address is checked from outside; after two
+# failed checks the tunnel is rebuilt with the next provider.
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
 $envFile = Join-Path $root '.env'
 $cloudflared = Join-Path $root 'tools\cloudflared.exe'
@@ -20,6 +23,11 @@ function Answers($u) {
 
 function Start-Tunnel($provider) {
     foreach ($f in $log, "$log.err") { try { [IO.File]::Delete($f) } catch {} }
+    if ($provider -eq 'tuna') {
+        $a = @('http', '8000')
+        if ($conf.TUNA_SUBDOMAIN) { $a += "--subdomain=$($conf.TUNA_SUBDOMAIN)" }
+        return Start-Process $tuna -ArgumentList $a -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
+    }
     if ($provider -eq 'cloudflare') {
         $a = @('tunnel', '--url', 'http://localhost:8000', '--no-autoupdate', '--protocol', 'http2')
         return Start-Process $cloudflared -ArgumentList $a -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
@@ -29,10 +37,22 @@ function Start-Tunnel($provider) {
     return Start-Process ssh -ArgumentList $a -NoNewWindow -PassThru -RedirectStandardOutput $log -RedirectStandardError "$log.err"
 }
 
-$null = & (Join-Path $PSScriptRoot 'get-cloudflared.ps1') -Dest $cloudflared  # no-op once downloaded
-$providers = @('localhost.run')
-if (Test-Path $cloudflared) { $providers = @('cloudflare', 'localhost.run') }
-else { Write-Host "Без cloudflared пробую только localhost.run — он у вас сейчас может не работать." -ForegroundColor Yellow }
+$tuna = Join-Path $root 'tools\tuna\tuna.exe'
+
+# tuna settings from .env (the key never leaves this computer; tuna reads it from the environment)
+$conf = @{}
+foreach ($line in Get-Content $envFile) {
+    if ($line -match '^\s*(TUNA_API_KEY|TUNA_TOKEN|TUNA_SUBDOMAIN)\s*=\s*(\S+)') { $conf[$Matches[1]] = $Matches[2] }
+}
+$providers = @()
+if ($conf.TUNA_API_KEY -or $conf.TUNA_TOKEN) {
+    if (& (Join-Path $PSScriptRoot 'get-tuna.ps1')) { $providers += 'tuna' }
+    if ($conf.TUNA_API_KEY) { $env:TUNA_API_KEY = $conf.TUNA_API_KEY } else { $env:TUNA_TOKEN = $conf.TUNA_TOKEN }
+    $env:TUNA_TUI = '0'; $env:TUNA_INSPECT = 'false'
+}
+if (& (Join-Path $PSScriptRoot 'get-cloudflared.ps1') -Dest $cloudflared) { $providers += 'cloudflare' }
+$providers += 'localhost.run'
+Write-Host "Способы туннеля по очереди: $($providers -join ', ')" -ForegroundColor DarkGray
 $turn = 0
 
 while ($true) {
@@ -44,7 +64,7 @@ while ($true) {
         Start-Sleep -Seconds 3
         if (-not $url) {
             $text = (Get-Content $log, "$log.err" -Raw -ErrorAction SilentlyContinue) -join "`n"
-            if ($text -match '(https://[a-z0-9-]+\.trycloudflare\.com|https://[a-z0-9]+\.lhr\.life)') {
+            if ($text -match '(https://(?!(?:my|docs|www|releases)\.)[a-z0-9-]+\.(?:[a-z]+\.)?tuna\.am|https://[a-z0-9-]+\.trycloudflare\.com|https://[a-z0-9]+\.lhr\.life)') {
                 $url = $Matches[1]
                 $next = (Get-Date).AddSeconds(20)  # first check soon: catch an address that never worked
             } elseif ((Get-Date) -gt $started.AddSeconds(60)) {

@@ -384,7 +384,7 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
             )}
             <button className="link" onClick={() => setPicked(null)}>Другой</button>
           </div>
-          {thanks && <p className="sub pos">Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем.</p>}
+          {thanks && <p className="sub pos">Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем, а вам +25 XP.</p>}
           {picked.portion_g ? (
             <div className="seg seg-row portions">
               {[0.5, 1, 2].map((k) => {
@@ -480,7 +480,7 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
   return (
     <>
       {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе — добавьте его один раз, дальше он будет находиться по штрихкоду.</p>}
-      <p className="sub">Значения — на 100 г, они есть на упаковке. Продукт будет виден только вам.</p>
+      <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только вам; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а вы получите <b>+25 XP</b>.</p>
       {aiEnabled && (
         <label className={reading ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
           {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку — заполню сам'}

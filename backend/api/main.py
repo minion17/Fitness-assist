@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from pathlib import Path
@@ -37,13 +38,17 @@ from backend.database.models import (
     WorkoutLog,
     WorkoutSet,
 )
+from backend.core import off_sync
 from backend.database.rewards import award_xp
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await init_db()
+    sync = asyncio.create_task(off_sync.forever()) if settings.off_sync else None  # Russian products from Open Food Facts
     yield
+    if sync:
+        sync.cancel()
 
 
 app = FastAPI(title="Setly API", lifespan=lifespan)

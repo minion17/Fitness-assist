@@ -134,6 +134,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
       )}
       {canEdit && <Reminders />}
       <ThemeCard t={theme} />
+      <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Setly.</p>
       {body}
     </>
   )

@@ -37,7 +37,11 @@ def load(rel: str, required: tuple[str, ...] = ("name",), numeric: tuple[str, ..
 
 async def import_products(s) -> int:
     added = 0
-    for p in load("products/products.json", ("name", "kcal"), ("kcal", "protein_g", "fat_g", "carbs_g")):
+    # products.json: the team's list; usda_basics.json: staples from the USDA nutrient database (SR26, public domain),
+    # named in Russian. Same name+brand already in the catalog -> skipped, so the team's values win.
+    rows = [*load("products/products.json", ("name", "kcal"), ("kcal", "protein_g", "fat_g", "carbs_g")),
+            *load("products/usda_basics.json", ("name", "kcal"), ("kcal", "protein_g", "fat_g", "carbs_g"))]
+    for p in rows:
         brand = p.get("brand") or None
         if brand and brand.strip().lower() in ("не указан", "нет", "-"):  # placeholder, not a real brand
             brand = None

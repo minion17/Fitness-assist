@@ -18,8 +18,9 @@ from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import off
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FavoriteProduct, FoodLog, Product, UserBarcode
+from backend.database.models import FavoriteProduct, FoodLog, Product, User, UserBarcode
 from backend.database.rewards import award_xp
+from backend.api.social import notify
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger(__name__)
@@ -172,8 +173,9 @@ def same_numbers(a: Product, b: Product) -> bool:
     )
 
 
-async def promote(session: AsyncSession, product: Product, barcode: str | None) -> Product | None:
-    """Copy `product` to the shared catalog if enough other users confirmed it. Returns the shared product if created."""
+async def promote(session: AsyncSession, product: Product, barcode: str | None) -> tuple[Product, set[int]] | None:
+    """Copy `product` to the shared catalog if enough other users confirmed it.
+    Returns (the shared product, ids of the users whose entries agreed) if created."""
     if barcode:
         if await session.scalar(select(Product.id).where(Product.barcode == barcode)):
             return None
@@ -198,7 +200,7 @@ async def promote(session: AsyncSession, product: Product, barcode: str | None) 
                      portion_g=product.portion_g, portion_name=product.portion_name, **avg)
     session.add(shared)
     await session.flush()
-    return shared
+    return shared, {p.owner_user_id for p in agree}
 
 
 @router.post("/products")
@@ -225,8 +227,18 @@ async def create_product(body: ProductIn, tg: dict = Depends(telegram_user), ses
         )
     try:
         async with session.begin_nested():  # savepoint: a lost promotion race must not lose the user's product
-            shared = await promote(session, product, body.barcode)
+            promoted = await promote(session, product, body.barcode)
     except IntegrityError:  # someone promoted it a moment ago
-        shared = None
+        promoted = None
     await session.commit()
-    return {**product_out(product), "shared": shared is not None}
+    xp = 0
+    if promoted:  # everyone who entered the same numbers helped: XP and a thank-you from the bot
+        shared, authors = promoted
+        for uid in authors:
+            got = await award_xp(session, uid, "product_shared", f"product:{shared.id}")
+            xp += got if uid == user.id else 0
+            if got and uid != user.id:
+                notify(session, await session.get(User, uid),
+                       f"🙌 «{shared.name}» подтвердили другие — товар теперь в общем каталоге Setly. +{got} XP, спасибо!")
+        await session.commit()
+    return {**product_out(product), "shared": promoted is not None, "xp_awarded": xp}

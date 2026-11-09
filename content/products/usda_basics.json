@@ -1,0 +1,252 @@
+[
+ {
+  "name": "Куриная грудка сырая",
+  "brand": null,
+  "barcode": null,
+  "kcal": 120,
+  "protein_g": 22.5,
+  "fat_g": 2.6,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Куриная грудка запечённая",
+  "brand": null,
+  "barcode": null,
+  "kcal": 165,
+  "protein_g": 31.0,
+  "fat_g": 3.6,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Куриное бедро без кожи, сырое",
+  "brand": null,
+  "barcode": null,
+  "kcal": 121,
+  "protein_g": 19.7,
+  "fat_g": 4.1,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Куриное бедро без кожи, запечённое",
+  "brand": null,
+  "barcode": null,
+  "kcal": 179,
+  "protein_g": 24.8,
+  "fat_g": 8.2,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Курица целая с кожей, запечённая",
+  "brand": null,
+  "barcode": null,
+  "kcal": 239,
+  "protein_g": 27.3,
+  "fat_g": 13.6,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Говядина, вырезка сырая",
+  "brand": null,
+  "barcode": null,
+  "kcal": 153,
+  "protein_g": 22.1,
+  "fat_g": 6.5,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Говядина тушёная",
+  "brand": null,
+  "barcode": null,
+  "kcal": 212,
+  "protein_g": 33.4,
+  "fat_g": 7.7,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Свинина, вырезка сырая",
+  "brand": null,
+  "barcode": null,
+  "kcal": 109,
+  "protein_g": 20.9,
+  "fat_g": 2.2,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Свинина, шея",
+  "brand": null,
+  "barcode": null,
+  "kcal": 236,
+  "protein_g": 17.2,
+  "fat_g": 18.0,
+  "carbs_g": 0,
+  "category": "Мясо и птица"
+ },
+ {
+  "name": "Лосось запечённый",
+  "brand": null,
+  "barcode": null,
+  "kcal": 206,
+  "protein_g": 22.1,
+  "fat_g": 12.3,
+  "carbs_g": 0,
+  "category": "Рыба и морепродукты"
+ },
+ {
+  "name": "Молоко 1%",
+  "brand": null,
+  "barcode": null,
+  "kcal": 42,
+  "protein_g": 3.4,
+  "fat_g": 1.0,
+  "carbs_g": 5.0,
+  "category": "Яйца и молочное"
+ },
+ {
+  "name": "Зернёный творог (cottage cheese) 1%",
+  "brand": null,
+  "barcode": null,
+  "kcal": 72,
+  "protein_g": 12.4,
+  "fat_g": 1.0,
+  "carbs_g": 2.7,
+  "category": "Яйца и молочное"
+ },
+ {
+  "name": "Овсянка на воде",
+  "brand": null,
+  "barcode": null,
+  "kcal": 71,
+  "protein_g": 2.5,
+  "fat_g": 1.5,
+  "carbs_g": 12.0,
+  "category": "Крупы и гарниры"
+ },
+ {
+  "name": "Пшено варёное",
+  "brand": null,
+  "barcode": null,
+  "kcal": 119,
+  "protein_g": 3.5,
+  "fat_g": 1.0,
+  "carbs_g": 23.7,
+  "category": "Крупы и гарниры"
+ },
+ {
+  "name": "Перловка варёная",
+  "brand": null,
+  "barcode": null,
+  "kcal": 123,
+  "protein_g": 2.3,
+  "fat_g": 0.4,
+  "carbs_g": 28.2,
+  "category": "Крупы и гарниры"
+ },
+ {
+  "name": "Манная крупа",
+  "brand": null,
+  "barcode": null,
+  "kcal": 369,
+  "protein_g": 10.6,
+  "fat_g": 0.5,
+  "carbs_g": 78.0,
+  "category": "Крупы и гарниры"
+ },
+ {
+  "name": "Макароны цельнозерновые варёные",
+  "brand": null,
+  "barcode": null,
+  "kcal": 124,
+  "protein_g": 5.3,
+  "fat_g": 0.5,
+  "carbs_g": 26.5,
+  "category": "Крупы и гарниры"
+ },
+ {
+  "name": "Лапша яичная варёная",
+  "brand": null,
+  "barcode": null,
+  "kcal": 138,
+  "protein_g": 4.5,
+  "fat_g": 2.1,
+  "carbs_g": 25.2,
+  "category": "Крупы и гарниры"
+ },
+ {
+  "name": "Батат запечённый",
+  "brand": null,
+  "barcode": null,
+  "kcal": 90,
+  "protein_g": 2.0,
+  "fat_g": 0.1,
+  "carbs_g": 20.7,
+  "category": "Крупы и гарниры"
+ },
+ {
+  "name": "Панкейки",
+  "brand": null,
+  "barcode": null,
+  "kcal": 227,
+  "protein_g": 6.4,
+  "fat_g": 9.7,
+  "carbs_g": 28.3,
+  "category": "Хлеб и выпечка"
+ },
+ {
+  "name": "Брокколи варёная",
+  "brand": null,
+  "barcode": null,
+  "kcal": 35,
+  "protein_g": 2.4,
+  "fat_g": 0.4,
+  "carbs_g": 7.2,
+  "category": "Овощи"
+ },
+ {
+  "name": "Чечевица сухая",
+  "brand": null,
+  "barcode": null,
+  "kcal": 343,
+  "protein_g": 25.8,
+  "fat_g": 1.1,
+  "carbs_g": 60.1,
+  "category": "Бобовые"
+ },
+ {
+  "name": "Фасоль красная варёная",
+  "brand": null,
+  "barcode": null,
+  "kcal": 127,
+  "protein_g": 8.7,
+  "fat_g": 0.5,
+  "carbs_g": 22.8,
+  "category": "Бобовые"
+ },
+ {
+  "name": "Фасоль белая варёная",
+  "brand": null,
+  "barcode": null,
+  "kcal": 139,
+  "protein_g": 9.7,
+  "fat_g": 0.3,
+  "carbs_g": 25.1,
+  "category": "Бобовые"
+ },
+ {
+  "name": "Горох колотый варёный",
+  "brand": null,
+  "barcode": null,
+  "kcal": 118,
+  "protein_g": 8.3,
+  "fat_g": 0.4,
+  "carbs_g": 21.1,
+  "category": "Бобовые"
+ }
+]

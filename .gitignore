@@ -11,3 +11,4 @@ frontend/dist/
 .bot_profile
 tools/
 .bot_username
+.off_sync

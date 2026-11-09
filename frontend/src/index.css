@@ -805,3 +805,4 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .empty-action { width: auto; margin-top: 8px; padding: 11px 22px; }
 /* green: the accent is also the button text colour, so marks on an accent fill need a dark ink */
 [data-theme='green'] .quest-list li.done .quest-icon, [data-theme='green'] .first-steps-list li.done .step-mark { color: #13200f; }
+.credits { text-align: center; margin: 4px 12px 0; } .credits a { color: inherit; }

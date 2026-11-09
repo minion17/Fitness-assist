@@ -558,7 +558,9 @@ def test_user_products_become_shared_after_three_confirmations(client):
     client.post("/api/products", headers=users[1], json={**dish, "kcal": 400})  # disagrees: doesn't count
     assert client.post("/api/products", headers=users[2], json={**dish, "kcal": 258}).json()["shared"] is False
     third = client.post("/api/products", headers=users[3], json={**dish, "protein_g": 11.5}).json()
-    assert third["shared"] is True
+    assert third["shared"] is True and third["xp_awarded"] == 25  # the one who completed it
+    xp = lambda h: client.post("/api/auth", headers=h).json()["progress"]["xp"]  # noqa: E731
+    assert [xp(h) for h in users] == [25, 0, 25, 25]  # every author whose numbers agreed; the outlier gets nothing
     shared = [p for p in find(new_user_headers()) if p["category"] == "Проверено пользователями"]
     assert len(shared) == 1 and shared[0]["kcal"] == 260 and shared[0]["portion_g"] == 610  # average of the 3 that agree
     # no brand -> stays private no matter how many people enter it
@@ -1087,3 +1089,41 @@ def test_change_grams_of_a_diary_entry(client, seeded):
     assert client.patch(f"/api/food-logs/{log['id']}", headers=h, json={"amount_g": 0}).status_code == 422
     r = client.patch(f"/api/food-logs/{log['id']}", headers=h, json={"amount_g": 250}).json()
     assert r["amount_g"] == 250 and r["kcal"] == round(log["kcal"] * 2.5)
+
+
+def test_open_food_facts_bulk_sync(client, seeded, tmp_path, monkeypatch):
+    import random
+
+    import httpx
+    from sqlalchemy import select
+
+    from backend.core import off_sync
+    from backend.database.db import SessionLocal
+    from backend.database.models import Product
+
+    code = str(random.randint(10**12, 10**13 - 1))
+    page1 = [
+        {"code": code, "product_name_ru": f"Кефир тестовый {code}", "brands": "Ирбит", "nutriments": {"energy-kcal_100g": 53, "proteins_100g": 3, "fat_100g": 2.5, "carbohydrates_100g": 4}},
+        {"code": "123", "product_name": "short code", "nutriments": {"energy-kcal_100g": 1}},  # not a barcode
+        {"code": str(int(code) + 1), "product_name": "Без КБЖУ", "nutriments": {}},              # unusable
+    ]
+    pages = {1: page1, 2: []}
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        assert req.url.params["countries_tags_en"] == "russia"
+        return httpx.Response(200, json={"products": pages[int(req.url.params["page"])]})
+
+    real = httpx.AsyncClient
+    monkeypatch.setattr(off_sync.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
+    monkeypatch.setattr(off_sync, "STATE", tmp_path / ".off_sync")
+    monkeypatch.setattr(off_sync, "PAUSE", 0)
+
+    async def go():
+        await off_sync.run()
+        await off_sync.run()  # done recently: nothing to do
+        async with SessionLocal() as s:
+            return list(await s.scalars(select(Product).where(Product.barcode.in_([code, str(int(code) + 1)]))))
+    found = client.portal.call(go)
+    assert [(p.name, p.brand, p.kcal, p.owner_user_id) for p in found] == [(f"Кефир тестовый {code}", "Ирбит", 53, None)]
+    assert off_sync.load_state()["done_at"]
+    assert client.get("/api/products/search", params={"q": f"кефир тестовый {code}"}).json()[0]["name"] == f"Кефир тестовый {code}"

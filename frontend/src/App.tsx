@@ -5,6 +5,7 @@ import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
+import FirstSteps from './FirstSteps'
 import Progress, { type Achievement } from './Progress'
 import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
@@ -268,6 +269,7 @@ export default function App() {
   }
 
   const program = programs?.find((p) => p.id === programId)
+  const unlocked = (code: string) => ach.items.some((a) => a.code === code && a.unlocked_at)
 
   const go = (t: Tab) => {
     tg?.HapticFeedback?.selectionChanged()
@@ -304,7 +306,17 @@ export default function App() {
           <Home name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
             water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
-            summary={aiEnabled && <AiSummary />} />
+            summary={aiEnabled && <AiSummary />}
+            intro={canEdit && <FirstSteps steps={[
+              { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
+                done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
+              { key: 'water', title: 'Отметьте стакан воды', hint: 'Нажмите — добавим 250 мл',
+                done: water.ml > 0 || week.days.some((d) => d.water_ml > 0), action: () => changeWater(250) },
+              { key: 'program', title: 'Выберите программу', hint: recommended ? 'Подобрали подходящую по анкете' : 'Готовую или свою',
+                done: programId !== null, action: () => go('workouts') },
+              { key: 'workout', title: 'Проведите первую тренировку', hint: 'Отмечайте подходы прямо во время занятия',
+                done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
+            ]} />} />
         )}
         {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
         {tab === 'workouts' && (

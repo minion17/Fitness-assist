@@ -83,6 +83,7 @@ export default function Home(props: {
   onWorkouts: () => void
   onWater: (delta: number) => void
   summary: React.ReactNode
+  intro?: React.ReactNode
 }) {
   const { targets, day, water, week } = props
   const [today] = useState(() => {
@@ -117,6 +118,8 @@ export default function Home(props: {
           <span className="pill pill-accent">Ур. {props.level}</span>
         </div>
       </header>
+
+      {props.intro}
 
       <div className="home-today">
       <section className="daily-progress" aria-label={`Прогресс дня: ${progress}%`}>

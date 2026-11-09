@@ -661,3 +661,19 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .duel-result.loss { color: var(--muted); }
 .duel-form .seg { margin-top: 10px; }
 .pill-boost { color: #1a1300; background: linear-gradient(135deg, #ffd25e, #ff9f43); border-color: transparent; font-weight: 800; }
+
+/* First steps (Home, newcomers) */
+.first-steps .bar { margin: 4px 0 6px; }
+.first-steps .bar i { background: var(--accent); }
+.first-steps-list { list-style: none; margin: 0; padding: 0; }
+.first-steps-list li + li { border-top: 1px solid var(--line); }
+.first-steps-list button { width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.first-steps-list button:disabled { cursor: default; }
+.step-mark { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; border: 2px solid var(--line); font-size: 14px; font-weight: 800; }
+.first-steps-list li.next .step-mark { border-color: var(--accent); }
+.first-steps-list li.done .step-mark { background: var(--accent); border-color: var(--accent); color: var(--primary-fg, #121316); }
+.first-steps-list li.done b { color: var(--muted); font-weight: 600; text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 50%, transparent); }
+.step-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.step-go { color: var(--muted); font-size: 22px; line-height: 1; }
+.first-steps-list li.next .step-go { color: var(--accent-text); }
+.first-steps-hide { display: block; margin: 6px 0 0 auto; }

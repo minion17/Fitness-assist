@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, expect, test, vi } from 'vitest'
 import Home from './Home'
+import FirstSteps from './FirstSteps'
 
 afterEach(cleanup)
 test('summarizes food and training with direct actions', () => {
@@ -31,4 +32,25 @@ test('shows the x2 XP booster after a duel win', () => {
     logs={[]} water={{ ml: 0, goal_ml: 2000 }} week={[]} aiEnabled={false} canEdit={false}
     onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} summary={null} />)
   expect(screen.getByText(/бустер за победу в дуэли/)).toBeTruthy()
+})
+
+test('first steps: shows progress, runs a step, hides when asked', () => {
+  const water = vi.fn()
+  const steps = [
+    { key: 'meal', title: 'Запишите, что съели', hint: '', done: true, action: vi.fn() },
+    { key: 'water', title: 'Отметьте стакан воды', hint: 'Нажмите — добавим 250 мл', done: false, action: water },
+  ]
+  render(<FirstSteps steps={steps} />)
+  expect(screen.getByText('1 из 2')).toBeTruthy()
+  expect((screen.getByRole('button', { name: 'Запишите, что съели — сделано' }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Отметьте стакан воды' }))
+  expect(water).toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Скрыть' }))
+  expect(screen.queryByLabelText('Первые шаги')).toBeNull()
+  localStorage.clear()
+})
+
+test('first steps disappear when everything is done', () => {
+  render(<FirstSteps steps={[{ key: 'a', title: 'A', hint: '', done: true, action: () => {} }]} />)
+  expect(screen.queryByLabelText('Первые шаги')).toBeNull()
 })

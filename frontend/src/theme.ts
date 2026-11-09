@@ -11,6 +11,14 @@ export const THEMES: Record<ThemePref, string> = { auto: 'Как в Telegram', d
 // Accent options for the dark theme (light keeps the same fill but darker text; green has its own)
 export const ACCENTS = ['#c8f169', '#5ef2b0', '#a98bff', '#ff8a5b']
 
+// On a light background the dark theme's pastel accents wash out: each gets a deeper fill and a dark text/button shade.
+export const LIGHT: Record<string, { fill: string; text: string }> = {
+  '#c8f169': { fill: '#8fc31f', text: '#4a6f00' },
+  '#5ef2b0': { fill: '#16b881', text: '#08704e' },
+  '#a98bff': { fill: '#8462f5', text: '#5a37d6' },
+  '#ff8a5b': { fill: '#f2692f', text: '#b4431a' },
+}
+
 const BG: Record<Theme, string> = { dark: '#0e0f12', light: '#f3f4f6', green: '#0e1510' }
 
 function read(key: string, fallback: string): string {
@@ -44,8 +52,12 @@ export function useTheme(save?: (patch: Partial<ThemeSettings>) => void) {
   useEffect(() => {
     const root = document.documentElement
     root.dataset.theme = theme
-    if (theme === 'green') root.style.removeProperty('--accent')
-    else root.style.setProperty('--accent', accent)
+    const light = theme === 'light' ? LIGHT[accent] ?? LIGHT[ACCENTS[0]] : null
+    for (const [k, v] of Object.entries({
+      '--accent': theme === 'green' ? null : light?.fill ?? accent,
+      '--accent-text': light?.text ?? null,
+      '--primary-bg': light?.text ?? null,
+    })) { if (v) root.style.setProperty(k, v); else root.style.removeProperty(k) }
     tg?.setHeaderColor?.(BG[theme])
     tg?.setBackgroundColor?.(BG[theme])
     tg?.setBottomBarColor?.(BG[theme])

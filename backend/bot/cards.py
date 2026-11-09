@@ -28,10 +28,20 @@ THEMES = {
 }
 
 
+# Same as frontend/src/theme.ts LIGHT: deeper versions of the dark theme's pastel accents for a light background.
+LIGHT_ACCENTS = {
+    "#c8f169": ("#8fc31f", "#4a6f00"), "#5ef2b0": ("#16b881", "#08704e"),
+    "#a98bff": ("#8462f5", "#5a37d6"), "#ff8a5b": ("#f2692f", "#b4431a"),
+}
+
+
 def palette(theme: str | None, accent: str | None = None) -> dict:
     p = dict(THEMES.get(theme or "dark", THEMES["dark"]))
     if accent and (theme or "dark") == "dark":
         p["accent"] = accent
+    p["accent_text"] = p["accent"]
+    if theme == "light":
+        p["accent"], p["accent_text"] = LIGHT_ACCENTS.get(accent or "", LIGHT_ACCENTS["#c8f169"])
     return p
 
 
@@ -111,7 +121,7 @@ def welcome(theme: str | None = None, accent: str | None = None) -> bytes:
     c.text((64, 170), "Питание,", 66, "text", 700, "Unbounded")
     c.text((64, 252), "тренировки", 66, "text", 700, "Unbounded")
     c.text((64, 334), "и вода —", 66, "text", 700, "Unbounded")
-    c.text((64, 416), "в одном месте", 66, "accent", 700, "Unbounded")
+    c.text((64, 416), "в одном месте", 66, "accent_text", 700, "Unbounded")
     y = 548
     x = 64
     for label in ("Сканер штрихкодов", "Еда по фото с AI", "Напоминания"):
@@ -227,4 +237,58 @@ def weekly(days: list[dict], goal: float | None, streak_days: int, workouts: int
         for x in range(x0 - 8, x0 + 7 * (bw + gap) - gap + 8, 18):  # dashed goal line
             c.d.line([x * K, gy * K, (x + 9) * K, gy * K], fill=c.p["text"], width=2 * K)
         c.text((x0 + 7 * (bw + gap) - gap + 8, gy - 34), "норма", 20, "text", 600, anchor="ra")
+    return c.png()
+
+
+# Returning users get one of several welcomes (text in bot/main.py BACK); each has its own picture.
+BACK_KINDS = ("ring", "streak", "water", "workout", "food", "comeback")
+
+
+@lru_cache(maxsize=32)
+def welcome_back(kind: str, theme: str | None = None, accent: str | None = None) -> bytes:
+    title, accent_line, art = {
+        "ring": ("Снова здесь —", "продолжаем", "ring"),
+        "streak": ("Серия", "ждёт тебя", "streak"),
+        "water": ("Стакан воды —", "лучший старт", "water"),
+        "workout": ("Тренировка", "уже в плане", "workout"),
+        "food": ("Сфоткай —", "посчитаю сам", "food"),
+        "comeback": ("Вернулся —", "уже молодец", "comeback"),
+    }[kind]
+    c = Card(theme, accent, glow=(925, 390, "water" if art == "water" else "streak" if art == "streak" else "accent"))
+    c.brand()
+    c.text((64, 300), title, 58, "text", 700, "Unbounded")
+    c.text((64, 378), accent_line, 58, "accent_text", 700, "Unbounded")
+    c.text((64, 640), "Дневник, тренировки и вода — всё на месте", 26, "muted", 500)
+    cx, cy = 925, 390
+    if art == "ring":
+        c.ring(cx, cy, 170, 32, 0.62)
+        c.text((cx, cy - 18), "день", 50, "text", 700, "Unbounded", anchor="mm")
+        c.text((cx, cy + 40), "в процессе", 24, "muted", 600, anchor="mm")
+    elif art == "streak":
+        for i, on in enumerate((1, 1, 1, 1, 1, 0, 0)):
+            x = 760 + i * 56
+            c.rect((x, cy + 70, x + 44, cy + 114), 22, "streak" if on else "track")
+        c.text((cx, cy - 60), "+1", 130, "streak", 700, "Unbounded", anchor="mm")
+        c.text((cx, cy + 30), "день к серии", 26, "muted", 600, anchor="mm")
+    elif art == "water":
+        c.rect((cx - 95, cy - 190, cx + 95, cy + 190), 46, "water_soft")
+        c.rect((cx - 95, cy + 10, cx + 95, cy + 190), 46, "water")
+        c.rect((cx - 95, cy + 10, cx + 95, cy + 60), 0, "water")
+        c.text((cx, cy - 90), "+250", 48, "water", 700, "Unbounded", anchor="mm")
+        c.text((cx, cy - 40), "мл", 24, "muted", 600, anchor="mm")
+    elif art == "workout":
+        for i, h in enumerate((120, 165, 150, 210, 255)):
+            x = 770 + i * 64
+            c.rect((x, cy + 150 - h, x + 44, cy + 150), 14, "accent" if i == 4 else "track")
+        c.text((cx, cy - 190), "+2,5 кг", 38, "text", 700, "Unbounded", anchor="mm")
+    elif art == "food":
+        c.rect((cx - 190, cy - 170, cx + 190, cy + 170), 40, "card")
+        for i, (label, color, frac) in enumerate((("Белки", "protein", .7), ("Жиры", "fat", .45), ("Углеводы", "carbs", .6))):
+            y = cy - 110 + i * 85
+            c.text((cx - 150, y), label, 24, "muted", 600)
+            c.bar((cx - 150, y + 38, cx + 150, y + 54), frac, color)
+    else:  # comeback: a big check mark in a ring
+        c.ring(cx, cy, 160, 30, 1)
+        c.d.line([((cx - 70) * K, (cy + 5) * K), ((cx - 15) * K, (cy + 60) * K), ((cx + 80) * K, (cy - 55) * K)],
+                 fill=c.p["accent"], width=30 * K, joint="curve")
     return c.png()

@@ -604,3 +604,15 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .planned-weights summary { padding: 8px 0; }
 .builder-day > .btn:not(.btn-ghost) { box-shadow: 0 6px 20px color-mix(in srgb, var(--accent) 17%, transparent); }
 @media (max-width: 350px) { .builder-day { padding: 13px; } .builder-params { gap: 4px; } .program-builder label { font-size: 11px; } }
+
+/* Light theme: depth from neutral shadows (accent halos look like smudges on white), clearer tinted surfaces. */
+[data-theme='light'] { --card-border: #e6e8ec; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 6px 18px rgba(16,24,40,.06); }
+[data-theme='light'] .card:not(.card .card, .home-today .card), [data-theme='light'] .home-today, [data-theme='light'] .meal-group, [data-theme='light'] .meal-snack,
+[data-theme='light'] .builder-day, [data-theme='light'] .builder-day-entry { box-shadow: var(--shadow); }
+[data-theme='light'] .nutrition-add, [data-theme='light'] .workout-feature .btn,
+[data-theme='light'] .builder-day > .btn:not(.btn-ghost) { box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-text) 22%, transparent); }
+[data-theme='light'] .home-chips .pill { box-shadow: none; }
+[data-theme='light'] .home-today .daily-progress-ring::before { opacity: .5; }
+[data-theme='light'] .nav-inner { box-shadow: 0 -4px 20px rgba(16,24,40,.08); }
+[data-theme='light'] .profile-metrics > .card, [data-theme='light'] .progress-summary > .card { box-shadow: none; }
+[data-theme='light'] .nav button[aria-current='page'] { color: var(--accent-text); }

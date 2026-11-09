@@ -620,6 +620,7 @@ def test_cards_render_in_every_theme():
             cards.water(0, 2500, "12:00", theme),
             cards.water(3000, 2500, "19:00", theme),
             cards.streak(365, [True] * 6 + [False], theme),
+            *(cards.welcome_back(kind, theme, "#a98bff") for kind in cards.BACK_KINDS),
         ):
             assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) < 400_000
 
@@ -633,6 +634,17 @@ def test_bot_greeting_handles_empty_and_invisible_names():
     assert greeting(None, False).startswith("Привет! 👋")
     assert greeting("<b>Хакер</b>", False).startswith("Привет, &lt;b&gt;Хакер&lt;/b&gt;!")  # HTML caption
     assert greeting("Анна Мария", True).startswith("С возвращением, Анна Мария!")
+
+
+def test_welcome_back_varies_and_never_repeats_in_a_row():
+    from backend.bot import cards
+    from backend.bot.main import BACK, greeting, pick_back
+
+    assert {b[3] for b in BACK} <= set(cards.BACK_KINDS)
+    picks = [pick_back(42) for _ in range(60)]
+    assert all(a != b for a, b in zip(picks, picks[1:])) and len(set(picks)) == len(BACK)
+    for i, (word, emoji, body, _) in enumerate(BACK):
+        assert greeting("Егор", True, i) == f"{word}, Егор! {emoji}\n\n{body}"
 
 
 def test_stats_for_charts(client, seeded):

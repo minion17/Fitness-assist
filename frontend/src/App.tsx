@@ -7,7 +7,7 @@ import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
 import Progress, { type Achievement } from './Progress'
 import Reward, { AchievementUnlocked } from './Reward'
-import { ACCENTS, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
+import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, type ProfileData, type Recommendation } from './profile'
 import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
@@ -63,7 +63,7 @@ function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
       {t.theme !== 'green' && (
         <div className="swatches" role="group" aria-label="Акцентный цвет">
           {ACCENTS.map((a) => (
-            <button key={a} aria-label={`Акцент ${a}`} aria-pressed={t.accent === a} style={{ background: a }} onClick={() => t.setAccent(a)} />
+            <button key={a} aria-label={`Акцент ${a}`} aria-pressed={t.accent === a} style={{ background: t.theme === 'light' ? LIGHT[a].fill : a }} onClick={() => t.setAccent(a)} />
           ))}
         </div>
       )}

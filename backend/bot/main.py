@@ -1,5 +1,6 @@
 import asyncio
 import html
+import random
 import logging
 import unicodedata
 
@@ -35,17 +36,30 @@ WELCOME = (
     "Для начала пара вопросов о тебе, чтобы норма была твоя, а не «средняя по больнице». "
     "Это пара минут, честно."
 )
-WELCOME_BACK = (
-    "{hello} 👋\n\n"
-    "Рад снова видеть. Дневник, тренировки и вода — всё на месте, жми «Открыть» и продолжаем."
-)
+# Returning users: (greeting word, emoji, text, picture from cards.BACK_KINDS); never the same one twice in a row.
+BACK = [
+    ("С возвращением", "👋", "Рад снова видеть. Дневник, тренировки и вода — всё на месте, жми «Открыть» и продолжаем.", "ring"),
+    ("Привет", "🔥", "Серия сама себя не продлит. Запиши хотя бы один приём пищи — и день засчитан.", "streak"),
+    ("О, привет", "💧", "Начнём с простого: стакан воды. Остальное подтянется.", "water"),
+    ("Здорово", "💪", "Если сегодня тренировка — программа уже ждёт. Если нет — просто отметь, что ел.", "workout"),
+    ("Привет", "🍽", "Сфоткай, что на тарелке, — калории посчитаю сам. Это быстрее, чем кажется.", "food"),
+    ("С возвращением", "✌️", "Неважно, сколько было пропусков. Важно, что ты здесь. Открывай — продолжим с сегодняшнего дня.", "comeback"),
+]
+last_back: dict[int, int] = {}  # shortcut: in memory, forgotten on restart; only avoids an immediate repeat
 
 
-def greeting(first_name: str | None, back: bool) -> str:
+def pick_back(telegram_id: int) -> int:
+    i = random.choice([i for i in range(len(BACK)) if i != last_back.get(telegram_id)])
+    last_back[telegram_id] = i
+    return i
+
+
+def greeting(first_name: str | None, back: bool, variant: int = 0) -> str:
     """"Привет, Егор!" — or just "Привет!" when the name is empty or made only of invisible characters."""
     name = "".join(ch for ch in (first_name or "") if unicodedata.category(ch)[0] not in "CZ" or ch == " ").strip()
-    hello = ("С возвращением" if back else "Привет") + (f", {html.escape(name)}!" if name else "!")
-    return (WELCOME_BACK if back else WELCOME).format(hello=hello)
+    word, emoji, body = (BACK[variant][:3] if back else ("Привет", "👋", None))
+    hello = word + (f", {html.escape(name)}!" if name else "!")
+    return f"{hello} {emoji}\n\n{body}" if back else WELCOME.format(hello=hello)
 
 
 async def account(telegram_id: int) -> tuple[User | None, bool]:
@@ -68,10 +82,13 @@ def open_app_keyboard(url: str, text: str = "Открыть приложение
 async def start(message: Message) -> None:
     url = current_webapp_url()
     user, back = await account(message.from_user.id) if message.from_user else (None, False)
-    caption = greeting(message.from_user and message.from_user.first_name, back)
+    variant = pick_back(message.from_user.id) if back else 0
+    caption = greeting(message.from_user and message.from_user.first_name, back, variant)
     keyboard = open_app_keyboard(url, "Открыть" if back else "Поехали →")
+    theme, accent = user and user.theme, user and user.accent
     try:
-        png = await asyncio.to_thread(cards.welcome, user and user.theme, user and user.accent)
+        png = await asyncio.to_thread(cards.welcome_back, BACK[variant][3], theme, accent) if back \
+            else await asyncio.to_thread(cards.welcome, theme, accent)
         await message.answer_photo(BufferedInputFile(png, "welcome.png"), caption=caption, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         log.warning("welcome card failed, sending text", exc_info=True)

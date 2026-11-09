@@ -285,7 +285,7 @@ test('reminders: toggles and times are saved', async () => {
   expect(saved[3]).toMatchObject({ meals: false, water: false, lunch_at: '13:30', weekly: false })
 })
 
-test('home water: portions, custom volume and undo of the last one', async () => {
+test('home water: portions, custom volume, removing any amount', async () => {
   const { default: Home } = await import('./Home')
   const onWater = vi.fn()
   const day: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
@@ -297,9 +297,16 @@ test('home water: portions, custom volume and undo of the last one', async () =>
   expect((screen.getByRole('button', { name: 'Добавить' }) as HTMLButtonElement).disabled).toBe(true) // over 1000 ml
   fireEvent.change(screen.getByLabelText('Объём, мл'), { target: { value: '400' } })
   fireEvent.click(screen.getByRole('button', { name: 'Добавить' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Убрать последние 400 мл' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Убрать последние 330 мл' }))
-  expect(onWater.mock.calls.map((c) => c[0])).toEqual([330, 400, -400, -330])
+  fireEvent.click(screen.getByRole('button', { name: 'Режим: убирать' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать 150 мл' }))
+  expect(screen.getByRole('button', { name: 'Добавить 250 мл' })).toBeTruthy() // back to adding after one fix
+  fireEvent.click(screen.getByRole('button', { name: 'Режим: убирать' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать свой объём' }))
+  fireEvent.change(screen.getByLabelText('Убрать, мл'), { target: { value: '600' } })
+  expect((screen.getByRole('button', { name: 'Убрать' }) as HTMLButtonElement).disabled).toBe(true) // more than drunk (500)
+  fireEvent.change(screen.getByLabelText('Убрать, мл'), { target: { value: '200' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать' }))
+  expect(onWater.mock.calls.map((c) => c[0])).toEqual([330, 400, -150, -200])
 })
 
 test('menu photo: pick dishes, save with the restaurant, then quick portions', async () => {

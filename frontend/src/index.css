@@ -313,7 +313,7 @@ label.link { cursor: pointer; }
 .programs-entry-text > span { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .programs-entry-action { flex-shrink: 0; color: var(--accent-text); font-size: 14px; font-weight: 600; }
 .programs-entry:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-.personal-programs > .btn { align-self: center; width: min(100%, 300px); min-height: 48px; padding: 12px 20px; margin-bottom: 20px; border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent); background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent-text); box-shadow: 0 0 24px color-mix(in srgb, var(--accent) 18%, transparent); }
+.personal-programs > .btn { align-self: center; width: min(100%, 300px); min-height: 48px; padding: 12px 20px; margin-bottom: 20px; border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent); background: color-mix(in srgb, var(--accent) 16%, var(--card)); color: var(--accent-text); }
 .builder-name-content { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
 .program-builder label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 14px; }
 .program-builder input, .program-builder select { width: 100%; min-width: 0; font: inherit; font-size: 16px; color: var(--text); background: var(--card-2); border: 1px solid transparent; border-radius: 12px; padding: 10px; }
@@ -439,13 +439,13 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .nutrition-summary { padding: 20px; gap: 18px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 7%, var(--card)), var(--card) 65%); }
 .nutrition-summary .ring-wrap svg { flex: 0 0 104px; filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 16%, transparent)); }
 .nutrition-summary .macro-row { font-size: 13px; gap: 6px; }
-.nutrition-add { box-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 20%, transparent); }
+.nutrition-add { box-shadow: none; }  /* a glow under a button read as a smudge */
 .meal-diary { padding: 20px; }
 .meal-diary > h2 { font-size: 18px; margin-bottom: 2px; }
 .meal-group { padding: 18px 0; gap: 12px; }
 .meal-actions .link:not(.meal-repeat) { min-height: 38px; padding: 8px 14px; }
 .workout-feature { background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 7%, var(--card)), var(--card) 65%); }
-.workout-feature .btn { box-shadow: 0 6px 24px color-mix(in srgb, var(--accent) 18%, transparent); }
+.workout-feature .btn { box-shadow: none; }
 .programs-entry { align-items: center; }
 .row-title { line-height: 1.35; }
 .nav-inner { box-shadow: 0 -8px 28px rgba(0,0,0,.16); }
@@ -548,7 +548,7 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 @media (max-width: 350px) { .session-set-labels, .session-exercise .set-row { grid-template-columns: 30px minmax(0,1fr) minmax(0,1fr) 40px; gap: 5px; } .session-set-labels { font-size: 9px; } .programs-entry { padding: 16px; } }
 
 .home-overview .overview-link { display: flex; align-items: center; gap: 6px; color: var(--accent-text); font-size: 13px; font-weight: 700; }
-.home-chips .pill { background: color-mix(in srgb, var(--accent) 12%, var(--card)); border-color: color-mix(in srgb, var(--accent) 30%, var(--card-border)); box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 12%, transparent); }
+.home-chips .pill { background: color-mix(in srgb, var(--accent) 12%, var(--card)); border-color: color-mix(in srgb, var(--accent) 30%, var(--card-border)); }
 .home-chips .pill:first-child { color: var(--text); }
 .daily-progress-caption { font-weight: 600; }
 
@@ -575,7 +575,7 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 
 /* Compact meal cards with a subtle accent halo. */
 .meal-diary { gap: 8px; }
-.meal-group { padding: 10px 14px; gap: 2px; border-color: transparent; box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 8%, transparent); }
+.meal-group { padding: 10px 14px; gap: 2px; border-color: transparent; }
 .meal-toggle { min-height: 30px; }
 .meal-actions { gap: 6px 16px; }
 .meal-actions .link:not(.meal-repeat), .meal-actions .meal-repeat { min-height: 36px; padding: 5px 0; }
@@ -626,8 +626,7 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 [data-theme='light'] .progress-overview .progress-summary { background: transparent; gap: 6px; }
 [data-theme='light'] .home-today .daily-progress-ring::before { display: none; }
 [data-theme='light'] .nutrition-summary .ring-wrap svg { filter: none; }
-[data-theme='light'] .nutrition-add, [data-theme='light'] .workout-feature .btn,
-[data-theme='light'] .builder-day > .btn:not(.btn-ghost) { box-shadow: 0 6px 18px color-mix(in srgb, var(--accent-text) 22%, transparent); }
+
 [data-theme='light'] .home-chips .pill { background: #fff; border-color: var(--card-border); box-shadow: 0 1px 2px rgba(16,24,40,.06); }
 [data-theme='light'] .nav-inner { box-shadow: 0 -4px 20px rgba(16,24,40,.08); }
 [data-theme='light'] .nav button[aria-current='page'] { border-color: transparent; }
@@ -712,3 +711,7 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .skeleton-line { width: 72px; height: 22px; vertical-align: middle; }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 @media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }
+.water-mode { display: flex; flex-shrink: 0; padding: 3px; gap: 2px; border-radius: 12px; background: var(--card-2); }
+.water-mode button { width: 34px; height: 28px; border-radius: 9px; font-size: 18px; line-height: 1; font-weight: 700; color: var(--muted); }
+.water-mode button[aria-pressed='true'] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.water-removing .water-chips button:not(.water-cancel) { background: color-mix(in srgb, #ff8a80 14%, var(--card-2)); color: #ff8a80; }

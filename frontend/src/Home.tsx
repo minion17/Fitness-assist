@@ -27,37 +27,48 @@ function MiniRing({ frac, today }: { frac: number; today: boolean }) {
 const PORTIONS = [150, 250, 330, 500]
 
 function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean; onWater: (delta: number) => void }) {
-  const [added, setAdded] = useState<number[]>([]) // this session's additions, so "undo" removes exactly the last one
+  const [remove, setRemove] = useState(false) // "Убрать": the same chips subtract (any amount, not only the last glass)
   const [custom, setCustom] = useState<string | null>(null)
   const ml = Number(custom)
-  const customOk = Number.isInteger(ml) && ml >= 10 && ml <= 1000
-  const add = (n: number) => { setAdded((a) => [...a, n]); onWater(n) }
-  const undo = () => { const n = added.at(-1) ?? 250; setAdded((a) => a.slice(0, -1)); onWater(-Math.min(n, water.ml)) }
+  const sign = remove ? -1 : 1
+  const customOk = Number.isInteger(ml) && ml >= 10 && ml <= (remove ? Math.min(1000, water.ml) : 1000)
+  const change = (n: number) => {
+    onWater(sign * Math.min(n, remove ? water.ml : n))
+    setCustom(null)
+    if (remove) setRemove(false) // a correction is usually one tap; back to adding
+  }
 
   return (
-    <section className="card water">
+    <section className={`card water${remove ? ' water-removing' : ''}`}>
       <div className="water-row">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--water)" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" /></svg>
         <div className="row-title strong row-main">Вода · {liters(water.ml)} <span className="muted">/ {liters(water.goal_ml)} л</span></div>
         {canEdit && water.ml > 0 && (
-          <button className="water-undo" aria-label={`Убрать последние ${added.at(-1) ?? 250} мл`} onClick={undo}>↶ {added.at(-1) ?? 250}</button>
+          <div className="water-mode" role="group" aria-label="Режим">
+            <button aria-pressed={!remove} aria-label="Режим: добавлять" onClick={() => { setRemove(false); setCustom(null) }}>+</button>
+            <button aria-pressed={remove} aria-label="Режим: убирать" onClick={() => { setRemove(true); setCustom(null) }}>−</button>
+          </div>
         )}
       </div>
       <div className="bar water-bar"><i style={{ width: `${Math.min(100, (water.ml / water.goal_ml) * 100)}%`, background: 'var(--water)' }} /></div>
       {canEdit && (custom === null ? (
         <div className="water-chips">
-          {PORTIONS.map((n) => <button key={n} aria-label={`Добавить ${n} мл`} onClick={() => add(n)}>+{n}</button>)}
-          <button aria-label="Свой объём" onClick={() => setCustom('')}>Своё</button>
+          {PORTIONS.map((n) => (
+            <button key={n} aria-label={`${remove ? 'Убрать' : 'Добавить'} ${n} мл`} disabled={remove && water.ml <= 0} onClick={() => change(n)}>
+              {remove ? '−' : '+'}{n}
+            </button>
+          ))}
+          <button aria-label={remove ? 'Убрать свой объём' : 'Свой объём'} onClick={() => setCustom('')}>Своё</button>
         </div>
       ) : (
         <div className="water-chips">
           <div className="input-wrap water-input">
-            <input autoFocus inputMode="numeric" aria-label="Объём, мл" placeholder="мл" value={custom}
+            <input autoFocus inputMode="numeric" aria-label={remove ? 'Убрать, мл' : 'Объём, мл'} placeholder="мл" value={custom}
               onChange={(e) => setCustom(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              onKeyDown={(e) => { if (e.key === 'Enter' && customOk) { add(ml); setCustom(null) } }} />
+              onKeyDown={(e) => { if (e.key === 'Enter' && customOk) change(ml) }} />
             <i>мл</i>
           </div>
-          <button disabled={!customOk} onClick={() => { add(ml); setCustom(null) }}>Добавить</button>
+          <button disabled={!customOk} onClick={() => change(ml)}>{remove ? 'Убрать' : 'Добавить'}</button>
           <button className="water-cancel" onClick={() => setCustom(null)}>Отмена</button>
         </div>
       ))}

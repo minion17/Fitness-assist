@@ -745,7 +745,6 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .week-day.picked { background: var(--card-2); }
 .week-kcal { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .week-detail { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--card-2); font-size: 14px; }
-.week-detail b::first-letter { text-transform: uppercase; }
 .food-icon { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: var(--card-2); margin-right: 2px; }
 
 /* Swipeable diary line */
@@ -759,3 +758,50 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .muted-link { color: var(--muted); }
 .repeat-meal { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .repeat-icon { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; font-weight: 800; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); }
+
+/* Workout "player": one exercise per screen, big controls */
+.player-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 2px 0 10px; }
+.player-dots { display: flex; gap: 6px; flex-wrap: wrap; }
+.player-dots button { width: 22px; height: 8px; border-radius: 4px; background: var(--ring-track); padding: 0; }
+.player-dots button.done { background: color-mix(in srgb, var(--accent) 55%, var(--ring-track)); }
+.player-dots button[aria-selected='true'] { width: 34px; background: var(--accent); }
+.session-exercise.player { padding: 18px 16px; }
+.session-exercise.player .row-title { font-size: 22px; font-weight: 800; line-height: 1.2; }
+.session-exercise.player .set-row { min-height: 60px; }
+.session-exercise.player .set-row input { font-size: 20px; height: 48px; }
+.session-exercise.player .check { width: 52px; height: 52px; font-size: 22px; }
+.set-row.current { border-radius: 14px; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.player-nav { display: flex; gap: 10px; margin: 4px 0 10px; }
+.player-nav .btn { flex: 1; }
+
+/* ---- Theme character: not only colours ----
+   Тёмная — собранная, спортивная: строгие скругления, заголовки шрифтом Unbounded.
+   Светлая — воздушная: крупные скругления, больше воздуха внутри карточек.
+   Салатовая — мягкая и тёплая: всё округлое, кнопки-таблетки, шрифт Nunito. */
+:root:not([data-theme]), [data-theme='dark'] { --radius: 18px; }
+:root:not([data-theme]) h1, [data-theme='dark'] h1 { font-family: var(--font-display); font-weight: 700; letter-spacing: -.01em; font-size: 24px; }
+:root:not([data-theme]) .btn, [data-theme='dark'] .btn { border-radius: 14px; }
+:root:not([data-theme]) .card:not(.card .card), [data-theme='dark'] .card:not(.card .card) {
+  background-image: linear-gradient(180deg, rgba(255,255,255,.035), transparent 40%);
+}
+
+[data-theme='light'] { --radius: 24px; }
+[data-theme='light'] .card { padding: 18px; }
+[data-theme='light'] h1 { font-weight: 800; letter-spacing: -.03em; }
+
+[data-theme='green'] { --radius: 28px; }
+[data-theme='green'] .btn, [data-theme='green'] .home-actions .btn, [data-theme='green'] .water-chips button,
+[data-theme='green'] .seg button, [data-theme='green'] .check, [data-theme='green'] input,
+[data-theme='green'] .food-icon, [data-theme='green'] .quest-icon, [data-theme='green'] .repeat-icon { border-radius: 999px; }
+[data-theme='green'] .seg button { text-align: center; }
+[data-theme='green'] h1 { font-weight: 900; letter-spacing: -.01em; }
+[data-theme='green'] .nav-inner { border-radius: 999px; }
+
+/* Empty states */
+.empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 10px 8px 4px; }
+.empty-art { fill: none; stroke: color-mix(in srgb, var(--muted) 70%, transparent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 4px; }
+.empty-art .accent-fill { fill: var(--accent); stroke: none; }
+.empty .sub { max-width: 280px; }
+.empty-action { width: auto; margin-top: 8px; padding: 11px 22px; }
+/* green: the accent is also the button text colour, so marks on an accent fill need a dark ink */
+[data-theme='green'] .quest-list li.done .quest-icon, [data-theme='green'] .first-steps-list li.done .step-mark { color: #13200f; }

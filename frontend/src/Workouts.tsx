@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Recommendation } from './profile'
 import { api, postJson, tg } from './telegram'
 import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type WorkoutLog } from './types'
+import Empty from './Empty'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -119,7 +120,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
       <section className="card">
         <h2>История</h2>
-        {logs.length === 0 ? <span className="sub">Пока пусто — первая тренировка появится здесь.</span> : (
+        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведите первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
           <div className="list">
             {logs.slice(0, 10).map((l) => (
               <div className="row" key={l.id}>
@@ -150,6 +151,8 @@ function Session({ program, day, onExit, onChanged }: {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [last, setLast] = useState<Last>({})
+  const [cur, setCur] = useState(0)        // the exercise on screen ("player": one at a time)
+  const [list, setList] = useState(false)  // or all of them as a list
 
   useEffect(() => {
     let stale = false
@@ -192,6 +195,9 @@ function Session({ program, day, onExit, onChanged }: {
       await api(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
       update(ei, si, { saved: true })
       tg?.HapticFeedback?.impactOccurred?.('medium')
+      if (!list && ei === cur && cur < day.exercises.length - 1 && sets[ei].every((x, j) => j === si || x.saved)) {
+        setTimeout(() => setCur((c) => (c === ei ? c + 1 : c)), 450) // the exercise is done: next one
+      }
     } catch {
       setError('Не удалось сохранить подход. Проверьте соединение.')
     } finally {
@@ -216,14 +222,30 @@ function Session({ program, day, onExit, onChanged }: {
     onExit()
   }
 
+  const total = day.exercises.length
+  const shown = list ? day.exercises.map((e, ei) => [e, ei] as const) : total ? [[day.exercises[cur], cur] as const] : []
+  const doneEx = (ei: number) => sets[ei].length > 0 && sets[ei].every((x) => x.saved)
+
   return (
     <>
       <div className="card-head">
         <h1 style={{ fontSize: 22 }}>{day.day_name}</h1>
         <button className="link" onClick={exit}>Назад</button>
       </div>
-      {day.exercises.map((e, ei) => (
-        <section className="card session-exercise" key={ei}>
+      {total > 1 && (
+        <div className="player-top">
+          <div className="player-dots" role="tablist" aria-label="Упражнения">
+            {day.exercises.map((e, ei) => (
+              <button key={ei} role="tab" aria-selected={!list && ei === cur} aria-label={`${ei + 1}. ${e.name}`}
+                className={doneEx(ei) ? 'done' : ''} onClick={() => { setList(false); setCur(ei) }} />
+            ))}
+          </div>
+          <button className="link" onClick={() => setList(!list)}>{list ? 'По одному' : 'Все упражнения'}</button>
+        </div>
+      )}
+      {shown.map(([e, ei]) => (
+        <section className={list ? 'card session-exercise' : 'card session-exercise player'} key={ei}>
+          {!list && total > 1 && <span className="sub">Упражнение {ei + 1} из {total}</span>}
           <div className="session-exercise-title">
             <div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div>
             <div className="sub">План: {e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''} · отдых {e.rest_seconds} с</div>
@@ -234,7 +256,7 @@ function Session({ program, day, onExit, onChanged }: {
           </div>
           <div className="session-set-labels" aria-hidden="true"><span>Подход</span><span>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'Время' : 'Повторы'}</span><span>Вес</span><span>Готово</span></div>
           {sets[ei].map((s, si) => (
-            <div className="set-row" key={si}>
+            <div className={si === sets[ei].findIndex((x) => !x.saved) ? 'set-row current' : 'set-row'} key={si}>
               <span className="sub">{si + 1}</span>
               <div className="input-wrap"><input inputMode="numeric" aria-label={`${e.name}, подход ${si + 1}, ${e.unit === 'seconds' || /сек/i.test(e.reps) ? 'секунды' : 'повторы'}`} value={s.reps}
                 disabled={s.saved} onChange={(ev) => update(ei, si, { reps: ev.target.value })} /><i>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'сек' : 'повт'}</i></div>
@@ -246,8 +268,14 @@ function Session({ program, day, onExit, onChanged }: {
           ))}
         </section>
       ))}
+      {!list && total > 1 && (
+        <div className="player-nav">
+          <button className="btn btn-ghost" disabled={cur === 0} onClick={() => setCur(cur - 1)}>← Назад</button>
+          {cur < total - 1 && <button className="btn" onClick={() => setCur(cur + 1)}>{doneEx(cur) ? 'Следующее →' : 'Дальше →'}</button>}
+        </div>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
-      <button className="btn" disabled={savedCount === 0 || busy} onClick={finish}>
+      <button className={!list && total > 1 && cur < total - 1 ? 'btn btn-ghost' : 'btn'} disabled={savedCount === 0 || busy} onClick={finish}>
         {savedCount === 0 ? 'Отметьте хотя бы один подход' : `Завершить тренировку · ${savedCount} подх.`}
       </button>
     </>

@@ -1,5 +1,6 @@
 // "Друзья" (in Прогресс): invite link, weekly leaderboard, friendly duels and a share card sent by the bot.
 import { useCallback, useEffect, useState } from 'react'
+import Empty from './Empty'
 import { api, postJson, tg } from './telegram'
 
 type Row = { id: number; name: string; me: boolean; level: number; week_xp: number; streak: number; registered: boolean }
@@ -45,6 +46,7 @@ export default function Friends() {
   return (
     <>
       <section className="card friends-hero">
+        {!friends.length && <Empty art="friends" title="" />}
         <h2>{friends.length ? 'Друзья' : 'Вместе проще не бросить'}</h2>
         <p className="sub">{friends.length
           ? 'Рейтинг недели, дуэли и общий азарт.'

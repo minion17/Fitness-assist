@@ -100,6 +100,7 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
   )
 }
 
+const cap = (t: string) => t[0].toUpperCase() + t.slice(1)
 const short = (kcal: number) => (kcal >= 1000 ? `${(kcal / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}к` : kcal > 0 ? String(Math.round(kcal)) : '—')
 
 /** Seven days as rings with calories under each; tap a day for its numbers. */
@@ -125,7 +126,7 @@ function WeekCard({ week, goal, norm }: { week: WeekDay[]; goal: number; norm: n
       </div>
       {d && (
         <p className="week-detail" role="status">
-          <b>{new Date(d.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
+          <b>{cap(new Date(d.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }))}</b>
           {' · '}{fmt(d.kcal)} ккал · вода {liters(d.water_ml)} л{d.workouts ? ` · тренировок: ${d.workouts}` : ''}
         </p>
       )}

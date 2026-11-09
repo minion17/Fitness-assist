@@ -1,6 +1,7 @@
 // "Прогресс": period summary, charts (calories, weight, water, macros, exercise records) and achievements.
 import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
+import Empty from './Empty'
 import Friends from './Friends'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar } from './ui'
@@ -96,7 +97,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
             </div>
             {chart === 'calories' && <BarChart data={s.days.map((d) => ({ date: d.date, value: d.kcal }))} color="var(--accent)" goal={s.goal?.calories} unit="ккал" height={76} />}
             {chart === 'water' && <BarChart data={s.days.map((d) => ({ date: d.date, value: d.water_ml }))} color="var(--water)" goal={s.goal?.water_ml} unit="мл" height={76} />}
-            {chart === 'weight' && (w.length ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={76} /> : <p className="sub">Пока нет записей веса</p>)}
+            {chart === 'weight' && (w.length ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={76} /> : <Empty art="chart" title="Пока нет записей веса" text="Запишите вес в разделе ниже — здесь появится линия, как он меняется." />)}
           </section>
 
           {s.goal && logged.length > 0 && (

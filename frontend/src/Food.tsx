@@ -4,6 +4,7 @@ import AiMeal from './AiMeal'
 import { shrink } from './image'
 import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
+import Empty from './Empty'
 import MenuImport from './MenuImport'
 import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
@@ -172,7 +173,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams =
             </button>
             <div className="meal-totals">{items.length === 0 ? 'Пока пусто'
               : `${Math.round(kcal)} ккал · Б ${Math.round(items.reduce((n, i) => n + i.protein_g, 0))} · Ж ${Math.round(items.reduce((n, i) => n + i.fat_g, 0))} · У ${Math.round(items.reduce((n, i) => n + i.carbs_g, 0))}`}</div>
-            {expandedMeals.includes(key) && (items.length === 0 ? <p className="sub">Пока нет продуктов</p> : (
+            {expandedMeals.includes(key) && (items.length === 0 ? <Empty art="plate" title="Тарелка пока пустая" text="Добавьте продукт — поиском, по штрихкоду или фото." /> : (
               <div className="list">
                 {items.map((i) => (
                   <FoodRow key={i.id} item={i} canEdit={canEdit} onDelete={onDelete} onGrams={onGrams} />

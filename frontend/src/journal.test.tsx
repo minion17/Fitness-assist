@@ -12,7 +12,7 @@ import Quests from './Quests'
 
 vi.mock('./telegram', () => {
   class ApiError extends Error { status: number; constructor(status: number, msg: string) { super(msg); this.status = status } }
-  return { api: vi.fn(), publicGet: vi.fn(), postJson: (b: unknown) => ({ method: 'POST', body: JSON.stringify(b) }), ApiError }
+  return { api: vi.fn(), publicGet: vi.fn(), postJson: (b: unknown) => ({ method: 'POST', body: JSON.stringify(b) }), ApiError, tg: undefined, tgUser: undefined }
 })
 const apiMock = vi.mocked(api)
 const publicGetMock = vi.mocked(publicGet)
@@ -394,4 +394,22 @@ test('weekly tasks: progress and days left', () => {
   expect(screen.getByText('1 из 3')).toBeTruthy()
   expect(screen.getByText('ещё 3 дня')).toBeTruthy()
   expect(screen.getByText('Все три — ещё +50 XP')).toBeTruthy()
+})
+
+test('workout player: one exercise at a time, moves on when its sets are done', async () => {
+  const two: Program = { ...program, days: [{ ...program.days[0], exercises: [
+    { exercise_id: 7, name: 'Жим лёжа', sets: 1, reps: '8', rest_seconds: 90, notes: null },
+    { exercise_id: 8, name: 'Тяга', sets: 1, reps: '10', rest_seconds: 90, notes: null }] }, program.days[1]] }
+  apiMock.mockImplementation(async (path: string) => (path.startsWith('/api/exercises/last') ? {} : path === '/api/workout-logs' ? { id: 5 } : { id: 1 }))
+  render(<Workouts programs={[two]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Начать тренировку' }))
+  expect(screen.getByText('Упражнение 1 из 2')).toBeTruthy()
+  expect(screen.queryByLabelText('Тяга, подход 1, вес')).toBeNull()
+  fireEvent.change(screen.getByLabelText('Жим лёжа, подход 1, вес'), { target: { value: '60' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить подход 1' }))
+  await waitFor(() => expect(apiMock.mock.calls.some((c) => String(c[0]).endsWith('/sets'))).toBe(true))
+  expect(await screen.findByText('Упражнение 2 из 2', {}, { timeout: 2000 })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Все упражнения' }))
+  expect(screen.getByLabelText('Жим лёжа, подход 1, вес')).toBeTruthy()
+  expect(screen.getByLabelText('Тяга, подход 1, вес')).toBeTruthy()
 })

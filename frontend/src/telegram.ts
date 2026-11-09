@@ -49,9 +49,12 @@ export const postJson = (body: unknown): RequestInit => ({
 export const putJson = (body: unknown): RequestInit => ({ ...postJson(body), method: 'PUT' })
 
 /** Calls backend with signed initData; returns null outside Telegram. */
+/** The phone's IANA zone, e.g. "Asia/Yekaterinburg": the server counts days and reminders in it. */
+export const deviceTz = () => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || '' } catch { return '' } }
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T | null> {
   if (!tg?.initData) return null
-  const res = await fetch(path, { ...init, headers: { ...init.headers, Authorization: `tma ${tg.initData}` } })
+  const res = await fetch(path, { ...init, headers: { ...init.headers, Authorization: `tma ${tg.initData}`, 'X-Timezone': deviceTz() } })
   if (!res.ok) throw new ApiError(res.status, await res.text())
   return res.json()
 }

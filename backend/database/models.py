@@ -22,6 +22,9 @@ class User(Base):
     program_id: Mapped[int | None] = mapped_column(ForeignKey("programs.id", ondelete="SET NULL"))
     # earned every 7 days of streak (max 2); a missed day spends one instead of breaking the streak
     streak_freezes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # IANA zone: chosen in the profile, else the phone's (sent by the Mini App on every request)
+    timezone: Mapped[str | None] = mapped_column(String(64))
+    device_tz: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -195,7 +198,7 @@ class UserBarcode(Base):
 
 
 class ReminderSettings(Base):
-    """What the bot may remind the user about, and when (server-local "HH:MM")."""
+    """What the bot may remind the user about, and when ("HH:MM" in the user's timezone)."""
     __tablename__ = "reminder_settings"
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)

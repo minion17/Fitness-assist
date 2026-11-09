@@ -1,6 +1,6 @@
 """AI features: meal from text/photo (draft → user confirms) and day/week summaries."""
 import base64
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -12,6 +12,7 @@ from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import ai
 from backend.core.config import settings
 from backend.core.nutrition import GOAL_RU, daily_targets
+from backend.core import clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import (
     AiRequest,
@@ -38,7 +39,7 @@ CATALOG_LIMIT = 400  # shortcut: whole catalog goes into the prompt; prefilter b
 
 
 def day_start(d: date) -> datetime:
-    return datetime.combine(d, time.min).astimezone()  # server-local day, same as the food diary
+    return clock.local_start(d)
 
 
 async def use_quota(session: AsyncSession, user: User, kind: str) -> None:
@@ -47,7 +48,7 @@ async def use_quota(session: AsyncSession, user: User, kind: str) -> None:
         raise HTTPException(503, "AI не настроен: добавьте ANTHROPIC_API_KEY в .env")
     used = await session.scalar(
         select(func.count(AiRequest.id)).where(
-            AiRequest.user_id == user.id, AiRequest.created_at >= day_start(date.today())
+            AiRequest.user_id == user.id, AiRequest.created_at >= day_start(clock.today())
         )
     )
     if used >= settings.ai_daily_limit:
@@ -198,7 +199,7 @@ class ConfirmIn(BaseModel):
 async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """Write the (possibly edited) draft to the diary. Unknown products become the user's own products."""
     user = await get_or_create_user(tg, session)
-    slot = datetime.now().strftime("%H:%M") if body.meal_type == "snack" else None  # one snack per recognised meal
+    slot = clock.now().strftime("%H:%M") if body.meal_type == "snack" else None  # one snack per recognised meal
     logs = []
     for it in body.items:
         if it.product_id is not None:
@@ -221,7 +222,7 @@ async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), sessi
     session.add_all(logs)
     await session.commit()
     # same key as the manual diary, so XP stays once per meal type per day
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{date.today()}:{body.meal_type}")
+    xp = await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{body.meal_type}")
     return {"added": len(logs), "xp_awarded": xp}
 
 
@@ -239,7 +240,7 @@ SUMMARY_SYSTEM = """Ты доброжелательный фитнес-помо�
 
 
 async def summary_data(session: AsyncSession, user: User, period: str) -> str:
-    today = date.today()
+    today = clock.today()
     days = 1 if period == "day" else 7
     start = day_start(today - timedelta(days=days - 1))
     profile = await session.get(Profile, user.id)
@@ -267,7 +268,7 @@ async def summary_data(session: AsyncSession, user: User, period: str) -> str:
     by_day: dict[date, dict] = {}
     for l in logs:
         p, k = products[l.product_id], l.amount_g / 100
-        d = by_day.setdefault(l.logged_at.astimezone().date(), {"kcal": 0, "p": 0, "f": 0, "c": 0, "items": []})
+        d = by_day.setdefault(l.logged_at.astimezone(clock.tz()).date(), {"kcal": 0, "p": 0, "f": 0, "c": 0, "items": []})
         d["kcal"] += p.kcal * k; d["p"] += p.protein_g * k; d["f"] += p.fat_g * k; d["c"] += p.carbs_g * k
         d["items"].append(f"{p.name} {round(l.amount_g)} г")
     if by_day:
@@ -303,7 +304,7 @@ async def summary(
     tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session),
 ):
     user = await get_or_create_user(tg, session)
-    today = date.today()
+    today = clock.today()
     cached = await session.scalar(
         select(AiSummary).where(AiSummary.user_id == user.id, AiSummary.period == period, AiSummary.day == today)
     )
@@ -331,7 +332,7 @@ async def status(tg: dict = Depends(telegram_user), session: AsyncSession = Depe
     """Lets the UI hide AI buttons when no key is configured and show remaining quota."""
     user = await get_or_create_user(tg, session)
     used = await session.scalar(
-        select(func.count(AiRequest.id)).where(AiRequest.user_id == user.id, AiRequest.created_at >= day_start(date.today()))
+        select(func.count(AiRequest.id)).where(AiRequest.user_id == user.id, AiRequest.created_at >= day_start(clock.today()))
     )
     return {"enabled": bool(settings.anthropic_api_key), "used_today": used, "daily_limit": settings.ai_daily_limit}
 
@@ -472,7 +473,7 @@ async def weekly_tip(session: AsyncSession, user: User) -> str | None:
     Sent by the app itself, so it doesn't count against the user's daily AI limit."""
     if not settings.anthropic_api_key:
         return None
-    today = date.today()
+    today = clock.today()
     cached = await session.scalar(
         select(AiSummary).where(AiSummary.user_id == user.id, AiSummary.period == "week", AiSummary.day == today)
     )

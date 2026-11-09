@@ -1,5 +1,5 @@
 """Water tracker and the last-7-days overview (week rings + streak)."""
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.deps import get_or_create_user, telegram_user
+from backend.core import clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import FoodLog, FrozenDay, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
 from backend.database.rewards import award_xp
@@ -17,7 +18,7 @@ MAX_ML = 6000
 
 
 def local_start(d: date) -> datetime:
-    return datetime.combine(d, time.min).astimezone()  # server-local day, same as the food diary
+    return clock.local_start(d)
 
 
 def water_goal(profile: Profile | None) -> int:
@@ -31,7 +32,7 @@ def water_goal(profile: Profile | None) -> int:
 @router.get("/water")
 async def get_water(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    row = await session.scalar(select(WaterIntake).where(WaterIntake.user_id == user.id, WaterIntake.day == date.today()))
+    row = await session.scalar(select(WaterIntake).where(WaterIntake.user_id == user.id, WaterIntake.day == clock.today()))
     return {"ml": row.ml if row else 0, "goal_ml": water_goal(await session.get(Profile, user.id))}
 
 
@@ -42,7 +43,7 @@ class WaterIn(BaseModel):
 @router.post("/water")
 async def add_water(body: WaterIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    today = date.today()
+    today = clock.today()
     # atomic upsert so two quick taps can't lose a glass; result clamped to 0..MAX_ML
     ml = await session.scalar(
         insert(WaterIntake)
@@ -73,13 +74,13 @@ async def active_days(session: AsyncSession, user: User, since: date) -> dict[da
         .where(FoodLog.user_id == user.id, FoodLog.logged_at >= start)
     )
     for logged_at, grams, kcal in rows:
-        bucket(logged_at.astimezone().date())["kcal"] += kcal * grams / 100
+        bucket(logged_at.astimezone(clock.tz()).date())["kcal"] += kcal * grams / 100
     for w in await session.scalars(select(WaterIntake).where(WaterIntake.user_id == user.id, WaterIntake.day >= since)):
         bucket(w.day)["water_ml"] = w.ml
     for done in await session.scalars(
         select(WorkoutLog.completed_at).where(WorkoutLog.user_id == user.id, WorkoutLog.completed_at >= start)
     ):
-        bucket(done.astimezone().date())["workouts"] += 1
+        bucket(done.astimezone(clock.tz()).date())["workouts"] += 1
     return days
 
 
@@ -132,7 +133,7 @@ async def streak_state(session: AsyncSession, user: User, today: date) -> tuple[
 @router.get("/week")
 async def week(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    today = date.today()
+    today = clock.today()
     n, days = await streak_state(session, user, today)
     last7 = [today - timedelta(days=i) for i in range(6, -1, -1)]
     empty = {"kcal": 0.0, "water_ml": 0, "workouts": 0}

@@ -9,6 +9,7 @@ from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core.nutrition import daily_targets
 from backend.core.gamification import level_progress
+from backend.core import clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.rewards import award_xp
 from backend.database.models import (
@@ -35,7 +36,7 @@ async def daily_series(session: AsyncSession, user: User, since: date, until: da
         .where(FoodLog.user_id == user.id, FoodLog.logged_at >= start, FoodLog.logged_at < end)
     )
     for at, grams, kcal, p, f, c in food:
-        r = rows.get(at.astimezone().date())
+        r = rows.get(at.astimezone(clock.tz()).date())
         if r:
             k = grams / 100
             r["kcal"] += kcal * k
@@ -51,7 +52,7 @@ async def daily_series(session: AsyncSession, user: User, since: date, until: da
             WorkoutLog.user_id == user.id, WorkoutLog.completed_at >= start, WorkoutLog.completed_at < end
         )
     ):
-        r = rows.get(done.astimezone().date())
+        r = rows.get(done.astimezone(clock.tz()).date())
         if r:
             r["workouts"] += 1
     return [{"date": d.isoformat(), **{k: round(v) if k != "water_ml" else v for k, v in r.items()}} for d, r in rows.items()]
@@ -62,7 +63,7 @@ async def stats(
     days: int = Query(30, ge=7, le=365), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
     user = await get_or_create_user(tg, session)
-    today = date.today()
+    today = clock.today()
     since = today - timedelta(days=days - 1)
     profile = await session.get(Profile, user.id)
     t = targets(profile)
@@ -84,7 +85,7 @@ async def stats(
     best: dict[int, dict] = {}
     for ex_id, name, at, kg, reps in sets:
         e = best.setdefault(ex_id, {"id": ex_id, "name": name, "points": {}})
-        d = at.astimezone().date().isoformat()
+        d = at.astimezone(clock.tz()).date().isoformat()
         cur = e["points"].get(d)
         if cur is None or (kg, reps) > (cur["kg"], cur["reps"]):
             e["points"][d] = {"date": d, "kg": kg, "reps": reps}
@@ -122,7 +123,7 @@ ACHIEVEMENTS = [
 
 
 async def metrics(session: AsyncSession, user: User) -> dict[str, int]:
-    today = date.today()
+    today = clock.today()
     _, days = await streak_state(session, user, today)
     best, run = 0, 0
     for i in range(366):  # longest run of active days in the last year

@@ -2,13 +2,14 @@
 from fastapi import Header, HTTPException
 from sqlalchemy import select
 
+from backend.core import clock
 from backend.core.config import settings
 from backend.core.telegram_auth import InitDataError, validate_init_data
 from backend.database.db import AsyncSession
 from backend.database.models import User
 
 
-def telegram_user(authorization: str = Header(default="")) -> dict:
+def telegram_user(authorization: str = Header(default=""), x_timezone: str = Header(default="")) -> dict:
     """Mini App sends `Authorization: tma <initData>`."""
     scheme, _, init_data = authorization.partition(" ")
     if scheme.lower() != "tma":
@@ -19,12 +20,12 @@ def telegram_user(authorization: str = Header(default="")) -> dict:
         raise HTTPException(401, f"invalid initData: {e}")
     if "user" not in data:
         raise HTTPException(401, "no user in initData")
-    return data["user"]
+    return {**data["user"], "tz": x_timezone}  # the phone's zone (unverified, only used if it is a real zone name)
 
 
 def optional_telegram_user(authorization: str = Header(default="")) -> dict | None:
     """Like telegram_user, but anonymous requests are allowed (public endpoints)."""
-    return telegram_user(authorization) if authorization else None
+    return telegram_user(authorization, "") if authorization else None
 
 
 async def get_or_create_user(tg: dict, session: AsyncSession) -> User:
@@ -35,6 +36,9 @@ async def get_or_create_user(tg: dict, session: AsyncSession) -> User:
     user.username = tg.get("username")
     user.first_name = tg.get("first_name")
     user.language_code = tg.get("language_code")
+    if clock.valid(tg.get("tz")):
+        user.device_tz = tg["tz"]
     await session.commit()
     await session.refresh(user)
+    clock.use_tz(user.timezone or user.device_tz)  # this request's "today" is the user's
     return user

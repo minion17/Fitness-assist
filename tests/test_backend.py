@@ -575,11 +575,11 @@ def test_user_products_become_shared_after_three_confirmations(client):
 
 def test_settings_are_kept_on_the_account(client, seeded):
     h = new_user_headers()
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None, "timezone": None, "device_tz": None}
     pid = client.get("/api/programs").json()[0]["id"]
-    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None}
+    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None, "timezone": None, "device_tz": None}
     assert client.put("/api/settings", headers=h, json={"accent": "#a98bff", "program_id": pid}).json()["theme"] == "green"  # partial
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid, "timezone": None, "device_tz": None}
     assert client.put("/api/settings", headers=h, json={"program_id": None}).json()["program_id"] is None
     assert client.put("/api/settings", headers=h, json={"theme": "neon"}).status_code == 422
     assert client.put("/api/settings", headers=h, json={"accent": "red"}).status_code == 422
@@ -796,3 +796,38 @@ def test_menu_button_follows_tunnel_address(monkeypatch):
     last = asyncio.run(run(["https://a.lhr.life", "https://a.lhr.life", "http://localhost:8000", "https://b.lhr.life"]))
     assert calls == ["https://a.lhr.life", "https://b.lhr.life"]  # once per change, never a non-https address
     assert last == "https://b.lhr.life"
+
+
+def test_timezone_follows_phone_or_profile(client, seeded):
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+
+    from backend.bot.reminders import collect
+    from backend.database.db import SessionLocal
+
+    h = new_user_headers()
+    ahead = {**h, "X-Timezone": "Pacific/Kiritimati"}  # UTC+14: usually already "tomorrow" for the server
+    assert client.get("/api/settings", headers=ahead).json()["device_tz"] == "Pacific/Kiritimati"
+    assert client.get("/api/settings", headers={**h, "X-Timezone": "Mars/Base"}).json()["device_tz"] == "Pacific/Kiritimati"
+    their_today = datetime.now(ZoneInfo("Pacific/Kiritimati")).date().isoformat()
+    assert client.get("/api/food-logs", headers=ahead).json()["date"] == their_today
+    client.post("/api/water", headers=ahead, json={"delta_ml": 300})
+    last = client.get("/api/week", headers=ahead).json()["days"][-1]
+    assert (last["date"], last["water_ml"]) == (their_today, 300)
+
+    # chosen in the profile wins over the phone; "" goes back to the phone
+    assert client.put("/api/settings", headers=h, json={"timezone": "Mars/Base"}).status_code == 422
+    assert client.put("/api/settings", headers=h, json={"timezone": "Pacific/Pago_Pago"}).json()["timezone"] == "Pacific/Pago_Pago"
+    assert client.get("/api/food-logs", headers=ahead).json()["date"] == datetime.now(ZoneInfo("Pacific/Pago_Pago")).date().isoformat()
+    assert client.put("/api/settings", headers=h, json={"timezone": ""}).json()["timezone"] is None
+
+    # reminders fire at the user's own clock: 14:05 in Kiritimati
+    client.put("/api/profile", headers=ahead, json=PROFILE)
+    tg_id = client.post("/api/auth", headers=ahead).json()["telegram_id"]
+    at = datetime.now(ZoneInfo("Pacific/Kiritimati")).replace(hour=14, minute=5, second=0, microsecond=0).astimezone(timezone.utc)
+
+    async def run(t):
+        async with SessionLocal() as s:
+            return [txt for chat, txt, _ in await collect(s, t) if chat == tg_id]
+    assert any("обед" in t for t in client.portal.call(run, at))
+    assert not any("обед" in t for t in client.portal.call(run, at - timedelta(hours=3)))

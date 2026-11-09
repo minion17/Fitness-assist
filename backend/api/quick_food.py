@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 from backend.api.daily import local_start
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import off
+from backend.core import clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import FavoriteProduct, FoodLog, Product, UserBarcode
 from backend.database.rewards import award_xp
@@ -88,7 +89,7 @@ class CopyIn(BaseModel):
 async def copy_meal(body: CopyIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """Repeat a meal (e.g. yesterday's breakfast) into today."""
     user = await get_or_create_user(tg, session)
-    today = date.today()
+    today = clock.today()
     if not (today - timedelta(days=30) <= body.from_day < today):
         raise HTTPException(422, "Можно повторить приём пищи только из последних 30 дней")
     start = local_start(body.from_day)

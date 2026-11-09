@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from datetime import date, datetime, time, timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
@@ -19,6 +19,7 @@ from backend.api.daily import router as daily_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.stats import router as stats_router
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
+from backend.core import clock
 from backend.database.db import AsyncSession, get_session, init_db
 from backend.database.models import (
     BodyMeasurement,
@@ -94,7 +95,8 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
 
 
 def settings_out(user: User) -> dict:
-    return {"theme": user.theme, "accent": user.accent, "program_id": user.program_id}
+    return {"theme": user.theme, "accent": user.accent, "program_id": user.program_id,
+            "timezone": user.timezone, "device_tz": user.device_tz}
 
 
 class SettingsIn(BaseModel):
@@ -102,6 +104,12 @@ class SettingsIn(BaseModel):
     theme: Literal["auto", "dark", "light", "green"] | None = None
     accent: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     program_id: int | None = None
+    timezone: str | None = Field(default=None, max_length=64)  # "" or null: follow the phone
+
+
+@app.get("/api/settings")
+async def get_settings(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    return settings_out(await get_or_create_user(tg, session))
 
 
 @app.put("/api/settings")
@@ -112,6 +120,10 @@ async def save_settings(body: SettingsIn, tg: dict = Depends(telegram_user), ses
         selected = await session.get(Program, changes["program_id"])
         if selected is None or selected.owner_user_id not in (None, user.id):
             raise HTTPException(404, "Программа не найдена")
+    if "timezone" in changes:
+        changes["timezone"] = changes["timezone"] or None
+        if changes["timezone"] and not clock.valid(changes["timezone"]):
+            raise HTTPException(422, "Неизвестный часовой пояс")
     for k, v in changes.items():
         setattr(user, k, v)
     await session.commit()
@@ -337,7 +349,7 @@ class FoodLogIn(BaseModel):
 
 def snack_slot(meal_type: str, slot: str | None) -> str | None:
     """Snacks without an explicit slot start a new one at the current time; other meals have none."""
-    return (slot or datetime.now().strftime("%H:%M")) if meal_type == "snack" else None
+    return (slot or clock.now().strftime("%H:%M")) if meal_type == "snack" else None
 
 
 def food_log_out(log: FoodLog) -> dict:
@@ -362,7 +374,7 @@ async def add_food_log(body: FoodLogIn, tg: dict = Depends(telegram_user), sessi
     await session.commit()
     log = await session.scalar(select(FoodLog).options(selectinload(FoodLog.product)).where(FoodLog.id == log.id))
     # One reward per meal type per day, so XP can't be farmed by logging many items.
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{log.logged_at.astimezone().date()}:{log.meal_type}")
+    xp = await award_xp(session, user.id, "meal_logged", f"meal:{log.logged_at.astimezone(clock.tz()).date()}:{log.meal_type}")
     return {**food_log_out(log), "xp_awarded": xp}
 
 
@@ -372,10 +384,9 @@ async def get_food_logs(
 ):
     """Entries and totals for one day (default: today)."""
     user = await get_or_create_user(tg, session)
-    day = day or date.today()
-    # Day bounds computed in Python (server's local time), not func.date(): the DB may run in UTC.
-    # shortcut: "day" is the server's timezone, not the user's; store user tz when users span zones
-    start = datetime.combine(day, time.min).astimezone()
+    day = day or clock.today()
+    # Day bounds computed in Python in the user's timezone, not func.date(): the DB may run in UTC.
+    start = clock.local_start(day)
     rows = await session.scalars(
         select(FoodLog)
         .options(selectinload(FoodLog.product))
@@ -424,8 +435,8 @@ async def save_measurement(
 ):
     if all(getattr(body, k) is None for k in MEASURE_FIELDS):
         raise HTTPException(422, "Укажите хотя бы одно значение")
-    day = body.measured_on or date.today()
-    if day > date.today() + timedelta(days=1):  # +1: client may be ahead of the server's timezone
+    day = body.measured_on or clock.today()
+    if day > clock.today() + timedelta(days=1):  # +1: client may be ahead of the server's timezone
         raise HTTPException(422, "Дата в будущем")
     user = await get_or_create_user(tg, session)
     m = await session.scalar(
@@ -579,7 +590,7 @@ async def last_sets(
     )
     out: dict[int, dict] = {}
     for ws, log_id, at in rows:
-        last = out.setdefault(ws.exercise_id, {"log_id": log_id, "date": at.astimezone().date().isoformat(), "sets": []})
+        last = out.setdefault(ws.exercise_id, {"log_id": log_id, "date": at.astimezone(clock.tz()).date().isoformat(), "sets": []})
         if last["log_id"] == log_id:
             last["sets"].append({"reps": ws.reps, "duration_seconds": ws.duration_seconds, "weight_kg": ws.weight_kg})
     return {str(k): {"date": v["date"], "sets": v["sets"]} for k, v in out.items()}

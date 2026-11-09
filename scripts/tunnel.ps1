@@ -64,7 +64,7 @@ while ($true) {
         Start-Sleep -Seconds 3
         if (-not $url) {
             $text = (Get-Content $log, "$log.err" -Raw -ErrorAction SilentlyContinue) -join "`n"
-            if ($text -match '(https://(?!(?:my|docs|www|releases)\.)[a-z0-9-]+\.(?:[a-z]+\.)?tuna\.am|https://[a-z0-9-]+\.trycloudflare\.com|https://[a-z0-9]+\.lhr\.life)') {
+            if ($text -match '(https://(?!(?:my|docs|www|releases)\.)[a-z0-9-]+\.(?:[a-z0-9-]+\.)*(?:tuna\.am|2na\.am)|https://[a-z0-9-]+\.trycloudflare\.com|https://[a-z0-9]+\.lhr\.life)') {
                 $url = $Matches[1]
                 $next = (Get-Date).AddSeconds(20)  # first check soon: catch an address that never worked
             } elseif ((Get-Date) -gt $started.AddSeconds(60)) {

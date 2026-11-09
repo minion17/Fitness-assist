@@ -691,3 +691,17 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .quest-list li.done .quest-xp { color: var(--muted); }
 .quests-paid { margin: 6px 0 0; padding: 8px 12px; border-radius: 12px; font-weight: 700; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .quests-bonus { margin: 6px 0 0; }
+.first-steps-bar { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.first-steps-ring { flex: none; width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(var(--accent) var(--p), var(--ring-track) 0); -webkit-mask: radial-gradient(circle, transparent 7px, #000 8px); mask: radial-gradient(circle, transparent 7px, #000 8px); }
+
+/* Touch feedback: everything tappable gives a little under the finger */
+button:not(:disabled), .btn, .chip { transition: transform .12s ease, background-color .15s ease, opacity .15s ease; }
+button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97); }
+@media (prefers-reduced-motion: reduce) { button, .btn, .chip { transition: none; } button:active, .btn:active { transform: none; } }
+
+/* Section tabs (Прогресс: мой / друзья): underlined, so they don't look like the period switch below */
+.tabs { display: flex; gap: 22px; margin: 2px 0 14px; border-bottom: 1px solid var(--line); }
+.tabs button { position: relative; padding: 8px 0 11px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 16px; font-weight: 700; cursor: pointer; }
+.tabs button[aria-selected='true'] { color: var(--text); }
+.tabs button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px; background: var(--accent); }
+.meal-totals { font-variant-numeric: tabular-nums; }

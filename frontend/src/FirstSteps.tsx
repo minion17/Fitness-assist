@@ -1,18 +1,28 @@
-// Home, for newcomers: four first actions, each one tap away. Hides itself when all are done (or on "Скрыть").
+// Home, for newcomers: four first actions, each one tap away. Gone when all are done; "Свернуть" keeps a one-line bar to reopen it.
 import { useState } from 'react'
 
 export type Step = { key: string; title: string; hint: string; done: boolean; action: () => void }
-const HIDDEN = 'fa.firstStepsHidden'
+const HIDDEN = 'fa.firstStepsHidden' // "1" = collapsed to the one-line bar
 
 export default function FirstSteps({ steps }: { steps: Step[] }) {
-  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(HIDDEN) === '1' } catch { return false } })
+  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem(HIDDEN) === '1' } catch { return false } })
   const done = steps.filter((s) => s.done).length
-  if (hidden || done === steps.length) return null
+  if (done === steps.length) return null
   const next = steps.find((s) => !s.done)
 
-  function hide() {
-    setHidden(true)
-    try { localStorage.setItem(HIDDEN, '1') } catch { /* private mode: hidden for this session only */ }
+  function collapse(value: boolean) {
+    setCollapsed(value)
+    try { localStorage.setItem(HIDDEN, value ? '1' : '0') } catch { /* private mode: remembered for this session only */ }
+  }
+
+  if (collapsed) {
+    return (
+      <button className="card first-steps-bar" onClick={() => collapse(false)} aria-label={`Первые шаги: ${done} из ${steps.length}. Открыть`}>
+        <span className="first-steps-ring" style={{ '--p': `${(done / steps.length) * 100}%` } as React.CSSProperties} aria-hidden="true" />
+        <span className="step-text"><b>Первые шаги · {done} из {steps.length}</b>{next && <span className="sub">Дальше: {next.title.toLowerCase()}</span>}</span>
+        <span className="step-go" aria-hidden="true">›</span>
+      </button>
+    )
   }
 
   return (
@@ -33,7 +43,7 @@ export default function FirstSteps({ steps }: { steps: Step[] }) {
           </li>
         ))}
       </ol>
-      <button className="link first-steps-hide" onClick={hide}>Скрыть</button>
+      <button className="link first-steps-hide" onClick={() => collapse(true)}>Свернуть</button>
     </section>
   )
 }

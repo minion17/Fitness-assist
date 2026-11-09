@@ -68,7 +68,7 @@ export default function Body({ measurements, canEdit, onSave, onDelete, hideWeig
               <div className="row" key={m.id}>
                 <div className="row-main">
                   <div className="row-title">{dateRu(m.measured_on)}</div>
-                  <div className="row-sub">{MEASURES.filter((x) => m[x.key] !== null).map((x) => `${x.label} ${m[x.key]} ${x.unit}`).join(' · ')}</div>
+                  <div className="row-sub">{MEASURES.filter((x) => m[x.key] != null).map((x) => `${x.label} ${m[x.key]} ${x.unit}`).join(' · ')}</div>
                 </div>
                 {canEdit && (confirm === m.id ? (
                   <div className="confirm">

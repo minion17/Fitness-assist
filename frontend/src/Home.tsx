@@ -146,6 +146,24 @@ export default function Home(props: {
 
       </div>
 
+      {props.canEdit && (
+        <div className="home-actions">
+          {props.aiEnabled ? (
+            <>
+              <button className="btn btn-icon" onClick={() => props.onFood('photo')}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+                Сфоткать еду
+              </button>
+              <button className="btn btn-ghost btn-side" onClick={() => props.onFood('search')}>Вручную</button>
+            </>
+          ) : (
+            <button className="btn btn-ghost" onClick={() => props.onFood('search')}>+ Добавить еду</button>
+          )}
+        </div>
+      )}
+
+      <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} />
+
       {props.quests}
 
       {week.length === 7 && (
@@ -166,23 +184,7 @@ export default function Home(props: {
       )}
 
 
-      {props.canEdit && (
-        <div className="home-actions">
-          {props.aiEnabled ? (
-            <>
-              <button className="btn btn-ghost btn-icon" onClick={() => props.onFood('photo')}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
-                Сфоткать еду
-              </button>
-              <button className="btn btn-ghost btn-side" onClick={() => props.onFood('search')}>Вручную</button>
-            </>
-          ) : (
-            <button className="btn btn-ghost" onClick={() => props.onFood('search')}>+ Добавить еду</button>
-          )}
-        </div>
-      )}
 
-      <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} />
 
 
       {props.summary}

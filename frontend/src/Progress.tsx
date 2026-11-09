@@ -50,9 +50,9 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
     <>
       <h1>Прогресс</h1>
       {canEdit && (
-        <div className="seg seg-row progress-view" role="group" aria-label="Раздел">
-          <button aria-pressed={view === 'me'} onClick={() => setView('me')}>Мой прогресс</button>
-          <button aria-pressed={view === 'friends'} onClick={() => setView('friends')}>Друзья</button>
+        <div className="tabs progress-view" role="tablist" aria-label="Раздел">
+          <button role="tab" aria-selected={view === 'me'} onClick={() => setView('me')}>Мой прогресс</button>
+          <button role="tab" aria-selected={view === 'friends'} onClick={() => setView('friends')}>Друзья</button>
         </div>
       )}
       {view === 'friends' ? <Friends /> : <>

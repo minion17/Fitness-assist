@@ -210,6 +210,7 @@ export default function App() {
 
   async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null) {
     const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}) }))
+    tg?.HapticFeedback?.notificationOccurred?.('success')
     await refreshJournal()
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
   }

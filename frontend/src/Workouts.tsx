@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Recommendation } from './profile'
-import { api, postJson } from './telegram'
+import { api, postJson, tg } from './telegram'
 import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type WorkoutLog } from './types'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 
@@ -191,6 +191,7 @@ function Session({ program, day, onExit, onChanged }: {
       const id = await ensureLog()
       await api(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
       update(ei, si, { saved: true })
+      tg?.HapticFeedback?.impactOccurred?.('medium')
     } catch {
       setError('Не удалось сохранить подход. Проверьте соединение.')
     } finally {

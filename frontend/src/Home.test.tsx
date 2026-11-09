@@ -34,7 +34,7 @@ test('shows the x2 XP booster after a duel win', () => {
   expect(screen.getByText(/бустер за победу в дуэли/)).toBeTruthy()
 })
 
-test('first steps: shows progress, runs a step, hides when asked', () => {
+test('first steps: shows progress, runs a step, collapses to a bar and reopens', () => {
   const water = vi.fn()
   const steps = [
     { key: 'meal', title: 'Запишите, что съели', hint: '', done: true, action: vi.fn() },
@@ -45,8 +45,10 @@ test('first steps: shows progress, runs a step, hides when asked', () => {
   expect((screen.getByRole('button', { name: 'Запишите, что съели — сделано' }) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Отметьте стакан воды' }))
   expect(water).toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Скрыть' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Свернуть' }))
   expect(screen.queryByLabelText('Первые шаги')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: 'Первые шаги: 1 из 2. Открыть' })) // the bar brings it back
+  expect(screen.getByLabelText('Первые шаги')).toBeTruthy()
   localStorage.clear()
 })
 

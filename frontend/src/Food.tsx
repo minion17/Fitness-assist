@@ -99,7 +99,8 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
             <button className="meal-toggle" aria-expanded={expandedMeals.includes(key)} onClick={() => setExpandedMeals(current => current.includes(key) ? current.filter(k => k !== key) : [...current, key])}>
               <h2>{title}</h2><span className="meal-chevron" aria-hidden="true">⌄</span>
             </button>
-            <div className="meal-totals">{Math.round(kcal)} ккал · Б {r1(items.reduce((n, i) => n + i.protein_g, 0))} · Ж {r1(items.reduce((n, i) => n + i.fat_g, 0))} · У {r1(items.reduce((n, i) => n + i.carbs_g, 0))}</div>
+            <div className="meal-totals">{items.length === 0 ? 'Пока пусто'
+              : `${Math.round(kcal)} ккал · Б ${Math.round(items.reduce((n, i) => n + i.protein_g, 0))} · Ж ${Math.round(items.reduce((n, i) => n + i.fat_g, 0))} · У ${Math.round(items.reduce((n, i) => n + i.carbs_g, 0))}`}</div>
             {expandedMeals.includes(key) && (items.length === 0 ? <p className="sub">Пока нет продуктов</p> : (
               <div className="list">
                 {items.map((i) => (

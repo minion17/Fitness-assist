@@ -12,7 +12,8 @@ function Running($pattern) {
 }
 
 function Open-Window($title, $command) {
-    $cmd = "`$host.UI.RawUI.WindowTitle = '$title'; Set-Location '$root'; $command"
+    # no-quickedit: a stray click must not freeze the window ("Выбрать" mode)
+    $cmd = "`$host.UI.RawUI.WindowTitle = '$title'; Set-Location '$root'; . '$root\scripts\no-quickedit.ps1'; $command"
     Start-Process powershell -WorkingDirectory $root -ArgumentList '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command', $cmd
 }
 

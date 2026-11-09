@@ -1,12 +1,15 @@
 """Shared request dependencies."""
 from fastapi import Header, HTTPException
+from datetime import datetime, timezone
+
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 
 from backend.core import clock
 from backend.core.config import settings
 from backend.core.telegram_auth import InitDataError, validate_init_data
 from backend.database.db import AsyncSession
-from backend.database.models import User
+from backend.database.models import User, Visit
 
 
 def telegram_user(authorization: str = Header(default=""), x_timezone: str = Header(default="")) -> dict:
@@ -38,6 +41,8 @@ async def get_or_create_user(tg: dict, session: AsyncSession) -> User:
     user.language_code = tg.get("language_code")
     if clock.valid(tg.get("tz")):
         user.device_tz = tg["tz"]
+    await session.flush()  # a new user needs its id for the visit
+    await session.execute(insert(Visit).values(user_id=user.id, day=datetime.now(timezone.utc).date()).on_conflict_do_nothing())
     await session.commit()
     await session.refresh(user)
     clock.use_tz(user.device_tz)  # this request's "today" is the user's

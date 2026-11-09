@@ -318,6 +318,15 @@ class WaterIntake(Base):
     ml: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class Visit(Base):
+    """A day the user opened the Mini App (UTC day): for the owner's /stats (active users, retention)."""
+
+    __tablename__ = "visits"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+
+
 # ---- Social: friends, duels, and messages the bot should send ----
 
 class Friendship(Base):

@@ -7,7 +7,7 @@ import unicodedata
 from aiogram import Bot, Dispatcher, Router
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramNetworkError
-from aiogram.filters import CommandObject, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
     ErrorEvent,
     BufferedInputFile,
@@ -22,7 +22,7 @@ from aiogram.types import (
 from sqlalchemy import select
 
 from backend.api.social import USERNAME_FILE, befriend, name
-from backend.bot import cards, outbox, profile, reminders
+from backend.bot import admin, cards, outbox, profile, reminders
 from backend.database.db import SessionLocal
 from backend.database.models import Profile, User
 from backend.core.config import Settings, settings
@@ -100,6 +100,19 @@ async def start(message: Message, command: CommandObject | None = None) -> None:
         await message.answer(caption, reply_markup=keyboard, parse_mode="HTML")
     if friend:
         await message.answer(f"🤝 Вы с {html.escape(name(friend))} теперь друзья! Рейтинг недели и дуэли — в приложении: Прогресс → Друзья.", parse_mode="HTML")
+
+
+@router.message(Command("stats"))
+async def stats(message: Message) -> None:
+    uid = message.from_user and message.from_user.id
+    admins = {int(x) for x in settings.admin_ids.replace(" ", "").split(",") if x.isdigit()}
+    if uid not in admins:
+        # not secret: the owner needs their id to put it into .env
+        await message.answer(f"Статистика доступна только владельцу. Ваш Telegram ID: <code>{uid}</code>.\n"
+                             "Если это вы — допишите в .env строку ADMIN_IDS=этот_номер и перезапустите бота.", parse_mode="HTML")
+        return
+    async with SessionLocal() as s:
+        await message.answer(await admin.summary(s), parse_mode="HTML")
 
 
 @router.error()

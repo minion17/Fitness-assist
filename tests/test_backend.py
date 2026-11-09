@@ -997,3 +997,31 @@ def test_timezone_hopping_does_not_repeat_daily_xp(client, seeded):
     assert [log({**h, "X-Timezone": "Pacific/Pago_Pago"}, m) for m in ("breakfast", "lunch", "dinner", "snack")] == [10] * 4
     # jump a day ahead by timezone: same meals again would be a "new day", but the rolling cap says no
     assert log({**h, "X-Timezone": "Pacific/Kiritimati"}, "breakfast") == 0
+
+
+def test_owner_stats_counts_visits_and_retention(client, seeded):
+    from datetime import date, datetime, timedelta, timezone
+
+    from sqlalchemy.dialects.postgresql import insert
+
+    from backend.bot import admin
+    from backend.database.db import SessionLocal
+    from backend.database.models import Visit
+
+    h = new_user_headers()
+    uid = client.post("/api/auth", headers=h).json()["id"]
+    client.get("/api/settings", headers=h)  # second request the same day: still one visit
+
+    async def run():
+        async with SessionLocal() as s:
+            today = date.today()
+            # a user who joined 9 days ago and came back on day 8: counts for both D1 and D7 retention
+            for d in (today - timedelta(days=9), today - timedelta(days=1)):
+                await s.execute(insert(Visit).values(user_id=uid, day=d).on_conflict_do_nothing())
+            await s.commit()
+            back1, total1 = await admin.retention(s, 1, 14, today)
+            text = await admin.summary(s, datetime.now(timezone.utc))
+            return back1, total1, text
+    back1, total1, text = client.portal.call(run)
+    assert total1 >= 1 and back1 >= 1
+    assert "Пользователей" in text and "Вернулись через неделю" in text and "<b>" in text

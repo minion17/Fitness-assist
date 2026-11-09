@@ -9,7 +9,8 @@ class Settings(BaseSettings):
 
     bot_token: str = ""
     bot_proxy: str = ""
-    bot_username: str = ""  # for invite links; normally the bot writes it to .bot_username itself  # e.g. socks5://127.0.0.1:1080 if Telegram is blocked
+    bot_username: str = ""
+    admin_ids: str = ""  # Telegram ids (comma-separated) allowed to use /stats  # for invite links; normally the bot writes it to .bot_username itself  # e.g. socks5://127.0.0.1:1080 if Telegram is blocked
     webapp_url: str = "http://localhost:5173"
     database_url: str = "postgresql+asyncpg://fitness:fitness@localhost:5432/fitness"
     # initData older than this is rejected (replay protection)

@@ -5,7 +5,6 @@ import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
-import Timezone from './Timezone'
 import Progress, { type Achievement } from './Progress'
 import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
@@ -114,7 +113,6 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
         </section>
       )}
       {canEdit && <Reminders />}
-      {canEdit && <Timezone />}
       <ThemeCard t={theme} />
       {body}
     </>

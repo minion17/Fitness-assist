@@ -17,7 +17,7 @@ log = logging.getLogger("outbox")
 
 
 async def share_card(session, user: User) -> bytes:
-    clock.use_tz(user.timezone or user.device_tz)
+    clock.use_tz(user.device_tz)
     today = clock.today()
     monday = clock.local_start(today - timedelta(days=today.weekday()))
     week_xp = await session.scalar(select(func.coalesce(func.sum(XpEvent.xp), 0)).where(XpEvent.user_id == user.id, XpEvent.created_at >= monday))

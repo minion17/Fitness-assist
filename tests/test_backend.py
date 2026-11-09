@@ -575,11 +575,11 @@ def test_user_products_become_shared_after_three_confirmations(client):
 
 def test_settings_are_kept_on_the_account(client, seeded):
     h = new_user_headers()
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None, "boost_until": None, "timezone": None, "device_tz": None}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None, "boost_until": None, "device_tz": None}
     pid = client.get("/api/programs").json()[0]["id"]
-    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None, "boost_until": None, "timezone": None, "device_tz": None}
+    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None, "boost_until": None, "device_tz": None}
     assert client.put("/api/settings", headers=h, json={"accent": "#a98bff", "program_id": pid}).json()["theme"] == "green"  # partial
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid, "boost_until": None, "timezone": None, "device_tz": None}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid, "boost_until": None, "device_tz": None}
     assert client.put("/api/settings", headers=h, json={"program_id": None}).json()["program_id"] is None
     assert client.put("/api/settings", headers=h, json={"theme": "neon"}).status_code == 422
     assert client.put("/api/settings", headers=h, json={"accent": "red"}).status_code == 422
@@ -799,7 +799,7 @@ def test_menu_button_follows_tunnel_address(monkeypatch):
     assert last == "https://b.lhr.life"
 
 
-def test_timezone_follows_phone_or_profile(client, seeded):
+def test_timezone_follows_the_phone(client, seeded):
     from datetime import datetime, timedelta, timezone
     from zoneinfo import ZoneInfo
 
@@ -816,11 +816,9 @@ def test_timezone_follows_phone_or_profile(client, seeded):
     last = client.get("/api/week", headers=ahead).json()["days"][-1]
     assert (last["date"], last["water_ml"]) == (their_today, 300)
 
-    # chosen in the profile wins over the phone; "" goes back to the phone
-    assert client.put("/api/settings", headers=h, json={"timezone": "Mars/Base"}).status_code == 422
-    assert client.put("/api/settings", headers=h, json={"timezone": "Pacific/Pago_Pago"}).json()["timezone"] == "Pacific/Pago_Pago"
-    assert client.get("/api/food-logs", headers=ahead).json()["date"] == datetime.now(ZoneInfo("Pacific/Pago_Pago")).date().isoformat()
-    assert client.put("/api/settings", headers=h, json={"timezone": ""}).json()["timezone"] is None
+    # travelling: the phone's new zone moves "today" with it
+    behind = {**h, "X-Timezone": "Pacific/Pago_Pago"}
+    assert client.get("/api/food-logs", headers=behind).json()["date"] == datetime.now(ZoneInfo("Pacific/Pago_Pago")).date().isoformat()
 
     # reminders fire at the user's own clock: 14:05 in Kiritimati
     client.put("/api/profile", headers=ahead, json=PROFILE)

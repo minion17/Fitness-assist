@@ -1,7 +1,7 @@
 """Bot reminders: missed meals, water behind schedule, a streak about to break.
 
 `collect` decides what to send (pure DB logic, tested); `run` is the bot's background loop that sends it.
-Reminder times are in each user's own timezone (chosen in the profile, else the phone's).
+Reminder times are in each user's own timezone (the phone's).
 """
 import asyncio
 import logging
@@ -122,7 +122,7 @@ async def collect(session, now: datetime) -> list[tuple[int, str, Render]]:
     )
     messages = []
     for user, cfg in rows.all():
-        clock.use_tz(user.timezone or user.device_tz)
+        clock.use_tz(user.device_tz)
         cfg = cfg or ReminderSettings(meals=True, water=True, streak=True, weekly=True, breakfast_at="10:00",
                                       lunch_at="14:00", dinner_at="20:00", streak_at="21:00", weekly_at="19:00")
         for key, text, card in await candidates(session, user, cfg, clock.local(now)):

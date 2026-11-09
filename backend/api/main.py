@@ -98,7 +98,7 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
 def settings_out(user: User) -> dict:
     return {"theme": user.theme, "accent": user.accent, "program_id": user.program_id,
             "boost_until": user.boost_until.isoformat() if user.boost_until and user.boost_until > clock.now() else None,
-            "timezone": user.timezone, "device_tz": user.device_tz}
+            "device_tz": user.device_tz}
 
 
 class SettingsIn(BaseModel):
@@ -106,7 +106,6 @@ class SettingsIn(BaseModel):
     theme: Literal["auto", "dark", "light", "green"] | None = None
     accent: str | None = Field(default=None, pattern=r"^#[0-9a-fA-F]{6}$")
     program_id: int | None = None
-    timezone: str | None = Field(default=None, max_length=64)  # "" or null: follow the phone
 
 
 @app.get("/api/settings")
@@ -122,10 +121,6 @@ async def save_settings(body: SettingsIn, tg: dict = Depends(telegram_user), ses
         selected = await session.get(Program, changes["program_id"])
         if selected is None or selected.owner_user_id not in (None, user.id):
             raise HTTPException(404, "Программа не найдена")
-    if "timezone" in changes:
-        changes["timezone"] = changes["timezone"] or None
-        if changes["timezone"] and not clock.valid(changes["timezone"]):
-            raise HTTPException(422, "Неизвестный часовой пояс")
     for k, v in changes.items():
         setattr(user, k, v)
     await session.commit()

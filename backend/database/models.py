@@ -22,8 +22,7 @@ class User(Base):
     program_id: Mapped[int | None] = mapped_column(ForeignKey("programs.id", ondelete="SET NULL"))
     # earned every 7 days of streak (max 2); a missed day spends one instead of breaking the streak
     streak_freezes: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    # IANA zone: chosen in the profile, else the phone's (sent by the Mini App on every request)
-    timezone: Mapped[str | None] = mapped_column(String(64))
+    # IANA zone of the phone, sent by the Mini App on every request: the user's "today" follows it (also when travelling)
     device_tz: Mapped[str | None] = mapped_column(String(64))
     invite_code: Mapped[str | None] = mapped_column(String(16), unique=True)  # t.me/<bot>?start=f<code> makes friends
     invited_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # gets XP once we fill the profile

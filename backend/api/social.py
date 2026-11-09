@@ -107,12 +107,12 @@ async def friends(tg: dict = Depends(telegram_user), session: AsyncSession = Dep
     xp = await week_xp(session, [u.id for u in people])
     board = []
     for u in people:
-        clock.use_tz(u.timezone or u.device_tz)  # each person's streak by their own calendar
+        clock.use_tz(u.device_tz)  # each person's streak by their own calendar
         streak, _ = await streak_state(session, u, clock.today())
         board.append({"id": u.id, "name": name(u), "me": u.id == user.id, "level": level_progress(u.xp)["level"],
                       "week_xp": xp.get(u.id, 0), "streak": streak,
                       "registered": await session.get(Profile, u.id) is not None})
-    clock.use_tz(user.timezone or user.device_tz)
+    clock.use_tz(user.device_tz)
     board.sort(key=lambda r: (-r["week_xp"], -r["streak"], not r["me"]))
     code, bot = await invite_code(session, user), bot_username()
     return {"invite_link": f"https://t.me/{bot}?start=f{code}" if bot else None, "board": board}
@@ -140,7 +140,7 @@ async def reward_invites(session: AsyncSession) -> int:
         key = f"invite:{user.id}"
         if await session.scalar(select(XpEvent.id).where(XpEvent.event_key == key)):
             continue
-        clock.use_tz(user.timezone or user.device_tz)
+        clock.use_tz(user.device_tz)
         days = await active_days(session, user, clock.local(user.created_at).date())
         clock.use_tz(None)
         if sum(map(is_active, days.values())) < INVITE_ACTIVE_DAYS:

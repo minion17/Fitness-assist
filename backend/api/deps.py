@@ -40,5 +40,5 @@ async def get_or_create_user(tg: dict, session: AsyncSession) -> User:
         user.device_tz = tg["tz"]
     await session.commit()
     await session.refresh(user)
-    clock.use_tz(user.timezone or user.device_tz)  # this request's "today" is the user's
+    clock.use_tz(user.device_tz)  # this request's "today" is the user's
     return user

@@ -46,7 +46,7 @@ ADDED_COLUMNS = [
     "ALTER TABLE reminder_settings ADD COLUMN IF NOT EXISTS weekly BOOLEAN NOT NULL DEFAULT true",
     "ALTER TABLE reminder_settings ADD COLUMN IF NOT EXISTS weekly_at VARCHAR(5) NOT NULL DEFAULT '19:00'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS accent VARCHAR(7)",
-    "ALTER TABLE users ADD COLUMN IF NOT EXISTS timezone VARCHAR(64)",
+    "ALTER TABLE users DROP COLUMN IF EXISTS timezone",  # was a manual choice; now always the phone's zone
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS device_tz VARCHAR(64)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS invite_code VARCHAR(16) UNIQUE",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS invited_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL",

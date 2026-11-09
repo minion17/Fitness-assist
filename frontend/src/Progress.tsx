@@ -2,16 +2,9 @@
 import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
 import Friends from './Friends'
-import { api } from './telegram'
+import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar } from './ui'
 
-type Day = { date: string; kcal: number; protein: number; fat: number; carbs: number; water_ml: number; workouts: number }
-type Stats = {
-  days: Day[]
-  goal: { calories: number; protein: number; fat: number; carbs: number; water_ml: number } | null
-  weight: { date: string; kg: number }[]
-  exercises: { id: number; name: string; points: { date: string; kg: number; reps: number }[] }[]
-}
 export type Achievement = { code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
 
 const PERIODS = [[7, 'Неделя'], [30, 'Месяц'], [90, '3 месяца']] as const
@@ -21,7 +14,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
   canEdit: boolean; achievements: Achievement[]; freezes: number; body: React.ReactNode
 }) {
   const [days, setDays] = useState<number>(30)
-  const [s, setS] = useState<Stats | null>(null)
+  const [s, setS] = useState<Stats | null>(() => cachedStats(30))
   const [error, setError] = useState('')
   const [ex, setEx] = useState<number | null>(null)
   const [chart, setChart] = useState<'calories' | 'water' | 'weight'>('calories')
@@ -30,7 +23,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
   useEffect(() => {
     if (!canEdit) return
     let stale = false
-    api<Stats>(`/api/stats?days=${days}`)
+    loadStats(days)
       .then((r) => { if (!stale && r) { setS(r); setError('') } })
       .catch(() => !stale && setError('Не удалось загрузить статистику'))
     return () => { stale = true }
@@ -59,7 +52,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
       {canEdit && (
         <div className="seg seg-row progress-period" role="group" aria-label="Период">
-          {PERIODS.map(([n, label]) => <button key={n} aria-pressed={days === n} onClick={() => setDays(n)}>{label}</button>)}
+          {PERIODS.map(([n, label]) => <button key={n} aria-pressed={days === n} onClick={() => { setDays(n); const kept = cachedStats(n); if (kept) setS(kept) }}>{label}</button>)}
         </div>
       )}
       {error && <p className="error">{error}</p>}

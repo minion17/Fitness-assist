@@ -68,6 +68,7 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
 export default function Home(props: {
   name: string
   level: number
+  loading?: boolean // first open, nothing kept yet: placeholders instead of zeros
   boostUntil?: string | null
   streak: number
   targets?: Targets
@@ -106,7 +107,7 @@ export default function Home(props: {
           <p className="hello">{today}</p>
           <h1 className="home-title">Привет, {props.name}</h1>
         </div>
-        <div className="home-chips">
+        <div className="home-chips" style={props.loading ? { visibility: 'hidden' } : undefined}>
           <span className="pill" title="Дней подряд">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--streak)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3c1 3 4 4.5 4 8.5A4 4 0 0 1 8 12c0-1.5.7-2.6 1.5-3.5C10 10 11 10.5 11 10.5 11 7 12 3 12 3z" /></svg>
             {props.streak}<span className="sr-only"> дней подряд</span>
@@ -123,10 +124,10 @@ export default function Home(props: {
       {props.intro}
 
       <div className="home-today">
-      <section className="daily-progress" aria-label={`Прогресс дня: ${progress}%`}>
+      <section className="daily-progress" aria-label={props.loading ? 'Загрузка' : `Прогресс дня: ${progress}%`} aria-busy={props.loading}>
         <div className="daily-progress-ring">
-          <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{progress > 0 && <circle className="daily-ring-value" cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${progress} 100`} />}</svg>
-          <div className="daily-progress-center"><strong>{progress}%</strong></div>
+          <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{!props.loading && progress > 0 && <circle className="daily-ring-value" cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${progress} 100`} />}</svg>
+          <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <strong>{progress}%</strong>}</div>
         </div>
         <p className="sub daily-progress-caption">Прогресс дня</p>
       </section>
@@ -134,7 +135,7 @@ export default function Home(props: {
       <div className="home-overview">
         <button className="card home-overview-card" onClick={props.onNutrition}>
           <span className="overview-link">Питание <span aria-hidden="true">→</span></span>
-          <span className="overview-value">{fmt(day.totals.kcal)}</span>
+          <span className="overview-value">{props.loading ? <span className="skeleton skeleton-line" /> : fmt(day.totals.kcal)}</span>
           <span className="sub">из {fmt(goal)} ккал</span>
         </button>
         <button className="card home-overview-card" onClick={props.onWorkouts}>

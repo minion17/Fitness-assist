@@ -1067,3 +1067,12 @@ def test_weekly_quests_assigned_once_and_paid_once(client, seeded):
     r = client.get("/api/quests", headers=h).json()
     assert all(q["done"] for q in r["items"]) and r["xp_awarded"] == 30 + 50 + 50  # two tasks + the all-three bonus
     assert r["items"][1]["title"] == "Взвесьтесь 1 раз"
+
+
+def test_bootstrap_has_the_whole_first_screen(client, seeded):
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    b = client.post("/api/bootstrap", headers=h).json()
+    assert set(b) == {"auth", "food_day", "water", "week", "workout_logs", "measurements", "achievements", "ai", "programs", "quests"}
+    assert b["auth"]["profile"] and len(b["quests"]["items"]) == 3 and b["programs"]
+    assert client.post("/api/bootstrap", headers=h).headers.get("content-encoding") == "gzip"  # big JSON is compressed

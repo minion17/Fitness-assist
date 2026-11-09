@@ -370,15 +370,12 @@ test('friends: leaderboard, accept an incoming duel, challenge a friend', async 
   expect(await screen.findByRole('status')).toBeTruthy()
 })
 
-test('weekly tasks: progress, payout reported once', async () => {
-  apiMock.mockResolvedValueOnce({ days_left: 3, bonus: 50, xp_awarded: 50, items: [
+test('weekly tasks: progress and days left', () => {
+  render(<Quests week={{ days_left: 3, bonus: 50, xp_awarded: 0, items: [
     { code: 'diary_days', title: 'Ведите дневник питания 5 дн.', progress: 5, target: 5, xp: 50, done: true },
     { code: 'workouts', title: 'Проведите 3 тренировки', progress: 1, target: 3, xp: 80, done: false },
-  ] })
-  const paid = vi.fn()
-  render(<Quests onAwarded={paid} />)
-  expect(await screen.findByText('Задание выполнено — +50 XP')).toBeTruthy()
-  expect(paid).toHaveBeenCalledWith(50)
+  ] }} />)
   expect(screen.getByText('1 из 3')).toBeTruthy()
   expect(screen.getByText('ещё 3 дня')).toBeTruthy()
+  expect(screen.getByText('Все три — ещё +50 XP')).toBeTruthy()
 })

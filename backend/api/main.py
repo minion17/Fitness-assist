@@ -5,6 +5,7 @@ from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
@@ -46,6 +47,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="Setly API", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1000)  # JS/CSS/JSON shrink ~3x: matters through the tunnel
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -595,6 +597,30 @@ async def last_sets(
     return {str(k): {"date": v["date"], "sets": v["sets"]} for k, v in out.items()}
 
 
+@app.post("/api/bootstrap")
+async def bootstrap(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """Everything the first screen needs in one round trip (through the tunnel each request costs ~0.2-0.5 s)."""
+    from backend.api.ai import status as ai_status
+    from backend.api.daily import get_water, week
+    from backend.api.quests import quests
+    from backend.api.stats import achievements
+
+    week_tasks = await quests(tg, session) if await session.get(Profile, (await get_or_create_user(tg, session)).id) else None
+    me = await auth(tg, session)  # after the tasks: their XP is already in the level shown
+    return {
+        "auth": me,
+        "food_day": await get_food_logs(None, tg, session),
+        "water": await get_water(tg, session),
+        "week": await week(tg, session),
+        "workout_logs": await list_workout_logs(tg, session),
+        "measurements": await list_measurements(tg, session),
+        "achievements": await achievements(tg, session),
+        "ai": await ai_status(tg, session),
+        "programs": await list_programs(tg, session),
+        "quests": week_tasks,
+    }
+
+
 app.include_router(ai_router)
 app.include_router(daily_router)
 app.include_router(quick_food_router)
@@ -605,5 +631,17 @@ app.include_router(quests_router)
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.
 _dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+
+class WebApp(StaticFiles):
+    """Hashed build files never change: the phone keeps them for a year. index.html is always re-checked,
+    so a new build is picked up on the next open."""
+
+    async def get_response(self, path, scope):
+        r = await super().get_response(path, scope)
+        r.headers["Cache-Control"] = "public, max-age=31536000, immutable" if path.startswith("assets/") else "no-cache"
+        return r
+
+
 if _dist.is_dir():
-    app.mount("/", StaticFiles(directory=_dist, html=True), name="webapp")
+    app.mount("/", WebApp(directory=_dist, html=True), name="webapp")

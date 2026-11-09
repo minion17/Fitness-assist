@@ -6,7 +6,9 @@ import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
 import FirstSteps from './FirstSteps'
-import Quests from './Quests'
+import Quests, { type QuestWeek } from './Quests'
+import { loadSnapshot, saveSnapshot } from './snapshot'
+import { prefetchStats } from './stats'
 import Progress, { type Achievement } from './Progress'
 import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
@@ -38,6 +40,20 @@ const name = tgUser?.first_name ?? 'Гость'
 const PROGRAM_KEY = 'fa.programId'
 
 type Progress = { xp: number; level: number; level_xp: number; level_xp_needed: number }
+type Bootstrap = {
+  auth: { id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null
+    settings: ThemeSettings & { program_id: number | null; boost_until?: string | null } }
+  food_day: FoodDay; water: Water; week: { streak: number; days: WeekDay[] }; workout_logs: WorkoutLog[]; measurements: Measurement[]
+  achievements: { items: Achievement[]; new: Achievement[]; freezes: number }; ai: { enabled: boolean } | null
+  programs: Program[] | null; quests: QuestWeek | null
+}
+/** Today in the phone's timezone as YYYY-MM-DD (same as the server's day for this user). */
+const localDay = () => new Date().toLocaleDateString('sv-SE')
+/** A kept answer from an earlier day still has the right profile, programs and history, but not today's food and water. */
+const fresh = (b: Bootstrap): Bootstrap => b.food_day.date === localDay() ? { ...b, quests: b.quests && { ...b.quests, xp_awarded: 0 } } : {
+  ...b, food_day: { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }, water: { ml: 0, goal_ml: b.water.goal_ml },
+  quests: b.quests && { ...b.quests, xp_awarded: 0 },
+}
 const NEW_USER: Progress = { xp: 0, level: 1, level_xp: 0, level_xp_needed: 100 }
 
 function LevelCard({ p }: { p: Progress }) {
@@ -122,33 +138,37 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
 }
 
 export default function App() {
+  // the last server answer kept on this phone: the screen starts from it instead of zeros (see snapshot.ts)
+  const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
   const [tab, setTab] = useState<Tab>('home')
   const [synced, setSynced] = useState('Демо-режим')
-  const [xp, setXp] = useState<Progress>(NEW_USER)
-  const [boostUntil, setBoostUntil] = useState<string | null>(null) // x2 XP after a duel win
-  const [me, setMe] = useState<ProfileData | null>(null)
+  const [xp, setXp] = useState<Progress>(boot?.auth.progress ?? NEW_USER)
+  const [boostUntil, setBoostUntil] = useState<string | null>(boot?.auth.settings.boost_until ?? null) // x2 XP after a duel win
+  const [me, setMe] = useState<ProfileData | null>(boot?.auth.profile ?? null)
   const [editing, setEditing] = useState(false)
-  const [canEdit, setCanEdit] = useState(false)
-  const [foodDay, setFoodDay] = useState<FoodDay>(demoFoodDay)
-  const [programs, setPrograms] = useState<Program[] | null>(null)
-  const [logs, setLogs] = useState<WorkoutLog[]>([])
+  const [canEdit, setCanEdit] = useState(Boolean(boot))
+  const [foodDay, setFoodDay] = useState<FoodDay>(boot?.food_day ?? demoFoodDay)
+  const [programs, setPrograms] = useState<Program[] | null>(boot?.programs ?? null)
+  const [logs, setLogs] = useState<WorkoutLog[]>(boot?.workout_logs ?? [])
   // kept on the account (see /api/settings); localStorage only until the account loads
   const [programId, setProgramId] = useState<number | null>(() => {
     try { return Number(localStorage.getItem(PROGRAM_KEY)) || null } catch { return null }
   })
   const [toast, setToast] = useState('')
-  const [measurements, setMeasurements] = useState<Measurement[]>([])
-  const [aiEnabled, setAiEnabled] = useState(false)
-  const [recommended, setRecommended] = useState<Recommendation | null>(null)
-  const [water, setWater] = useState<Water>({ ml: 0, goal_ml: 2000 })
-  const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>({ streak: 0, days: [] })
-  const [ach, setAch] = useState<{ items: Achievement[]; new: Achievement[]; freezes: number }>({ items: [], new: [], freezes: 0 })
+  const [measurements, setMeasurements] = useState<Measurement[]>(boot?.measurements ?? [])
+  const [aiEnabled, setAiEnabled] = useState(Boolean(boot?.ai?.enabled))
+  const [recommended, setRecommended] = useState<Recommendation | null>(boot?.auth.recommended_program ?? null)
+  const [water, setWater] = useState<Water>(boot?.water ?? { ml: 0, goal_ml: 2000 })
+  const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>(boot?.week ?? { streak: 0, days: [] })
+  const [ach, setAch] = useState<{ items: Achievement[]; new: Achievement[]; freezes: number }>(boot ? { ...boot.achievements, new: [] } : { items: [], new: [], freezes: 0 })
   const [foodIntent, setFoodIntent] = useState<FoodIntent | null>(null)
   const [reward, setReward] = useState(false)
+  const [loading, setLoading] = useState(!boot) // no data yet (first open, nothing kept on the phone)
+  const [quests, setQuests] = useState<QuestWeek | null>(boot?.quests ?? null)
   const theme = useTheme((patch) => { api('/api/settings', putJson(patch)).catch(() => {}) })
   // latest values for the one-time startup effect (it must not re-run when they change)
-  const startup = useRef({ theme, programId, selectProgram: (_id: number | null, _sync?: boolean) => {} })
-  useEffect(() => { startup.current = { theme, programId, selectProgram } })
+  const startup = useRef({ theme, programId, boot, selectProgram: (_id: number | null, _sync?: boolean) => {} })
+  useEffect(() => { startup.current = { theme, programId, boot, selectProgram } })
   // Level known before the latest refresh; null until the account is loaded, so the first load never celebrates.
   const knownLevel = useRef<number | null>(null)
   useEffect(() => {
@@ -156,52 +176,57 @@ export default function App() {
     if (knownLevel.current !== null) knownLevel.current = xp.level
   }, [xp.level])
 
-  const refreshJournal = useCallback(async () => {
-    const [day, ws, ms, u, wt, wk, ac] = await Promise.all([
-      api<FoodDay>('/api/food-logs'),
-      api<WorkoutLog[]>('/api/workout-logs'),
-      api<Measurement[]>('/api/measurements'),
-      api<{ progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null }>('/api/auth', { method: 'POST' }),
-      api<Water>('/api/water'),
-      api<{ streak: number; days: WeekDay[] }>('/api/week'),
-      api<{ items: Achievement[]; new: Achievement[]; freezes: number }>('/api/achievements').catch(() => null),
-    ])
-    if (ac) setAch(ac)
-    if (wt) setWater(wt)
-    if (wk) setWeek(wk)
-    if (day) setFoodDay(day)
-    if (ws) setLogs(ws)
-    if (ms) setMeasurements(ms)
-    if (u) { setXp(u.progress); setMe(u.profile); setRecommended(u.recommended_program) } // weight changes the daily targets
+  // Everything for the first screen in one request (/api/bootstrap); the last answer is kept on the phone and shown
+  // instantly on the next open, so numbers don't flash from 0 while the network catches up.
+  const apply = useCallback((b: Bootstrap) => {
+    const u = b.auth
+    setXp(u.progress); setMe(u.profile); setRecommended(u.recommended_program)
+    setBoostUntil(u.settings.boost_until ?? null)
+    if (b.ai) setAiEnabled(Boolean(b.ai.enabled))
+    setAch(b.achievements); setWeek(b.week); setLogs(b.workout_logs); setMeasurements(b.measurements)
+    if (b.programs) setPrograms(b.programs)
+    setFoodDay(b.food_day); setWater(b.water); setQuests(b.quests)
+    if (b.quests?.xp_awarded) flash(`Задание недели выполнено · +${b.quests.xp_awarded} XP`)
   }, [])
-  const questsPaid = useCallback(() => { refreshJournal() }, [refreshJournal]) // XP and maybe a new level
+
+  const refreshJournal = useCallback(async () => {
+    const b = await api<Bootstrap>('/api/bootstrap', { method: 'POST' })
+    if (!b) return
+    apply(b)
+    saveSnapshot(b)
+  }, [apply])
 
   useEffect(() => {
     initTelegram()
-    api<{ id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null; settings: ThemeSettings & { program_id: number | null; boost_until?: string | null } }>('/api/auth', { method: 'POST' })
-      .then((u) => {
-        if (!u) return
+    const snap = startup.current.boot
+    if (snap) {
+      knownLevel.current = snap.auth.progress.level
+      startup.current.theme.load(snap.auth.settings)
+      if (snap.auth.settings.program_id) startup.current.selectProgram(snap.auth.settings.program_id, false)
+    }
+    if (!tg?.initData) {
+      publicGet<Program[]>('/api/programs').then(setPrograms).catch(() => setPrograms(demoPrograms)).finally(() => setLoading(false))
+      return
+    }
+    api<Bootstrap>('/api/bootstrap', { method: 'POST' })
+      .then((b) => {
+        if (!b) return
+        const u = b.auth
         setSynced('Аккаунт подключён')
         setCanEdit(true)
-        knownLevel.current = u.progress.level
+        if (knownLevel.current === null) knownLevel.current = u.progress.level
         startup.current.theme.load(u.settings)
-        setBoostUntil(u.settings.boost_until ?? null)
         const local = startup.current.programId
         if (u.settings.program_id) startup.current.selectProgram(u.settings.program_id, false)
         else if (local) api('/api/settings', putJson({ program_id: local })).catch(() => {}) // upload this device's choice once
-        setXp(u.progress)
-        setMe(u.profile)
-        setRecommended(u.recommended_program)
         setEditing(!u.profile) // first visit: questionnaire before anything else
-        setFoodDay({ date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } })
-        api<{ enabled: boolean }>('/api/ai/status').then((s) => setAiEnabled(Boolean(s?.enabled))).catch(() => {})
-        return refreshJournal()
+        apply(b)
+        saveSnapshot(b)
+        prefetchStats()
       })
-      .catch(() => setSynced('Сервер недоступен'))
-    const programsRequest = tg?.initData ? api<Program[]>('/api/programs').then(p => p ?? []) : publicGet<Program[]>('/api/programs')
-    programsRequest.then(setPrograms)
-      .catch(() => setPrograms(demoPrograms))
-  }, [refreshJournal])
+      .catch(() => { setSynced('Сервер недоступен'); if (!snap) setPrograms(demoPrograms) })
+      .finally(() => setLoading(false))
+  }, [apply])
 
   function flash(text: string) {
     setToast(text)
@@ -306,11 +331,11 @@ export default function App() {
     <div className="app">
       <main className="screen" key={tab}>
         {tab === 'home' && (
-          <Home name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
+          <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
             water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             summary={aiEnabled && <AiSummary />}
-            quests={canEdit && <Quests onAwarded={questsPaid} />}
+            quests={canEdit && quests && <Quests week={quests} />}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },

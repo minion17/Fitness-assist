@@ -8,7 +8,7 @@
   --nav-bg: rgba(23,25,29,.92); --nav-active-bg: transparent; --nav-active-border: transparent; --nav-active-fg: var(--accent);
   --protein: #7cc4ff; --fat: #ffc56b; --carbs: #b79cff; --water: #7cc4ff; --water-soft: rgba(124,196,255,.16);
   --streak: #ffb35c;
-  --font: 'Manrope', -apple-system, 'Segoe UI', Roboto, sans-serif; --font-display: 'Unbounded', var(--font);
+  --font: 'Manrope Variable', 'Manrope', -apple-system, 'Segoe UI', Roboto, sans-serif; --font-display: 'Unbounded Variable', 'Unbounded', var(--font);
   --radius: 20px; --ring-w: 18px;
   color-scheme: dark;
 }
@@ -32,7 +32,7 @@
   --nav-bg: #121a14; --nav-active-bg: #2a3418; --nav-active-border: #5e7a23; --nav-active-fg: #c3e04a;
   --protein: #7fb8e0; --fat: #e6b65a; --carbs: #b9a3f0; --water: #7fb8e0; --water-soft: #1e2c34;
   --streak: #e6a64a;
-  --font: 'Nunito', -apple-system, 'Segoe UI', Roboto, sans-serif; --font-display: 'Nunito', sans-serif;
+  --font: 'Nunito Variable', 'Nunito', -apple-system, 'Segoe UI', Roboto, sans-serif; --font-display: 'Nunito Variable', 'Nunito', sans-serif;
   --ring-w: 7px;
   color-scheme: dark;
 }
@@ -705,3 +705,10 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .tabs button[aria-selected='true'] { color: var(--text); }
 .tabs button[aria-selected='true']::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; border-radius: 3px; background: var(--accent); }
 .meal-totals { font-variant-numeric: tabular-nums; }
+
+/* Placeholders while the very first data loads (later opens show the last data kept on the phone) */
+.skeleton { display: inline-block; border-radius: 8px; background: linear-gradient(90deg, var(--card-2) 0%, color-mix(in srgb, var(--text) 10%, var(--card-2)) 50%, var(--card-2) 100%); background-size: 200% 100%; animation: shimmer 1.2s ease-in-out infinite; }
+.skeleton-num { width: 84px; height: 40px; }
+.skeleton-line { width: 72px; height: 22px; vertical-align: middle; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; } }

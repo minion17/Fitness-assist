@@ -104,20 +104,29 @@ test('food: search a product and add grams to a meal', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
 
-test('food: delete asks for confirmation', async () => {
+test('food: line actions — change grams, delete asks for confirmation', async () => {
   const day: FoodDay = {
     date: '', totals: { kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 },
     items: [{ id: 42, meal_type: 'lunch', amount_g: 100, logged_at: '', kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3,
       product: { id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 } }],
   }
   const onDelete = vi.fn().mockResolvedValue(undefined)
-  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} />)
+  const onGrams = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} onGrams={onGrams} />)
   fireEvent.click(screen.getByRole('button', { name: 'Обед' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Удалить Творог 5%' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' })) // same as a swipe left
+  fireEvent.click(screen.getByRole('button', { name: 'Граммы' }))
+  fireEvent.change(screen.getByLabelText('Граммы, Творог 5%'), { target: { value: '150' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+  await waitFor(() => expect(onGrams).toHaveBeenCalledWith(42, 150))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0]) // the revealed action
   fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
   expect(onDelete).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Удалить Творог 5%' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Удалить' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0])
+  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' }).at(-1)!) // the confirmation
   await waitFor(() => expect(onDelete).toHaveBeenCalledWith(42))
 })
 

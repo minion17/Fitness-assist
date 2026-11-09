@@ -2,7 +2,7 @@
 :root, [data-theme='dark'] {
   --bg: #0e0f12; --card: #17191d; --card-2: #22252a; --line: #2a2d33; --card-border: rgba(255,255,255,.06);
   --text: #f2f3f5; --muted: #9aa0a8;
-  --accent: #c8f169; --accent-text: var(--accent);
+  --accent: #c8f169; --accent-text: var(--accent); --warn: #ffa94d;
   --primary-bg: var(--accent); --primary-fg: #0e0f12;
   --ring-track: rgba(255,255,255,.07); --glow: color-mix(in srgb, var(--accent) 28%, transparent);
   --nav-bg: rgba(23,25,29,.92); --nav-active-bg: transparent; --nav-active-border: transparent; --nav-active-fg: var(--accent);
@@ -715,3 +715,47 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .water-mode button { width: 34px; height: 28px; border-radius: 9px; font-size: 18px; line-height: 1; font-weight: 700; color: var(--muted); }
 .water-mode button[aria-pressed='true'] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
 .water-removing .water-chips button:not(.water-cancel) { background: color-mix(in srgb, #ff8a80 14%, var(--card-2)); color: #ff8a80; }
+
+/* Confetti for small wins */
+.confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 60; }
+.confetti i { position: absolute; top: -12px; width: 8px; height: 13px; border-radius: 2px; opacity: 0; animation: confetti-fall 1.7s cubic-bezier(.2,.6,.4,1) forwards; }
+.confetti i.round { width: 9px; height: 9px; border-radius: 50%; }
+@keyframes confetti-fall {
+  0% { opacity: 1; transform: translate(0, 0) rotate(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--drift), 92vh) rotate(var(--spin)); }
+}
+
+/* Water glass */
+.water .water-row { align-items: center; gap: 14px; margin-bottom: 12px; }
+.water-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.water-amount { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.water-amount .muted { font-size: 15px; font-weight: 600; }
+.glass { flex: none; }
+.glass-water { transition: transform .6s cubic-bezier(.2,.8,.2,1); }
+.glass-wave { animation: wave 3.2s linear infinite; }
+@keyframes wave { from { transform: translateX(0); } to { transform: translateX(23px); } }
+@media (prefers-reduced-motion: reduce) { .glass-wave { animation: none; } .glass-water { transition: none; } }
+
+/* Over the norm: a warning colour (more protein than planned is fine and stays normal) */
+[data-theme='light'] { --warn: #e8590c; }
+.daily-ring-value.over { stroke: var(--warn); }
+.warn, .macro-row.warn span:last-child { color: var(--warn); }
+.week-day { padding: 4px 0; border-radius: 12px; font-family: inherit; }
+.week-day.picked { background: var(--card-2); }
+.week-kcal { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.week-detail { margin: 10px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--card-2); font-size: 14px; }
+.week-detail b::first-letter { text-transform: uppercase; }
+.food-icon { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 19px; background: var(--card-2); margin-right: 2px; }
+
+/* Swipeable diary line */
+.swipe { position: relative; overflow: hidden; border-radius: 14px; }
+.swipe-actions { position: absolute; inset: 0 0 0 auto; width: 148px; display: flex; }
+.swipe-actions button { flex: 1; font-weight: 700; font-size: 13px; background: var(--card-2); color: var(--text); }
+.swipe-actions .swipe-delete { background: #e5484d; color: #fff; }
+.swipe-front { position: relative; background: var(--card); transition: transform .22s cubic-bezier(.2,.8,.2,1); touch-action: pan-y; }
+.swipe-front.dragging { transition: none; }
+.grams-input { max-width: 120px; margin-top: 4px; }
+.muted-link { color: var(--muted); }
+.repeat-meal { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.repeat-icon { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 20px; font-weight: 800; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); }

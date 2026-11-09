@@ -5,6 +5,7 @@ import Body, { type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
+import Confetti from './Confetti'
 import FirstSteps from './FirstSteps'
 import Quests, { type QuestWeek } from './Quests'
 import { loadSnapshot, saveSnapshot } from './snapshot'
@@ -15,7 +16,7 @@ import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } 
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, type ProfileData, type Recommendation } from './profile'
 import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
-import type { FoodDay, MealType, Measurement, Program, WorkoutLog } from './types'
+import { MEALS, mealNow, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar } from './ui'
 import Workouts from './Workouts'
 
@@ -46,12 +47,13 @@ type Bootstrap = {
   food_day: FoodDay; water: Water; week: { streak: number; days: WeekDay[] }; workout_logs: WorkoutLog[]; measurements: Measurement[]
   achievements: { items: Achievement[]; new: Achievement[]; freezes: number }; ai: { enabled: boolean } | null
   programs: Program[] | null; quests: QuestWeek | null
+  yesterday?: { date: string; meals: Partial<Record<MealType, { kcal: number; items: number }>> }
 }
 /** Today in the phone's timezone as YYYY-MM-DD (same as the server's day for this user). */
 const localDay = () => new Date().toLocaleDateString('sv-SE')
 /** A kept answer from an earlier day still has the right profile, programs and history, but not today's food and water. */
 const fresh = (b: Bootstrap): Bootstrap => b.food_day.date === localDay() ? { ...b, quests: b.quests && { ...b.quests, xp_awarded: 0 } } : {
-  ...b, food_day: { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }, water: { ml: 0, goal_ml: b.water.goal_ml },
+  ...b, food_day: { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }, water: { ml: 0, goal_ml: b.water.goal_ml }, yesterday: undefined,
   quests: b.quests && { ...b.quests, xp_awarded: 0 },
 }
 const NEW_USER: Progress = { xp: 0, level: 1, level_xp: 0, level_xp_needed: 100 }
@@ -140,6 +142,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
 export default function App() {
   // the last server answer kept on this phone: the screen starts from it instead of zeros (see snapshot.ts)
   const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
+  const kcalRef = useRef<number | null>(null) // last known kcal, to notice the moment the norm is reached
   const [tab, setTab] = useState<Tab>('home')
   const [synced, setSynced] = useState('Демо-режим')
   const [xp, setXp] = useState<Progress>(boot?.auth.progress ?? NEW_USER)
@@ -155,6 +158,7 @@ export default function App() {
     try { return Number(localStorage.getItem(PROGRAM_KEY)) || null } catch { return null }
   })
   const [toast, setToast] = useState('')
+  const [party, setParty] = useState(0) // >0: confetti on screen (the number restarts it)
   const [measurements, setMeasurements] = useState<Measurement[]>(boot?.measurements ?? [])
   const [aiEnabled, setAiEnabled] = useState(Boolean(boot?.ai?.enabled))
   const [recommended, setRecommended] = useState<Recommendation | null>(boot?.auth.recommended_program ?? null)
@@ -165,6 +169,7 @@ export default function App() {
   const [reward, setReward] = useState(false)
   const [loading, setLoading] = useState(!boot) // no data yet (first open, nothing kept on the phone)
   const [quests, setQuests] = useState<QuestWeek | null>(boot?.quests ?? null)
+  const [yesterday, setYesterday] = useState(boot?.yesterday)
   const theme = useTheme((patch) => { api('/api/settings', putJson(patch)).catch(() => {}) })
   // latest values for the one-time startup effect (it must not re-run when they change)
   const startup = useRef({ theme, programId, boot, selectProgram: (_id: number | null, _sync?: boolean) => {} })
@@ -185,8 +190,12 @@ export default function App() {
     if (b.ai) setAiEnabled(Boolean(b.ai.enabled))
     setAch(b.achievements); setWeek(b.week); setLogs(b.workout_logs); setMeasurements(b.measurements)
     if (b.programs) setPrograms(b.programs)
-    setFoodDay(b.food_day); setWater(b.water); setQuests(b.quests)
-    if (b.quests?.xp_awarded) flash(`Задание недели выполнено · +${b.quests.xp_awarded} XP`)
+    // calories just came into the norm (90–110%) with this refresh: worth a cheer
+    const goal = u.profile?.targets?.calories, before = kcalRef.current, now = b.food_day.totals.kcal
+    kcalRef.current = now
+    setFoodDay(b.food_day); setWater(b.water); setQuests(b.quests); setYesterday(b.yesterday)
+    if (b.quests?.xp_awarded) celebrate(`Задание недели выполнено 🏆 +${b.quests.xp_awarded} XP`)
+    else if (goal && before !== null && before < goal * 0.9 && now >= goal * 0.9 && now <= goal * 1.1) celebrate('Калории в норме на сегодня 🎯')
   }, [])
 
   const refreshJournal = useCallback(async () => {
@@ -233,11 +242,28 @@ export default function App() {
     setTimeout(() => setToast(''), 2500)
   }
 
+  /** A small win: toast + confetti + a success buzz. */
+  function celebrate(text: string) {
+    flash(text)
+    tg?.HapticFeedback?.notificationOccurred?.('success')
+    const id = Date.now()
+    setParty(id)
+    setTimeout(() => setParty((p) => (p === id ? 0 : p)), 2200)
+  }
+
   async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null) {
     const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}) }))
     tg?.HapticFeedback?.notificationOccurred?.('success')
     await refreshJournal()
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
+  }
+
+  /** "Повторить вчерашний завтрак": the meal of this hour is empty today and was logged yesterday. */
+  function repeatOffer() {
+    const meal = mealNow()
+    const y = yesterday?.meals[meal]
+    if (!yesterday || !y || foodDay.items.some((i) => i.meal_type === meal)) return null
+    return { title: `Повторить вчерашний ${MEALS[meal].toLowerCase()}`, kcal: y.kcal, run: () => copyMeal(yesterday.date, meal) }
   }
 
   async function copyMeal(fromDay: string, meal: MealType) {
@@ -249,6 +275,11 @@ export default function App() {
   async function aiMealDone(xpAwarded: number) {
     await refreshJournal()
     flash(xpAwarded ? `Добавлено · +${xpAwarded} XP` : 'Добавлено')
+  }
+
+  async function changeGrams(id: number, grams: number) {
+    await api(`/api/food-logs/${id}`, { ...postJson({ amount_g: grams }), method: 'PATCH' })
+    await refreshJournal()
   }
 
   async function deleteFood(id: number) {
@@ -282,8 +313,8 @@ export default function App() {
       return
     }
     setWater(r)
+    if (water.ml < r.goal_ml && r.ml >= r.goal_ml) celebrate(r.xp_awarded ? `Норма воды выполнена 💧 +${r.xp_awarded} XP` : 'Норма воды выполнена 💧')
     if (r.xp_awarded) {
-      flash(`Норма воды · +${r.xp_awarded} XP`)
       await refreshJournal()
     } else {
       api<{ streak: number; days: WeekDay[] }>('/api/week').then((wk) => wk && setWeek(wk)).catch(() => {})
@@ -336,6 +367,7 @@ export default function App() {
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             summary={aiEnabled && <AiSummary />}
             quests={canEdit && quests && <Quests week={quests} />}
+            repeat={canEdit ? repeatOffer() : null}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
@@ -347,7 +379,7 @@ export default function App() {
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />
@@ -371,6 +403,7 @@ export default function App() {
         </div>
       </nav>
       {toast && <div className="toast" role="status">{toast}</div>}
+      {party > 0 && <Confetti key={party} />}
       {!reward && ach.new.length > 0 && (
         <AchievementUnlocked {...ach.new[0]} more={ach.new.length - 1} onClose={() => {
           setAch((a) => ({ ...a, new: [] }))

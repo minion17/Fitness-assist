@@ -1,6 +1,7 @@
 // Daily overview with compact food and workout summaries.
 import { useState } from 'react'
 import type { Targets } from './profile'
+import { useCountUp } from './motion'
 import { nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
 
 export type Water = { ml: number; goal_ml: number }
@@ -26,6 +27,26 @@ function MiniRing({ frac, today }: { frac: number; today: boolean }) {
 
 const PORTIONS = [150, 250, 330, 500]
 
+/** A glass that fills up to the day's goal, with a slow wave on top. */
+function Glass({ frac }: { frac: number }) {
+  const level = useCountUp(Math.max(0, Math.min(1, frac)))
+  const top = 6 + (1 - level) * 54  // water surface: y=60 empty .. y=6 full
+  return (
+    <svg className="glass" width="46" height="64" viewBox="0 0 46 64" aria-hidden="true">
+      <defs><clipPath id="glass-in"><path d="M5 4h36l-4 54a4 4 0 0 1-4 4H13a4 4 0 0 1-4-4z" /></clipPath></defs>
+      <g clipPath="url(#glass-in)">
+        <rect x="0" y="0" width="46" height="64" fill="var(--water-soft)" />
+        {level > 0.01 && (
+          <g style={{ transform: `translateY(${top}px)` }} className="glass-water">
+            <path className="glass-wave" d="M-46 3 q5.75 -4 11.5 0 t11.5 0 t11.5 0 t11.5 0 t11.5 0 t11.5 0 t11.5 0 t11.5 0 V70 H-46z" fill="var(--water)" />
+          </g>
+        )}
+      </g>
+      <path d="M5 4h36l-4 54a4 4 0 0 1-4 4H13a4 4 0 0 1-4-4z" fill="none" stroke="color-mix(in srgb, var(--water) 55%, transparent)" strokeWidth="2" />
+    </svg>
+  )
+}
+
 function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean; onWater: (delta: number) => void }) {
   const [remove, setRemove] = useState(false) // "Убрать": the same chips subtract (any amount, not only the last glass)
   const [custom, setCustom] = useState<string | null>(null)
@@ -41,8 +62,12 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
   return (
     <section className={`card water${remove ? ' water-removing' : ''}`}>
       <div className="water-row">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--water)" strokeWidth="2" strokeLinejoin="round" aria-hidden="true"><path d="M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z" /></svg>
-        <div className="row-title strong row-main">Вода · {liters(water.ml)} <span className="muted">/ {liters(water.goal_ml)} л</span></div>
+        <Glass frac={water.goal_ml > 0 ? water.ml / water.goal_ml : 0} />
+        <div className="row-main water-text">
+          <span className="sub">Вода</span>
+          <span className="water-amount">{liters(water.ml)} <span className="muted">/ {liters(water.goal_ml)} л</span></span>
+          <span className="sub">{water.ml >= water.goal_ml ? 'Норма выполнена 💧' : `ещё ${liters(water.goal_ml - water.ml)} л`}</span>
+        </div>
         {canEdit && water.ml > 0 && (
           <div className="water-mode" role="group" aria-label="Режим">
             <button aria-pressed={!remove} aria-label="Режим: добавлять" onClick={() => { setRemove(false); setCustom(null) }}>+</button>
@@ -50,7 +75,6 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
           </div>
         )}
       </div>
-      <div className="bar water-bar"><i style={{ width: `${Math.min(100, (water.ml / water.goal_ml) * 100)}%`, background: 'var(--water)' }} /></div>
       {canEdit && (custom === null ? (
         <div className="water-chips">
           {PORTIONS.map((n) => (
@@ -76,6 +100,39 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
   )
 }
 
+const short = (kcal: number) => (kcal >= 1000 ? `${(kcal / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}к` : kcal > 0 ? String(Math.round(kcal)) : '—')
+
+/** Seven days as rings with calories under each; tap a day for its numbers. */
+function WeekCard({ week, goal, norm }: { week: WeekDay[]; goal: number; norm: number }) {
+  const [picked, setPicked] = useState<number | null>(null)
+  const d = picked === null ? null : week[picked]
+  return (
+    <section className="card">
+      <div className="card-head">
+        <h2>Неделя</h2>
+        <span className="sub">{norm} из 7 дней в норме</span>
+      </div>
+      <div className="week">
+        {week.map((w, i) => (
+          <button key={w.date} className={`week-day${i === 6 ? ' today' : ''}${picked === i ? ' picked' : ''}`} aria-pressed={picked === i}
+            aria-label={`${new Date(w.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}: ${Math.round(w.kcal)} ккал`}
+            onClick={() => setPicked(picked === i ? null : i)}>
+            <MiniRing frac={w.kcal / goal} today={i === 6} />
+            <span>{WEEKDAY[new Date(w.date + 'T12:00').getDay()]}</span>
+            <span className="week-kcal">{short(w.kcal)}</span>
+          </button>
+        ))}
+      </div>
+      {d && (
+        <p className="week-detail" role="status">
+          <b>{new Date(d.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })}</b>
+          {' · '}{fmt(d.kcal)} ккал · вода {liters(d.water_ml)} л{d.workouts ? ` · тренировок: ${d.workouts}` : ''}
+        </p>
+      )}
+    </section>
+  )
+}
+
 export default function Home(props: {
   name: string
   level: number
@@ -97,6 +154,7 @@ export default function Home(props: {
   summary: React.ReactNode
   intro?: React.ReactNode
   quests?: React.ReactNode
+  repeat?: { title: string; kcal: number; run: () => void } | null
 }) {
   const { targets, day, water, week } = props
   const [today] = useState(() => {
@@ -108,6 +166,8 @@ export default function Home(props: {
   const foodProgress = foodRatio < 0.9 ? foodRatio : foodRatio <= 1.1 ? 1 : Math.max(0, 2.1 - foodRatio)
   const waterProgress = water.goal_ml > 0 ? Math.min(1, Math.max(0, water.ml / water.goal_ml)) : 0
   const progress = Math.round((foodProgress + waterProgress) * 50)
+  const shownProgress = Math.round(useCountUp(props.loading ? 0 : progress))
+  const shownKcal = useCountUp(day.totals.kcal)
   const next = props.program && nextDay(props.program, props.logs)
   const daysInNorm = week.filter((d) => d.kcal >= goal * 0.9 && d.kcal <= goal * 1.1).length
 
@@ -137,8 +197,8 @@ export default function Home(props: {
       <div className="home-today">
       <section className="daily-progress" aria-label={props.loading ? 'Загрузка' : `Прогресс дня: ${progress}%`} aria-busy={props.loading}>
         <div className="daily-progress-ring">
-          <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{!props.loading && progress > 0 && <circle className="daily-ring-value" cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${progress} 100`} />}</svg>
-          <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <strong>{progress}%</strong>}</div>
+          <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{!props.loading && shownProgress > 0 && <circle className={foodRatio > 1.1 ? 'daily-ring-value over' : 'daily-ring-value'} cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${shownProgress} 100`} />}</svg>
+          <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <strong>{shownProgress}%</strong>}</div>
         </div>
         <p className="sub daily-progress-caption">Прогресс дня</p>
       </section>
@@ -146,8 +206,8 @@ export default function Home(props: {
       <div className="home-overview">
         <button className="card home-overview-card" onClick={props.onNutrition}>
           <span className="overview-link">Питание <span aria-hidden="true">→</span></span>
-          <span className="overview-value">{props.loading ? <span className="skeleton skeleton-line" /> : fmt(day.totals.kcal)}</span>
-          <span className="sub">из {fmt(goal)} ккал</span>
+          <span className="overview-value">{props.loading ? <span className="skeleton skeleton-line" /> : fmt(shownKcal)}</span>
+          <span className={foodRatio > 1.1 ? 'sub warn' : 'sub'}>{foodRatio > 1.1 ? `на ${fmt(day.totals.kcal - goal)} больше нормы` : `из ${fmt(goal)} ккал`}</span>
         </button>
         <button className="card home-overview-card" onClick={props.onWorkouts}>
           <span className="overview-link">Тренировка дня <span aria-hidden="true">→</span></span>
@@ -174,26 +234,19 @@ export default function Home(props: {
         </div>
       )}
 
+      {props.repeat && (
+        <button className="card repeat-meal" onClick={props.repeat.run}>
+          <span className="repeat-icon" aria-hidden="true">↻</span>
+          <span className="step-text"><b>{props.repeat.title}</b><span className="sub">{fmt(props.repeat.kcal)} ккал · одним нажатием</span></span>
+          <span className="step-go" aria-hidden="true">›</span>
+        </button>
+      )}
+
       <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} />
 
       {props.quests}
 
-      {week.length === 7 && (
-        <section className="card">
-          <div className="card-head">
-            <h2>Неделя</h2>
-            <span className="sub">{daysInNorm} из 7 дней в норме</span>
-          </div>
-          <div className="week">
-            {week.map((d, i) => (
-              <div key={d.date} className={i === 6 ? 'week-day today' : 'week-day'}>
-                <MiniRing frac={d.kcal / goal} today={i === 6} />
-                <span>{WEEKDAY[new Date(d.date + 'T12:00').getDay()]}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      {week.length === 7 && <WeekCard week={week} goal={goal} norm={daysInNorm} />}
 
 
 

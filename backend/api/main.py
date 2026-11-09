@@ -411,6 +411,22 @@ async def delete_food_log(log_id: int, tg: dict = Depends(telegram_user), sessio
     return {"ok": True}
 
 
+class FoodLogPatch(BaseModel):
+    amount_g: float = Field(gt=0, le=5000)
+
+
+@app.patch("/api/food-logs/{log_id}")
+async def change_food_log(log_id: int, body: FoodLogPatch, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """Fix the grams of an entry (swipe in the diary)."""
+    user = await get_or_create_user(tg, session)
+    log = await session.scalar(select(FoodLog).options(selectinload(FoodLog.product)).where(FoodLog.id == log_id))
+    if log is None or log.user_id != user.id:
+        raise HTTPException(404, "Запись не найдена")
+    log.amount_g = body.amount_g
+    await session.commit()
+    return food_log_out(log)
+
+
 # ---- Body measurements ----
 
 
@@ -618,7 +634,20 @@ async def bootstrap(tg: dict = Depends(telegram_user), session: AsyncSession = D
         "ai": await ai_status(tg, session),
         "programs": await list_programs(tg, session),
         "quests": week_tasks,
+        "yesterday": await yesterday_meals(tg, session),
     }
+
+
+async def yesterday_meals(tg: dict, session: AsyncSession) -> dict:
+    """{date, meals: {meal_type: {kcal, items}}} for yesterday: Home offers "повторить вчерашний завтрак"."""
+    d = clock.today() - timedelta(days=1)
+    day = await get_food_logs(d, tg, session)
+    meals: dict[str, dict] = {}
+    for i in day["items"]:
+        m = meals.setdefault(i["meal_type"], {"kcal": 0, "items": 0})
+        m["kcal"] += i["kcal"]
+        m["items"] += 1
+    return {"date": d.isoformat(), "meals": meals}
 
 
 app.include_router(ai_router)

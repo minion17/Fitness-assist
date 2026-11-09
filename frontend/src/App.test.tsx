@@ -109,7 +109,7 @@ test('home water tracker, food shortcut and theme picker work in demo mode', () 
   render(<App />)
   // demo: no account -> no edit buttons, ring still shows the goal
   expect(screen.getByText('из 2 000 ккал')).toBeTruthy()
-  expect(screen.getByText(/Вода · 0/)).toBeTruthy()
+  expect(screen.getByText('ещё 2 л')).toBeTruthy() // water: nothing drunk yet
 
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }))
   fireEvent.click(screen.getByRole('button', { name: 'Салатовая' }))

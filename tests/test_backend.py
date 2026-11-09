@@ -1073,6 +1073,17 @@ def test_bootstrap_has_the_whole_first_screen(client, seeded):
     h = new_user_headers()
     client.put("/api/profile", headers=h, json=PROFILE)
     b = client.post("/api/bootstrap", headers=h).json()
-    assert set(b) == {"auth", "food_day", "water", "week", "workout_logs", "measurements", "achievements", "ai", "programs", "quests"}
+    assert set(b) == {"auth", "food_day", "water", "week", "workout_logs", "measurements", "achievements", "ai", "programs", "quests", "yesterday"}
+    assert b["yesterday"]["meals"] == {}
     assert b["auth"]["profile"] and len(b["quests"]["items"]) == 3 and b["programs"]
     assert client.post("/api/bootstrap", headers=h).headers.get("content-encoding") == "gzip"  # big JSON is compressed
+
+
+def test_change_grams_of_a_diary_entry(client, seeded):
+    h, other = new_user_headers(), new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    log = client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"}).json()
+    assert client.patch(f"/api/food-logs/{log['id']}", headers=other, json={"amount_g": 50}).status_code == 404
+    assert client.patch(f"/api/food-logs/{log['id']}", headers=h, json={"amount_g": 0}).status_code == 422
+    r = client.patch(f"/api/food-logs/{log['id']}", headers=h, json={"amount_g": 250}).json()
+    assert r["amount_g"] == 250 and r["kcal"] == round(log["kcal"] * 2.5)

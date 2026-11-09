@@ -56,3 +56,13 @@ test('first steps disappear when everything is done', () => {
   render(<FirstSteps steps={[{ key: 'a', title: 'A', hint: '', done: true, action: () => {} }]} />)
   expect(screen.queryByLabelText('Первые шаги')).toBeNull()
 })
+
+test('offers to repeat yesterday\'s meal in one tap', () => {
+  const run = vi.fn()
+  render(<Home name="Тест" level={1} streak={0} day={{ date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }}
+    logs={[]} water={{ ml: 0, goal_ml: 2000 }} week={[]} aiEnabled={false} canEdit
+    onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} summary={null}
+    repeat={{ title: 'Повторить вчерашний завтрак', kcal: 420, run }} />)
+  fireEvent.click(screen.getByRole('button', { name: /Повторить вчерашний завтрак/ }))
+  expect(run).toHaveBeenCalled()
+})

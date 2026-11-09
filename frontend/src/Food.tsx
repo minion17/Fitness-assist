@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Targets } from './profile'
 import AiMeal from './AiMeal'
 import { shrink } from './image'
@@ -8,6 +8,7 @@ import MenuImport from './MenuImport'
 import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
+import { foodIcon } from './foodIcon'
 import { Bar, Ring, Sheet } from './ui'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
@@ -37,12 +38,83 @@ function mealGroups(day: FoodDay) {
   return groups.sort((a, b) => a.time.localeCompare(b.time))
 }
 
-export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
+const ACTIONS_W = 148 // px revealed by a swipe: "Граммы" + "Удалить"
+
+/** A diary line. Swipe left (or tap ⋯) for "Граммы" / "Удалить"; deleting asks once more. */
+function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
+  item: FoodItem; canEdit: boolean; onDelete: (id: number) => Promise<void>; onGrams: (id: number, grams: number) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [drag, setDrag] = useState<number | null>(null) // live offset while the finger moves
+  const [mode, setMode] = useState<'grams' | 'confirm' | null>(null)
+  const [grams, setGrams] = useState(String(i.amount_g))
+  const start = useRef<{ x: number; y: number; base: number } | null>(null)
+  const g = Number(grams.replace(',', '.'))
+  const gramsOk = Number.isFinite(g) && g > 0 && g <= 5000
+
+  if (mode === 'grams') return (
+    <div className="row food-row-edit">
+      <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>
+      <div className="row-main"><div className="row-title">{i.product.name}</div>
+        <div className="input-wrap grams-input"><input autoFocus inputMode="decimal" aria-label={`Граммы, ${i.product.name}`} value={grams}
+          onChange={(e) => setGrams(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && gramsOk) onGrams(i.id, g).then(() => setMode(null)) }} /><i>г</i></div>
+      </div>
+      <div className="confirm">
+        <button className="link" disabled={!gramsOk} onClick={() => onGrams(i.id, g).then(() => { setMode(null); setOpen(false) })}>Сохранить</button>
+        <button className="link muted-link" onClick={() => setMode(null)}>Отмена</button>
+      </div>
+    </div>
+  )
+
+  const offset = drag ?? (open ? -ACTIONS_W : 0)
+  return (
+    <div className="swipe">
+      {canEdit && (
+        <div className="swipe-actions" aria-hidden={!open}>
+          <button tabIndex={open ? 0 : -1} onClick={() => { setGrams(String(i.amount_g)); setMode('grams') }}>Граммы</button>
+          <button className="swipe-delete" tabIndex={open ? 0 : -1} onClick={() => setMode('confirm')}>Удалить</button>
+        </div>
+      )}
+      <div className={`row swipe-front${drag === null ? '' : ' dragging'}`} style={{ transform: `translateX(${offset}px)` }}
+        onPointerDown={(e) => { if (canEdit && mode === null) start.current = { x: e.clientX, y: e.clientY, base: open ? -ACTIONS_W : 0 } }}
+        onPointerMove={(e) => {
+          const s0 = start.current
+          if (!s0) return
+          const dx = e.clientX - s0.x
+          if (drag === null && Math.abs(dx) < 8) return
+          if (drag === null && Math.abs(e.clientY - s0.y) > Math.abs(dx)) { start.current = null; return } // a scroll, not a swipe
+          setDrag(Math.max(-ACTIONS_W - 20, Math.min(0, s0.base + dx)))
+        }}
+        onPointerUp={() => { if (drag !== null) setOpen(drag < -ACTIONS_W / 2); setDrag(null); start.current = null }}
+        onPointerCancel={() => { setDrag(null); start.current = null }}>
+        <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>
+        <div className="row-main">
+          <div className="row-title">{i.product.name}</div>
+          <div className="row-sub">{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
+        </div>
+        {mode === 'confirm' ? (
+          <div className="confirm">
+            <button className="link danger" onClick={() => onDelete(i.id)}>Удалить</button>
+            <button className="link" onClick={() => { setMode(null); setOpen(false) }}>Отмена</button>
+          </div>
+        ) : (
+          <>
+            <div className="row-end">{Math.round(i.kcal)} ккал</div>
+            {canEdit && <button className="icon-btn" aria-label={`Действия: ${i.product.name}`} aria-expanded={open} onClick={() => setOpen(!open)}>⋯</button>}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
   onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null) => Promise<void>
   onDelete: (id: number) => Promise<void>
+  onGrams?: (id: number, grams: number) => Promise<void>
   aiEnabled?: boolean
   onAiDone?: (xp: number) => Promise<void>
   intent?: FoodIntent | null // shortcut from Home: open the matching sheet right away
@@ -50,7 +122,6 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
 }) {
   const goals = targets ?? DEFAULT_GOALS
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
-  const [confirm, setConfirm] = useState<number | null>(null)
   const [expandedMeals, setExpandedMeals] = useState<string[]>([])
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
   const t = day.totals
@@ -73,8 +144,8 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
           <div className="macros">
             {MACROS.map((m) => (
               <div key={m.key}>
-                <div className="macro-row"><span>{m.label}</span><span>{Math.round(t[m.key])} / {goals[m.goal]} г</span></div>
-                <Bar value={t[m.key]} goal={goals[m.goal]} color={m.color} />
+                <div className={t[m.key] > goals[m.goal] * 1.1 && m.key !== 'protein_g' ? 'macro-row warn' : 'macro-row'}><span>{m.label}</span><span>{Math.round(t[m.key])} / {goals[m.goal]} г</span></div>
+                <Bar value={t[m.key]} goal={goals[m.goal]} color={m.color} warnOver={m.key !== 'protein_g'} />
               </div>
             ))}
           </div>
@@ -104,23 +175,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, aiEnabled
             {expandedMeals.includes(key) && (items.length === 0 ? <p className="sub">Пока нет продуктов</p> : (
               <div className="list">
                 {items.map((i) => (
-                  <div className="row" key={i.id}>
-                    <div className="row-main">
-                      <div className="row-title">{i.product.name}</div>
-                      <div className="row-sub">{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
-                    </div>
-                    {confirm === i.id ? (
-                      <div className="confirm">
-                        <button className="link danger" onClick={() => onDelete(i.id).finally(() => setConfirm(null))}>Удалить</button>
-                        <button className="link" onClick={() => setConfirm(null)}>Отмена</button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="row-end">{Math.round(i.kcal)} ккал</div>
-                        {canEdit && <button className="icon-btn" aria-label={`Удалить ${i.product.name}`} onClick={() => setConfirm(i.id)}>✕</button>}
-                      </>
-                    )}
-                  </div>
+                  <FoodRow key={i.id} item={i} canEdit={canEdit} onDelete={onDelete} onGrams={onGrams} />
                 ))}
               </div>
             ))}

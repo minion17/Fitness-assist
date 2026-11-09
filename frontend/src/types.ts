@@ -75,3 +75,16 @@ export function latestValues(ms: Measurement[]): Partial<Record<MeasureKey, { va
   for (const m of ms) for (const { key } of MEASURES) if (out[key] === undefined && m[key] !== null) out[key] = { value: m[key]!, on: m.measured_on }
   return out
 }
+
+// "В прошлый раз": sets from the latest workout with this exercise (GET /api/exercises/last)
+export type LastSet = { reps: number | null; duration_seconds: number | null; weight_kg: number }
+export type Last = Record<string, { date: string; sets: LastSet[] }>
+
+const kg = (n: number) => n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
+export function lastLabel(sets: LastSet[]): string {
+  const one = (x: LastSet) => x.duration_seconds != null ? `${x.duration_seconds} с${x.weight_kg ? ` · ${kg(x.weight_kg)} кг` : ''}`
+    : x.weight_kg ? `${kg(x.weight_kg)} кг × ${x.reps}` : `${x.reps} повт`
+  const parts = sets.map(one)
+  if (parts.every((p) => p === parts[0])) return parts.length > 1 ? `${parts.length} подх. по ${parts[0]}` : parts[0]
+  return parts.join(', ')
+}

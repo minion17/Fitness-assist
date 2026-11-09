@@ -5,7 +5,7 @@ import AiSummary from './AiSummary'
 import Body from './Body'
 import Food from './Food'
 import { api, ApiError, publicGet } from './telegram'
-import { mealNow, nextDay, weightTrend, type FoodDay, type Measurement, type Program, type WorkoutLog } from './types'
+import { lastLabel, mealNow, nextDay, weightTrend, type FoodDay, type Measurement, type Program, type WorkoutLog } from './types'
 import Workouts from './Workouts'
 
 vi.mock('./telegram', () => {
@@ -38,7 +38,8 @@ test('helpers: next program day and meal by time', () => {
 
 test('workout session: logs sets, then completes', async () => {
   const onChanged = vi.fn()
-  apiMock.mockResolvedValueOnce({ id: 99 }) // start workout
+  apiMock.mockResolvedValueOnce({}) // last time: nothing yet
+    .mockResolvedValueOnce({ id: 99 }) // start workout
     .mockResolvedValueOnce({ id: 1 }) // set
     .mockResolvedValueOnce({ ok: true, xp_awarded: 50 }) // complete
   render(<Workouts programs={[program]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={onChanged} />)
@@ -52,12 +53,25 @@ test('workout session: logs sets, then completes', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить подход 1' }))
   await waitFor(() => expect(screen.getByRole('button', { name: /Завершить тренировку · 1/ })).toBeTruthy())
 
-  expect(apiMock.mock.calls[0][0]).toBe('/api/workout-logs')
-  expect(JSON.parse(apiMock.mock.calls[1][1]!.body as string)).toEqual({ exercise_id: 7, set_number: 1, reps: 6, weight_kg: 62.5 })
+  expect(apiMock.mock.calls[0][0]).toBe('/api/exercises/last?ids=7')
+  expect(apiMock.mock.calls[1][0]).toBe('/api/workout-logs')
+  expect(JSON.parse(apiMock.mock.calls[2][1]!.body as string)).toEqual({ exercise_id: 7, set_number: 1, reps: 6, weight_kg: 62.5 })
 
   fireEvent.click(screen.getByRole('button', { name: /Завершить тренировку/ }))
   await waitFor(() => expect(onChanged).toHaveBeenCalledWith(50))
-  expect(apiMock.mock.calls[2][0]).toBe('/api/workout-logs/99/complete')
+  expect(apiMock.mock.calls[3][0]).toBe('/api/workout-logs/99/complete')
+})
+
+test('workout session shows last time and prefills its weights', async () => {
+  apiMock.mockResolvedValueOnce({ 7: { date: '2026-11-03', sets: [
+    { reps: 8, duration_seconds: null, weight_kg: 60 }, { reps: 6, duration_seconds: null, weight_kg: 62.5 }] } })
+  render(<Workouts programs={[program]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Начать тренировку' }))
+  expect((await screen.findByText(/В прошлый раз/)).textContent).toMatch(/3 нояб.*60 кг × 8, 62,5 кг × 6/)
+  expect((screen.getByLabelText('Жим лёжа, подход 2, вес') as HTMLInputElement).value).toBe('62.5')
+  expect(lastLabel([{ reps: 8, duration_seconds: null, weight_kg: 60 }, { reps: 8, duration_seconds: null, weight_kg: 60 }])).toBe('2 подх. по 60 кг × 8')
+  expect(lastLabel([{ reps: 12, duration_seconds: null, weight_kg: 0 }])).toBe('12 повт')
+  expect(lastLabel([{ reps: null, duration_seconds: 45, weight_kg: 0 }])).toBe('45 с')
 })
 
 test('workout session rejects bad reps without calling the API', () => {
@@ -66,7 +80,7 @@ test('workout session rejects bad reps without calling the API', () => {
   fireEvent.change(screen.getByLabelText('Жим лёжа, подход 1, повторы'), { target: { value: '0' } })
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить подход 1' }))
   expect(screen.getByRole('alert').textContent).toBe('Повторы: целое число от 1 до 500')
-  expect(apiMock).not.toHaveBeenCalled()
+  expect(apiMock.mock.calls.map((c) => c[0])).toEqual(['/api/exercises/last?ids=7']) // only the "last time" hint
 })
 
 test('food: search a product and add grams to a meal', async () => {

@@ -633,3 +633,4 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 [data-theme='light'] .nav button[aria-current='page'] { border-color: transparent; }
 [data-theme='light'] .profile-metrics > .card, [data-theme='light'] .progress-summary > .card { box-shadow: none; }
 [data-theme='light'] :is(.home-today, .nutrition-summary) { --accent: var(--accent-text); }
+.session-last { color: var(--accent-text, var(--accent)); font-weight: 600; }

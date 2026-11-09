@@ -564,6 +564,27 @@ async def list_workout_logs(tg: dict = Depends(telegram_user), session: AsyncSes
     ]
 
 
+@app.get("/api/exercises/last")
+async def last_sets(
+    ids: str = Query(..., max_length=500), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
+):
+    """For each exercise id: the sets from the latest workout where the user did it ("в прошлый раз 60 кг × 8")."""
+    user = await get_or_create_user(tg, session)
+    wanted = {int(x) for x in ids.split(",") if x.strip().isdigit()}
+    rows = await session.execute(
+        select(WorkoutSet, WorkoutLog.id, WorkoutLog.started_at)
+        .join(WorkoutLog, WorkoutLog.id == WorkoutSet.workout_log_id)
+        .where(WorkoutLog.user_id == user.id, WorkoutSet.exercise_id.in_(wanted))
+        .order_by(WorkoutLog.started_at.desc(), WorkoutSet.set_number)
+    )
+    out: dict[int, dict] = {}
+    for ws, log_id, at in rows:
+        last = out.setdefault(ws.exercise_id, {"log_id": log_id, "date": at.astimezone().date().isoformat(), "sets": []})
+        if last["log_id"] == log_id:
+            last["sets"].append({"reps": ws.reps, "duration_seconds": ws.duration_seconds, "weight_kg": ws.weight_kg})
+    return {str(k): {"date": v["date"], "sets": v["sets"]} for k, v in out.items()}
+
+
 app.include_router(ai_router)
 app.include_router(daily_router)
 app.include_router(quick_food_router)

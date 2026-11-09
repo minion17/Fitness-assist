@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Recommendation } from './profile'
 import { api, postJson } from './telegram'
-import { nextDay, type Program, type ProgramDay, type WorkoutLog } from './types'
+import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type WorkoutLog } from './types'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -149,6 +149,23 @@ function Session({ program, day, onExit, onChanged }: {
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [last, setLast] = useState<Last>({})
+
+  useEffect(() => {
+    let stale = false
+    api<Last>(`/api/exercises/last?ids=${day.exercises.map((e) => e.exercise_id).join(',')}`).then((r) => {
+      if (stale || !r) return
+      setLast(r)
+      // empty weight fields take last time's weight for the same set (or the last set done)
+      setSets((prev) => prev.map((row, ei) => {
+        const done = r[day.exercises[ei].exercise_id]?.sets
+        return !done?.length ? row : row.map((x, si) => x.saved || x.weight !== '' ? x
+          : { ...x, weight: String((done[si] ?? done[done.length - 1]).weight_kg || '') })
+      }))
+    }).catch(() => {})  // hint only: the workout works without it
+    return () => { stale = true }
+  }, [day])
+
   const savedCount = sets.flat().filter((s) => s.saved).length
 
   const update = (ei: number, si: number, patch: Partial<SetState>) =>
@@ -210,6 +227,9 @@ function Session({ program, day, onExit, onChanged }: {
             <div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div>
             <div className="sub">План: {e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''} · отдых {e.rest_seconds} с</div>
             {e.notes && <div className="sub">{e.notes}</div>}
+            {last[e.exercise_id]?.sets.length ? (
+              <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
+            ) : null}
           </div>
           <div className="session-set-labels" aria-hidden="true"><span>Подход</span><span>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'Время' : 'Повторы'}</span><span>Вес</span><span>Готово</span></div>
           {sets[ei].map((s, si) => (

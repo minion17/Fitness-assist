@@ -197,6 +197,14 @@ def test_workout_flow(client, seeded):
     assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == 50
     assert client.post("/api/workout-logs", headers=h, json={"program_day_id": 10**9}).status_code == 404
 
+    # "last time": only the latest workout's sets, only this user's
+    w2 = client.post("/api/workout-logs", headers=h, json={"program_day_id": day_id, "title": "День 1"}).json()
+    for n, kg in ((1, 62.5), (2, 60)):
+        client.post(f"/api/workout-logs/{w2['id']}/sets", headers=h, json={**s, "set_number": n, "weight_kg": kg})
+    last = client.get(f"/api/exercises/last?ids={ex_id},999999", headers=h).json()
+    assert [x["weight_kg"] for x in last[str(ex_id)]["sets"]] == [62.5, 60] and "999999" not in last
+    assert client.get(f"/api/exercises/last?ids={ex_id}", headers=other).json() == {}
+
 
 def test_import_reports_bad_product_rows(tmp_path, monkeypatch):
     import backend.seed.import_data as imp

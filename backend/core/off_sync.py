@@ -11,16 +11,19 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import httpx
+from sqlalchemy import update
 from sqlalchemy.dialects.postgresql import insert
 
-from backend.core.off import HEADERS, parse
+from backend.core.off import HEADERS, UNIT_FIELDS, parse
 from backend.database.db import SessionLocal
 from backend.database.models import Product
 
 log = logging.getLogger("off_sync")
 STATE = Path(__file__).resolve().parents[2] / ".off_sync"
 URL = "https://world.openfoodfacts.org/api/v2/search"
-FIELDS = "code,product_name,product_name_ru,generic_name_ru,brands,nutriments"
+FIELDS = f"code,product_name,product_name_ru,generic_name_ru,brands,nutriments,{UNIT_FIELDS}"
+UNIT_KEYS = ("piece_g", "piece_name", "portion_g", "portion_name", "ml_g")
+VERSION = 2  # 2: packages, servings and ml; a state from an older version starts a fresh pass to fill them in
 PAGE_SIZE = 200
 PAUSE = 7          # seconds between pages: OFF allows ~10 searches a minute
 REPEAT_DAYS = 30
@@ -57,13 +60,20 @@ async def save(batch: list[dict]) -> int:
         # one statement per row: a clash on barcode or on name+brand only skips that row
         added = 0
         for r in batch:
-            added += (await s.execute(insert(Product).values(**r).on_conflict_do_nothing())).rowcount or 0
+            n = (await s.execute(insert(Product).values(**r).on_conflict_do_nothing())).rowcount or 0
+            added += n
+            units = {k: r[k] for k in UNIT_KEYS if k in r}
+            if not n and units:  # already there from an earlier pass: add the units it didn't have, change nothing else
+                await s.execute(update(Product).where(Product.barcode == r["barcode"], Product.piece_g.is_(None),
+                                                      Product.portion_g.is_(None), Product.ml_g.is_(None)).values(**units))
         await s.commit()
     return added
 
 
 async def run() -> None:
     state = load_state()
+    if state.get("v") != VERSION:
+        state = {"v": VERSION}
     done = state.get("done_at")
     if done and datetime.fromisoformat(done) > datetime.now(timezone.utc) - timedelta(days=REPEAT_DAYS):
         return
@@ -81,12 +91,12 @@ async def run() -> None:
                 await asyncio.sleep(300)
                 continue
             if not products:
-                save_state({"page": 1, "added": 0, "done_at": datetime.now(timezone.utc).isoformat(), "last_total": total})
+                save_state({"v": VERSION, "page": 1, "added": 0, "done_at": datetime.now(timezone.utc).isoformat(), "last_total": total})
                 log.info("Open Food Facts: готово, добавлено %s товаров", total)
                 return
             total += await save(rows(products))
             page += 1
-            save_state({"page": page, "added": total})
+            save_state({"v": VERSION, "page": page, "added": total})
             await asyncio.sleep(PAUSE)
 
 

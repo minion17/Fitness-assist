@@ -495,4 +495,8 @@ test('units: pieces, ml, glasses and spoons turn into grams', async () => {
   expect(unitsFor(milk).find((u) => u.label === 'стакан')!.g).toBeCloseTo(257.5)
   expect(defaultAmount(milk).qty).toBe(200)
   expect(defaultAmount(base)).toEqual({ unit: { label: 'г', g: 1 }, qty: 100 })
+  // Open Food Facts packages: a 125 g yogurt is "1 упаковка", a litre of juice starts at 200 ml, a kilo of oats at its serving
+  expect(defaultAmount({ ...base, piece_g: 125, piece_name: 'упаковка' })).toEqual({ unit: { label: 'упаковка', g: 125 }, qty: 1 })
+  expect(defaultAmount({ ...base, piece_g: 1000, piece_name: 'упаковка', ml_g: 1 })).toEqual({ unit: { label: 'мл', g: 1 }, qty: 200 })
+  expect(defaultAmount({ ...base, piece_g: 1000, piece_name: 'упаковка', portion_g: 30, portion_name: 'порция' }).unit.label).toBe('порция')
 })

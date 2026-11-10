@@ -428,6 +428,19 @@ def test_off_parse():
     assert parse({"status": 1, "product": {"product_name": "Мусор", "nutriments": {"energy-kcal_100g": 5000}}}) is None
 
 
+def test_off_units_from_package_and_serving():
+    from backend.core.off import units
+
+    assert units({"quantity": "500 мл", "serving_size": "200 мл", "serving_quantity": 200}) == {
+        "piece_g": 500.0, "piece_name": "упаковка", "portion_g": 200.0, "portion_name": "порция", "ml_g": 1.0}
+    assert units({"quantity": "6 x 50 г"}) == {"piece_g": 50.0, "piece_name": "шт", "portion_g": 300.0, "portion_name": "упаковка"}
+    assert units({"quantity": "40 г", "serving_size": "1 батончик (40 г)", "serving_quantity": 40}) == {"piece_g": 40.0, "piece_name": "шт"}
+    assert units({"product_quantity": "330", "product_quantity_unit": "ml"})["ml_g"] == 1.0
+    assert units({"quantity": "0.33l"})["piece_g"] == 330.0
+    assert units({"quantity": "5 л"}) == {"ml_g": 1.0}  # too big to be "one", still counted in ml
+    assert units({}) == {} and units({"quantity": "без веса"}) == {}
+
+
 def test_barcode_lookup_and_custom_product(client, monkeypatch):
     import random
 
@@ -1148,6 +1161,12 @@ def test_open_food_facts_bulk_sync(client, seeded, tmp_path, monkeypatch):
     assert [(p.name, p.brand, p.kcal, p.owner_user_id) for p in found] == [(f"Кефир тестовый {code}", "Ирбит", 53, None)]
     assert off_sync.load_state()["done_at"]
     assert client.get("/api/products/search", params={"q": f"кефир тестовый {code}"}).json()[0]["name"] == f"Кефир тестовый {code}"
+
+    # a new version of the sync goes over again and adds the package to products it already has
+    page1[0]["quantity"] = "900 мл"
+    monkeypatch.setattr(off_sync, "VERSION", off_sync.VERSION + 1)
+    found = client.portal.call(go)
+    assert (found[0].piece_g, found[0].piece_name, found[0].ml_g, found[0].kcal) == (900, "упаковка", 1.0, 53)
 
 
 def test_errors_reach_the_owner_once(client, seeded, monkeypatch):

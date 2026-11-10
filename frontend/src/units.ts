@@ -15,10 +15,13 @@ export function unitsFor(p: Product): Unit[] {
   return out
 }
 
-/** What a product is usually counted in: one piece or portion, a glass of a drink, else 100 g. */
+const BIG_PACK = 300 // g: a whole litre of milk or a kilo of flour is rarely eaten at once
+
+/** What a product is usually counted in: one piece or portion (a small package too), a glass of a drink, else 100 g. */
 export function defaultAmount(p: Product): { unit: Unit; qty: number } {
   const us = unitsFor(p)
-  const piece = us.find((u) => u.label === (p.piece_name ?? 'шт') && p.piece_g) ?? us.find((u) => u.label === (p.portion_name ?? 'порция') && p.portion_g)
+  const one = (label: string, g?: number | null) => (g && !(label === 'упаковка' && g > BIG_PACK) ? us.find((u) => u.label === label) : undefined)
+  const piece = one(p.piece_name ?? 'шт', p.piece_g) ?? one(p.portion_name ?? 'порция', p.portion_g)
   if (piece) return { unit: piece, qty: 1 }
   const ml = us.find((u) => u.label === 'мл')
   if (ml) return { unit: ml, qty: 200 }

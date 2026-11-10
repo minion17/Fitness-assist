@@ -8,6 +8,7 @@ import Reminders from './Reminders'
 import Confetti from './Confetti'
 import FirstSteps from './FirstSteps'
 import Quests, { type QuestWeek } from './Quests'
+import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
 import { prefetchStats } from './stats'
 import Progress, { type Achievement } from './Progress'
@@ -364,9 +365,8 @@ export default function App() {
       <main className="screen" key={tab}>
         {tab === 'home' && (
           <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
-            water={water} week={week.days} aiEnabled={aiEnabled} canEdit={canEdit}
+            water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
-            summary={aiEnabled && <AiSummary />}
             quests={canEdit && quests && <Quests week={quests} />}
             repeat={canEdit ? repeatOffer() : null}
             intro={canEdit && <FirstSteps steps={[
@@ -387,6 +387,9 @@ export default function App() {
         )}
         {tab === 'progress' && (
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
+            top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
+              norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}
+              {aiEnabled && <AiSummary />}</>}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
         )}
         {tab === 'profile' && (

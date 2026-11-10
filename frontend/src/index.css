@@ -403,24 +403,12 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media (max-width: 350px) { .ring-wrap { gap: 10px; } .macro-row { font-size: 12px; } .water-chips { gap: 4px; } .water-chips button { font-size: 12px; } }
 
 /* Main screens: compact day overview and clear action hierarchy. */
-.home-today { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr); align-items: center; gap: 12px; padding: 16px; border-radius: 24px; background: var(--card); border: 1px solid var(--card-border); }
-.home-today .daily-progress { gap: 4px; min-width: 0; }
-.home-today .daily-progress-ring { width: min(100%, 156px); }
-.home-today .daily-progress-center strong { font-size: 30px; }
-.home-today .daily-progress-caption { font-size: 11px; line-height: 1.3; }
-.home-today .home-overview { display: flex; flex-direction: column; gap: 0; }
-.home-today .home-overview-card { min-height: 0; padding: 11px 4px; border: 0; border-radius: 0; background: transparent; gap: 3px; }
-.home-today .home-overview-card + .home-overview-card { border-top: 1px solid var(--line); }
-.home-today .overview-value { font-size: 22px; }
-.home-today .overview-workout { font-size: 15px; }
-.home-today .overview-bar { margin-top: 4px; }
 .workout-feature { padding: 20px; gap: 16px; border-color: color-mix(in srgb, var(--accent) 20%, var(--card-border)); }
 .workout-feature .card-head h2 { color: var(--muted); font-size: 13px; font-weight: 600; }
 .workout-feature .workout-next-title { font-size: 24px; }
 .workout-feature .dot { background: transparent; width: 26px; color: var(--accent-text); font-weight: 700; }
 .meal-diary { padding: 20px; }
 .meal-group .card-head h2 { font-size: 17px; }
-@media (max-width: 350px) { .home-today { padding: 12px; gap: 8px; } .home-today .daily-progress-center strong { font-size: 25px; } }
 
 .meal-actions { align-items: center; gap: 8px 18px; }
 .meal-actions .link:not(.meal-repeat) { padding: 8px 12px; border-radius: 10px; background: color-mix(in srgb, var(--accent) 16%, transparent); }
@@ -432,9 +420,6 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .home-head { align-items: center; padding: 4px 0 6px; }
 .home-title { font-size: 24px; }
 .hello { margin-bottom: 5px; }
-.home-today { padding: 20px 16px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 7%, var(--card)), var(--card) 65%); }
-.home-today .daily-progress-ring::before { background: color-mix(in srgb, var(--accent) 30%, transparent); filter: blur(24px); }
-.home-today .home-overview-card { padding: 13px 8px; }
 .home-actions .btn { min-height: 48px; }
 .nutrition-summary { padding: 20px; gap: 18px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 7%, var(--card)), var(--card) 65%); }
 .nutrition-summary .ring-wrap svg { flex: 0 0 104px; filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 16%, transparent)); }
@@ -583,7 +568,6 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .meal-snack { min-height: 44px; border-color: transparent; box-shadow: 0 0 16px color-mix(in srgb, var(--accent) 7%, transparent); }
 
 /* Match the visual weight of both daily overview values. */
-.home-today .overview-value, .home-today .overview-workout { font-family: var(--font); font-size: 16px; font-weight: 700; line-height: 1.3; }
 
 /* Program builder and program list */
 .program-select { background: transparent; border: 0; border-radius: 0; padding: 8px 0; }
@@ -613,9 +597,9 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
   --nav-active-bg: color-mix(in srgb, var(--accent) 16%, #fff); --nav-active-fg: var(--accent-text);
   --shadow: 0 1px 2px rgba(16,24,40,.05), 0 8px 24px rgba(16,24,40,.06);
 }
-[data-theme='light'] .card:not(.card .card, .home-today .card), [data-theme='light'] .home-today, [data-theme='light'] .meal-group,
+[data-theme='light'] .card:not(.card .card), [data-theme='light'] .meal-group,
 [data-theme='light'] .meal-snack, [data-theme='light'] .builder-day, [data-theme='light'] .builder-day-entry { box-shadow: var(--shadow); }
-[data-theme='light'] :is(.home-today, .nutrition-summary, .profile-identity, .progress-overview, .workout-feature, .friends-hero) {
+[data-theme='light'] :is(.day-card, .nutrition-summary, .profile-identity, .progress-overview, .workout-feature, .friends-hero) {
   background: color-mix(in srgb, var(--accent-tint, var(--accent)) 26%, #fff); border-color: color-mix(in srgb, var(--accent-tint, var(--accent)) 45%, #fff);
   --ring-track: rgba(255,255,255,.75); --nutrition-ring-track: rgba(255,255,255,.75); --line: color-mix(in srgb, var(--accent-text) 14%, transparent);
   box-shadow: 0 10px 30px color-mix(in srgb, var(--accent-text) 14%, transparent);
@@ -624,14 +608,14 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 [data-theme='light'] :is(.profile-identity) .avatar { background: rgba(255,255,255,.75); }
 [data-theme='light'] .progress-overview .progress-summary > .card { background: rgba(255,255,255,.7); }
 [data-theme='light'] .progress-overview .progress-summary { background: transparent; gap: 6px; }
-[data-theme='light'] .home-today .daily-progress-ring::before { display: none; }
+[data-theme='light'] .day-card .daily-progress-ring::before { display: none; }
 [data-theme='light'] .nutrition-summary .ring-wrap svg { filter: none; }
 
 [data-theme='light'] .home-chips .pill { background: #fff; border-color: var(--card-border); box-shadow: 0 1px 2px rgba(16,24,40,.06); }
 [data-theme='light'] .nav-inner { box-shadow: 0 -4px 20px rgba(16,24,40,.08); }
 [data-theme='light'] .nav button[aria-current='page'] { border-color: transparent; }
 [data-theme='light'] .profile-metrics > .card, [data-theme='light'] .progress-summary > .card { box-shadow: none; }
-[data-theme='light'] :is(.home-today, .nutrition-summary) { --accent: var(--accent-text); }
+[data-theme='light'] :is(.day-card, .nutrition-summary) { --accent: var(--accent-text); }
 .session-last { color: var(--accent-text, var(--accent)); font-weight: 600; }
 
 /* Friends */
@@ -806,3 +790,29 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 /* green: the accent is also the button text colour, so marks on an accent fill need a dark ink */
 [data-theme='green'] .quest-list li.done .quest-icon, [data-theme='green'] .first-steps-list li.done .step-mark { color: #13200f; }
 .credits { text-align: center; margin: 4px 12px 0; } .credits a { color: inherit; }
+
+/* ---- Home, minimal: the day in one card, one main button, two rows ---- */
+.day-card { display: grid; grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 16px; padding: 18px 16px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 7%, var(--card)), var(--card) 65%); }
+.day-card .daily-progress-ring { width: 128px; }
+.day-card .daily-progress-ring::before { background: color-mix(in srgb, var(--accent) 30%, transparent); filter: blur(22px); }
+.day-card .daily-progress-center strong { font-size: 28px; }
+.day-card .daily-progress-center .sub { font-size: 12px; }
+.day-stats { display: flex; flex-direction: column; min-width: 0; }
+.day-stat { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 9px 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.day-stat + .day-stat { border-top: 1px solid var(--line); }
+.day-stat-value { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.day-stat-value small { font-size: 14px; font-weight: 600; color: var(--muted); }
+.water-value { color: var(--water); }
+.water-value small { color: var(--muted); }
+.home-actions .water-quick { flex: 0 0 auto; padding: 0 16px; color: var(--water); font-weight: 800; }
+.repeat-link { display: block; margin: -4px auto 12px; font-size: 14px; }
+.home-rows { padding: 4px 16px; }
+.home-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.home-rows > .home-row + .home-row, .home-rows > .quest-list + .home-row { border-top: 1px solid var(--line); }
+.home-rows .quest-list { margin: 0 0 8px; }
+.home-row-icon { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; background: var(--card-2); }
+[data-theme='green'] .home-row-icon { border-radius: 999px; }
+.step-go { transition: transform .2s ease; }
+.step-go.open { transform: rotate(90deg); }
+@media (max-width: 350px) { .day-card { grid-template-columns: 104px minmax(0, 1fr); gap: 12px; } .day-card .daily-progress-ring { width: 104px; } .day-stat-value { font-size: 19px; } }

@@ -298,8 +298,11 @@ test('home water: portions, custom volume, removing any amount', async () => {
   const { default: Home } = await import('./Home')
   const onWater = vi.fn()
   const day: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
-  render(<Home name="Егор" level={1} streak={0} day={day} logs={[]} water={{ ml: 500, goal_ml: 2500 }} week={[]}
-    aiEnabled={false} canEdit onFood={vi.fn()} onNutrition={vi.fn()} onWorkouts={vi.fn()} onWater={onWater} summary={null} />)
+  render(<Home name="Егор" level={1} streak={0} day={day} logs={[]} water={{ ml: 500, goal_ml: 2500 }}
+    aiEnabled={false} canEdit onFood={vi.fn()} onNutrition={vi.fn()} onWorkouts={vi.fn()} onWater={onWater} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить стакан воды, 250 мл' })) // one tap on Home
+  expect(screen.queryByRole('button', { name: 'Добавить 330 мл' })).toBeNull() // the portions are one tap further
+  fireEvent.click(screen.getByRole('button', { name: 'Вода: подробнее' }))
   fireEvent.click(screen.getByRole('button', { name: 'Добавить 330 мл' }))
   fireEvent.click(screen.getByRole('button', { name: 'Свой объём' }))
   fireEvent.change(screen.getByLabelText('Объём, мл'), { target: { value: '5000' } })
@@ -315,7 +318,7 @@ test('home water: portions, custom volume, removing any amount', async () => {
   expect((screen.getByRole('button', { name: 'Убрать' }) as HTMLButtonElement).disabled).toBe(true) // more than drunk (500)
   fireEvent.change(screen.getByLabelText('Убрать, мл'), { target: { value: '200' } })
   fireEvent.click(screen.getByRole('button', { name: 'Убрать' }))
-  expect(onWater.mock.calls.map((c) => c[0])).toEqual([330, 400, -150, -200])
+  expect(onWater.mock.calls.map((c) => c[0])).toEqual([250, 330, 400, -150, -200])
 })
 
 test('menu photo: pick dishes, save with the restaurant, then quick portions', async () => {
@@ -386,14 +389,16 @@ test('friends: leaderboard, accept an incoming duel, challenge a friend', async 
   expect(await screen.findByRole('status')).toBeTruthy()
 })
 
-test('weekly tasks: progress and days left', () => {
+test('weekly tasks: one row on Home that opens the list', () => {
   render(<Quests week={{ days_left: 3, bonus: 50, xp_awarded: 0, items: [
     { code: 'diary_days', title: 'Ведите дневник питания 5 дн.', progress: 5, target: 5, xp: 50, done: true },
     { code: 'workouts', title: 'Проведите 3 тренировки', progress: 1, target: 3, xp: 80, done: false },
   ] }} />)
+  expect(screen.getByText('Задания недели · 1 из 2')).toBeTruthy()
+  expect(screen.getByText('ещё 3 дня · все три — ещё +50 XP')).toBeTruthy()
+  expect(screen.queryByText('1 из 3')).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: /Задания недели/ }))
   expect(screen.getByText('1 из 3')).toBeTruthy()
-  expect(screen.getByText('ещё 3 дня')).toBeTruthy()
-  expect(screen.getByText('Все три — ещё +50 XP')).toBeTruthy()
 })
 
 test('workout player: one exercise at a time, moves on when its sets are done', async () => {

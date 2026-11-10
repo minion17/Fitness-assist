@@ -11,8 +11,9 @@ export type Achievement = { code: string; icon: string; title: string; hint: str
 const PERIODS = [[7, 'Неделя'], [30, 'Месяц'], [90, '3 месяца']] as const
 const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDigits: d })
 
-export default function Progress({ canEdit, achievements, freezes, body }: {
+export default function Progress({ canEdit, achievements, freezes, body, top }: {
   canEdit: boolean; achievements: Achievement[]; freezes: number; body: React.ReactNode
+  top?: React.ReactNode // this week + the AI summary (moved here from Home)
 }) {
   const [days, setDays] = useState<number>(30)
   const [s, setS] = useState<Stats | null>(() => cachedStats(30))
@@ -50,6 +51,7 @@ export default function Progress({ canEdit, achievements, freezes, body }: {
         </div>
       )}
       {view === 'friends' ? <Friends /> : <>
+      {top}
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
       {canEdit && (
         <div className="seg seg-row progress-period" role="group" aria-label="Период">

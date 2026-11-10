@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, expect, test } from 'vitest'
 import App from './App'
 
@@ -38,7 +38,7 @@ test('bottom navigation opens all five sections', async () => {
   expect(screen.getByText('0 / 100 XP до уровня 2')).toBeTruthy()
 
   nav('Главная')
-  expect(screen.getByText('Тренировка дня')).toBeTruthy()
+  expect(screen.getByText('Питание', { selector: '.day-stat .sub' })).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Главная' }).getAttribute('aria-current')).toBe('page')
 })
 
@@ -104,12 +104,12 @@ test('step-by-step questionnaire validates each step and saves all answers', asy
   expect(screen.getByRole('button', { name: 'Изменить анкету' })).toBeTruthy()
 })
 
-test('home water tracker, food shortcut and theme picker work in demo mode', () => {
+test('home water tracker, food shortcut and theme picker work in demo mode', async () => {
   window.scrollTo = () => {}
   render(<App />)
   // demo: no account -> no edit buttons, ring still shows the goal
-  expect(screen.getByText('из 2 000 ккал')).toBeTruthy()
-  expect(screen.getByText('ещё 2 л')).toBeTruthy() // water: nothing drunk yet
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Питание: открыть дневник' }).textContent).toMatch(/\/ 2\s000 ккал/))
+  expect(screen.getByRole('button', { name: 'Вода: подробнее' }).textContent).toContain('0 / 2 л') // nothing drunk yet
 
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }))
   fireEvent.click(screen.getByRole('button', { name: 'Салатовая' }))

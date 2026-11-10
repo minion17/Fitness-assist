@@ -23,6 +23,7 @@ from sqlalchemy import select
 
 from backend.api.social import USERNAME_FILE, befriend, name
 from backend.bot import admin, cards, outbox, profile, reminders
+from backend.core import alerts
 from backend.database.db import SessionLocal
 from backend.database.models import Profile, User
 from backend.core.config import Settings, settings
@@ -118,6 +119,7 @@ async def stats(message: Message) -> None:
 @router.error()
 async def on_error(event: ErrorEvent) -> bool:
     log.exception("Update handling failed", exc_info=event.exception)
+    await alerts.report("бот", alerts.describe(event.exception))
     msg = event.update.message
     if msg:
         try:

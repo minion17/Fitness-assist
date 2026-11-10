@@ -6,9 +6,15 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
+import CrashScreen from './CrashScreen'
+import { watchCrashes } from './crash'
+
+watchCrashes()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <CrashScreen>
+      <App />
+    </CrashScreen>
   </StrictMode>,
 )

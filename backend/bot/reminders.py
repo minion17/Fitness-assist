@@ -14,7 +14,7 @@ from functools import partial
 
 from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.bot import cards
-from backend.core import clock
+from backend.core import alerts, clock
 from backend.core.nutrition import daily_targets
 from backend.database.db import SessionLocal
 from backend.database.models import BodyMeasurement, FoodLog, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake
@@ -161,8 +161,9 @@ async def run(bot, keyboard) -> None:
                 except Exception:
                     log.warning("reminder to %s failed", chat_id, exc_info=True)
                 await asyncio.sleep(0.05)  # stay far below Telegram's 30 msg/s limit
-        except Exception:
+        except Exception as e:
             log.exception("reminder loop failed")
+            await alerts.report("бот: напоминания", alerts.describe(e))
         await asyncio.sleep(60)
 
 

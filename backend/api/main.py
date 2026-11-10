@@ -1,10 +1,12 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -38,7 +40,7 @@ from backend.database.models import (
     WorkoutLog,
     WorkoutSet,
 )
-from backend.core import off_sync
+from backend.core import alerts, off_sync
 from backend.database.rewards import award_xp
 
 
@@ -51,7 +53,29 @@ async def lifespan(_: FastAPI):
         sync.cancel()
 
 
+log = logging.getLogger("api")
 app = FastAPI(title="Setly API", lifespan=lifespan)
+
+
+@app.exception_handler(Exception)
+async def unexpected_error(request: Request, exc: Exception):
+    """Anything not handled: the user gets a plain 500, the owner gets a message from the bot."""
+    log.exception("Unhandled error on %s %s", request.method, request.url.path)
+    await alerts.report(f"API {request.method} {request.url.path}", alerts.describe(exc))
+    return JSONResponse({"detail": "Ошибка на сервере. Мы уже знаем и разбираемся."}, status_code=500)
+
+
+class ClientError(BaseModel):
+    message: str = Field(max_length=500)
+    where: str = Field(default="", max_length=120)
+    stack: str = Field(default="", max_length=1500)
+
+
+@app.post("/api/client-error")
+async def client_error(body: ClientError, tg: dict = Depends(telegram_user)):
+    """A crash in the Mini App on someone's phone (only from real Telegram users, so it can't be spammed anonymously)."""
+    await alerts.report(f"приложение {body.where or ''}".strip(), f"{body.message}\n{body.stack[:800]}".strip())
+    return {"ok": True}
 app.add_middleware(GZipMiddleware, minimum_size=1000)  # JS/CSS/JSON shrink ~3x: matters through the tunnel
 app.add_middleware(
     CORSMiddleware,

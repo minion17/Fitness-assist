@@ -1127,3 +1127,45 @@ def test_open_food_facts_bulk_sync(client, seeded, tmp_path, monkeypatch):
     assert [(p.name, p.brand, p.kcal, p.owner_user_id) for p in found] == [(f"Кефир тестовый {code}", "Ирбит", 53, None)]
     assert off_sync.load_state()["done_at"]
     assert client.get("/api/products/search", params={"q": f"кефир тестовый {code}"}).json()[0]["name"] == f"Кефир тестовый {code}"
+
+
+def test_errors_reach_the_owner_once(client, seeded, monkeypatch):
+    import random
+
+    from sqlalchemy import delete, select
+
+    from backend.api.main import app
+    from backend.core import alerts
+    from backend.core.config import settings
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox
+
+    admin = random.randint(5 * 10**9, 6 * 10**9)
+    monkeypatch.setattr(settings, "admin_ids", str(admin))
+    monkeypatch.setattr(alerts, "_last", {})
+
+    async def boom():
+        raise ValueError("сломалось " + str(admin))
+    from fastapi.routing import APIRoute
+    app.router.routes.insert(0, APIRoute("/api/test-boom", boom))  # before the Mini App's catch-all mount
+    monkeypatch.setattr(client._transport, "raise_server_exceptions", False)  # see the 500 the user would see
+    try:
+        r1, r2 = client.get("/api/test-boom"), client.get("/api/test-boom")
+    finally:
+        app.router.routes = [r for r in app.router.routes if getattr(r, "path", "") != "/api/test-boom"]
+    assert r1.status_code == 500 and "Ошибка на сервере" in r1.json()["detail"]
+
+    h = new_user_headers()
+    assert client.post("/api/client-error", json={"message": "x"}).status_code == 401  # only real users
+    client.post("/api/client-error", headers=h, json={"message": "TypeError: undefined is not a function", "where": "питание"})
+
+    async def sent():
+        async with SessionLocal() as s:
+            rows = list(await s.scalars(select(Outbox).where(Outbox.telegram_id == admin)))
+            await s.execute(delete(Outbox).where(Outbox.telegram_id == admin))
+            await s.commit()
+            return rows
+    rows = client.portal.call(sent)
+    assert [r.kind for r in rows] == ["alert", "alert"]  # the API error once (not twice) + the app crash
+    assert "ValueError: сломалось" in rows[0].text and "test-boom" in rows[0].text
+    assert "приложение питание" in rows[1].text

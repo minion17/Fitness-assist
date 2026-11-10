@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from backend.api.daily import streak_state
 from backend.api.social import finish_duels, name, pending_messages, reward_invites
 from backend.bot import cards
-from backend.core import clock
+from backend.core import alerts, clock
 from backend.core.gamification import level_progress
 from backend.database.db import SessionLocal
 from backend.database.models import User, WorkoutLog, XpEvent
@@ -41,6 +41,8 @@ async def send_pending(bot, keyboard) -> None:
                     png = await share_card(session, await session.get(User, m.user_id))
                     await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly.png"), caption=m.text)
                     await bot.send_message(m.telegram_id, "☝️ Перешлите карточку другу — по ссылке в подписи он сразу попадёт к вам в друзья.")
+                elif m.kind == "alert":  # for the owner: plain text, no "open the app" button
+                    await bot.send_message(m.telegram_id, m.text)
                 else:
                     await bot.send_message(m.telegram_id, m.text, reply_markup=keyboard())
             except TelegramForbiddenError:
@@ -60,7 +62,8 @@ async def run(bot, keyboard) -> None:
                     await finish_duels(session)
                     await reward_invites(session)
             await send_pending(bot, keyboard)
-        except Exception:
+        except Exception as e:
             log.warning("outbox loop failed, retrying", exc_info=True)
+            await alerts.report("бот: очередь сообщений", alerts.describe(e))
         tick += 1
         await asyncio.sleep(5)

@@ -816,3 +816,4 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .step-go { transition: transform .2s ease; }
 .step-go.open { transform: rotate(90deg); }
 @media (max-width: 350px) { .day-card { grid-template-columns: 104px minmax(0, 1fr); gap: 12px; } .day-card .daily-progress-ring { width: 104px; } .day-stat-value { font-size: 19px; } }
+.crash { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px; } .crash-icon { font-size: 44px; } .crash .btn { width: auto; padding: 12px 28px; margin-top: 8px; }

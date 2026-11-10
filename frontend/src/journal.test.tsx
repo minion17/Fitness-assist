@@ -418,3 +418,12 @@ test('workout player: one exercise at a time, moves on when its sets are done', 
   expect(screen.getByLabelText('Жим лёжа, подход 1, вес')).toBeTruthy()
   expect(screen.getByLabelText('Тяга, подход 1, вес')).toBeTruthy()
 })
+
+test('a broken screen shows a restart button instead of a blank page', async () => {
+  const { default: CrashScreen } = await import('./CrashScreen')
+  const Boom = () => { throw new Error('boom') }
+  const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+  render(<CrashScreen><Boom /></CrashScreen>)
+  expect(screen.getByRole('button', { name: 'Перезапустить' })).toBeTruthy()
+  quiet.mockRestore()
+})

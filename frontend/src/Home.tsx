@@ -138,8 +138,8 @@ export default function Home(props: {
             </span>
           )}
           <span className="pill" title="Дней подряд">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--streak)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3c1 3 4 4.5 4 8.5A4 4 0 0 1 8 12c0-1.5.7-2.6 1.5-3.5C10 10 11 10.5 11 10.5 11 7 12 3 12 3z" /></svg>
-            {props.streak}<span className="sr-only"> дней подряд</span>
+            <svg className={props.streak > 0 ? 'flame lit' : 'flame'} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--streak)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3c1 3 4 4.5 4 8.5A4 4 0 0 1 8 12c0-1.5.7-2.6 1.5-3.5C10 10 11 10.5 11 10.5 11 7 12 3 12 3z" /></svg>
+            <span className="bump" key={props.streak}>{props.streak}</span><span className="sr-only"> дней подряд</span>
           </span>
         </div>
       </header>

@@ -50,7 +50,6 @@ button { font: inherit; color: inherit; border: 0; background: none; cursor: poi
 .screen {
   padding: 20px 16px calc(108px + env(safe-area-inset-bottom));
   display: flex; flex-direction: column; gap: 12px;
-  animation: fade .18s ease-out;
 }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } }
 
@@ -834,3 +833,57 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .habit-new { display: flex; gap: 8px; }
 .habit-new .input-wrap { flex: 1; }
 .habit-line .link { color: var(--muted); font-size: 14px; }
+
+/* ---- Motion: screens come in from their tab's side in a short wave; springy sheets and toasts; small live touches ---- */
+.screen > * { animation: rise .42s cubic-bezier(.2, .8, .2, 1) backwards; } /* backwards, not both: a transform left on would break position: fixed sheets inside */
+.screen > :nth-child(2) { animation-delay: .04s; } .screen > :nth-child(3) { animation-delay: .08s; } .screen > :nth-child(4) { animation-delay: .12s; }
+.screen > :nth-child(5) { animation-delay: .16s; } .screen > :nth-child(6) { animation-delay: .2s; } .screen > :nth-child(n+7) { animation-delay: .24s; }
+@keyframes rise { from { opacity: 0; transform: translate(calc(var(--dir, 0) * 28px), 12px); } }
+
+.sheet-backdrop { animation: fade-in .2s ease-out; }
+.sheet { animation: sheet-up .38s cubic-bezier(.2, 1.1, .3, 1); }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes sheet-up { from { transform: translateY(70%); opacity: .4; } }
+
+.toast { animation: toast-in .4s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes toast-in { from { opacity: 0; transform: translate(-50%, 18px) scale(.85); } }
+
+.xp-float {
+  position: fixed; left: 50%; top: calc(18px + env(safe-area-inset-top)); z-index: 31; pointer-events: none;
+  padding: 6px 14px; border-radius: 99px; background: var(--accent); color: #10140a; font-weight: 800; font-size: 15px;
+  box-shadow: 0 6px 24px var(--glow); animation: xp-float 1.5s cubic-bezier(.2, .8, .2, 1) forwards;
+}
+@keyframes xp-float {
+  0% { opacity: 0; transform: translate(-50%, 24px) scale(.6); }
+  18% { opacity: 1; transform: translate(-50%, 0) scale(1.08); }
+  30% { transform: translate(-50%, 0) scale(1); }
+  75% { opacity: 1; transform: translate(-50%, -6px); }
+  100% { opacity: 0; transform: translate(-50%, -26px); }
+}
+
+.nav button { transition: background .25s ease, color .25s ease, border-color .25s ease; }
+.nav button[aria-current='page'] svg { animation: nav-pop .45s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes nav-pop { 0% { transform: scale(.7); } 60% { transform: translateY(-2px) scale(1.12); } }
+
+.bar > i { transform-origin: left; transition: width .7s cubic-bezier(.2, .8, .2, 1); animation: bar-grow .9s cubic-bezier(.2, .8, .2, 1) .15s backwards; }
+@keyframes bar-grow { from { transform: scaleX(0); } }
+
+.flame { transform-origin: 50% 90%; }
+.flame.lit { animation: flicker 2.6s ease-in-out infinite; }
+@keyframes flicker { 0%, 100% { transform: scale(1) rotate(0); } 25% { transform: scale(1.1) rotate(-5deg); } 50% { transform: scale(.95) rotate(3deg); } 75% { transform: scale(1.06) rotate(-2deg); } }
+.bump { display: inline-block; animation: bump .5s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes bump { from { transform: scale(1.5); color: var(--streak); } }
+
+.habit-chip[aria-pressed='true'], .check[aria-pressed='true'] { animation: tick-pop .38s cubic-bezier(.3, 1.8, .5, 1); }
+@keyframes tick-pop { 0% { transform: scale(.88); } 55% { transform: scale(1.08); } }
+
+.quest-list, .habit-edit, .home-rows .water { animation: rise .3s cubic-bezier(.2, .8, .2, 1) backwards; }
+.swipe { animation: rise .3s ease-out backwards; }
+
+.home-row, .day-stat, .card.workout-feature { transition: transform .12s ease; }
+.home-row:active, .day-stat:active { transform: scale(.98); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+.toast { width: max-content; max-width: calc(100vw - 32px); text-align: center; }

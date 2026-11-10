@@ -9,6 +9,7 @@ import Confetti from './Confetti'
 import FirstSteps from './FirstSteps'
 import Quests, { type QuestWeek } from './Quests'
 import Habits, { type Habit } from './Habits'
+import { animate } from './motion'
 import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
 import { prefetchStats } from './stats'
@@ -38,6 +39,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'progress', label: 'Прогресс' },
   { id: 'profile', label: 'Профиль' },
 ]
+
+const TAB_ORDER = TABS.map((t) => t.id)
 
 const name = tgUser?.first_name ?? 'Гость'
 const PROGRAM_KEY = 'fa.programId'
@@ -162,6 +165,9 @@ export default function App() {
     try { return Number(localStorage.getItem(PROGRAM_KEY)) || null } catch { return null }
   })
   const [toast, setToast] = useState('')
+  const [dir, setDir] = useState(0) // the next screen slides in from the side of its tab
+  const [xpFloat, setXpFloat] = useState<{ id: number; n: number } | null>(null)
+  const knownXp = useRef<number | null>(null)
   const [party, setParty] = useState(0) // >0: confetti on screen (the number restarts it)
   const [measurements, setMeasurements] = useState<Measurement[]>(boot?.measurements ?? [])
   const [aiEnabled, setAiEnabled] = useState(Boolean(boot?.ai?.enabled))
@@ -183,8 +189,10 @@ export default function App() {
   const knownLevel = useRef<number | null>(null)
   useEffect(() => {
     if (knownLevel.current !== null && xp.level > knownLevel.current) setReward(true)
-    if (knownLevel.current !== null) knownLevel.current = xp.level
-  }, [xp.level])
+    // "+N XP" floats up when XP grows after the account is loaded (the first load sets the baseline)
+    if (knownLevel.current !== null && knownXp.current !== null && xp.xp > knownXp.current && animate()) setXpFloat({ id: Date.now(), n: xp.xp - knownXp.current })
+    if (knownLevel.current !== null) { knownLevel.current = xp.level; knownXp.current = xp.xp }
+  }, [xp.level, xp.xp])
 
   // Everything for the first screen in one request (/api/bootstrap); the last answer is kept on the phone and shown
   // instantly on the next open, so numbers don't flash from 0 while the network catches up.
@@ -215,6 +223,7 @@ export default function App() {
     const snap = startup.current.boot
     if (snap) {
       knownLevel.current = snap.auth.progress.level
+      knownXp.current = snap.auth.progress.xp
       startup.current.theme.load(snap.auth.settings)
       if (snap.auth.settings.program_id) startup.current.selectProgram(snap.auth.settings.program_id, false)
     }
@@ -228,7 +237,7 @@ export default function App() {
         const u = b.auth
         setSynced('Аккаунт подключён')
         setCanEdit(true)
-        if (knownLevel.current === null) knownLevel.current = u.progress.level
+        if (knownLevel.current === null) { knownLevel.current = u.progress.level; knownXp.current = u.progress.xp }
         startup.current.theme.load(u.settings)
         const local = startup.current.programId
         if (u.settings.program_id) startup.current.selectProgram(u.settings.program_id, false)
@@ -343,6 +352,7 @@ export default function App() {
 
   const go = (t: Tab) => {
     tg?.HapticFeedback?.selectionChanged()
+    setDir(Math.sign(TAB_ORDER.indexOf(t) - TAB_ORDER.indexOf(tab)))
     setFoodIntent(null)
     setTab(t)
     window.scrollTo(0, 0)
@@ -371,7 +381,7 @@ export default function App() {
 
   return (
     <div className="app">
-      <main className="screen" key={tab}>
+      <main className="screen" key={tab} style={{ '--dir': dir } as React.CSSProperties}>
         {tab === 'home' && (
           <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
@@ -416,7 +426,8 @@ export default function App() {
           ))}
         </div>
       </nav>
-      {toast && <div className="toast" role="status">{toast}</div>}
+      {toast && <div className="toast" role="status" key={toast}>{toast}</div>}
+      {xpFloat && <div className="xp-float" key={xpFloat.id} aria-hidden="true" onAnimationEnd={() => setXpFloat(null)}>+{xpFloat.n} XP</div>}
       {party > 0 && <Confetti key={party} />}
       {!reward && ach.new.length > 0 && (
         <AchievementUnlocked {...ach.new[0]} more={ach.new.length - 1} onClose={() => {

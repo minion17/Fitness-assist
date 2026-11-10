@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FoodLog, FrozenDay, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
+from backend.database.models import FoodLog, FrozenDay, HabitCheck, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -61,7 +61,7 @@ async def add_water(body: WaterIn, tg: dict = Depends(telegram_user), session: A
 
 
 async def active_days(session: AsyncSession, user: User, since: date) -> dict[date, dict]:
-    """Per local day since `since`: kcal eaten, water ml, completed workouts."""
+    """Per local day since `since`: kcal eaten, water ml, completed workouts, habits ticked."""
     start = local_start(since)
     days: dict[date, dict] = {}
 
@@ -81,11 +81,13 @@ async def active_days(session: AsyncSession, user: User, since: date) -> dict[da
         select(WorkoutLog.completed_at).where(WorkoutLog.user_id == user.id, WorkoutLog.completed_at >= start)
     ):
         bucket(done.astimezone(clock.tz()).date())["workouts"] += 1
+    for d in await session.scalars(select(HabitCheck.day).where(HabitCheck.user_id == user.id, HabitCheck.day >= since)):
+        bucket(d)["habits"] = bucket(d).get("habits", 0) + 1
     return days
 
 
 def is_active(v: dict) -> bool:
-    return v.get("frozen") or v["kcal"] > 0 or v["water_ml"] > 0 or v["workouts"] > 0
+    return bool(v.get("frozen") or v["kcal"] > 0 or v["water_ml"] > 0 or v["workouts"] > 0 or v.get("habits"))
 
 
 def streak(days: dict[date, dict], today: date) -> int:

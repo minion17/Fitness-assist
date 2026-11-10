@@ -2,12 +2,15 @@
 
 The API has no bot connection: anything to send in Telegram goes to the `outbox` table and the bot sends it.
 """
+import asyncio
+import re
 import secrets
+import time
 from datetime import timedelta
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import delete, func, or_, select
 
@@ -321,6 +324,66 @@ async def share(tg: dict = Depends(telegram_user), session: AsyncSession = Depen
 
 async def pending_messages(session: AsyncSession, limit: int = 100) -> list[Outbox]:
     return list(await session.scalars(select(Outbox).where(Outbox.sent_at.is_(None)).order_by(Outbox.id).limit(limit)))
+
+
+# ---- Stories: the Mini App asks for a picture, Telegram's story editor downloads it by a one-time public link ----
+
+async def week_numbers(session: AsyncSession, user: User) -> dict:
+    """This week (from Monday, in the current clock's zone): streak, XP, workouts, level."""
+    today = clock.today()
+    monday = clock.local_start(today - timedelta(days=today.weekday()))
+    xp = await session.scalar(select(func.coalesce(func.sum(XpEvent.xp), 0)).where(XpEvent.user_id == user.id, XpEvent.created_at >= monday))
+    workouts = await session.scalar(select(func.count(WorkoutLog.id)).where(WorkoutLog.user_id == user.id, WorkoutLog.completed_at >= monday))
+    streak, _ = await streak_state(session, user, today)
+    return {"streak": streak, "week_xp": int(xp), "workouts": workouts or 0, "level": level_progress(user.xp)["level"]}
+
+
+# shortcut: pictures live in this process's memory for an hour; fine for one API process, use disk if there are several
+STORY_TTL = 3600
+_stories: dict[str, tuple[float, bytes]] = {}
+
+
+class StoryIn(BaseModel):
+    kind: Literal["week", "duel"]
+    duel_id: int | None = None
+
+
+@router.post("/story")
+async def story(body: StoryIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    from backend.bot import cards
+
+    user = await get_or_create_user(tg, session)
+    theme = user.theme if user.theme in cards.THEMES else None
+    bot = bot_username()
+    if body.kind == "duel":
+        d = await session.get(Duel, body.duel_id or 0)
+        if d is None or d.status != "done" or d.winner_id != user.id:
+            raise HTTPException(404, "Это не ваша победа")
+        out = await duel_out(session, d, user)
+        png = await asyncio.to_thread(cards.story_duel, name(user), out["rival"], out["me"], out["them"], d.metric, d.days,
+                                      d.rewarded, bot, theme, user.accent)
+        text = f"Победа в дуэли в Setly 🏆 {out['me']} : {out['them']}"
+    else:
+        w = await week_numbers(session, user)
+        png = await asyncio.to_thread(cards.story_week, name(user), w["streak"], w["week_xp"], w["workouts"], w["level"], bot,
+                                      theme, user.accent)
+        text = f"Моя неделя в Setly 💪 {w['streak']} {cards.plural_days(w['streak'])} подряд"
+    now = time.monotonic()
+    for k in [k for k, (t, _) in _stories.items() if now - t > STORY_TTL]:
+        del _stories[k]
+    token = secrets.token_urlsafe(16)
+    _stories[token] = (now, png)
+    link = f"https://t.me/{bot}?start=f{await invite_code(session, user)}" if bot else None
+    return {"url": f"/api/story/{token}.png", "text": f"{text}\nПрисоединяйся: {link}" if link else text, "link": link}
+
+
+@router.get("/story/{token}.png")
+async def story_image(token: str):
+    """Public on purpose (Telegram fetches it without the user's signature); the token is unguessable and expires."""
+    item = _stories.get(token) if re.fullmatch(r"[\w-]{16,32}", token) else None
+    if item is None or time.monotonic() - item[0] > STORY_TTL:
+        raise HTTPException(404, "Картинка устарела")
+    return Response(item[1], media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})
 
 
 __all__ = ["router", "befriend", "finish_duels", "pending_messages", "reward_invites"]

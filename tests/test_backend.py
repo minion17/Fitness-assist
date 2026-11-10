@@ -632,6 +632,9 @@ def test_cards_render_in_every_theme():
             cards.streak(365, [True] * 6 + [False], theme),
             *(cards.welcome_back(kind, theme, "#a98bff") for kind in cards.BACK_KINDS),
             cards.share("Егор", 21, 1340, 4, 7, theme, "#a98bff"),
+            cards.story_week("Константин Константинопольский", 365, 123456, 21, 40, "setly_bot", theme, "#a98bff"),
+            cards.story_duel("Егор", "Александра", 12345, 9999, "xp", 7, True, "", theme),
+            cards.story_duel("Егор", "Саша", 3, 1, "workouts", 3, False, "setly_bot", theme),
         ):
             assert png[:8] == b"\x89PNG\r\n\x1a\n" and len(png) < 400_000
 
@@ -913,6 +916,16 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     assert b_xp == 30 + 40  # meals + the duel bonus
     assert client.get("/api/duels", headers=ha).json()[0]["result"] == "loss"
 
+    # Stories: the winner gets a 9:16 picture by a public short-lived link; the loser can't make one of this duel
+    st = client.post("/api/story", headers=hb, json={"kind": "duel", "duel_id": d["id"]}).json()
+    assert st["text"].startswith("Победа в дуэли") and "start=f" in st["text"] and st["link"].startswith("https://t.me/setly_test_bot")
+    img = client.get(st["url"])  # no auth: Telegram downloads it
+    assert img.status_code == 200 and img.content[:4] == b"\x89PNG"
+    assert client.post("/api/story", headers=ha, json={"kind": "duel", "duel_id": d["id"]}).status_code == 404
+    assert client.get("/api/story/" + "x" * 22 + ".png").status_code == 404
+    wk = client.post("/api/story", headers=ha, json={"kind": "week"}).json()
+    assert "подряд" in wk["text"] and client.get(wk["url"]).status_code == 200
+
     async def texts(s):
         return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id.in_(ids))))
     t = db(texts)
@@ -1075,7 +1088,7 @@ def test_bootstrap_has_the_whole_first_screen(client, seeded):
     h = new_user_headers()
     client.put("/api/profile", headers=h, json=PROFILE)
     b = client.post("/api/bootstrap", headers=h).json()
-    assert set(b) == {"auth", "food_day", "water", "week", "workout_logs", "measurements", "achievements", "ai", "programs", "quests", "yesterday"}
+    assert set(b) == {"auth", "food_day", "water", "week", "workout_logs", "measurements", "achievements", "ai", "programs", "quests", "yesterday", "habits"}
     assert b["yesterday"]["meals"] == {}
     assert b["auth"]["profile"] and len(b["quests"]["items"]) == 3 and b["programs"]
     assert client.post("/api/bootstrap", headers=h).headers.get("content-encoding") == "gzip"  # big JSON is compressed
@@ -1232,3 +1245,32 @@ def test_broadcast_reaches_everyone_after_confirmation(client, seeded, monkeypat
     client.portal.call(bot.broadcast_answer, call)
     users, queued = client.portal.call(counts)
     assert queued == users > 0 and "очередь" in call.message.edit_text.call_args.args[0]
+
+
+def test_habits_tick_and_keep_the_streak(client):
+    h = new_user_headers()
+    assert client.get("/api/habits", headers=h).json() == []
+    assert client.get("/api/week", headers=h).json()["streak"] == 0
+    hs = client.post("/api/habits", headers=h, json={"emoji": "😴", "title": "  Сон 8 часов "}).json()
+    assert [(x["title"], x["done"], x["streak"]) for x in hs] == [("Сон 8 часов", False, 0)]
+    assert client.post("/api/habits", headers=h, json={"title": "сон 8 часов"}).status_code == 409  # duplicate
+    assert client.post("/api/habits", headers=h, json={"title": "   "}).status_code == 422
+    hid = hs[0]["id"]
+
+    for _ in range(2):  # a state, not a toggle: a double tap stays ticked
+        hs = client.post(f"/api/habits/{hid}/check", headers=h, json={"done": True}).json()
+    assert hs[0]["done"] and hs[0]["streak"] == 1
+    assert client.get("/api/week", headers=h).json()["streak"] == 1  # a tick is enough for the day
+    assert client.post(f"/api/habits/{hid}/check", headers=h, json={"done": False}).json()[0]["done"] is False
+    assert client.get("/api/week", headers=h).json()["streak"] == 0
+
+    other = new_user_headers()  # someone else's habit can't be ticked or removed
+    assert client.post(f"/api/habits/{hid}/check", headers=other, json={"done": True}).status_code == 404
+    assert client.delete(f"/api/habits/{hid}", headers=other).status_code == 404
+
+    for i in range(7):
+        client.post("/api/habits", headers=h, json={"title": f"Привычка {i}"})
+    assert len(client.get("/api/habits", headers=h).json()) == 8
+    assert client.post("/api/habits", headers=h, json={"title": "Девятая"}).status_code == 409
+    assert len(client.delete(f"/api/habits/{hid}", headers=h).json()) == 7
+    assert len(client.post("/api/bootstrap", headers=h).json()["habits"]) == 7

@@ -106,6 +106,7 @@ export default function Home(props: {
   onWater: (delta: number) => void
   intro?: React.ReactNode
   quests?: React.ReactNode
+  habits?: React.ReactNode
   repeat?: { title: string; kcal: number; run: () => void } | null
 }) {
   const { targets, day, water } = props
@@ -186,6 +187,7 @@ export default function Home(props: {
             <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>
           <span className="step-go" aria-hidden="true">›</span>
         </button>
+        {props.habits}
         {props.quests}
       </div>
     </>

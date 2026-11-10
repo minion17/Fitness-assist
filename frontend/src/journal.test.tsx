@@ -9,6 +9,7 @@ import { lastLabel, mealNow, nextDay, weightTrend, type FoodDay, type Measuremen
 import Workouts from './Workouts'
 import Friends from './Friends'
 import Quests from './Quests'
+import Habits, { type Habit } from './Habits'
 
 vi.mock('./telegram', () => {
   class ApiError extends Error { status: number; constructor(status: number, msg: string) { super(msg); this.status = status } }
@@ -426,4 +427,32 @@ test('a broken screen shows a restart button instead of a blank page', async () 
   render(<CrashScreen><Boom /></CrashScreen>)
   expect(screen.getByRole('button', { name: 'Перезапустить' })).toBeTruthy()
   quiet.mockRestore()
+})
+
+
+test('habits: one tap ticks today, a server error puts it back', async () => {
+  const sleep: Habit = { id: 1, title: 'Сон 8 часов', emoji: '😴', done: false, streak: 3 }
+  const onChange = vi.fn()
+  apiMock.mockResolvedValueOnce([{ ...sleep, done: true, streak: 4 }])
+  render(<Habits habits={[sleep]} onChange={onChange} />)
+  fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
+  expect(onChange).toHaveBeenNthCalledWith(1, [{ ...sleep, done: true }]) // instantly, before the server answers
+  expect(apiMock).toHaveBeenCalledWith('/api/habits/1/check', expect.objectContaining({ body: JSON.stringify({ done: true }) }))
+  await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([{ ...sleep, done: true, streak: 4 }]))
+
+  onChange.mockReset()
+  apiMock.mockRejectedValueOnce(new ApiError(500, 'Нет связи'))
+  fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
+  await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([sleep]))
+  expect((await screen.findByRole('alert')).textContent).toBe('Нет связи')
+})
+
+test('habits: empty list offers to set them up with presets', async () => {
+  apiMock.mockResolvedValueOnce([{ id: 2, title: 'Витамины', emoji: '💊', done: false, streak: 0 }])
+  const onChange = vi.fn()
+  render(<Habits habits={[]} onChange={onChange} />)
+  fireEvent.click(screen.getByRole('button', { name: /Привычки/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Витамины/ }))
+  await waitFor(() => expect(onChange).toHaveBeenCalled())
+  expect(apiMock).toHaveBeenCalledWith('/api/habits', expect.objectContaining({ body: JSON.stringify({ emoji: '💊', title: 'Витамины' }) }))
 })

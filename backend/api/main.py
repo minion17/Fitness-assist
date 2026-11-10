@@ -20,6 +20,7 @@ from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
+from backend.api.habits import habit_list, router as habits_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
@@ -665,6 +666,7 @@ async def bootstrap(tg: dict = Depends(telegram_user), session: AsyncSession = D
         "programs": await list_programs(tg, session),
         "quests": week_tasks,
         "yesterday": await yesterday_meals(tg, session),
+        "habits": await habit_list(session, await get_or_create_user(tg, session)),
     }
 
 
@@ -686,6 +688,7 @@ app.include_router(quick_food_router)
 app.include_router(stats_router)
 app.include_router(social_router)
 app.include_router(quests_router)
+app.include_router(habits_router)
 
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.

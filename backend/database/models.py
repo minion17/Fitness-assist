@@ -330,6 +330,29 @@ class WeeklyQuest(Base):
     slot: Mapped[int] = mapped_column(Integer)  # display order
 
 
+class Habit(Base):
+    """A user's own daily check (sleep, steps, no sweets...). Archived, not deleted: past checks keep the streak."""
+
+    __tablename__ = "habits"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(40))
+    emoji: Mapped[str] = mapped_column(String(8), default="✅")
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class HabitCheck(Base):
+    """A habit ticked on a local day."""
+
+    __tablename__ = "habit_checks"
+
+    habit_id: Mapped[int] = mapped_column(ForeignKey("habits.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+
+
 class Visit(Base):
     """A day the user opened the Mini App (UTC day): for the owner's /stats (active users, retention)."""
 

@@ -8,6 +8,7 @@ import Reminders from './Reminders'
 import Confetti from './Confetti'
 import FirstSteps from './FirstSteps'
 import Quests, { type QuestWeek } from './Quests'
+import Habits, { type Habit } from './Habits'
 import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
 import { prefetchStats } from './stats'
@@ -47,7 +48,7 @@ type Bootstrap = {
     settings: ThemeSettings & { program_id: number | null; boost_until?: string | null } }
   food_day: FoodDay; water: Water; week: { streak: number; days: WeekDay[] }; workout_logs: WorkoutLog[]; measurements: Measurement[]
   achievements: { items: Achievement[]; new: Achievement[]; freezes: number }; ai: { enabled: boolean } | null
-  programs: Program[] | null; quests: QuestWeek | null
+  programs: Program[] | null; quests: QuestWeek | null; habits?: Habit[]
   yesterday?: { date: string; meals: Partial<Record<MealType, { kcal: number; items: number }>> }
 }
 /** Today in the phone's timezone as YYYY-MM-DD (same as the server's day for this user). */
@@ -55,6 +56,7 @@ const localDay = () => new Date().toLocaleDateString('sv-SE')
 /** A kept answer from an earlier day still has the right profile, programs and history, but not today's food and water. */
 const fresh = (b: Bootstrap): Bootstrap => b.food_day.date === localDay() ? { ...b, quests: b.quests && { ...b.quests, xp_awarded: 0 } } : {
   ...b, food_day: { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }, water: { ml: 0, goal_ml: b.water.goal_ml }, yesterday: undefined,
+  habits: b.habits?.map((h) => ({ ...h, done: false })),
   quests: b.quests && { ...b.quests, xp_awarded: 0 },
 }
 const NEW_USER: Progress = { xp: 0, level: 1, level_xp: 0, level_xp_needed: 100 }
@@ -172,6 +174,7 @@ export default function App() {
   const [loading, setLoading] = useState(!boot) // no data yet (first open, nothing kept on the phone)
   const [quests, setQuests] = useState<QuestWeek | null>(boot?.quests ?? null)
   const [yesterday, setYesterday] = useState(boot?.yesterday)
+  const [habits, setHabits] = useState<Habit[]>(boot?.habits ?? [])
   const theme = useTheme((patch) => { api('/api/settings', putJson(patch)).catch(() => {}) })
   // latest values for the one-time startup effect (it must not re-run when they change)
   const startup = useRef({ theme, programId, boot, selectProgram: (_id: number | null, _sync?: boolean) => {} })
@@ -195,7 +198,7 @@ export default function App() {
     // calories just came into the norm (90–110%) with this refresh: worth a cheer
     const goal = u.profile?.targets?.calories, before = kcalRef.current, now = b.food_day.totals.kcal
     kcalRef.current = now
-    setFoodDay(b.food_day); setWater(b.water); setQuests(b.quests); setYesterday(b.yesterday)
+    setFoodDay(b.food_day); setWater(b.water); setQuests(b.quests); setYesterday(b.yesterday); setHabits(b.habits ?? [])
     if (b.quests?.xp_awarded) celebrate(`Задание недели выполнено 🏆 +${b.quests.xp_awarded} XP`)
     else if (goal && before !== null && before < goal * 0.9 && now >= goal * 0.9 && now <= goal * 1.1) celebrate('Калории в норме на сегодня 🎯')
   }, [])
@@ -323,6 +326,12 @@ export default function App() {
     }
   }
 
+  function habitsChanged(list: Habit[]) {
+    if (list.length && list.every((h) => h.done) && !habits.every((h) => h.done)) celebrate('Все привычки на сегодня ✓')
+    setHabits(list)
+    api<{ streak: number; days: WeekDay[] }>('/api/week').then((wk) => wk && setWeek(wk)).catch(() => {}) // a tick can start today's streak
+  }
+
   function selectProgram(id: number | null, sync = true) {
     setProgramId(id)
     if (sync) api('/api/settings', putJson({ program_id: id })).catch(() => {})
@@ -368,6 +377,7 @@ export default function App() {
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
+            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />}
             repeat={canEdit ? repeatOffer() : null}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',

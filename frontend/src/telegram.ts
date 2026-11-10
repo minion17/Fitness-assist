@@ -1,5 +1,5 @@
 // Minimal typing for the part of window.Telegram.WebApp we use.
-type TgUser = { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string }
+type TgUser = { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string; is_premium?: boolean }
 
 type WebApp = {
   initData: string
@@ -13,6 +13,8 @@ type WebApp = {
   setBackgroundColor?(color: string): void
   setBottomBarColor?(color: string): void
   openTelegramLink?(url: string): void
+  isVersionAtLeast?(version: string): boolean
+  shareToStory?(mediaUrl: string, params?: { text?: string; widget_link?: { url: string; name?: string } }): void
   HapticFeedback?: {
     selectionChanged(): void
     impactOccurred?(style: 'light' | 'medium' | 'heavy'): void

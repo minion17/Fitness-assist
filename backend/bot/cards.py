@@ -61,9 +61,10 @@ def liters(ml: float) -> str:
 
 
 class Card:
-    def __init__(self, theme: str | None, accent: str | None = None, glow=(920, 390, "accent")):
+    def __init__(self, theme: str | None, accent: str | None = None, glow=(920, 390, "accent"), size=(W, H)):
         self.p = palette(theme, accent)
-        self.img = Image.new("RGB", (W * K, H * K), self.p["bg"])
+        self.w, self.h = size
+        self.img = Image.new("RGB", (self.w * K, self.h * K), self.p["bg"])
         if self.p["glow"] and glow:  # soft light behind the main element, dark theme only (as in the app)
             self.glow(glow[0], glow[1], 300, self.p[glow[2]], 70)
         self.d = ImageDraw.Draw(self.img)
@@ -106,11 +107,11 @@ class Card:
         self.d.ellipse([64 * K, 62 * K, 84 * K, 82 * K], fill=self.p["accent"])
         self.text((98, 56), "Setly", 26, "text", 700)
         if right:
-            self.text((W - 64, 56), right, 24, "muted", 500, anchor="ra")
+            self.text((self.w - 64, 56), right, 24, "muted", 500, anchor="ra")
 
     def png(self) -> bytes:
         out = io.BytesIO()
-        self.img.resize((W, H), Image.LANCZOS).save(out, "PNG", optimize=True)
+        self.img.resize((self.w, self.h), Image.LANCZOS).save(out, "PNG", optimize=True)
         return out.getvalue()
 
 
@@ -312,4 +313,68 @@ def share(name: str, streak: int, week_xp: int, workouts: int, level: int, theme
     c.text((cx, cy - 25), str(streak), 96, "streak", 700, "Unbounded", anchor="mm")
     word = "день" if streak % 10 == 1 and streak % 100 != 11 else "дня" if streak % 10 in (2, 3, 4) and streak % 100 not in (12, 13, 14) else "дней"
     c.text((cx, cy + 55), f"{word} подряд", 26, "muted", 600, anchor="mm")
+    return c.png()
+
+
+# ---- Telegram Stories: 1080x1920; Telegram draws its own UI over the top and bottom ~250 px, so content sits between ----
+SW, SH = 1080, 1920
+
+
+def _story_base(theme, accent, glow) -> Card:
+    c = Card(theme, accent, glow=None, size=(SW, SH))
+    if c.p["glow"]:
+        c.glow(glow[0], glow[1], 420, c.p[glow[2]], 80)
+    c.d.ellipse([90 * K, 288 * K, 118 * K, 316 * K], fill=c.p["accent"])
+    c.text((136, 280), "Setly", 38, "text", 700)
+    return c
+
+
+def _footer(c: Card, bot: str) -> None:
+    c.text((SW / 2, 1590), "Дневник, тренировки и дуэли с друзьями", 34, "muted", 600, anchor="ma")
+    if bot:
+        c.text((SW / 2, 1640), f"@{bot}", 38, "accent_text", 700, anchor="ma")
+
+
+def plural_days(n: int) -> str:
+    return "день" if n % 10 == 1 and n % 100 != 11 else "дня" if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14) else "дней"
+
+
+def story_week(name: str, streak: int, week_xp: int, workouts: int, level: int, bot: str = "", theme=None, accent=None) -> bytes:
+    c = _story_base(theme, accent, (540, 860, "streak"))
+    c.text((90, 380), name[:24], 44, "muted", 600)
+    c.text((90, 440), "Моя неделя", 92, "text", 700, "Unbounded")
+    cx, cy = SW // 2, 860
+    c.ring(cx, cy, 250, 44, min(1, streak / 30), "streak")
+    c.text((cx, cy - 30), str(streak), 170, "streak", 700, "Unbounded", anchor="mm")
+    c.text((cx, cy + 90), f"{plural_days(streak)} подряд", 40, "muted", 600, anchor="mm")
+    for i, (value, label, color) in enumerate(((num(week_xp), "XP за неделю", "accent_text"), (str(workouts), "тренировок", "text"))):
+        x = 90 + i * 460
+        c.rect((x, 1190, x + 440, 1420), 44, "card")
+        c.text((x + 40, 1222), value, 84, color, 700, "Unbounded")
+        c.text((x + 40, 1350), label, 34, "muted", 600)
+    c.text((SW / 2, 1470), f"Уровень {level}", 40, "accent_text", 700, anchor="ma")
+    _footer(c, bot)
+    return c.png()
+
+
+def story_duel(name: str, rival: str, me: int, them: int, metric: str, days: int, rewarded: bool, bot: str = "",
+               theme=None, accent=None) -> bytes:
+    """A won duel. metric: "xp" or "workouts"."""
+    c = _story_base(theme, accent, (540, 900, "accent"))
+    c.text((90, 400), "Победа", 112, "text", 700, "Unbounded")
+    c.text((90, 530), "в дуэли", 112, "accent_text", 700, "Unbounded")
+    cx, cy = SW // 2, 930
+    c.rect((90, 730, SW - 90, 1130), 56, "card")
+    score = f"{num(me)} : {num(them)}"
+    size = 150 if len(score) <= 9 else 110
+    c.text((cx, cy - 40), score, size, "accent_text", 700, "Unbounded", anchor="mm")
+    what = "XP" if metric == "xp" else "тренировок"
+    c.text((cx, cy + 100), f"{what} за {days} {plural_days(days)}", 36, "muted", 600, anchor="mm")
+    c.text((cx, 1210), f"{name[:18]}  vs  {rival[:18]}", 44, "text", 700, anchor="ma")
+    if rewarded:
+        label = "+40 XP и бустер ×1,5"
+        w = c.width(label, 36, 700) + 72
+        c.rect((cx - w / 2, 1300, cx + w / 2, 1384), 42, "accent")
+        c.text((cx, 1342), label, 36, "on_accent", 700, anchor="mm")
+    _footer(c, bot)
     return c.png()

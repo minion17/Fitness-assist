@@ -817,3 +817,20 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .step-go.open { transform: rotate(90deg); }
 @media (max-width: 350px) { .day-card { grid-template-columns: 104px minmax(0, 1fr); gap: 12px; } .day-card .daily-progress-ring { width: 104px; } .day-stat-value { font-size: 19px; } }
 .crash { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px; } .crash-icon { font-size: 44px; } .crash .btn { width: auto; padding: 12px 28px; margin-top: 8px; }
+
+.home-rows > .habits + .home-row, .home-rows > .home-row + .habits, .home-rows > .quest-list + .habits { border-top: 1px solid var(--line); }
+.habits { padding-bottom: 10px; }
+.habits-head { cursor: default; }
+.habits-head .link { flex: none; font-size: 14px; }
+.habit-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.habit-chip { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-2); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s ease, transform .1s ease; }
+.habit-chip:active { transform: scale(.96); }
+.habit-chip small { color: var(--muted); font-weight: 600; }
+.habit-chip[aria-pressed='true'] { background: var(--primary-bg); border-color: var(--primary-bg); color: var(--primary-fg); }
+.habit-chip[aria-pressed='true'] small { color: inherit; opacity: .7; }
+.habit-edit { display: flex; flex-direction: column; gap: 10px; }
+.habit-line { display: flex; align-items: center; gap: 10px; }
+.habit-line-title { flex: 1; min-width: 0; }
+.habit-new { display: flex; gap: 8px; }
+.habit-new .input-wrap { flex: 1; }
+.habit-line .link { color: var(--muted); font-size: 14px; }

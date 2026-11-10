@@ -1,6 +1,7 @@
 // "Друзья" (in Прогресс): invite link, weekly leaderboard, friendly duels and a share card sent by the bot.
 import { useCallback, useEffect, useState } from 'react'
 import Empty from './Empty'
+import { canStory, shareStory } from './story'
 import { api, postJson, tg } from './telegram'
 
 type Row = { id: number; name: string; me: boolean; level: number; week_xp: number; streak: number; registered: boolean }
@@ -54,7 +55,8 @@ export default function Friends() {
           {' '}+50 XP за каждого нового друга, который пользуется Setly хотя бы 3 дня.</p>
         <div className="friends-actions">
           <button className="btn" disabled={!link} onClick={invite}>Пригласить друга</button>
-          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешлите её кому угодно.')}>Поделиться неделей</button>
+          {canStory() && <button className="btn btn-ghost" onClick={() => act(() => shareStory({ kind: 'week' }))}>Неделя в историю</button>}
+          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешлите её кому угодно.')}>{canStory() ? 'Карточкой в чат' : 'Поделиться неделей'}</button>
         </div>
         {!link && <p className="sub">Ссылка появится, когда бот будет запущен.</p>}
       </section>
@@ -131,6 +133,7 @@ export default function Friends() {
             <div key={d.id} className="duel">
               <div className="duel-main"><b>{d.rival}</b><span className="sub">{METRIC[d.metric]} · {d.me} : {d.them}</span></div>
               <span className={`duel-result ${d.result}`}>{d.result === 'win' ? 'Победа' : d.result === 'loss' ? 'Поражение' : 'Ничья'}</span>
+              {d.result === 'win' && canStory() && <button className="link" aria-label={`Победу над ${d.rival} — в историю`} onClick={() => act(() => shareStory({ kind: 'duel', duel_id: d.id }))}>В историю</button>}
             </div>
           ))}
         </section>

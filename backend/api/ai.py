@@ -5,12 +5,13 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import ai
 from backend.core.config import settings
+from backend.core.search import stems, word_start
 from backend.core.nutrition import GOAL_RU, daily_targets
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
@@ -35,7 +36,7 @@ ALLERGY_RU = {"dairy": "молочное", "eggs": "яйца", "gluten": "глю
 MealType = Literal["breakfast", "lunch", "dinner", "snack"]
 MAX_IMAGE_BYTES = 6 * 1024 * 1024
 IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-CATALOG_LIMIT = 400  # shortcut: whole catalog goes into the prompt; prefilter by keywords once it grows past this
+CATALOG_LIMIT = 400  # products in the prompt: own ones, those named in the text, then plain staples
 
 
 def day_start(d: date) -> datetime:
@@ -101,14 +102,25 @@ MEAL_TOOL = {
 }
 
 
-async def visible_products(session: AsyncSession, user: User) -> dict[int, Product]:
-    rows = await session.scalars(
-        select(Product)
-        .where((Product.owner_user_id.is_(None)) | (Product.owner_user_id == user.id))
-        .order_by(Product.owner_user_id.is_(None), Product.name)  # own products first
-        .limit(CATALOG_LIMIT)
-    )
-    return {p.id: p for p in rows}
+async def visible_products(session: AsyncSession, user: User, text: str = "") -> dict[int, Product]:
+    """The catalog can't go whole into the prompt (thousands of supermarket items): the user's own products, then those
+    whose words appear in the text ("гречка с котлетой"), then plain staples without a brand (огурец, борщ, банан)."""
+    out: dict[int, Product] = {}
+
+    async def take(where, order, limit: int) -> None:
+        for p in await session.scalars(select(Product).where(where, Product.id.not_in(out.keys() or [0])).order_by(*order).limit(limit)):
+            out[p.id] = p
+
+    await take(Product.owner_user_id == user.id, [Product.id.desc()], 100)
+    words = [w for w in stems(text.lower().replace("ё", "е")) if len(w) >= 3]
+    if words:
+        await take(Product.owner_user_id.is_(None) & or_(*(word_start(Product.search_text, w) for w in words)),
+                   [Product.brand.is_not(None), func.length(Product.name)], 150)
+    # staples people actually log come first, so the budget isn't spent on the start of the alphabet
+    logged = select(func.count(FoodLog.id)).where(FoodLog.product_id == Product.id).scalar_subquery()
+    await take(Product.owner_user_id.is_(None) & Product.brand.is_(None) & Product.barcode.is_(None),
+               [logged.desc(), func.length(Product.name), Product.name], CATALOG_LIMIT - len(out))
+    return out
 
 
 def catalog_text(products: dict[int, Product]) -> str:
@@ -146,9 +158,9 @@ def build_draft(raw: dict, products: dict[int, Product]) -> dict:
     return {"meal_type": meal if meal in MealType.__args__ else None, "items": items, "note": (raw.get("note") or "").strip()}
 
 
-async def recognise(session: AsyncSession, user: User, kind: str, content: list[dict]) -> dict:
+async def recognise(session: AsyncSession, user: User, kind: str, content: list[dict], text: str = "") -> dict:
     await use_quota(session, user, kind)
-    products = await visible_products(session, user)
+    products = await visible_products(session, user, text)
     try:
         raw = await ai.call_tool(MEAL_SYSTEM, [{"type": "text", "text": catalog_text(products)}, *content], MEAL_TOOL)
     except ai.AIUnavailable as e:
@@ -163,7 +175,7 @@ class MealTextIn(BaseModel):
 @router.post("/meal/text")
 async def meal_from_text(body: MealTextIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    return await recognise(session, user, "meal_text", [{"type": "text", "text": f"Пользователь пишет: {body.text}"}])
+    return await recognise(session, user, "meal_text", [{"type": "text", "text": f"Пользователь пишет: {body.text}"}], body.text)
 
 
 @router.post("/meal/photo")

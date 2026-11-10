@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from pathlib import Path
@@ -15,6 +16,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import selectinload
 
 from backend.core.config import settings
+from backend.core.search import stems, word_start
 from backend.core.gamification import level_progress
 from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
@@ -226,11 +228,17 @@ async def search_products(
         user = await get_or_create_user(tg, session)
         owner = owner | (Product.owner_user_id == user.id)
     q = q.lower().replace("ё", "е").replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    raw = q.replace("\\", "").split()
+    words = stems(" ".join(raw))
+    # each stem at the start of a word: "огур" finds "Огурцы", not "йогурт"
+    match = [word_start(Product.search_text, w) for w in words] or [Product.search_text.like(f"%{q}%", escape="\\")]
     rows = await session.scalars(
         select(Product)
-        .where(owner, Product.search_text.like(f"%{q}%", escape="\\"))
-        # names starting with the query first, then shorter (more generic) names
-        .order_by(Product.search_text.like(f"{q}%", escape="\\").desc(), func.length(Product.name), Product.name)
+        .where(owner, *match)
+        # names starting with the first word first, then shorter (more generic) names
+        # whole words of the query first ("сало" -> "Сало солёное" before "Салями"), then names starting with it, shorter first
+        .order_by(*(Product.search_text.op("~")(r"(^|[^0-9a-zа-я])" + re.escape(w) + r"([^0-9a-zа-я]|$)").desc() for w in raw[:1]),
+                  Product.search_text.like(f"{words[0] if words else q}%", escape="\\").desc(), func.length(Product.name), Product.name)
         .limit(20)
     )
     return [product_out(p) for p in rows]
@@ -381,6 +389,9 @@ async def edit_personal_program(program_id: int, body: PersonalProgramIn, tg: di
 class FoodLogIn(BaseModel):
     product_id: int
     amount_g: float = Field(gt=0, le=5000)
+    # how the user counted it ("шт", "мл", "ст. л."...), shown in the diary; amount_g is what counts
+    unit: str | None = Field(default=None, max_length=12)
+    qty: float | None = Field(default=None, gt=0, le=5000)
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
     snack_slot: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # which snack of the day
 
@@ -395,6 +406,7 @@ def food_log_out(log: FoodLog) -> dict:
     p = log.product
     return {
         "id": log.id, "meal_type": log.meal_type, "snack_slot": log.snack_slot, "amount_g": log.amount_g, "logged_at": log.logged_at.isoformat(),
+        "unit": log.unit, "qty": log.qty,
         "product": product_out(p),
         "kcal": round(p.kcal * k), "protein_g": round(p.protein_g * k, 1),
         "fat_g": round(p.fat_g * k, 1), "carbs_g": round(p.carbs_g * k, 1),
@@ -450,6 +462,8 @@ async def delete_food_log(log_id: int, tg: dict = Depends(telegram_user), sessio
 
 class FoodLogPatch(BaseModel):
     amount_g: float = Field(gt=0, le=5000)
+    unit: str | None = Field(default=None, max_length=12)  # not sent = typed in grams
+    qty: float | None = Field(default=None, gt=0, le=5000)
 
 
 @app.patch("/api/food-logs/{log_id}")
@@ -459,7 +473,7 @@ async def change_food_log(log_id: int, body: FoodLogPatch, tg: dict = Depends(te
     log = await session.scalar(select(FoodLog).options(selectinload(FoodLog.product)).where(FoodLog.id == log_id))
     if log is None or log.user_id != user.id:
         raise HTTPException(404, "Запись не найдена")
-    log.amount_g = body.amount_g
+    log.amount_g, log.unit, log.qty = body.amount_g, body.unit, body.qty
     await session.commit()
     return food_log_out(log)
 

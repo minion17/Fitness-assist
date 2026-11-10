@@ -464,8 +464,8 @@ def test_barcode_lookup_and_custom_product(client, monkeypatch):
     body = {"name": " Сырник домашний ", "kcal": 220, "protein_g": 15, "fat_g": 9, "carbs_g": 20}
     p = client.post("/api/products", headers=h, json=body).json()
     assert p["name"] == "Сырник домашний"
-    assert [x["id"] for x in client.get("/api/products/search", params={"q": "сырник"}, headers=h).json()] == [p["id"]]
-    assert client.get("/api/products/search", params={"q": "сырник"}, headers=new_user_headers()).json() == []
+    assert [x["id"] for x in client.get("/api/products/search", params={"q": "сырник домашний"}, headers=h).json()] == [p["id"]]
+    assert client.get("/api/products/search", params={"q": "сырник домашний"}, headers=new_user_headers()).json() == []
     assert client.post("/api/products", headers=h, json={**body, "protein_g": 60, "fat_g": 30, "carbs_g": 20}).status_code == 422
 
     # unknown code -> user's own product remembered for that code (only for them)
@@ -1373,3 +1373,31 @@ def test_habit_reminders_with_tick_buttons(client, monkeypatch):
     assert client.portal.call(tick, a).title == "Витамины"
     assert client.portal.call(tick, a, 1) is None  # someone else's button
     assert [x["done"] for x in client.get("/api/habits", headers=h).json()] == [True, False]
+
+
+def test_search_by_word_stems_and_units(client, seeded):
+    from backend.api.main import stems
+
+    assert stems("огурец свежий") == ["огур", "свеж"] and stems("рис") == ["рис"]
+    names = lambda q: [p["name"] for p in client.get("/api/products/search", params={"q": q}).json()]  # noqa: E731
+    assert names("огурец")[0] == "Огурец" and "Огурцы свежие" in names("огурец")
+    assert not any("огурт" in n for n in names("огурец"))  # a stem matches a word's start, not "йогурт"
+    assert names("сало")[0] == "Сало" and "Салями" not in names("сало")[:3]
+    assert "Яблоки" in names("яблоко") and "Яйцо куриное" in names("яйца")
+    assert "Куриная грудка" in names("грудка куриная")  # any word order
+    egg = next(p for p in client.get("/api/products/search", params={"q": "яйцо куриное"}).json() if p["name"] == "Яйцо куриное")
+    assert (egg["piece_g"], egg["piece_name"], egg["ml_g"]) == (55, "шт", None)  # units.json filled the old product
+    milk = client.get("/api/products/search", params={"q": "молоко 3.2"}).json()[0]
+    assert milk["ml_g"] and milk["tbsp_g"]
+    assert len(client.get("/api/products/search", params={"q": "борщ"}).json()) >= 1
+
+
+def test_food_log_in_pieces(client, seeded):
+    h = new_user_headers()
+    egg = next(p for p in client.get("/api/products/search", params={"q": "яйцо куриное"}).json() if p["name"] == "Яйцо куриное")
+    log = client.post("/api/food-logs", headers=h, json={"product_id": egg["id"], "amount_g": 110, "meal_type": "breakfast",
+                                                         "unit": "шт", "qty": 2}).json()
+    item = next(i for i in client.get("/api/food-logs", headers=h).json()["items"] if i["id"] == log["id"])
+    assert (item["unit"], item["qty"], item["amount_g"]) == ("шт", 2, 110)
+    patched = client.patch(f"/api/food-logs/{log['id']}", headers=h, json={"amount_g": 120}).json()
+    assert (patched["unit"], patched["qty"], patched["amount_g"]) == (None, None, 120)  # typed in grams now

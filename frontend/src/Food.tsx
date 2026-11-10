@@ -10,6 +10,7 @@ import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
+import { defaultAmount, fmtQty, unitsFor, type Unit } from './units'
 import { Bar, Ring, Sheet } from './ui'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
@@ -39,6 +40,7 @@ function mealGroups(day: FoodDay) {
   return groups.sort((a, b) => a.time.localeCompare(b.time))
 }
 
+const GRAM: Unit = { label: 'г', g: 1 }
 const ACTIONS_W = 148 // px revealed by a swipe: "Граммы" + "Удалить"
 
 /** A diary line. Swipe left (or tap ⋯) for "Граммы" / "Удалить"; deleting asks once more. */
@@ -91,7 +93,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
         <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>
         <div className="row-main">
           <div className="row-title">{i.product.name}</div>
-          <div className="row-sub">{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
+          <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${i.unit} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
         </div>
         {mode === 'confirm' ? (
           <div className="confirm">
@@ -113,7 +115,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams =
   day: FoodDay
   targets?: Targets
   canEdit: boolean
-  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null) => Promise<void>
+  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
   onDelete: (id: number) => Promise<void>
   onGrams?: (id: number, grams: number) => Promise<void>
   aiEnabled?: boolean
@@ -208,13 +210,14 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   slot?: string | null
   aiEnabled?: boolean
   onClose: () => void
-  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null) => Promise<void>
+  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
 }) {
   const [meal, setMeal] = useState(initialMeal)
   const [q, setQ] = useState('')
   const [results, setResults] = useState<Product[] | null>(null)
   const [picked, setPicked] = useState<Product | null>(null)
-  const [grams, setGrams] = useState('100')
+  const [grams, setGrams] = useState('100') // the amount in `unit`
+  const [unit, setUnit] = useState<Unit>(GRAM)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [list, setList] = useState<'recent' | 'favorites'>('recent')
@@ -263,8 +266,17 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
 
   function pick(p: Product | RecentProduct) {
     setPicked(p)
-    if ('last_amount_g' in p) setGrams(String(p.last_amount_g))
-    else if (p.portion_g) setGrams(String(p.portion_g))
+    if ('last_amount_g' in p) { setUnit(GRAM); setGrams(String(p.last_amount_g)); return }
+    const d = defaultAmount(p)
+    setUnit(d.unit); setGrams(fmtQty(d.qty))
+  }
+
+  function switchUnit(u: Unit) {
+    // grams and ml keep the amount already typed; pieces, glasses and spoons start from one
+    if (u.label === 'г') setGrams(String(Math.round(Number.isFinite(g) ? g : 100)))
+    else if (u.label === 'мл') setGrams(String(Math.round((Number.isFinite(g) ? g : 200) / u.g)))
+    else setGrams('1')
+    setUnit(u)
   }
 
   useEffect(() => {
@@ -280,7 +292,8 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
     return () => { stale = true; clearTimeout(timer) }
   }, [q])
 
-  const g = Number(grams.replace(',', '.'))
+  const qty = Number(grams.replace(',', '.'))
+  const g = Math.round(qty * unit.g * 10) / 10 // grams
   const valid = Number.isFinite(g) && g > 0 && g <= 5000
 
   async function add() {
@@ -288,7 +301,8 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
     setBusy(true)
     setError('')
     try {
-      await onAdd(picked.id, g, meal, meal === 'snack' ? slot : null)
+      const s = meal === 'snack' ? slot : null
+      await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
       onClose()
     } catch {
       setError('Не удалось добавить. Попробуйте ещё раз.')
@@ -385,25 +399,22 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
             <button className="link" onClick={() => setPicked(null)}>Другой</button>
           </div>
           {thanks && <p className="sub pos">Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем, а вам +25 XP.</p>}
-          {picked.portion_g ? (
-            <div className="seg seg-row portions">
-              {[0.5, 1, 2].map((k) => {
-                const v = String(Math.round(picked.portion_g! * k))
-                return (
-                  <button type="button" key={k} aria-pressed={grams === v} onClick={() => setGrams(v)}>
-                    {k === 1 ? `1 ${picked.portion_name ?? 'порция'}` : k === 0.5 ? '½' : '×2'} · {v} г
-                  </button>
-                )
-              })}
-            </div>
-          ) : null}
           <label className="field">
-            <span>Количество</span>
+            <span>Количество{unit.label !== 'г' && valid ? ` · ${fmtQty(g)} г` : ''}</span>
             <div className="input-wrap">
-              <input inputMode="decimal" autoFocus value={grams} onChange={(e) => setGrams(e.target.value)} />
-              <i>г</i>
+              <input inputMode="decimal" autoFocus aria-label="Количество" value={grams} onChange={(e) => setGrams(e.target.value)} />
+              <i>{unit.label}</i>
             </div>
           </label>
+          {unitsFor(picked).length > 1 && (
+            <div className="unit-chips" role="group" aria-label="Единица">
+              {unitsFor(picked).map((u) => (
+                <button type="button" key={u.label} className="habit-chip" aria-pressed={u.label === unit.label} onClick={() => switchUnit(u)}>
+                  {u.label}{u.label !== 'г' && u.label !== 'мл' && <small> · {fmtQty(u.g)} г</small>}
+                </button>
+              ))}
+            </div>
+          )}
           {valid && (
             <p className="sub">
               {Math.round((picked.kcal * g) / 100)} ккал · Б {r1((picked.protein_g * g) / 100)} · Ж {r1((picked.fat_g * g) / 100)} · У {r1((picked.carbs_g * g) / 100)}

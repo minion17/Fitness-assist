@@ -35,12 +35,18 @@ def load(rel: str, required: tuple[str, ...] = ("name",), numeric: tuple[str, ..
     return rows
 
 
+UNIT_FIELDS = ("piece_g", "piece_name", "ml_g", "tbsp_g", "portion_g", "portion_name")
+
+
 async def import_products(s) -> int:
     added = 0
     # products.json: the team's list; usda_basics.json: staples from the USDA nutrient database (SR26, public domain),
-    # named in Russian. Same name+brand already in the catalog -> skipped, so the team's values win.
-    rows = [*load("products/products.json", ("name", "kcal"), ("kcal", "protein_g", "fat_g", "carbs_g")),
-            *load("products/usda_basics.json", ("name", "kcal"), ("kcal", "protein_g", "fat_g", "carbs_g"))]
+    # named in Russian; basics_ru.json: everyday foods and dishes (build_basics_ru.py).
+    # Same name+brand already in the catalog -> skipped, so the team's values win.
+    numeric = ("kcal", "protein_g", "fat_g", "carbs_g")
+    rows = [*load("products/products.json", ("name", "kcal"), numeric),
+            *load("products/usda_basics.json", ("name", "kcal"), numeric),
+            *load("products/basics_ru.json", ("name", "kcal"), numeric)]
     for p in rows:
         brand = p.get("brand") or None
         if brand and brand.strip().lower() in ("не указан", "нет", "-"):  # placeholder, not a real brand
@@ -52,8 +58,17 @@ async def import_products(s) -> int:
         s.add(Product(
             name=p["name"], brand=brand, barcode=p.get("barcode") or None, category=p.get("category"),
             kcal=p["kcal"], protein_g=p.get("protein_g", 0), fat_g=p.get("fat_g", 0), carbs_g=p.get("carbs_g", 0),
+            **{k: p[k] for k in UNIT_FIELDS if p.get(k) is not None},
         ))
         added += 1
+    await s.flush()
+    # pieces, ml and spoons for products already in the catalog: filled where still empty, never overwritten
+    units = json.loads((CONTENT / "products/units.json").read_text(encoding="utf-8")) if (CONTENT / "products/units.json").exists() else {}
+    for name, fields in units.items():
+        for product in await s.scalars(select(Product).where(Product.owner_user_id.is_(None), Product.name == name)):
+            for k, v in fields.items():
+                if k in UNIT_FIELDS and getattr(product, k) is None:
+                    setattr(product, k, v)
     return added
 
 

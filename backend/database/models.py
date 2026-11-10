@@ -95,6 +95,11 @@ class Product(Base):
     # a typical serving, e.g. 350 g "порция" of a restaurant dish: lets the user log "1 порция" instead of grams
     portion_g: Mapped[float | None] = mapped_column(Float)
     portion_name: Mapped[str | None] = mapped_column(String(40))
+    # Other ways to count it, all in grams: one piece ("шт", "ломтик", "зубчик"), 1 ml (set = a liquid), 1 tablespoon
+    piece_g: Mapped[float | None] = mapped_column(Float)
+    piece_name: Mapped[str | None] = mapped_column(String(20))
+    ml_g: Mapped[float | None] = mapped_column(Float)
+    tbsp_g: Mapped[float | None] = mapped_column(Float)
     # NULL = shared catalog; otherwise a custom product (e.g. recognised by AI) visible only to its owner.
     owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     # Lower-cased in Python: Postgres with the C locale can't case-fold Cyrillic in ILIKE/lower().
@@ -176,6 +181,8 @@ class FoodLog(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
     amount_g: Mapped[float] = mapped_column(Float)
+    unit: Mapped[str | None] = mapped_column(String(12))  # how it was entered, for display: 2 "шт" = amount_g grams
+    qty: Mapped[float | None] = mapped_column(Float)
     meal_type: Mapped[str] = mapped_column(String(20))  # breakfast | lunch | dinner | snack
     # snacks can happen several times a day: each one is a separate group, labelled by its start time ("11:30")
     snack_slot: Mapped[str | None] = mapped_column(String(5))

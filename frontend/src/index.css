@@ -898,3 +898,4 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .consent-check > span { display: flex; flex-direction: column; gap: 4px; }
 .consent-check a { color: var(--accent-text); }
 .btn-danger { background: #e5484d; color: #fff; }
+.unit-chips { display: flex; flex-wrap: wrap; gap: 6px; }

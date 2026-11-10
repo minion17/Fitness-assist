@@ -273,8 +273,8 @@ export default function App() {
     setTimeout(() => setParty((p) => (p === id ? 0 : p)), 2200)
   }
 
-  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null) {
-    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}) }))
+  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) {
+    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}), ...(counted ?? {}) }))
     tg?.HapticFeedback?.notificationOccurred?.('success')
     await refreshJournal()
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')

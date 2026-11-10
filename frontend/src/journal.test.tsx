@@ -344,10 +344,13 @@ test('menu photo: pick dishes, save with the restaurant, then quick portions', a
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить выбранные (1)' }))
   fireEvent.click(await screen.findByRole('button', { name: /Пепперони 30 см/ }))
   expect(posted).toEqual([{ ...pizza, brand: 'Додо Пицца' }])
-  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('610') // one pizza by default
-  fireEvent.click(screen.getByRole('button', { name: /½ · 305 г/ }))
+  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('1') // one pizza by default
+  const chip = screen.getAllByRole('button').find((b) => b.textContent === 'пицца · 610 г')
+  expect(chip?.getAttribute('aria-pressed')).toBe('true')
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '0,5' } })
+  expect(screen.getByText(/Количество · 305 г/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: /Добавить в/ }))
-  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(91, 305, 'breakfast', null))
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(91, 305, 'breakfast', null, { unit: 'пицца', qty: 0.5 }))
 })
 
 test('charts: tap a bar to read its value; goal line shown', async () => {
@@ -478,4 +481,18 @@ test('privacy card: deleting the account asks first, then calls the API', async 
   fireEvent.click(screen.getByRole('button', { name: 'Удалить навсегда' }))
   await screen.findByText(/аккаунт и данные удалены/)
   expect(apiMock).toHaveBeenCalledWith('/api/account', { method: 'DELETE' })
+})
+
+
+test('units: pieces, ml, glasses and spoons turn into grams', async () => {
+  const { unitsFor, defaultAmount } = await import('./units')
+  const base = { id: 1, name: 'x', brand: null, category: null, kcal: 50, protein_g: 1, fat_g: 1, carbs_g: 1 }
+  const egg = { ...base, piece_g: 55, piece_name: null }
+  expect(unitsFor(egg).map((u) => [u.label, u.g])).toEqual([['г', 1], ['шт', 55]])
+  expect(defaultAmount(egg)).toEqual({ unit: { label: 'шт', g: 55 }, qty: 1 })
+  const milk = { ...base, ml_g: 1.03, tbsp_g: 15.5 }
+  expect(unitsFor(milk).map((u) => u.label)).toEqual(['г', 'мл', 'стакан', 'ст. л.', 'ч. л.'])
+  expect(unitsFor(milk).find((u) => u.label === 'стакан')!.g).toBeCloseTo(257.5)
+  expect(defaultAmount(milk).qty).toBe(200)
+  expect(defaultAmount(base)).toEqual({ unit: { label: 'г', g: 1 }, qty: 100 })
 })

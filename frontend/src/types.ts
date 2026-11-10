@@ -4,12 +4,13 @@ export type Macros = { kcal: number; protein_g: number; fat_g: number; carbs_g: 
 export type Product = Macros & {
   id: number; name: string; brand: string | null; category: string | null
   portion_g?: number | null; portion_name?: string | null // typical serving, e.g. 610 g «пицца»
+  piece_g?: number | null; piece_name?: string | null; ml_g?: number | null; tbsp_g?: number | null // other units, in grams
 }
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'
 export const MEALS: Record<MealType, string> = { breakfast: 'Завтрак', lunch: 'Обед', dinner: 'Ужин', snack: 'Перекус' }
 
-export type FoodItem = Macros & { id: number; meal_type: MealType; snack_slot?: string | null; amount_g: number; logged_at: string; product: Product }
+export type FoodItem = Macros & { id: number; meal_type: MealType; snack_slot?: string | null; amount_g: number; logged_at: string; product: Product; unit?: string | null; qty?: number | null }
 export type FoodDay = { date: string; items: FoodItem[]; totals: Macros }
 
 export type PlannedExercise = {

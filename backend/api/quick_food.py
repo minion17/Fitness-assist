@@ -27,11 +27,18 @@ log = logging.getLogger(__name__)
 BARCODE = re.compile(r"\d{8,14}")
 
 
+# shortcut: drinks from Open Food Facts carry no density; by the name they count in ml at 1 g/ml (good to ±5%)
+LIQUID = re.compile(r"молоко|кефир|ряженк|айран|тан\b|снежок|простокваш|напит|сок\b|нектар|морс|компот|квас|лимонад|"
+                    r"вода\b|чай|кофе|капучино|латте|какао|пиво|вино|сидр|энергетик|кола|тоник|смузи|йогурт питьев|бульон")
+
+
 def product_out(p: Product) -> dict:
+    ml_g = p.ml_g or (1.0 if LIQUID.search(p.name.lower()) else None)
     return {
         "id": p.id, "name": p.name, "brand": p.brand, "category": p.category,
         "kcal": p.kcal, "protein_g": p.protein_g, "fat_g": p.fat_g, "carbs_g": p.carbs_g,
         "portion_g": p.portion_g, "portion_name": p.portion_name,
+        "piece_g": p.piece_g, "piece_name": p.piece_name, "ml_g": ml_g, "tbsp_g": p.tbsp_g or (round(15 * ml_g, 1) if ml_g else None),
     }
 
 
@@ -103,7 +110,8 @@ async def copy_meal(body: CopyIn, tg: dict = Depends(telegram_user), session: As
     if not src:
         raise HTTPException(404, "В этот день такого приёма пищи нет")
     session.add_all(
-        FoodLog(user_id=user.id, product_id=s.product_id, amount_g=s.amount_g, meal_type=s.meal_type, snack_slot=s.snack_slot)
+        FoodLog(user_id=user.id, product_id=s.product_id, amount_g=s.amount_g, unit=s.unit, qty=s.qty, meal_type=s.meal_type,
+                snack_slot=s.snack_slot)
         for s in src
     )
     await session.commit()

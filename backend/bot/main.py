@@ -4,11 +4,12 @@ import random
 import logging
 import unicodedata
 
-from aiogram import Bot, Dispatcher, Router
+from aiogram import Bot, Dispatcher, F, Router
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.exceptions import TelegramNetworkError
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
+    CallbackQuery,
     ErrorEvent,
     BufferedInputFile,
     InlineKeyboardButton,
@@ -114,6 +115,40 @@ async def stats(message: Message) -> None:
         return
     async with SessionLocal() as s:
         await message.answer(await admin.summary(s), parse_mode="HTML")
+
+
+_drafts: dict[int, str] = {}  # owner's chat id -> broadcast text waiting for "Отправить"
+
+
+@router.message(Command("broadcast"))
+async def broadcast(message: Message, command: CommandObject) -> None:
+    uid = message.from_user and message.from_user.id
+    if uid not in alerts.admin_ids():
+        await message.answer("Эта команда только для владельца бота.")
+        return
+    text = (command.args or "").strip()
+    if not text:
+        await message.answer("Напишите текст после команды, например:\n/broadcast Новое в Setly: задания недели 🏆")
+        return
+    _drafts[uid] = text
+    async with SessionLocal() as s:
+        n = await admin.broadcast_size(s)
+    await message.answer(text)  # exactly what people will see
+    await message.answer(f"☝️ Так увидят сообщение. Отправить {n} пользователям?", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+        InlineKeyboardButton(text=f"Отправить ({n})", callback_data="bc:send"), InlineKeyboardButton(text="Отмена", callback_data="bc:cancel")]]))
+
+
+@router.callback_query(F.data.startswith("bc:"))
+async def broadcast_answer(call: CallbackQuery) -> None:
+    uid = call.from_user.id
+    text = _drafts.pop(uid, None) if uid in alerts.admin_ids() else None
+    if call.data == "bc:send" and text:
+        async with SessionLocal() as s:
+            n = await admin.queue_broadcast(s, text)
+        await call.message.edit_text(f"✅ Рассылка поставлена в очередь: {n} получателей. Уйдёт за пару минут.")
+    else:
+        await call.message.edit_text("Рассылка отменена." if text or call.data == "bc:cancel" else "Этот черновик уже неактуален.")
+    await call.answer()
 
 
 @router.error()

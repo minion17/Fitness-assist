@@ -40,17 +40,18 @@ from backend.database.models import (
     WorkoutLog,
     WorkoutSet,
 )
-from backend.core import alerts, off_sync
+from backend.core import alerts, backup, off_sync
 from backend.database.rewards import award_xp
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     await init_db()
-    sync = asyncio.create_task(off_sync.forever()) if settings.off_sync else None  # Russian products from Open Food Facts
+    tasks = [asyncio.create_task(t()) for on, t in ((settings.off_sync, off_sync.forever),  # Russian products from Open Food Facts
+                                                    (settings.backups, backup.forever)) if on]  # daily database copy
     yield
-    if sync:
-        sync.cancel()
+    for t in tasks:
+        t.cancel()
 
 
 log = logging.getLogger("api")

@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     bot_proxy: str = ""
     bot_username: str = ""
     admin_ids: str = ""
+    pg_dump: str = ""  # path to pg_dump if it isn't found automatically (daily backups)
+    backups: bool = True  # daily database backup into backups/ (off in tests)
     off_sync: bool = True  # background copy of Russian products from Open Food Facts (off in tests)  # Telegram ids (comma-separated) allowed to use /stats  # for invite links; normally the bot writes it to .bot_username itself  # e.g. socks5://127.0.0.1:1080 if Telegram is blocked
     webapp_url: str = "http://localhost:5173"
     database_url: str = "postgresql+asyncpg://fitness:fitness@localhost:5432/fitness"

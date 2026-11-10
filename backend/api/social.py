@@ -319,7 +319,7 @@ async def share(tg: dict = Depends(telegram_user), session: AsyncSession = Depen
     return {"ok": True}
 
 
-async def pending_messages(session: AsyncSession, limit: int = 30) -> list[Outbox]:
+async def pending_messages(session: AsyncSession, limit: int = 100) -> list[Outbox]:
     return list(await session.scalars(select(Outbox).where(Outbox.sent_at.is_(None)).order_by(Outbox.id).limit(limit)))
 
 

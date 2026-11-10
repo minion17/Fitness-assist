@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://fitness:fitness@localhost:5432/fitness_test")
 os.environ["BOT_TOKEN"] = "123456:TEST-TOKEN"
 os.environ["OFF_SYNC"] = "false"  # no network in tests
+os.environ["BACKUPS"] = "false"
 os.environ["WEBAPP_URL"] = "https://example.test"
 
 import pytest

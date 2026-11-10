@@ -1169,3 +1169,66 @@ def test_errors_reach_the_owner_once(client, seeded, monkeypatch):
     assert [r.kind for r in rows] == ["alert", "alert"]  # the API error once (not twice) + the app crash
     assert "ValueError: сломалось" in rows[0].text and "test-boom" in rows[0].text
     assert "приложение питание" in rows[1].text
+
+
+def test_daily_backup_with_pg_dump(client, seeded, tmp_path, monkeypatch):
+    import subprocess
+
+    from backend.core import backup
+    from backend.core.config import settings
+
+    if not backup.pg_dump():
+        import pytest
+        pytest.skip("pg_dump is not installed here")
+    args, env = backup.command("pg_dump", settings.database_url, tmp_path / "x.dump")
+    assert env["PGPASSWORD"] and not any("@" in a or "://" in a for a in args)  # the password goes via env, not the command line
+    monkeypatch.setattr(backup, "KEEP", 2)
+    for i in range(3):  # three runs -> only the newest two are kept
+        (tmp_path / f"setly-2000-01-0{i + 1}-0000.dump").write_bytes(b"old")
+    out = client.portal.call(backup.make, tmp_path)
+    assert out.stat().st_size > 1000 and backup.newest(tmp_path) == out
+    assert len(list(tmp_path.glob("setly-*.dump"))) == 2
+    listing = subprocess.run(["pg_restore", "--list", str(out)], capture_output=True, text=True)
+    assert listing.returncode == 0 and "products" in listing.stdout  # a real, restorable dump
+
+
+def test_broadcast_reaches_everyone_after_confirmation(client, seeded, monkeypatch):
+    import random
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy import delete, func, select
+
+    from backend.bot import main as bot
+    from backend.core.config import settings
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox, User
+
+    owner = random.randint(6 * 10**9, 7 * 10**9)
+    monkeypatch.setattr(settings, "admin_ids", str(owner))
+    text = f"Новое в Setly {owner}"
+
+    def msg(uid):
+        return SimpleNamespace(from_user=SimpleNamespace(id=uid), answer=AsyncMock())
+
+    stranger = msg(owner + 1)
+    client.portal.call(bot.broadcast, stranger, SimpleNamespace(args=text))
+    assert "только для владельца" in stranger.answer.call_args.args[0]
+
+    m = msg(owner)
+    client.portal.call(bot.broadcast, m, SimpleNamespace(args=text))
+    assert m.answer.call_args_list[0].args[0] == text and "Отправить" in m.answer.call_args_list[1].args[0]
+
+    async def counts():
+        async with SessionLocal() as s:
+            users = await s.scalar(select(func.count(User.id)))
+            queued = await s.scalar(select(func.count(Outbox.id)).where(Outbox.text == text))
+            await s.execute(delete(Outbox).where(Outbox.text == text))
+            await s.commit()
+            return users, queued
+    assert client.portal.call(counts)[1] == 0  # nothing before the button
+
+    call = SimpleNamespace(from_user=SimpleNamespace(id=owner), data="bc:send", message=SimpleNamespace(edit_text=AsyncMock()), answer=AsyncMock())
+    client.portal.call(bot.broadcast_answer, call)
+    users, queued = client.portal.call(counts)
+    assert queued == users > 0 and "очередь" in call.message.edit_text.call_args.args[0]

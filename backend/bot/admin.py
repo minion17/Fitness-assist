@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import func, select
 
 from backend.database.models import (
-    AiRequest, Duel, FoodLog, Friendship, Profile, User, Visit, WaterIntake, WorkoutLog,
+    AiRequest, Outbox, Duel, FoodLog, Friendship, Profile, User, Visit, WaterIntake, WorkoutLog,
 )
 
 
@@ -65,3 +65,15 @@ async def summary(session, now: datetime | None = None) -> str:
         "",
         f"<i>Возврат считается по тем, кто пришёл за последние 2 недели. {now:%d.%m %H:%M} UTC</i>",
     ])
+
+
+async def broadcast_size(session) -> int:
+    return await session.scalar(select(func.count(User.id))) or 0
+
+
+async def queue_broadcast(session, text: str) -> int:
+    """Everyone who ever opened the bot gets `text` (sent by the outbox, ~20 a second; blocked bots are skipped)."""
+    ids = list(await session.scalars(select(User.telegram_id)))
+    session.add_all([Outbox(telegram_id=t, kind="text", text=text) for t in ids])
+    await session.commit()
+    return len(ids)

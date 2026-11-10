@@ -12,3 +12,4 @@ frontend/dist/
 tools/
 .bot_username
 .off_sync
+backups/

@@ -22,6 +22,8 @@ from aiogram.types import (
 
 from sqlalchemy import select
 
+from backend.api.account import delete_account
+from backend.api.habits import tick_from_bot
 from backend.api.social import USERNAME_FILE, befriend, name
 from backend.bot import admin, cards, outbox, profile, reminders
 from backend.core import alerts
@@ -151,6 +153,45 @@ async def broadcast_answer(call: CallbackQuery) -> None:
     await call.answer()
 
 
+@router.message(Command("delete"))
+async def delete_cmd(message: Message) -> None:
+    await message.answer(
+        "Удалить аккаунт Setly и все данные — анкету, дневник, тренировки, замеры, друзей и XP? "
+        "Это нельзя отменить. Из резервных копий данные исчезнут в течение 14 дней.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Удалить всё", callback_data="del:yes"), InlineKeyboardButton(text="Отмена", callback_data="del:no")]]))
+
+
+@router.callback_query(F.data.startswith("del:"))
+async def delete_answer(call: CallbackQuery) -> None:
+    if call.data == "del:yes":
+        async with SessionLocal() as s:
+            gone = await delete_account(s, call.from_user.id)
+        await call.message.edit_text("Готово: аккаунт и данные удалены. Если вернётесь — нажмите /start, начнём с чистого листа."
+                                     if gone else "Аккаунта уже нет — удалять нечего.")
+    else:
+        await call.message.edit_text("Удаление отменено, всё на месте.")
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("hb:"))
+async def habit_tick(call: CallbackQuery) -> None:
+    """✓ under a habit reminder: tick it without opening the app, and drop that button."""
+    habit_id = int(call.data[3:]) if call.data[3:].isdigit() else 0
+    async with SessionLocal() as s:
+        h = await tick_from_bot(s, call.from_user.id, habit_id)
+    if h is None:
+        await call.answer("Этой привычки больше нет", show_alert=False)
+        return
+    await call.answer(f"Отмечено: {h.title} ✓")
+    kb = call.message.reply_markup
+    rows = [r for r in (kb.inline_keyboard if kb else []) if r[0].callback_data != call.data]
+    try:
+        await call.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+    except Exception:
+        pass  # the message is too old to edit; the tick is saved anyway
+
+
 @router.error()
 async def on_error(event: ErrorEvent) -> bool:
     log.exception("Update handling failed", exc_info=event.exception)
@@ -219,7 +260,7 @@ async def main() -> None:
         return open_app_keyboard(url) if url.startswith("https://") else None
 
     # runs alongside polling; the reference keeps the task from being garbage-collected
-    reminder_task = asyncio.create_task(reminders.run(bot, reminder_keyboard))
+    reminder_task = asyncio.create_task(reminders.run(bot, reminder_keyboard, current_webapp_url))
     outbox_task = asyncio.create_task(outbox.run(bot, reminder_keyboard))
     menu_task = asyncio.create_task(keep_menu_button(bot))
     # start_polling fails right away if Telegram is unreachable at startup; keep retrying instead of exiting.

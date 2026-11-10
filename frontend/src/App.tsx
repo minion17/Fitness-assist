@@ -10,6 +10,8 @@ import FirstSteps from './FirstSteps'
 import Quests, { type QuestWeek } from './Quests'
 import Habits, { type Habit } from './Habits'
 import { animate } from './motion'
+import Consent, { PrivacyCard, type ConsentState } from './Consent'
+import { canStory, shareStory } from './story'
 import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
 import { prefetchStats } from './stats'
@@ -20,7 +22,7 @@ import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, type ProfileData, type Recommendation } from './profile'
 import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import { MEALS, mealNow, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
-import { Bar } from './ui'
+import { Bar, Sheet } from './ui'
 import Workouts from './Workouts'
 
 type Tab = 'home' | 'food' | 'workouts' | 'progress' | 'profile'
@@ -41,6 +43,8 @@ const TABS: { id: Tab; label: string }[] = [
 ]
 
 const TAB_ORDER = TABS.map((t) => t.id)
+const consentOf = (b: Bootstrap): ConsentState | null =>
+  b.auth.settings.consent === undefined ? null : { ok: b.auth.settings.consent, health: Boolean(b.auth.settings.health_consent), url: b.auth.settings.privacy_url ?? null }
 
 const name = tgUser?.first_name ?? 'Гость'
 const PROGRAM_KEY = 'fa.programId'
@@ -48,7 +52,7 @@ const PROGRAM_KEY = 'fa.programId'
 type Progress = { xp: number; level: number; level_xp: number; level_xp_needed: number }
 type Bootstrap = {
   auth: { id: number; progress: Progress; profile: ProfileData | null; recommended_program: Recommendation | null
-    settings: ThemeSettings & { program_id: number | null; boost_until?: string | null } }
+    settings: ThemeSettings & { program_id: number | null; boost_until?: string | null; consent?: boolean; health_consent?: boolean; privacy_url?: string | null } }
   food_day: FoodDay; water: Water; week: { streak: number; days: WeekDay[] }; workout_logs: WorkoutLog[]; measurements: Measurement[]
   achievements: { items: Achievement[]; new: Achievement[]; freezes: number }; ai: { enabled: boolean } | null
   programs: Program[] | null; quests: QuestWeek | null; habits?: Habit[]
@@ -140,8 +144,8 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
       )}
       {canEdit && <Reminders />}
       <ThemeCard t={theme} />
-      <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Setly.</p>
       {body}
+      <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Setly.</p>
     </>
   )
 }
@@ -181,6 +185,9 @@ export default function App() {
   const [quests, setQuests] = useState<QuestWeek | null>(boot?.quests ?? null)
   const [yesterday, setYesterday] = useState(boot?.yesterday)
   const [habits, setHabits] = useState<Habit[]>(boot?.habits ?? [])
+  const [consent, setConsent] = useState<ConsentState | null>(boot ? consentOf(boot) : null)
+  // the bot's Sunday summary opens the app with ?open=story: offer the week card for Stories (it needs a tap)
+  const [storyOffer, setStoryOffer] = useState(() => new URLSearchParams(window.location.search).get('open') === 'story')
   const theme = useTheme((patch) => { api('/api/settings', putJson(patch)).catch(() => {}) })
   // latest values for the one-time startup effect (it must not re-run when they change)
   const startup = useRef({ theme, programId, boot, selectProgram: (_id: number | null, _sync?: boolean) => {} })
@@ -200,6 +207,7 @@ export default function App() {
     const u = b.auth
     setXp(u.progress); setMe(u.profile); setRecommended(u.recommended_program)
     setBoostUntil(u.settings.boost_until ?? null)
+    setConsent(consentOf(b))
     if (b.ai) setAiEnabled(Boolean(b.ai.enabled))
     setAch(b.achievements); setWeek(b.week); setLogs(b.workout_logs); setMeasurements(b.measurements)
     if (b.programs) setPrograms(b.programs)
@@ -371,10 +379,14 @@ export default function App() {
     if (saved) refreshJournal().catch(() => {}) // new answers -> new program recommendation
   }
 
+  if (canEdit && consent && !consent.ok) {
+    return <div className="app"><Consent url={consent.url} onDone={(health) => setConsent({ ...consent, ok: true, health })} /></div>
+  }
+
   if (editing) {
     return (
       <div className="app">
-        <Questionnaire initial={me} onSave={saveProfile} onCancel={me ? () => setEditing(false) : undefined} />
+        <Questionnaire initial={me} health={consent?.health ?? !canEdit} onSave={saveProfile} onCancel={me ? () => setEditing(false) : undefined} />
       </div>
     )
   }
@@ -413,7 +425,11 @@ export default function App() {
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
         )}
         {tab === 'profile' && (
-          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit} body={null} />
+          <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
+            body={canEdit && consent && <PrivacyCard consent={consent} onHealth={(health) => {
+              setConsent({ ...consent, health })
+              if (!health && me) setMe({ ...me, allergies: [], injury: null })
+            }} />} />
         )}
       </main>
       <nav className="nav">
@@ -429,6 +445,12 @@ export default function App() {
       {toast && <div className="toast" role="status" key={toast}>{toast}</div>}
       {xpFloat && <div className="xp-float" key={xpFloat.id} aria-hidden="true" onAnimationEnd={() => setXpFloat(null)}>+{xpFloat.n} XP</div>}
       {party > 0 && <Confetti key={party} />}
+      {storyOffer && canEdit && canStory() && (
+        <Sheet title="Неделя для истории" onClose={() => setStoryOffer(false)}>
+          <p className="sub">Карточка с вашей серией, XP и тренировками за неделю — с вашей ссылкой-приглашением в подписи.</p>
+          <button className="btn" onClick={() => { setStoryOffer(false); shareStory({ kind: 'week' }).catch(() => flash('Не получилось открыть истории')) }}>Опубликовать в истории</button>
+        </Sheet>
+      )}
       {!reward && ach.new.length > 0 && (
         <AchievementUnlocked {...ach.new[0]} more={ach.new.length - 1} onClose={() => {
           setAch((a) => ({ ...a, new: [] }))

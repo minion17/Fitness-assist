@@ -27,6 +27,8 @@ class User(Base):
     invite_code: Mapped[str | None] = mapped_column(String(16), unique=True)  # t.me/<bot>?start=f<code> makes friends
     invited_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # gets XP once we fill the profile
     boost_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # x2 XP until then (duel win)
+    consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # agreed to the data processing (152-ФЗ)
+    health_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # separately: allergies, injuries
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -340,6 +342,7 @@ class Habit(Base):
     title: Mapped[str] = mapped_column(String(40))
     emoji: Mapped[str] = mapped_column(String(8), default="✅")
     archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    remind_at: Mapped[str | None] = mapped_column(String(5))  # "HH:MM" in the user's zone; None = no reminder
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

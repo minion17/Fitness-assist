@@ -832,7 +832,8 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .habit-line-title { flex: 1; min-width: 0; }
 .habit-new { display: flex; gap: 8px; }
 .habit-new .input-wrap { flex: 1; }
-.habit-line .link { color: var(--muted); font-size: 14px; }
+.habit-line .link { color: var(--muted); font-size: 16px; width: 32px; height: 32px; flex: none; }
+.habit-line-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---- Motion: screens come in from their tab's side in a short wave; springy sheets and toasts; small live touches ---- */
 .screen > * { animation: rise .42s cubic-bezier(.2, .8, .2, 1) backwards; } /* backwards, not both: a transform left on would break position: fixed sheets inside */
@@ -887,3 +888,13 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
   *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
 .toast { width: max-content; max-width: calc(100vw - 32px); text-align: center; }
+
+.habit-time { width: 92px; flex: none; min-height: 34px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--card-2); color: var(--text); font: inherit; font-size: 14px; color-scheme: dark; }
+[data-theme='light'] .habit-time { color-scheme: light; }
+
+.consent .card { gap: 16px; }
+.consent-check { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.consent-check input { flex: none; width: 22px; height: 22px; margin-top: 1px; accent-color: var(--accent); }
+.consent-check > span { display: flex; flex-direction: column; gap: 4px; }
+.consent-check a { color: var(--accent-text); }
+.btn-danger { background: #e5484d; color: #fff; }

@@ -14,6 +14,7 @@ type WebApp = {
   setBottomBarColor?(color: string): void
   openTelegramLink?(url: string): void
   isVersionAtLeast?(version: string): boolean
+  close?(): void
   shareToStory?(mediaUrl: string, params?: { text?: string; widget_link?: { url: string; name?: string } }): void
   HapticFeedback?: {
     selectionChanged(): void

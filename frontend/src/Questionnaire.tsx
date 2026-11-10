@@ -50,6 +50,7 @@ type Draft = {
   equipment: string[]; allergies: string[]
   sessions_per_week?: string; session_minutes?: string; meals_per_day?: string
   stress?: string; has_injury?: string; injury?: string
+  health?: boolean // health questions are asked only with the separate consent
 }
 
 function toDraft(p: ProfileData | null): Draft {
@@ -89,11 +90,11 @@ const STEPS: { title: string; hint: string; check: (d: Draft) => string | null }
     check: (d) => (!d.equipment.length ? 'Отметьте доступное оборудование'
       : !d.sessions_per_week ? 'Выберите количество дней' : !d.session_minutes ? 'Выберите длительность' : null),
   },
-  { title: 'Питание', hint: 'Аллергии можно не отмечать, если их нет.', check: (d) => (!d.meals_per_day ? 'Выберите число приёмов пищи' : null) },
+  { title: 'Питание', hint: 'Сколько раз в день вы обычно едите.', check: (d) => (!d.meals_per_day ? 'Выберите число приёмов пищи' : null) },
   {
     title: 'Восстановление', hint: 'Сон и стресс влияют на результат не меньше тренировок.',
     check: (d) => checkNum(d, 'sleep_hours') ?? (!d.stress ? 'Выберите уровень стресса'
-      : !d.has_injury ? 'Укажите, есть ли травмы' : d.has_injury === 'yes' && !d.injury ? 'Выберите зону ограничения' : null),
+      : d.health && !d.has_injury ? 'Укажите, есть ли травмы' : d.health && d.has_injury === 'yes' && !d.injury ? 'Выберите зону ограничения' : null),
   },
 ]
 
@@ -114,8 +115,9 @@ function Choice({ label, options, value, onChange, column, multi, compact }: {
   )
 }
 
-export default function Questionnaire({ initial, onSave, onCancel }: {
+export default function Questionnaire({ initial, health = false, onSave, onCancel }: {
   initial: ProfileData | null
+  health?: boolean
   onSave: (p: ProfileData) => Promise<void>
   onCancel?: () => void
 }) {
@@ -136,14 +138,14 @@ export default function Questionnaire({ initial, onSave, onCancel }: {
       birth_year: Math.round(num(d.birth_year)), height_cm: Math.round(num(d.height_cm)), weight_kg: num(d.weight_kg),
       experience: d.experience as ProfileData['experience'], equipment: d.equipment,
       sessions_per_week: Number(d.sessions_per_week), session_minutes: Number(d.session_minutes),
-      allergies: d.allergies, meals_per_day: Number(d.meals_per_day), sleep_hours: num(d.sleep_hours),
-      stress: d.stress as ProfileData['stress'], injury: d.has_injury === 'yes' ? (d.injury as ProfileData['injury']) : null,
+      allergies: health ? d.allergies : [], meals_per_day: Number(d.meals_per_day), sleep_hours: num(d.sleep_hours),
+      stress: d.stress as ProfileData['stress'], injury: health && d.has_injury === 'yes' ? (d.injury as ProfileData['injury']) : null,
     }
   }
 
   async function next(e: React.FormEvent) {
     e.preventDefault()
-    const problem = STEPS[step].check(d)
+    const problem = STEPS[step].check({ ...d, health })
     if (problem) return setError(problem)
     setError('')
     if (!last) { setStep(step + 1); window.scrollTo(0, 0); return }
@@ -203,7 +205,7 @@ export default function Questionnaire({ initial, onSave, onCancel }: {
         )}
         {step === 4 && (
           <>
-            <Choice label="Аллергии и непереносимость" options={ALLERGIES} value={d.allergies} onChange={toggle('allergies')} multi />
+            {health && <Choice label="Аллергии и непереносимость (можно не отмечать, если их нет)" options={ALLERGIES} value={d.allergies} onChange={toggle('allergies')} multi />}
             <Choice label="Приёмов пищи в день" options={MEALS} compact value={d.meals_per_day} onChange={set('meals_per_day')} />
           </>
         )}
@@ -211,8 +213,8 @@ export default function Questionnaire({ initial, onSave, onCancel }: {
           <>
             {numField('sleep_hours', true)}
             <Choice label="Уровень стресса" options={STRESS} compact value={d.stress} onChange={set('stress')} />
-            <Choice label="Есть ли травмы или ограничения?" options={YES_NO} value={d.has_injury} onChange={set('has_injury')} />
-            {d.has_injury === 'yes' && <Choice label="Какая зона?" options={INJURY} value={d.injury} onChange={set('injury')} />}
+            {health && <Choice label="Есть ли травмы или ограничения?" options={YES_NO} value={d.has_injury} onChange={set('has_injury')} />}
+            {health && d.has_injury === 'yes' && <Choice label="Какая зона?" options={INJURY} value={d.injury} onChange={set('injury')} />}
           </>
         )}
       </section>

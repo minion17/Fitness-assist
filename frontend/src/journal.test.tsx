@@ -10,6 +10,7 @@ import Workouts from './Workouts'
 import Friends from './Friends'
 import Quests from './Quests'
 import Habits, { type Habit } from './Habits'
+import Consent, { PrivacyCard } from './Consent'
 
 vi.mock('./telegram', () => {
   class ApiError extends Error { status: number; constructor(status: number, msg: string) { super(msg); this.status = status } }
@@ -455,4 +456,26 @@ test('habits: empty list offers to set them up with presets', async () => {
   fireEvent.click(screen.getByRole('button', { name: /Витамины/ }))
   await waitFor(() => expect(onChange).toHaveBeenCalled())
   expect(apiMock).toHaveBeenCalledWith('/api/habits', expect.objectContaining({ body: JSON.stringify({ emoji: '💊', title: 'Витамины' }) }))
+})
+
+
+test('consent: nothing goes on without the main tick; health is a separate, optional one', async () => {
+  const onDone = vi.fn()
+  render(<Consent url="https://example.test/privacy" onDone={onDone} />)
+  const go = screen.getByRole('button', { name: 'Продолжить' }) as HTMLButtonElement
+  expect(go.disabled).toBe(true)
+  expect(screen.getByRole('link', { name: 'политикой конфиденциальности' }).getAttribute('href')).toBe('https://example.test/privacy')
+  fireEvent.click(screen.getByRole('checkbox', { name: /Согласен на обработку/ }))
+  fireEvent.click(go)
+  await waitFor(() => expect(onDone).toHaveBeenCalledWith(false))
+  expect(apiMock).toHaveBeenCalledWith('/api/consent', expect.objectContaining({ body: JSON.stringify({ health: false }) }))
+})
+
+test('privacy card: deleting the account asks first, then calls the API', async () => {
+  render(<PrivacyCard consent={{ ok: true, health: true, url: null }} onHealth={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить аккаунт и все данные' }))
+  expect(apiMock).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Удалить навсегда' }))
+  await screen.findByText(/аккаунт и данные удалены/)
+  expect(apiMock).toHaveBeenCalledWith('/api/account', { method: 'DELETE' })
 })

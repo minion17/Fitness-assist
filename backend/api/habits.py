@@ -37,7 +37,7 @@ async def habit_list(session: AsyncSession, user: User) -> list[dict]:
             HabitCheck.user_id == user.id, HabitCheck.day >= today - timedelta(days=365))):
         checks.setdefault(hid, set()).add(d)
     return [{"id": h.id, "title": h.title, "emoji": h.emoji, "done": today in checks.get(h.id, ()),
-             "streak": run(checks.get(h.id, set()), today)} for h in habits]
+             "streak": run(checks.get(h.id, set()), today), "remind_at": h.remind_at} for h in habits]
 
 
 @router.get("/habits")
@@ -84,6 +84,34 @@ async def remove_habit(habit_id: int, tg: dict = Depends(telegram_user), session
     (await own(session, habit_id, user)).archived = True
     await session.commit()
     return await habit_list(session, user)
+
+
+class HabitPatch(BaseModel):
+    remind_at: str | None = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # None turns the reminder off
+
+
+@router.patch("/habits/{habit_id}")
+async def patch_habit(habit_id: int, body: HabitPatch, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    (await own(session, habit_id, user)).remind_at = body.remind_at
+    await session.commit()
+    return await habit_list(session, user)
+
+
+async def tick_from_bot(session: AsyncSession, telegram_id: int, habit_id: int) -> Habit | None:
+    """The "✓" button under a habit reminder: ticks today (in the user's zone). None if it isn't theirs any more."""
+    user = await session.scalar(select(User).where(User.telegram_id == telegram_id))
+    h = await session.get(Habit, habit_id)
+    if user is None or h is None or h.user_id != user.id or h.archived:
+        return None
+    clock.use_tz(user.device_tz)
+    try:
+        today = clock.today()
+    finally:
+        clock.use_tz(None)
+    await session.execute(insert(HabitCheck).values(habit_id=h.id, day=today, user_id=user.id).on_conflict_do_nothing())
+    await session.commit()
+    return h
 
 
 class CheckIn(BaseModel):

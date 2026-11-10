@@ -20,6 +20,7 @@ from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
+from backend.api.account import router as account_router
 from backend.api.habits import habit_list, router as habits_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
@@ -132,7 +133,9 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
 def settings_out(user: User) -> dict:
     return {"theme": user.theme, "accent": user.accent, "program_id": user.program_id,
             "boost_until": user.boost_until.isoformat() if user.boost_until and user.boost_until > clock.now() else None,
-            "device_tz": user.device_tz}
+            "device_tz": user.device_tz,
+            "consent": user.consent_at is not None, "health_consent": user.health_consent_at is not None,
+            "privacy_url": settings.privacy_url or None}
 
 
 class SettingsIn(BaseModel):
@@ -198,7 +201,10 @@ async def save_profile(
     user = await get_or_create_user(tg, session)
     existing = await session.get(Profile, user.id)
     profile = existing or Profile(user_id=user.id)
-    for k, v in body.model_dump().items():
+    data = body.model_dump()
+    if user.health_consent_at is None:  # health data only with its separate consent (152-ФЗ ст. 10)
+        data.update(allergies=None, injury=None)
+    for k, v in data.items():
         setattr(profile, k, v)
     session.add(profile)
     await session.commit()
@@ -689,6 +695,7 @@ app.include_router(stats_router)
 app.include_router(social_router)
 app.include_router(quests_router)
 app.include_router(habits_router)
+app.include_router(account_router)
 
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.

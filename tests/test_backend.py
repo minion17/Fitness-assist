@@ -268,6 +268,7 @@ EXTENDED = {
 
 def test_extended_questionnaire_and_program_recommendation(client, seeded):
     h = new_user_headers()
+    client.post("/api/consent", headers=h, json={"health": True})  # allergies and injuries need it
     saved = client.put("/api/profile", headers=h, json={**PROFILE, **EXTENDED}).json()
     assert {k: saved[k] for k in EXTENDED} == EXTENDED
 
@@ -521,7 +522,7 @@ def test_reminder_settings_and_collect(client, seeded):
             return await collect(s, now.replace(hour=at[0], minute=at[1], second=0, microsecond=0))
 
     def texts(at):
-        return [t for chat, t, _ in client.portal.call(run, at) if chat == tg_id]  # other test users get theirs too
+        return [t for chat, t, _, _ in client.portal.call(run, at) if chat == tg_id]  # other test users get theirs too
 
     lunch = texts((14, 5))
     assert any("обед" in t for t in lunch)
@@ -537,7 +538,7 @@ def test_reminder_settings_and_collect(client, seeded):
     h2 = {"Authorization": f"tma {make_init_data({**USER, 'id': tg2})}"}
     client.put("/api/profile", headers=h2, json=PROFILE)
     client.post("/api/water", headers=h2, json={"delta_ml": 250})
-    noon = [(t, card) for chat, t, card in client.portal.call(run, (12, 1)) if chat == tg2]
+    noon = [(t, card) for chat, t, card, _ in client.portal.call(run, (12, 1)) if chat == tg2]
     assert [t for t, _ in noon] == ["💧 Выпито 0,25 л из 2,5 л. Стакан воды сейчас — самое время."]
     assert noon[0][1]().startswith(b"\x89PNG")  # the card renders
 
@@ -575,13 +576,16 @@ def test_user_products_become_shared_after_three_confirmations(client):
     assert client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()["category"] == "Проверено пользователями"
 
 
+NEW_CONSENT = {"consent": False, "health_consent": False, "privacy_url": None}
+
+
 def test_settings_are_kept_on_the_account(client, seeded):
     h = new_user_headers()
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None, "boost_until": None, "device_tz": None}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": None, "accent": None, "program_id": None, "boost_until": None, "device_tz": None, **NEW_CONSENT}
     pid = client.get("/api/programs").json()[0]["id"]
-    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None, "boost_until": None, "device_tz": None}
+    assert client.put("/api/settings", headers=h, json={"theme": "green"}).json() == {"theme": "green", "accent": None, "program_id": None, "boost_until": None, "device_tz": None, **NEW_CONSENT}
     assert client.put("/api/settings", headers=h, json={"accent": "#a98bff", "program_id": pid}).json()["theme"] == "green"  # partial
-    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid, "boost_until": None, "device_tz": None}
+    assert client.post("/api/auth", headers=h).json()["settings"] == {"theme": "green", "accent": "#a98bff", "program_id": pid, "boost_until": None, "device_tz": None, **NEW_CONSENT}
     assert client.put("/api/settings", headers=h, json={"program_id": None}).json()["program_id"] is None
     assert client.put("/api/settings", headers=h, json={"theme": "neon"}).status_code == 422
     assert client.put("/api/settings", headers=h, json={"accent": "red"}).status_code == 422
@@ -768,14 +772,18 @@ def test_weekly_summary_on_sunday(client, seeded, monkeypatch):
 
     async def run(at):
         async with SessionLocal() as s:
-            return [(t, card) for chat, t, card in await collect(s, at) if chat == tg_id]
+            got = [(t, card, b) for chat, t, card, b in await collect(s, at) if chat == tg_id]
+            buttons.extend(b for _, _, b in got if b)
+            return [(t, card) for t, card, _ in got]
 
+    buttons = []
     assert not any("Итоги недели" in t for t, _ in client.portal.call(run, monday))  # only on Sundays
     weekly = [(t, card) for t, card in client.portal.call(run, sunday) if "Итоги недели" in t]
     if sunday.date() == now.date():  # the food entry is inside that week only when the test runs on a Sunday
         assert "в среднем" in weekly[0][0]
     assert len(weekly) == 1 and weekly[0][0].endswith("Совет: больше белка на ужин.")
     assert weekly[0][1]()[:4] == b"\x89PNG"
+    assert buttons == [[("📸 Неделя в историю", "app:open=story")]]
     assert not any("Итоги недели" in t for t, _ in client.portal.call(run, sunday))  # once
     off = client.get("/api/reminders", headers=h).json() | {"weekly": False}
     assert client.put("/api/reminders", headers=h, json=off).json()["weekly"] is False
@@ -832,7 +840,7 @@ def test_timezone_follows_the_phone(client, seeded):
 
     async def run(t):
         async with SessionLocal() as s:
-            return [txt for chat, txt, _ in await collect(s, t) if chat == tg_id]
+            return [txt for chat, txt, _, _ in await collect(s, t) if chat == tg_id]
     assert any("обед" in t for t in client.portal.call(run, at))
     assert not any("обед" in t for t in client.portal.call(run, at - timedelta(hours=3)))
 
@@ -1274,3 +1282,94 @@ def test_habits_tick_and_keep_the_streak(client):
     assert client.post("/api/habits", headers=h, json={"title": "Девятая"}).status_code == 409
     assert len(client.delete(f"/api/habits/{hid}", headers=h).json()) == 7
     assert len(client.post("/api/bootstrap", headers=h).json()["habits"]) == 7
+
+
+def test_consent_and_health_data(client):
+    h = new_user_headers()
+    s = client.get("/api/settings", headers=h).json()
+    assert s["consent"] is False and s["health_consent"] is False
+    sick = {**PROFILE, "experience": "beginner", "allergies": ["nuts"], "injury": "knees"}
+    saved = client.put("/api/profile", headers=h, json=sick).json()
+    assert not saved.get("allergies") and saved.get("injury") is None  # no health consent -> not stored
+    assert client.post("/api/consent", headers=h, json={"health": True}).json() == {"consent": True, "health_consent": True}
+    saved = client.put("/api/profile", headers=h, json=sick).json()
+    assert saved["allergies"] == ["nuts"] and saved["injury"] == "knees"
+    client.post("/api/consent", headers=h, json={"health": False})  # taken back: the answers are erased
+    s = client.get("/api/settings", headers=h).json()
+    assert s["consent"] is True and s["health_consent"] is False
+    p = client.post("/api/bootstrap", headers=h).json()["auth"]["profile"]
+    assert not p.get("allergies") and p.get("injury") is None
+
+
+def test_delete_account_removes_everything(client):
+    import random
+
+    from sqlalchemy import func, select
+
+    from backend.api import social
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, Product, User
+
+    ids = [random.randint(3 * 10**9, 4 * 10**9) for _ in range(2)]
+    h, friend = ({"Authorization": f"tma {make_init_data({**USER, 'id': i})}"} for i in ids)
+    client.put("/api/profile", headers=h, json=PROFILE)
+    mine = client.post("/api/products", headers=h, json={"name": "Мой суп удаления", "kcal": 50, "protein_g": 2, "fat_g": 1, "carbs_g": 6}).json()["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": mine, "amount_g": 300, "meal_type": "lunch"})
+    client.post("/api/water", headers=h, json={"delta_ml": 250})
+    hid = client.post("/api/habits", headers=h, json={"title": "Витамины"}).json()[0]["id"]
+    client.post(f"/api/habits/{hid}/check", headers=h, json={"done": True})
+
+    async def befriend():
+        async with SessionLocal() as s:
+            me = await s.scalar(select(User).where(User.telegram_id == ids[0]))
+            return await social.befriend(s, await social.invite_code(s, me), ids[1], "Друг")
+    assert client.portal.call(befriend) is not None
+    assert len(client.get("/api/friends", headers=friend).json()["board"]) == 2
+
+    assert client.delete("/api/account", headers=h).status_code == 204
+
+    async def left():
+        async with SessionLocal() as s:
+            return (await s.scalar(select(User.id).where(User.telegram_id == ids[0])),
+                    await s.scalar(select(func.count()).select_from(Product).where(Product.id == mine)),
+                    await s.scalar(select(func.count()).select_from(FoodLog).where(FoodLog.product_id == mine)))
+    assert client.portal.call(left) == (None, 0, 0)
+    assert len(client.get("/api/friends", headers=friend).json()["board"]) == 1  # gone from the friend's board too
+
+
+def test_habit_reminders_with_tick_buttons(client, monkeypatch):
+    import random
+    from datetime import datetime
+
+    from backend.api.habits import tick_from_bot
+    from backend.bot.reminders import collect
+    from backend.database.db import SessionLocal
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    a = client.post("/api/habits", headers=h, json={"emoji": "💊", "title": "Витамины"}).json()[0]["id"]
+    hs = client.post("/api/habits", headers=h, json={"emoji": "😴", "title": "Сон"}).json()
+    b = hs[1]["id"]
+    assert client.patch(f"/api/habits/{a}", headers=h, json={"remind_at": "25:00"}).status_code == 422
+    assert client.patch(f"/api/habits/{a}", headers=h, json={"remind_at": "09:00"}).json()[0]["remind_at"] == "09:00"
+    client.patch(f"/api/habits/{b}", headers=h, json={"remind_at": "09:00"})
+    assert client.patch(f"/api/habits/{a}", headers=new_user_headers(), json={"remind_at": None}).status_code == 404
+
+    now = datetime.now().astimezone()
+
+    async def run(hh, mm):
+        async with SessionLocal() as s:
+            return [(t, btn) for chat, t, _, btn in await collect(s, now.replace(hour=hh, minute=mm)) if chat == tg_id and "привычки" in t]
+
+    assert client.portal.call(run, 8, 59) == []
+    [(text, buttons)] = client.portal.call(run, 9, 5)
+    assert "💊 Витамины, 😴 Сон" in text and buttons == [("✓ 💊 Витамины", f"cb:hb:{a}"), ("✓ 😴 Сон", f"cb:hb:{b}")]
+    assert client.portal.call(run, 9, 6) == []  # once a day
+
+    async def tick(hid, who=tg_id):
+        async with SessionLocal() as s:
+            return await tick_from_bot(s, who, hid)
+    assert client.portal.call(tick, a).title == "Витамины"
+    assert client.portal.call(tick, a, 1) is None  # someone else's button
+    assert [x["done"] for x in client.get("/api/habits", headers=h).json()] == [True, False]

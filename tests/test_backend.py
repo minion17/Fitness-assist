@@ -583,10 +583,13 @@ def test_user_products_become_shared_after_three_confirmations(client):
 
     # barcode: 3 users enter the same unknown code -> everyone finds it by scanning
     code = "48" + str(random.randint(10**10, 10**11 - 1))
+    pack = {"piece_g": 900, "piece_name": "упаковка", "ml_g": 1}  # read from the label: 900 ml bottle
     for h in users[:3]:
-        r = client.post("/api/products", headers=h, json={**plain, "name": f"Кефир {tag}", "barcode": code}).json()
-    assert r["shared"] is True
-    assert client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()["category"] == "Проверено пользователями"
+        r = client.post("/api/products", headers=h, json={**plain, "name": f"Кефир {tag}", "barcode": code, **pack}).json()
+    assert r["shared"] is True and r["piece_g"] == 900
+    found = client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()
+    assert found["category"] == "Проверено пользователями" and (found["piece_g"], found["piece_name"], found["ml_g"]) == (900, "упаковка", 1)
+    assert client.post("/api/products", headers=users[0], json={**plain, "name": "Странный", "ml_g": 7}).status_code == 422
 
 
 NEW_CONSENT = {"consent": False, "health_consent": False, "privacy_url": None}

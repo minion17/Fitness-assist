@@ -358,6 +358,9 @@ LABEL_SYSTEM = """Ты читаешь фото упаковки продукта
 - Если энергия дана только в кДж — переведи в ккал (кДж / 4.184).
 - Десятичная запятая: «5,7» = 5.7.
 - Название — коротко, как на упаковке (вид продукта, марка, жирность), если оно видно; иначе пустая строка.
+- brand — торговая марка или производитель, если видно, иначе пустая строка.
+- net_amount — масса нетто или объём всей упаковки, если напечатан («450 г» → 450, «0,5 л» → 500), иначе 0; net_unit — "g" или "ml".
+- pieces — сколько штук внутри, если напечатано («6 шт × 50 г» → 6, батончик 40 г → 1), иначе 0.
 - Если таблицы пищевой ценности на фото нет или её нельзя прочитать — found = false и объясни в note, как переснять."""
 
 LABEL_TOOL = {
@@ -372,9 +375,13 @@ LABEL_TOOL = {
             "protein_100g": {"type": "number"},
             "fat_100g": {"type": "number"},
             "carbs_100g": {"type": "number"},
+            "brand": {"type": "string"},
+            "net_amount": {"type": "number"},
+            "net_unit": {"type": "string", "enum": ["g", "ml", ""]},
+            "pieces": {"type": "integer"},
             "note": {"type": "string"},
         },
-        "required": ["found", "name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g", "note"],
+        "required": ["found", "name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g", "brand", "net_amount", "net_unit", "pieces", "note"],
     },
 }
 
@@ -399,8 +406,12 @@ async def read_label(
     if not raw.get("found"):
         return {"found": False, "note": str(raw.get("note") or "Не удалось прочитать таблицу пищевой ценности — снимите её ближе и ровнее.")}
     out = {k: round(clamp(raw.get(f"{k}_100g", 0), 0, hi), 1) for k, hi in (("kcal", 900), ("protein", 100), ("fat", 100), ("carbs", 100))}
+    net = clamp(raw.get("net_amount") or 0, 0, 5000)
+    pieces = int(clamp(raw.get("pieces") or 0, 0, 100))
     return {"found": True, "name": str(raw.get("name") or "")[:200], "kcal": out["kcal"], "protein_g": out["protein"],
-            "fat_g": out["fat"], "carbs_g": out["carbs"], "note": str(raw.get("note") or "")}
+            "fat_g": out["fat"], "carbs_g": out["carbs"], "note": str(raw.get("note") or ""),
+            "brand": str(raw.get("brand") or "")[:100], "package_g": round(net, 1) if net >= 1 else None,
+            "pieces": pieces if pieces > 1 else None, "liquid": raw.get("net_unit") == "ml"}
 
 
 # ---- Restaurant menu / delivery-app dish card ----

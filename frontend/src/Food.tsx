@@ -432,12 +432,14 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   )
 }
 
-type Label = { found: true; name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; note: string } | { found: false; note: string }
+type Label = { found: true; name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; note: string
+  brand?: string; package_g?: number | null; pieces?: number | null; liquid?: boolean } | { found: false; note: string }
 
 function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
   barcode: string | null; aiEnabled: boolean; onCreated: (p: Product & { shared?: boolean }) => void; onCancel: () => void
 }) {
-  const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '', brand: '', portion_g: '' })
+  const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '', brand: '', portion_g: '', package_g: '', pieces: '' })
+  const [liquid, setLiquid] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [reading, setReading] = useState(false)
@@ -456,7 +458,9 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       if (!r) return
       if (!r.found) { setError(r.note); return }
       const s = (n: number) => String(n).replace('.', ',')
-      setV((old) => ({ ...old, name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g) }))
+      setV((old) => ({ ...old, name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g),
+        brand: old.brand || r.brand || '', package_g: r.package_g ? s(r.package_g) : old.package_g, pieces: r.pieces ? String(r.pieces) : old.pieces }))
+      if (r.liquid !== undefined) setLiquid(r.liquid)
       setHint(r.note || 'Проверьте цифры с упаковкой и сохраните.')
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось прочитать этикетку')
@@ -475,11 +479,19 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
     if (num(v.protein_g) + num(v.fat_g) + num(v.carbs_g) > 100) return setError('Белков, жиров и углеводов вместе не больше 100 г')
     const portion = v.portion_g ? num(v.portion_g) : null
     if (portion !== null && !(portion > 0 && portion <= 3000)) return setError('Порция: от 1 до 3000 г')
+    const pack = v.package_g ? num(v.package_g) : null
+    if (pack !== null && !(pack > 0 && pack <= 3000)) return setError('Упаковка: от 1 до 3000 г')
+    const pieces = v.pieces ? Math.round(num(v.pieces)) : 1
+    if (!(pieces >= 1 && pieces <= 100)) return setError('Штук в упаковке: от 1 до 100')
+    // a package of 6 × 50 g counts in pieces and as the whole pack; a single item is "1 упаковка"
+    const units = pack === null ? {} : pieces > 1
+      ? { piece_g: Math.round((pack / pieces) * 10) / 10, piece_name: 'шт', portion_g: pack, portion_name: 'упаковка' }
+      : { piece_g: pack, piece_name: 'упаковка' }
     setBusy(true)
     try {
       const p = await api<Product & { shared: boolean }>('/api/products', postJson({
         name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g),
-        brand: v.brand.trim() || null, portion_g: portion, ...(barcode ? { barcode } : {}),
+        brand: v.brand.trim() || null, portion_g: portion, ...units, ...(liquid ? { ml_g: 1 } : {}), ...(barcode ? { barcode } : {}),
       }))
       if (p) onCreated(p)
     } catch (e) {
@@ -490,10 +502,11 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
 
   return (
     <>
-      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе — добавьте его один раз, дальше он будет находиться по штрихкоду.</p>}
-      <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только вам; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а вы получите <b>+25 XP</b>.</p>
+      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавьте его один раз — дальше он будет находиться по штрихкоду у всех.</p>}
+      {barcode && <p className="xp-note">🏅 <b>+25 XP</b>, когда ещё двое подтвердят те же цифры и товар попадёт в общий каталог</p>}
+      {!barcode && <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только вам; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а вы получите <b>+25 XP</b>.</p>}
       {aiEnabled && (
-        <label className={reading ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
+        <label className={`btn ${barcode ? '' : 'btn-ghost '}photo-btn${reading ? ' disabled' : ''}`}>
           {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку — заполню сам'}
           <input type="file" accept="image/*" capture="environment" hidden disabled={reading}
             onChange={(e) => { readLabel(e.target.files?.[0]); e.target.value = '' }} />
@@ -517,11 +530,30 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
           <span>Бренд / заведение</span>
           <div className="input-wrap"><input value={v.brand} placeholder="необязательно" onChange={(e) => setV({ ...v, brand: e.target.value })} /></div>
         </label>
-        <label className="field">
-          <span>Порция, г</span>
-          <div className="input-wrap"><input inputMode="decimal" value={v.portion_g} placeholder="необязательно" onChange={(e) => setV({ ...v, portion_g: e.target.value })} /></div>
-        </label>
+        {barcode ? (
+          <label className="field">
+            <span>Упаковка, {liquid ? 'мл' : 'г'}</span>
+            <div className="input-wrap"><input inputMode="decimal" value={v.package_g} placeholder="необязательно" onChange={(e) => setV({ ...v, package_g: e.target.value })} /></div>
+          </label>
+        ) : (
+          <label className="field">
+            <span>Порция, г</span>
+            <div className="input-wrap"><input inputMode="decimal" value={v.portion_g} placeholder="необязательно" onChange={(e) => setV({ ...v, portion_g: e.target.value })} /></div>
+          </label>
+        )}
       </div>
+      {barcode && (
+        <div className="grid2">
+          <label className="field">
+            <span>Штук внутри</span>
+            <div className="input-wrap"><input inputMode="numeric" value={v.pieces} placeholder="1" onChange={(e) => setV({ ...v, pieces: e.target.value })} /></div>
+          </label>
+          <label className="consent-check liquid-check">
+            <input type="checkbox" checked={liquid} onChange={(e) => setLiquid(e.target.checked)} />
+            <span><b>Напиток</b><span className="sub">считать в мл</span></span>
+          </label>
+        </div>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
       <button className="btn" disabled={busy} onClick={save}>{busy ? 'Сохраняем…' : 'Сохранить продукт'}</button>
       <button className="link" onClick={onCancel}>Назад к поиску</button>

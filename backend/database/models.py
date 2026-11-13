@@ -339,6 +339,16 @@ class WeeklyQuest(Base):
     slot: Mapped[int] = mapped_column(Integer)  # display order
 
 
+class SearchMiss(Base):
+    """A product search that found nothing, counted per day: tells the owner what to add to the catalog."""
+
+    __tablename__ = "search_misses"
+
+    q: Mapped[str] = mapped_column(String(100), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class Habit(Base):
     """A user's own daily check (sleep, steps, no sweets...). Archived, not deleted: past checks keep the streak."""
 

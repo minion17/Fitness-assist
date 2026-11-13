@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import re
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from pathlib import Path
@@ -12,11 +11,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select, text
+from sqlalchemy import func, literal, or_, select, text
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
 from backend.core.config import settings
-from backend.core.search import stems, word_start
+from backend.core.search import alternatives, first_words, fuzzy_match, has_word, norm, starts_with_word, typo_pool, word_start
 from backend.core.gamification import level_progress
 from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
@@ -38,6 +38,7 @@ from backend.database.models import (
     Product,
     Profile,
     Program,
+    SearchMiss,
     ProgramDay,
     ProgramExercise,
     User,
@@ -222,25 +223,42 @@ async def search_products(
     tg: dict | None = Depends(optional_telegram_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Shared catalog plus the caller's own custom products."""
+    """Shared catalog plus the caller's own custom products, ranked: what this user ate before, the query's own word
+    first ("Картофель" before "Пирожное картошка"), what people eat most, shorter names. Typos as the last resort."""
     owner = Product.owner_user_id.is_(None)
-    if tg:
-        user = await get_or_create_user(tg, session)
+    user = await get_or_create_user(tg, session) if tg else None
+    if user:
         owner = owner | (Product.owner_user_id == user.id)
-    q = q.lower().replace("ё", "е").replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-    raw = q.replace("\\", "").split()
-    words = stems(" ".join(raw))
-    # each stem at the start of a word: "огур" finds "Огурцы", not "йогурт"
-    match = [word_start(Product.search_text, w) for w in words] or [Product.search_text.like(f"%{q}%", escape="\\")]
-    rows = await session.scalars(
-        select(Product)
-        .where(owner, *match)
-        # names starting with the first word first, then shorter (more generic) names
-        # whole words of the query first ("сало" -> "Сало солёное" before "Салями"), then names starting with it, shorter first
-        .order_by(*(Product.search_text.op("~")(r"(^|[^0-9a-zа-я])" + re.escape(w) + r"([^0-9a-zа-я]|$)").desc() for w in raw[:1]),
-                  Product.search_text.like(f"{words[0] if words else q}%", escape="\\").desc(), func.length(Product.name), Product.name)
+    groups = alternatives(q)
+    if not groups:
+        return []
+    match = [or_(*(word_start(Product.search_text, a) for a in alts)) for alts in groups]
+    firsts = first_words(q)
+    mine = (select(func.count(FoodLog.id)).where(FoodLog.product_id == Product.id, FoodLog.user_id == user.id).scalar_subquery()
+            if user else literal(0))
+    eaten = select(func.count(FoodLog.id)).where(FoodLog.product_id == Product.id).scalar_subquery()
+    rows = list(await session.scalars(
+        select(Product).where(owner, *match)
+        .order_by((mine > 0).desc(),
+                  or_(*(starts_with_word(Product.search_text, w) for w in firsts)).desc(),
+                  or_(*(has_word(Product.search_text, w) for w in firsts)).desc(),
+                  eaten.desc(), func.length(Product.name), Product.name)
         .limit(20)
-    )
+    ))
+    if len(rows) < 3:  # maybe a typo: compare with products that have a similar word (same first letter, similar length)
+        words = norm(q).split()
+        seen = {p.id for p in rows}
+        pool = await session.execute(select(Product.id, Product.search_text).where(
+            owner, typo_pool(Product.search_text, words[0]), Product.id.not_in(seen or [0])).limit(5000))
+        scored = sorted((-fuzzy_match(words, text), len(text), pid) for pid, text in pool)
+        ids = [pid for score, _, pid in scored if score][: 20 - len(rows)]
+        if ids:
+            found = {p.id: p for p in await session.scalars(select(Product).where(Product.id.in_(ids)))}
+            rows += [found[i] for i in ids]
+    if not rows and user:
+        await session.execute(insert(SearchMiss).values(q=" ".join(norm(q).split())[:100], day=clock.today())
+                              .on_conflict_do_update(index_elements=["q", "day"], set_={"count": SearchMiss.count + 1}))
+        await session.commit()
     return [product_out(p) for p in rows]
 
 

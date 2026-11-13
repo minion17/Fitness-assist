@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import ai
 from backend.core.config import settings
-from backend.core.search import stems, word_start
+from backend.core.search import alternatives, word_start
 from backend.core.nutrition import GOAL_RU, daily_targets
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
@@ -112,7 +112,7 @@ async def visible_products(session: AsyncSession, user: User, text: str = "") ->
             out[p.id] = p
 
     await take(Product.owner_user_id == user.id, [Product.id.desc()], 100)
-    words = [w for w in stems(text.lower().replace("ё", "е")) if len(w) >= 3]
+    words = [a for alts in alternatives(text[:300]) for a in alts if len(a) >= 3][:40]  # with everyday synonyms
     if words:
         await take(Product.owner_user_id.is_(None) & or_(*(word_start(Product.search_text, w) for w in words)),
                    [Product.brand.is_not(None), func.length(Product.name)], 150)

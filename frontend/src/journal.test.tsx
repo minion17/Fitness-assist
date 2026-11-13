@@ -174,7 +174,8 @@ test('weight trend over 30 days', () => {
 
 test('body: add measurement prefilled with latest values, validated', async () => {
   const onSave = vi.fn().mockResolvedValue(undefined)
-  render(<Body measurements={[m(2, '2026-10-20', 79.1), m(1, '2026-10-13', 79.6, 85)]} canEdit onSave={onSave} onDelete={vi.fn()} />)
+  const ago = (d: number) => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10) // the trend looks 30 days back from today
+  render(<Body measurements={[m(2, ago(3), 79.1), m(1, ago(10), 79.6, 85)]} canEdit onSave={onSave} onDelete={vi.fn()} />)
   expect(screen.getByText('79.1')).toBeTruthy()
   expect(screen.getByText('-0.5 кг за 30 дней')).toBeTruthy()
 

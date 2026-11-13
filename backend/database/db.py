@@ -40,6 +40,7 @@ ADDED_COLUMNS = [
     "ALTER TABLE programs DROP CONSTRAINT IF EXISTS programs_name_key",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",
     "CREATE INDEX IF NOT EXISTS ix_products_owner_user_id ON products (owner_user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_food_logs_product_id ON food_logs (product_id)",  # search ranks by how often it's eaten
     "ALTER TABLE food_logs ADD COLUMN IF NOT EXISTS snack_slot VARCHAR(5)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(8)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_freezes INTEGER NOT NULL DEFAULT 0",

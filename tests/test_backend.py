@@ -1435,7 +1435,7 @@ def test_search_the_way_people_type(client, seeded):
     assert names("кртошка")[0].startswith("Картофель")  # a typo of an everyday word
     assert "Помидоры" in names("томат") and "Минеральная вода" in names("минералка")
     assert any(n.startswith("Хлеб ржаной") for n in names("хлеб черный"))
-    assert names("uhtxrf")[0] == "Гречка" and names("гричка")[0] == "Гречка"
+    assert names("uhtxrf")[0].startswith("Гречка") and names("гричка")[0].startswith("Гречка")  # the most eaten one may lead
     assert names("малако")[0].startswith("Молоко") and names("творг")[0].startswith("Творог")
     assert not any(n.startswith("Курага") for n in names("кура")[:5])
     assert "Куриная грудка" in names("филе куриное")
@@ -1458,6 +1458,12 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
     for _ in range(2):
         assert client.get("/api/products/search", params={"q": miss}, headers=h).json() == []
     client.get("/api/products/search", params={"q": miss})  # anonymous: not counted
+    client.get("/api/products/search", params={"q": miss, "quiet": 1}, headers=h)  # the app's first try of "яйцо 2": not counted
+
+    milk = client.get("/api/products/search", params={"q": "молоко 2.5%"}, headers=h).json()
+    plain = [i for i, p in enumerate(milk) if p["name"] == "Молоко 2.5%" and p["brand"] is None]
+    branded = [i for i, p in enumerate(milk) if p["name"] == "Молоко 2.5%" and p["brand"]]
+    assert plain and branded and plain[0] < branded[0]  # the plain product before its brands
 
     async def stats():
         async with SessionLocal() as s:

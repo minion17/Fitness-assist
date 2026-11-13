@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { Targets } from './profile'
 import AiMeal from './AiMeal'
 import { shrink } from './image'
@@ -10,7 +10,7 @@ import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
-import { defaultAmount, fmtQty, unitsFor, type Unit } from './units'
+import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
 import { Bar, Ring, Sheet } from './ui'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
@@ -93,7 +93,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
         <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>
         <div className="row-main">
           <div className="row-title">{i.product.name}</div>
-          <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${i.unit} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
+          <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${unitWord(i.unit, i.qty)} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
         </div>
         {mode === 'confirm' ? (
           <div className="confirm">
@@ -127,6 +127,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams =
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
   const [expandedMeals, setExpandedMeals] = useState<string[]>([])
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
+  const [aiText, setAiText] = useState('')
   const t = day.totals
   const [yesterday, setYesterday] = useState<FoodDay | null>(null)
   const [copying, setCopying] = useState<MealType | null>(null)
@@ -199,16 +200,33 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams =
       {canEdit && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: nowSlot() })}>+ Перекус</button>}
       </section>
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
-      {aiMode && <AiMeal mode={aiMode} onClose={() => setAiMode(null)} onDone={onAiDone} />}
-      {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled} />}
+      {aiMode && <AiMeal mode={aiMode} initialText={aiText} onClose={() => { setAiMode(null); setAiText('') }} onDone={onAiDone} />}
+      {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled}
+        onAiText={(text) => { setAdding(null); setAiText(text); setAiMode('text') }} />}
     </>
   )
 }
 
-function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = false }: {
+/** Same-named products together, the first (the plain one, ranked so by the server) shown, the rest behind "ещё N". */
+function groupByName(list: Product[]): [Product, Product[]][] {
+  const groups = new Map<string, [Product, Product[]]>()
+  for (const p of list) {
+    const k = p.name.toLowerCase()
+    const g = groups.get(k)
+    if (g) g[1].push(p)
+    else groups.set(k, [p, []])
+  }
+  return [...groups.values()]
+}
+
+const plural = (n: number, one: string, few: string, many: string) =>
+  n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many
+
+function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = false, onAiText }: {
   meal: MealType
   slot?: string | null
   aiEnabled?: boolean
+  onAiText?: (text: string) => void // nothing found: describe it to the AI instead
   onClose: () => void
   onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
 }) {
@@ -218,6 +236,8 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   const [picked, setPicked] = useState<Product | null>(null)
   const [grams, setGrams] = useState('100') // the amount in `unit`
   const [unit, setUnit] = useState<Unit>(GRAM)
+  const [wanted, setWanted] = useState<Wanted | null>(null) // an amount typed into the search
+  const [openGroups, setOpenGroups] = useState<string[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [list, setList] = useState<'recent' | 'favorites'>('recent')
@@ -266,6 +286,8 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
 
   function pick(p: Product | RecentProduct) {
     setPicked(p)
+    const typed = wanted && q.trim().length >= 2 ? applyWanted(p, wanted) : null // "яйцо 2" opens with 2 шт
+    if (typed) { setUnit(typed.unit); setGrams(fmtQty(typed.qty)); return }
     if ('last_amount_g' in p) { setUnit(GRAM); setGrams(String(p.last_amount_g)); return }
     const d = defaultAmount(p)
     setUnit(d.unit); setGrams(fmtQty(d.qty))
@@ -282,15 +304,37 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   useEffect(() => {
     if (q.trim().length < 2) return
     let stale = false
-    const timer = setTimeout(() => {
-      const url = `/api/products/search?q=${encodeURIComponent(q.trim())}`
-      // signed request also returns the user's own products; outside Telegram fall back to the public catalog
-      api<Product[]>(url).then((r) => r ?? publicGet<Product[]>(url))
-        .then((r) => !stale && setResults(r))
-        .catch(() => !stale && setError('Поиск недоступен — проверьте соединение'))
+    // signed request also returns the user's own products; outside Telegram fall back to the public catalog
+    const find = (text: string, quiet = false) => {
+      const url = `/api/products/search?q=${encodeURIComponent(text)}${quiet ? '&quiet=1' : ''}`
+      return api<Product[]>(url).then((r) => r ?? publicGet<Product[]>(url))
+    }
+    const timer = setTimeout(async () => {
+      try {
+        // "яйцо 2": the number may be part of a name ("Творог 9%"), so the whole text goes first, then without the amount
+        const { text, wanted: w } = parseQuery(q)
+        let r = w && w.unit ? null : await find(q.trim(), Boolean(w))
+        if (w && !r?.length && text.length >= 2) { r = await find(text); if (!stale) setWanted(w) } else if (!stale) setWanted(null)
+        if (!stale) setResults(r ?? [])
+      } catch { if (!stale) setError('Поиск недоступен — проверьте соединение') }
     }, 300) // wait for the user to stop typing
     return () => { stale = true; clearTimeout(timer) }
   }, [q])
+
+  function resultRow(p: Product) {
+    // calories for what the user would add: the amount typed ("яйцо 2"), else one piece / portion / 100 g
+    const shown = (wanted && applyWanted(p, wanted)) || defaultAmount(p)
+    const kcal = Math.round((p.kcal * shown.qty * shown.unit.g) / 100)
+    return (
+      <button className="row row-btn" key={p.id} onClick={() => pick(p)}>
+        <div className="row-main">
+          <div className="row-title">{p.name}</div>
+          <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}на 100 г: {Math.round(p.kcal)} ккал · Б {p.protein_g} · Ж {p.fat_g} · У {p.carbs_g}</div>
+        </div>
+        <div className="row-end result-kcal">{kcal} ккал<small>{fmtQty(shown.qty)} {unitWord(shown.unit.label, shown.qty)}</small></div>
+      </button>
+    )
+  }
 
   const qty = Number(grams.replace(',', '.'))
   const g = Math.round(qty * unit.g * 10) / 10 // grams
@@ -369,18 +413,31 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
               )}
             </>
           )}
-          {results && results.length === 0 && <p className="sub">Ничего не найдено. Отсканируйте штрихкод или добавьте свой продукт.</p>}
+          {results && results.length === 0 && (
+            <div className="not-found">
+              <p className="row-title">Не нашли «{parseQuery(q).text || q.trim()}»</p>
+              {aiEnabled && onAiText && <button className="btn" onClick={() => onAiText(q.trim())}>✨ Описать AI: «{q.trim()}»</button>}
+              <button className="btn btn-ghost" onClick={() => setCustom(true)}>{aiEnabled ? '📷 Сфоткать этикетку или ввести вручную' : '+ Добавить свой продукт'}</button>
+              <button className="link" onClick={() => { setError(''); setScanner(true) }}>▥ Сканировать штрихкод</button>
+            </div>
+          )}
           {results && results.length > 0 && (
             <div className="list scroll-list">
-              {results.map((p) => (
-                <button className="row row-btn" key={p.id} onClick={() => pick(p)}>
-                  <div className="row-main">
-                    <div className="row-title">{p.name}</div>
-                    <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}на 100 г: Б {p.protein_g} · Ж {p.fat_g} · У {p.carbs_g}</div>
-                  </div>
-                  <div className="row-end">{Math.round(p.kcal)} ккал</div>
-                </button>
-              ))}
+              {groupByName(results).map(([first, rest]) => {
+                const key = first.name.toLowerCase()
+                const open = openGroups.includes(key)
+                return (
+                  <Fragment key={first.id}>
+                    {resultRow(first)}
+                    {rest.length > 0 && !open && (
+                      <button className="link more-brands" onClick={() => setOpenGroups([...openGroups, key])}>
+                        ещё {rest.length} {plural(rest.length, 'вариант', 'варианта', 'вариантов')} ›
+                      </button>
+                    )}
+                    {open && rest.map(resultRow)}
+                  </Fragment>
+                )
+              })}
             </div>
           )}
         </>

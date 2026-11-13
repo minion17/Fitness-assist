@@ -501,3 +501,58 @@ test('units: pieces, ml, glasses and spoons turn into grams', async () => {
   expect(defaultAmount({ ...base, piece_g: 1000, piece_name: 'упаковка', ml_g: 1 })).toEqual({ unit: { label: 'мл', g: 1 }, qty: 200 })
   expect(defaultAmount({ ...base, piece_g: 1000, piece_name: 'упаковка', portion_g: 30, portion_name: 'порция' }).unit.label).toBe('порция')
 })
+
+test('search: an amount in the query opens the product with it; brands of one product fold', async () => {
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  const egg = { id: 7, name: 'Яйцо куриное', brand: null, category: null, kcal: 157, protein_g: 12.7, fat_g: 11.5, carbs_g: 0.7, piece_g: 55, piece_name: null }
+  const milk = (id: number, brand: string | null) => ({ id, name: 'Молоко 2.5%', brand, category: null, kcal: 52, protein_g: 2.8, fat_g: 2.5, carbs_g: 4.7, ml_g: 1.03 })
+  apiMock.mockResolvedValue(null)
+  publicGetMock.mockImplementation(async (url: string) =>
+    url.includes('quiet=1') ? [] : url.includes(encodeURIComponent('яйцо')) ? [egg] : [milk(1, null), milk(2, 'Домик'), milk(3, 'Савушкин')])
+  const onAdd = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={empty} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'яйцо 2' } })
+  const row = await screen.findByRole('button', { name: /Яйцо куриное/ }, { timeout: 2000 })
+  expect(row.textContent).toContain('173 ккал') // 2 × 55 g
+  expect(publicGetMock).toHaveBeenCalledWith(`/api/products/search?q=${encodeURIComponent('яйцо 2')}&quiet=1`) // tried whole first
+  fireEvent.click(row)
+  expect((screen.getByRole('textbox', { name: 'Количество' }) as HTMLInputElement).value).toBe('2')
+  fireEvent.click(screen.getByRole('button', { name: /Добавить в/ }))
+  await waitFor(() => expect(onAdd).toHaveBeenCalledWith(7, 110, 'breakfast', null, { unit: 'шт', qty: 2 }))
+
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'молоко' } })
+  await screen.findByRole('button', { name: 'ещё 2 варианта ›' }, { timeout: 2000 })
+  expect(screen.getAllByRole('button', { name: /Молоко 2.5%/ })).toHaveLength(1) // brands folded under the plain one
+  fireEvent.click(screen.getByRole('button', { name: 'ещё 2 варианта ›' }))
+  expect(screen.getAllByRole('button', { name: /Молоко 2.5%/ })).toHaveLength(3)
+})
+
+test('search: nothing found offers AI, a label photo and the scanner', async () => {
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  apiMock.mockResolvedValue(null)
+  publicGetMock.mockResolvedValue([])
+  render(<Food day={empty} canEdit aiEnabled onAdd={vi.fn()} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'борщ бабушкин' } })
+  fireEvent.click(await screen.findByRole('button', { name: /Описать AI/ }, { timeout: 2000 }))
+  expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toBe('борщ бабушкин') // the AI text sheet, prefilled
+})
+
+test('units: parse amounts typed into the search', async () => {
+  const { parseQuery, applyWanted } = await import('./units')
+  expect(parseQuery('яйцо 2')).toEqual({ text: 'яйцо', wanted: { qty: 2, unit: null } })
+  expect(parseQuery('молоко 200 мл')).toEqual({ text: 'молоко', wanted: { qty: 200, unit: 'мл' } })
+  expect(parseQuery('2 банана')).toEqual({ text: 'банана', wanted: { qty: 2, unit: null } })
+  expect(parseQuery('творог 5%').wanted).toBeNull() // a fat percentage is not an amount
+  const base = { id: 1, name: 'x', brand: null, category: null, kcal: 50, protein_g: 1, fat_g: 1, carbs_g: 1 }
+  expect(applyWanted(base, { qty: 150, unit: null })).toEqual({ unit: { label: 'г', g: 1 }, qty: 150 })
+  expect(applyWanted(base, { qty: 2, unit: null })).toBeNull() // "2" of something without pieces: ignore
+  expect(applyWanted({ ...base, ml_g: 1 }, { qty: 0.5, unit: 'л' })).toEqual({ unit: { label: 'мл', g: 1 }, qty: 500 })
+  expect(applyWanted({ ...base, tbsp_g: 25 }, { qty: 1, unit: 'ст.л.' })?.unit.label).toBe('ст. л.')
+  const { unitWord } = await import('./units')
+  expect([1, 2, 5, 11, 22, 1.5].map((n) => unitWord('ломтик', n))).toEqual(['ломтик', 'ломтика', 'ломтиков', 'ломтиков', 'ломтика', 'ломтика'])
+  expect(unitWord('шт', 5)).toBe('шт')
+})

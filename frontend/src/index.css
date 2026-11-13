@@ -902,3 +902,9 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 
 .xp-note { margin: 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--text); font-size: 14px; }
 .liquid-check { align-self: end; padding-bottom: 10px; }
+
+.result-kcal { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; white-space: nowrap; }
+.result-kcal small { color: var(--muted); font-size: 12px; font-weight: 600; }
+.more-brands { align-self: flex-start; padding: 6px 0 10px; font-size: 14px; }
+.not-found { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+.not-found .link { align-self: center; }

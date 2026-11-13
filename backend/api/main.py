@@ -220,6 +220,7 @@ async def save_profile(
 @app.get("/api/products/search")
 async def search_products(
     q: str = Query(min_length=2, max_length=100),
+    quiet: bool = False,  # a first try the app may repeat (e.g. "яйцо 2" before "яйцо"): don't count it as a miss
     tg: dict | None = Depends(optional_telegram_user),
     session: AsyncSession = Depends(get_session),
 ):
@@ -242,20 +243,21 @@ async def search_products(
         .order_by((mine > 0).desc(),
                   or_(*(starts_with_word(Product.search_text, w) for w in firsts)).desc(),
                   or_(*(has_word(Product.search_text, w) for w in firsts)).desc(),
+                  Product.brand.is_not(None),  # the plain product before its brands ("Молоко 2.5%" before 12 brands of it)
                   eaten.desc(), func.length(Product.name), Product.name)
-        .limit(20)
+        .limit(40)
     ))
     if len(rows) < 3:  # maybe a typo: compare with products that have a similar word (same first letter, similar length)
         words = norm(q).split()
         seen = {p.id for p in rows}
         pool = await session.execute(select(Product.id, Product.search_text).where(
-            owner, typo_pool(Product.search_text, words[0]), Product.id.not_in(seen or [0])).limit(5000))
+            owner, typo_pool(Product.search_text, words[0]), Product.id.not_in(seen or [0])).limit(3000))
         scored = sorted((-fuzzy_match(words, text), len(text), pid) for pid, text in pool)
         ids = [pid for score, _, pid in scored if score][: 20 - len(rows)]
         if ids:
             found = {p.id: p for p in await session.scalars(select(Product).where(Product.id.in_(ids)))}
             rows += [found[i] for i in ids]
-    if not rows and user:
+    if not rows and user and not quiet:
         await session.execute(insert(SearchMiss).values(q=" ".join(norm(q).split())[:100], day=clock.today())
                               .on_conflict_do_update(index_elements=["q", "day"], set_={"count": SearchMiss.count + 1}))
         await session.commit()

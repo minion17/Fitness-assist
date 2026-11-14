@@ -12,12 +12,13 @@ type Draft = { meal_type: MealType | null; items: DraftItem[]; note: string }
 
 const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Не удалось связаться с сервером')
 
-export default function AiMeal({ mode, onClose, onDone }: {
+export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
   mode: 'text' | 'photo'
+  initialText?: string // from a search that found nothing
   onClose: () => void
   onDone: (xp: number) => Promise<void>
 }) {
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialText)
   const [draft, setDraft] = useState<Draft | null>(null)
   const [meal, setMeal] = useState<MealType>(mealNow())
   const [busy, setBusy] = useState(false)

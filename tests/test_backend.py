@@ -583,10 +583,13 @@ def test_user_products_become_shared_after_three_confirmations(client):
 
     # barcode: 3 users enter the same unknown code -> everyone finds it by scanning
     code = "48" + str(random.randint(10**10, 10**11 - 1))
+    pack = {"piece_g": 900, "piece_name": "упаковка", "ml_g": 1}  # read from the label: 900 ml bottle
     for h in users[:3]:
-        r = client.post("/api/products", headers=h, json={**plain, "name": f"Кефир {tag}", "barcode": code}).json()
-    assert r["shared"] is True
-    assert client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()["category"] == "Проверено пользователями"
+        r = client.post("/api/products", headers=h, json={**plain, "name": f"Кефир {tag}", "barcode": code, **pack}).json()
+    assert r["shared"] is True and r["piece_g"] == 900
+    found = client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()
+    assert found["category"] == "Проверено пользователями" and (found["piece_g"], found["piece_name"], found["ml_g"]) == (900, "упаковка", 1)
+    assert client.post("/api/products", headers=users[0], json={**plain, "name": "Странный", "ml_g": 7}).status_code == 422
 
 
 NEW_CONSENT = {"consent": False, "health_consent": False, "privacy_url": None}
@@ -1395,7 +1398,7 @@ def test_habit_reminders_with_tick_buttons(client, monkeypatch):
 
 
 def test_search_by_word_stems_and_units(client, seeded):
-    from backend.api.main import stems
+    from backend.core.search import stems
 
     assert stems("огурец свежий") == ["огур", "свеж"] and stems("рис") == ["рис"]
     names = lambda q: [p["name"] for p in client.get("/api/products/search", params={"q": q}).json()]  # noqa: E731
@@ -1420,3 +1423,49 @@ def test_food_log_in_pieces(client, seeded):
     assert (item["unit"], item["qty"], item["amount_g"]) == ("шт", 2, 110)
     patched = client.patch(f"/api/food-logs/{log['id']}", headers=h, json={"amount_g": 120}).json()
     assert (patched["unit"], patched["qty"], patched["amount_g"]) == (None, None, 120)  # typed in grams now
+
+
+def test_search_the_way_people_type(client, seeded):
+    from backend.core.search import translit, variants
+
+    assert translit("activia") == "активиа" and translit("prostokvashino") == "простоквашино"
+    assert "гречка" in variants("uhtxrf")  # typed with the English layout on
+    names = lambda q, h=None: [p["name"] for p in client.get("/api/products/search", params={"q": q}, headers=h or {}).json()]  # noqa: E731
+    assert names("картошка")[0].startswith("Картофель")  # not "Пирожное картошка"
+    assert names("кртошка")[0].startswith("Картофель")  # a typo of an everyday word
+    assert "Помидоры" in names("томат") and "Минеральная вода" in names("минералка")
+    assert any(n.startswith("Хлеб ржаной") for n in names("хлеб черный"))
+    assert names("uhtxrf")[0].startswith("Гречка") and names("гричка")[0].startswith("Гречка")  # the most eaten one may lead
+    assert names("малако")[0].startswith("Молоко") and names("творг")[0].startswith("Творог")
+    assert not any(n.startswith("Курага") for n in names("кура")[:5])
+    assert "Куриная грудка" in names("филе куриное")
+
+
+def test_search_ranks_own_history_and_logs_misses(client, seeded):
+    import random
+
+    from backend.bot.admin import summary
+    from backend.database.db import SessionLocal
+
+    h = new_user_headers()
+    found = client.get("/api/products/search", params={"q": "курица"}, headers=h).json()
+    usual = found[-1]  # something not first by default
+    client.post("/api/food-logs", headers=h, json={"product_id": usual["id"], "amount_g": 150, "meal_type": "lunch"})
+    assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] == usual["id"]  # what I eat comes first
+    assert client.get("/api/products/search", params={"q": "курица"}, headers=new_user_headers()).json()[0]["id"] != usual["id"] or len(found) == 1
+
+    miss = f"ъъъ продукт {random.randint(10**5, 10**6)}"
+    for _ in range(2):
+        assert client.get("/api/products/search", params={"q": miss}, headers=h).json() == []
+    client.get("/api/products/search", params={"q": miss})  # anonymous: not counted
+    client.get("/api/products/search", params={"q": miss, "quiet": 1}, headers=h)  # the app's first try of "яйцо 2": not counted
+
+    milk = client.get("/api/products/search", params={"q": "молоко 2.5%"}, headers=h).json()
+    plain = [i for i, p in enumerate(milk) if p["name"] == "Молоко 2.5%" and p["brand"] is None]
+    branded = [i for i, p in enumerate(milk) if p["name"] == "Молоко 2.5%" and p["brand"]]
+    assert plain and branded and plain[0] < branded[0]  # the plain product before its brands
+
+    async def stats():
+        async with SessionLocal() as s:
+            return await summary(s)
+    assert f"• {miss} — 2" in client.portal.call(stats)

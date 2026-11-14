@@ -164,6 +164,9 @@ class ProductIn(BaseModel):
     carbs_g: float = Field(ge=0, le=100)
     portion_g: float | None = Field(default=None, gt=0, le=3000)
     portion_name: str | None = Field(default=None, max_length=40)
+    piece_g: float | None = Field(default=None, gt=0, le=3000)  # one piece or the whole package
+    piece_name: str | None = Field(default=None, max_length=20)
+    ml_g: float | None = Field(default=None, gt=0.3, le=2)  # set for drinks: counted in ml
 
 
 # A user's product joins the shared catalog once this many different people entered the same thing with the same
@@ -205,7 +208,8 @@ async def promote(session: AsyncSession, product: Product, barcode: str | None) 
         return None
     avg = {k: round(sum(getattr(p, k) for p in agree) / len(agree), 1) for k in ("kcal", "protein_g", "fat_g", "carbs_g")}
     shared = Product(name=product.name, brand=product.brand, barcode=barcode, category="Проверено пользователями",
-                     portion_g=product.portion_g, portion_name=product.portion_name, **avg)
+                     portion_g=product.portion_g, portion_name=product.portion_name, piece_g=product.piece_g,
+                     piece_name=product.piece_name, ml_g=product.ml_g, **avg)
     session.add(shared)
     await session.flush()
     return shared, {p.owner_user_id for p in agree}

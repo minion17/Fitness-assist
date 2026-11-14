@@ -1,10 +1,11 @@
 """/stats for the owner: how many people came, came back, and what they use. Only for ADMIN_IDS from .env."""
+import html
 from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import func, select
 
 from backend.database.models import (
-    AiRequest, Outbox, Duel, FoodLog, Friendship, Profile, User, Visit, WaterIntake, WorkoutLog,
+    AiRequest, Outbox, Duel, FoodLog, Friendship, Profile, SearchMiss, User, Visit, WaterIntake, WorkoutLog,
 )
 
 
@@ -47,6 +48,11 @@ async def summary(session, now: datetime | None = None) -> str:
     ai = await count(select(func.count(AiRequest.id)).where(AiRequest.created_at >= week))
     pairs = (await count(select(func.count()).select_from(Friendship))) // 2
     duels = await count(select(func.count(Duel.id)).where(Duel.created_at >= week))
+    missed = (await session.execute(
+        select(SearchMiss.q, func.sum(SearchMiss.count).label("n")).where(SearchMiss.day > today - timedelta(days=30))
+        .group_by(SearchMiss.q).order_by(func.sum(SearchMiss.count).desc(), SearchMiss.q).limit(10))).all()
+    misses = ["", "🔎 <b>Искали и не нашли</b> (30 дней) — кандидаты в каталог:",
+              *(f"• {html.escape(q)} — {n}" for q, n in missed)] if missed else []
     return "\n".join([
         "📊 <b>Setly — статистика</b>",
         "",
@@ -62,6 +68,7 @@ async def summary(session, now: datetime | None = None) -> str:
         f"💧 Отмечали воду: {drinkers} чел.",
         f"🤖 AI-запросов: {ai}",
         f"🤝 Пар друзей: {pairs}, новых дуэлей: {duels}",
+        *misses,
         "",
         f"<i>Возврат считается по тем, кто пришёл за последние 2 недели. {now:%d.%m %H:%M} UTC</i>",
     ])

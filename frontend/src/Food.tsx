@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ProfileData, Targets } from './profile'
 import AiMeal from './AiMeal'
 import MealPlan from './MealPlan'
@@ -11,7 +11,7 @@ import Scanner from './Scanner'
 import { api, ApiError, postJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
-import { defaultAmount, fmtQty, unitsFor, type Unit } from './units'
+import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
 import { Bar, Ring, Sheet } from './ui'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
@@ -94,7 +94,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
         <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>
         <div className="row-main">
           <div className="row-title">{i.product.name}</div>
-          <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${i.unit} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
+          <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${unitWord(i.unit, i.qty)} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
         </div>
         {mode === 'confirm' ? (
           <div className="confirm">
@@ -131,6 +131,7 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
   const [expandedMeals, setExpandedMeals] = useState<string[]>([])
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
+  const [aiText, setAiText] = useState('')
   const t = day.totals
   const [yesterday, setYesterday] = useState<FoodDay | null>(null)
   const [copying, setCopying] = useState<MealType | null>(null)
@@ -206,16 +207,33 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
       {canEdit && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: nowSlot() })}>+ Перекус</button>}
       </section>
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
-      {aiMode && <AiMeal mode={aiMode} onClose={() => setAiMode(null)} onDone={onAiDone} />}
-      {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled} />}
+      {aiMode && <AiMeal mode={aiMode} initialText={aiText} onClose={() => { setAiMode(null); setAiText('') }} onDone={onAiDone} />}
+      {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled}
+        onAiText={(text) => { setAdding(null); setAiText(text); setAiMode('text') }} />}
     </>
   )
 }
 
-function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = false }: {
+/** Same-named products together, the first (the plain one, ranked so by the server) shown, the rest behind "ещё N". */
+function groupByName(list: Product[]): [Product, Product[]][] {
+  const groups = new Map<string, [Product, Product[]]>()
+  for (const p of list) {
+    const k = p.name.toLowerCase()
+    const g = groups.get(k)
+    if (g) g[1].push(p)
+    else groups.set(k, [p, []])
+  }
+  return [...groups.values()]
+}
+
+const plural = (n: number, one: string, few: string, many: string) =>
+  n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many
+
+function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = false, onAiText }: {
   meal: MealType
   slot?: string | null
   aiEnabled?: boolean
+  onAiText?: (text: string) => void // nothing found: describe it to the AI instead
   onClose: () => void
   onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
 }) {
@@ -225,6 +243,8 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   const [picked, setPicked] = useState<Product | null>(null)
   const [grams, setGrams] = useState('100') // the amount in `unit`
   const [unit, setUnit] = useState<Unit>(GRAM)
+  const [wanted, setWanted] = useState<Wanted | null>(null) // an amount typed into the search
+  const [openGroups, setOpenGroups] = useState<string[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [list, setList] = useState<'recent' | 'favorites'>('recent')
@@ -273,6 +293,8 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
 
   function pick(p: Product | RecentProduct) {
     setPicked(p)
+    const typed = wanted && q.trim().length >= 2 ? applyWanted(p, wanted) : null // "яйцо 2" opens with 2 шт
+    if (typed) { setUnit(typed.unit); setGrams(fmtQty(typed.qty)); return }
     if ('last_amount_g' in p) { setUnit(GRAM); setGrams(String(p.last_amount_g)); return }
     const d = defaultAmount(p)
     setUnit(d.unit); setGrams(fmtQty(d.qty))
@@ -289,15 +311,37 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   useEffect(() => {
     if (q.trim().length < 2) return
     let stale = false
-    const timer = setTimeout(() => {
-      const url = `/api/products/search?q=${encodeURIComponent(q.trim())}`
-      // signed request also returns the user's own products; outside Telegram fall back to the public catalog
-      api<Product[]>(url).then((r) => r ?? publicGet<Product[]>(url))
-        .then((r) => !stale && setResults(r))
-        .catch(() => !stale && setError('Поиск недоступен — проверьте соединение'))
+    // signed request also returns the user's own products; outside Telegram fall back to the public catalog
+    const find = (text: string, quiet = false) => {
+      const url = `/api/products/search?q=${encodeURIComponent(text)}${quiet ? '&quiet=1' : ''}`
+      return api<Product[]>(url).then((r) => r ?? publicGet<Product[]>(url))
+    }
+    const timer = setTimeout(async () => {
+      try {
+        // "яйцо 2": the number may be part of a name ("Творог 9%"), so the whole text goes first, then without the amount
+        const { text, wanted: w } = parseQuery(q)
+        let r = w && w.unit ? null : await find(q.trim(), Boolean(w))
+        if (w && !r?.length && text.length >= 2) { r = await find(text); if (!stale) setWanted(w) } else if (!stale) setWanted(null)
+        if (!stale) setResults(r ?? [])
+      } catch { if (!stale) setError('Поиск недоступен — проверьте соединение') }
     }, 300) // wait for the user to stop typing
     return () => { stale = true; clearTimeout(timer) }
   }, [q])
+
+  function resultRow(p: Product) {
+    // calories for what the user would add: the amount typed ("яйцо 2"), else one piece / portion / 100 g
+    const shown = (wanted && applyWanted(p, wanted)) || defaultAmount(p)
+    const kcal = Math.round((p.kcal * shown.qty * shown.unit.g) / 100)
+    return (
+      <button className="row row-btn" key={p.id} onClick={() => pick(p)}>
+        <div className="row-main">
+          <div className="row-title">{p.name}</div>
+          <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}на 100 г: {Math.round(p.kcal)} ккал · Б {p.protein_g} · Ж {p.fat_g} · У {p.carbs_g}</div>
+        </div>
+        <div className="row-end result-kcal">{kcal} ккал<small>{fmtQty(shown.qty)} {unitWord(shown.unit.label, shown.qty)}</small></div>
+      </button>
+    )
+  }
 
   const qty = Number(grams.replace(',', '.'))
   const g = Math.round(qty * unit.g * 10) / 10 // grams
@@ -376,18 +420,31 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
               )}
             </>
           )}
-          {results && results.length === 0 && <p className="sub">Ничего не найдено. Отсканируйте штрихкод или добавьте свой продукт.</p>}
+          {results && results.length === 0 && (
+            <div className="not-found">
+              <p className="row-title">Не нашли «{parseQuery(q).text || q.trim()}»</p>
+              {aiEnabled && onAiText && <button className="btn" onClick={() => onAiText(q.trim())}>✨ Описать AI: «{q.trim()}»</button>}
+              <button className="btn btn-ghost" onClick={() => setCustom(true)}>{aiEnabled ? '📷 Сфоткать этикетку или ввести вручную' : '+ Добавить свой продукт'}</button>
+              <button className="link" onClick={() => { setError(''); setScanner(true) }}>▥ Сканировать штрихкод</button>
+            </div>
+          )}
           {results && results.length > 0 && (
             <div className="list scroll-list">
-              {results.map((p) => (
-                <button className="row row-btn" key={p.id} onClick={() => pick(p)}>
-                  <div className="row-main">
-                    <div className="row-title">{p.name}</div>
-                    <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}на 100 г: Б {p.protein_g} · Ж {p.fat_g} · У {p.carbs_g}</div>
-                  </div>
-                  <div className="row-end">{Math.round(p.kcal)} ккал</div>
-                </button>
-              ))}
+              {groupByName(results).map(([first, rest]) => {
+                const key = first.name.toLowerCase()
+                const open = openGroups.includes(key)
+                return (
+                  <Fragment key={first.id}>
+                    {resultRow(first)}
+                    {rest.length > 0 && !open && (
+                      <button className="link more-brands" onClick={() => setOpenGroups([...openGroups, key])}>
+                        ещё {rest.length} {plural(rest.length, 'вариант', 'варианта', 'вариантов')} ›
+                      </button>
+                    )}
+                    {open && rest.map(resultRow)}
+                  </Fragment>
+                )
+              })}
             </div>
           )}
         </>
@@ -439,12 +496,14 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   )
 }
 
-type Label = { found: true; name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; note: string } | { found: false; note: string }
+type Label = { found: true; name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; note: string
+  brand?: string; package_g?: number | null; pieces?: number | null; liquid?: boolean } | { found: false; note: string }
 
 function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
   barcode: string | null; aiEnabled: boolean; onCreated: (p: Product & { shared?: boolean }) => void; onCancel: () => void
 }) {
-  const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '', brand: '', portion_g: '' })
+  const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '', brand: '', portion_g: '', package_g: '', pieces: '' })
+  const [liquid, setLiquid] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [reading, setReading] = useState(false)
@@ -463,7 +522,9 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       if (!r) return
       if (!r.found) { setError(r.note); return }
       const s = (n: number) => String(n).replace('.', ',')
-      setV((old) => ({ ...old, name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g) }))
+      setV((old) => ({ ...old, name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g),
+        brand: old.brand || r.brand || '', package_g: r.package_g ? s(r.package_g) : old.package_g, pieces: r.pieces ? String(r.pieces) : old.pieces }))
+      if (r.liquid !== undefined) setLiquid(r.liquid)
       setHint(r.note || 'Проверьте цифры с упаковкой и сохраните.')
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось прочитать этикетку')
@@ -482,11 +543,19 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
     if (num(v.protein_g) + num(v.fat_g) + num(v.carbs_g) > 100) return setError('Белков, жиров и углеводов вместе не больше 100 г')
     const portion = v.portion_g ? num(v.portion_g) : null
     if (portion !== null && !(portion > 0 && portion <= 3000)) return setError('Порция: от 1 до 3000 г')
+    const pack = v.package_g ? num(v.package_g) : null
+    if (pack !== null && !(pack > 0 && pack <= 3000)) return setError('Упаковка: от 1 до 3000 г')
+    const pieces = v.pieces ? Math.round(num(v.pieces)) : 1
+    if (!(pieces >= 1 && pieces <= 100)) return setError('Штук в упаковке: от 1 до 100')
+    // a package of 6 × 50 g counts in pieces and as the whole pack; a single item is "1 упаковка"
+    const units = pack === null ? {} : pieces > 1
+      ? { piece_g: Math.round((pack / pieces) * 10) / 10, piece_name: 'шт', portion_g: pack, portion_name: 'упаковка' }
+      : { piece_g: pack, piece_name: 'упаковка' }
     setBusy(true)
     try {
       const p = await api<Product & { shared: boolean }>('/api/products', postJson({
         name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g),
-        brand: v.brand.trim() || null, portion_g: portion, ...(barcode ? { barcode } : {}),
+        brand: v.brand.trim() || null, portion_g: portion, ...units, ...(liquid ? { ml_g: 1 } : {}), ...(barcode ? { barcode } : {}),
       }))
       if (p) onCreated(p)
     } catch (e) {
@@ -497,10 +566,11 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
 
   return (
     <>
-      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе — добавьте его один раз, дальше он будет находиться по штрихкоду.</p>}
-      <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только вам; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а вы получите <b>+25 XP</b>.</p>
+      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавьте его один раз — дальше он будет находиться по штрихкоду у всех.</p>}
+      {barcode && <p className="xp-note">🏅 <b>+25 XP</b>, когда ещё двое подтвердят те же цифры и товар попадёт в общий каталог</p>}
+      {!barcode && <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только вам; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а вы получите <b>+25 XP</b>.</p>}
       {aiEnabled && (
-        <label className={reading ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
+        <label className={`btn ${barcode ? '' : 'btn-ghost '}photo-btn${reading ? ' disabled' : ''}`}>
           {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку — заполню сам'}
           <input type="file" accept="image/*" capture="environment" hidden disabled={reading}
             onChange={(e) => { readLabel(e.target.files?.[0]); e.target.value = '' }} />
@@ -524,11 +594,30 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
           <span>Бренд / заведение</span>
           <div className="input-wrap"><input value={v.brand} placeholder="необязательно" onChange={(e) => setV({ ...v, brand: e.target.value })} /></div>
         </label>
-        <label className="field">
-          <span>Порция, г</span>
-          <div className="input-wrap"><input inputMode="decimal" value={v.portion_g} placeholder="необязательно" onChange={(e) => setV({ ...v, portion_g: e.target.value })} /></div>
-        </label>
+        {barcode ? (
+          <label className="field">
+            <span>Упаковка, {liquid ? 'мл' : 'г'}</span>
+            <div className="input-wrap"><input inputMode="decimal" value={v.package_g} placeholder="необязательно" onChange={(e) => setV({ ...v, package_g: e.target.value })} /></div>
+          </label>
+        ) : (
+          <label className="field">
+            <span>Порция, г</span>
+            <div className="input-wrap"><input inputMode="decimal" value={v.portion_g} placeholder="необязательно" onChange={(e) => setV({ ...v, portion_g: e.target.value })} /></div>
+          </label>
+        )}
       </div>
+      {barcode && (
+        <div className="grid2">
+          <label className="field">
+            <span>Штук внутри</span>
+            <div className="input-wrap"><input inputMode="numeric" value={v.pieces} placeholder="1" onChange={(e) => setV({ ...v, pieces: e.target.value })} /></div>
+          </label>
+          <label className="consent-check liquid-check">
+            <input type="checkbox" checked={liquid} onChange={(e) => setLiquid(e.target.checked)} />
+            <span><b>Напиток</b><span className="sub">считать в мл</span></span>
+          </label>
+        </div>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
       <button className="btn" disabled={busy} onClick={save}>{busy ? 'Сохраняем…' : 'Сохранить продукт'}</button>
       <button className="link" onClick={onCancel}>Назад к поиску</button>

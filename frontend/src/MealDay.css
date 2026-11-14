@@ -1,0 +1,72 @@
+.plan-day-link, .plan-meal-link {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.plan-arrow { margin-left: auto; color: var(--accent-text); font-size: 20px; }
+.plan-day-total { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+.plan-day-total span, .plan-meal-copy small { color: var(--muted); font-size: 12px; font-weight: 500; }
+.plan-slot { color: var(--accent-text); font-size: 12px; font-weight: 750; }
+.plan-day-menu { display: grid; gap: 10px; }
+.plan-meal-link { padding: 10px; background: var(--card); border: 1px solid var(--card-border); border-radius: 18px; }
+.plan-meal-link img { width: clamp(68px, 19vw, 96px); aspect-ratio: 1; object-fit: cover; border-radius: 11px; }
+.plan-meal-copy { display: grid; min-width: 0; gap: 4px; }
+.plan-meal-copy strong { line-height: 1.3; overflow-wrap: anywhere; }
+.plan-meal-link .plan-arrow { padding-right: 6px; }
+.plan-recipe {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  padding: 0;
+  width: min(490px, calc(100% - 24px));
+  max-height: 88dvh;
+  overflow: hidden;
+  color: var(--text);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 22px;
+  box-shadow: 0 22px 75px #0006;
+}
+.plan-recipe::backdrop { background: rgb(7 9 12 / .78); }
+@media (prefers-reduced-motion: no-preference) {
+  .plan-recipe[open] { animation: meal-q-appear 260ms cubic-bezier(.2, .8, .2, 1); }
+  .plan-recipe[open]::backdrop { animation: fade-in 220ms ease-out; }
+}
+@media (max-width: 550px) and (prefers-reduced-motion: no-preference) {
+  .plan-recipe[open] { animation-name: up; animation-duration: 320ms; }
+}
+.plan-recipe-scroll { position: relative; overflow-y: auto; overscroll-behavior: contain; max-height: 87dvh; }
+.plan-recipe-cover { display: block; width: 100%; height: clamp(140px, 24dvh, 230px); object-fit: cover; }
+.plan-recipe-close {
+  float: right;
+  position: sticky;
+  top: 8px;
+  margin: 8px 8px -52px 0;
+  z-index: 1;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(15 16 18 / .88);
+  color: white;
+  font: 24px/1 sans-serif;
+  cursor: pointer;
+}
+.plan-recipe-body { padding: 16px 20px 20px; }
+.plan-recipe-body h2 { margin: 4px 0 12px; font-size: clamp(19px, 5vw, 24px); line-height: 1.22; }
+.plan-recipe-body h3 { margin: 18px 0 4px; font-size: 15px; }
+.plan-nutrients { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; margin: 0; padding: 10px 0; border-block: 1px solid var(--card-border); }
+.plan-nutrients div { display: flex; flex-direction: column-reverse; gap: 3px; }
+.plan-nutrients dt { font-size: 11px; color: var(--muted); }
+.plan-nutrients dd { margin: 0; font-weight: 750; font-variant-numeric: tabular-nums; }
+.plan-recipe-body .meal-result-replace { margin-top: 14px; }
+@media (max-width: 550px) {
+  .plan-recipe { inset: auto 0 0; width: 100%; max-width: 100%; max-height: 94dvh; border-radius: 22px 22px 0 0; }
+  .plan-recipe-scroll { max-height: 93dvh; padding-bottom: env(safe-area-inset-bottom); }
+}

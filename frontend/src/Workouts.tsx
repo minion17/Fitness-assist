@@ -1,13 +1,23 @@
 import { useEffect, useState } from 'react'
 import type { Recommendation } from './profile'
-import { api, postJson, tg } from './telegram'
-import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type WorkoutLog } from './types'
+import { api, postJson, publicGet, tg } from './telegram'
+import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
 import Empty from './Empty'
+import exerciseCatalog from '../../content/exercises/exercises.json'
+import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
 const dateRu = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
+
+function ExerciseThumbnail({ name, index }: { name: string; index: number }) {
+  const image = getExerciseGuideImage(name)
+  return <span className={image ? 'exercise-thumbnail' : 'exercise-thumbnail is-empty'} aria-hidden="true">
+    {image && <img src={image} alt="" loading="lazy" onError={event => { event.currentTarget.style.display = 'none' }} />}
+    <span>{index + 1}</span>
+  </span>
+}
 
 export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange }: {
   recommended?: Recommendation | null
@@ -20,6 +30,8 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   onProgramsChange?: (programs: Program[]) => void
 }) {
   const [personalList, setPersonalList] = useState(false)
+  const [guideExercise, setGuideExercise] = useState<PlannedExercise | null>(null)
+  const [previewProgramId, setPreviewProgramId] = useState<number | null>(null)
   const [session, setSession] = useState<ProgramDay | null>(null)
   const [editing, setEditing] = useState<Program | 'new' | null>(null)
   const [exercises, setExercises] = useState<ExerciseOption[]>([])
@@ -29,12 +41,35 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
   async function openBuilder(p: Program | 'new') {
     try {
-      const list = await api<ExerciseOption[]>('/api/exercises')
-      setExercises(list ?? [])
+      const list = canEdit
+        ? await api<ExerciseOption[]>('/api/exercises')
+        : await publicGet<ExerciseOption[]>('/api/exercises').catch(() => (programs ?? []).flatMap(program => program.days.flatMap(day => day.exercises.map(exercise => ({ id: exercise.exercise_id, name: exercise.name })))))
+
+      const translatedExerciseCatalog = canEdit ? [] : (await import('../../content/exercises/translated_exercises.json')).default
+      const localExercises = canEdit ? [] : [...exerciseCatalog, ...translatedExerciseCatalog].map((exercise, index) => ({
+        id: -100000 - index, name: exercise.name, equipment: exercise.equipment, is_bodyweight: exercise.is_bodyweight,
+      }))
+      const existingNames = new Set((list ?? []).map(exercise => exercise.name.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е')))
+      const previousExercises = (programs ?? []).flatMap(program => program.days.flatMap(day => day.exercises.map(exercise => ({ id: exercise.exercise_id, name: exercise.name }))))
+      setExercises([...new Map([...previousExercises, ...(list ?? []), ...localExercises.filter(exercise => !existingNames.has(exercise.name.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е')))].map(exercise => [exercise.id, exercise])).values()])
       setEditing(p)
     } catch { setBuilderError('Не удалось загрузить упражнения. Попробуйте ещё раз.') }
   }
   async function saveProgram(draft: ProgramDraft) {
+    if (!canEdit) {
+      const id = editing === 'new' ? -Date.now() : (editing as Program).id
+      const result: Program = {
+        id, name: draft.name, goal: 'custom', level: 'beginner', days_per_week: draft.days.length, description: null, is_personal: true,
+        days: draft.days.map((day, index) => ({
+          id: day.id ?? -(index + 1), day_name: day.name, day_order: index,
+          exercises: day.exercises.map(exercise => ({ ...exercise, name: exercises.find(item => item.id === exercise.exercise_id)?.name ?? 'Упражнение', notes: null }))
+        }))
+      }
+      onProgramsChange?.([...(programs ?? []).filter(program => program.id !== id), result])
+      onSelectProgram(id)
+      setEditing(null)
+      return
+    }
     const path = editing === 'new' ? '/api/programs' : `/api/programs/${(editing as Program).id}`
     const result = await api<Program>(path, { ...postJson(draft), method: editing === 'new' ? 'POST' : 'PUT' })
     if (!result) throw new Error('No account')
@@ -44,6 +79,11 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   }
 
   if (editing) return <ProgramBuilder exercises={exercises} initial={editing === 'new' ? undefined : editing} onSave={saveProgram} onCancel={() => setEditing(null)} onCreateExercise={async name => {
+    if (!canEdit) {
+      const created = { id: -Date.now(), name }
+      setExercises(prev => [...prev, created])
+      return created
+    }
     const created = await api<ExerciseOption>('/api/exercises', postJson({ name }))
     if (!created) throw new Error('No account')
     setExercises(prev => [...prev.filter(e => e.id !== created.id), created])
@@ -56,6 +96,26 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     return <Session program={program} day={session} onExit={() => setSession(null)} onChanged={onChanged} />
   }
 
+  if (personalList && previewProgramId !== null) {
+    const preview = programs.find(item => item.id === previewProgramId)
+    if (preview) return <div className="ready-program-page">
+      <div className="card-head"><h1>{preview.name}</h1><button className="link" onClick={() => setPreviewProgramId(null)}>Назад</button></div>
+      <span className="sub">{LEVEL[preview.level] ?? preview.level}</span>
+      {preview.days.map(day => <details className="card ready-program-day" key={day.id}>
+        <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <span aria-hidden="true">⌄</span></span></summary>
+        <div>{day.exercises.map((exercise, index) => {
+          const canOpen = hasExerciseGuide(exercise.name)
+          const info = <><ExerciseThumbnail name={exercise.name} index={index} /><span className="ready-exercise-main"><strong>{exercise.name}</strong><small>{exercise.sets} × {exercise.reps}{exercise.unit === 'seconds' ? ' с' : ' повт.'} · отдых {exercise.rest_seconds} с</small></span>{canOpen && <span className="ready-exercise-arrow" aria-hidden="true">→</span>}</>
+          return canOpen
+            ? <button className="ready-exercise-row" key={index} onClick={() => setGuideExercise(exercise)} aria-label={`Открыть ${exercise.name}`}>{info}</button>
+            : <div className="ready-exercise-row" key={index}>{info}</div>
+        })}</div>
+      </details>)}
+      {guideExercise && <KettlebellExercise exercise={guideExercise} onClose={() => setGuideExercise(null)} />}
+      <button className="btn" onClick={() => { onSelectProgram(preview.id); setPreviewProgramId(null); setPersonalList(false) }}>{preview.id === programId ? 'Открыть программу' : 'Выбрать программу'}</button>
+    </div>
+  }
+
   if (personalList) return <div className="personal-programs">
     <div className="card-head programs-page-head"><h1>Программы</h1><button className="link" onClick={() => setPersonalList(false)}>Назад</button></div>
     <div className="personal-programs-list">
@@ -64,18 +124,18 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       {programs.filter(p => p.is_personal).map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
         <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
         <span className="sub">Тренировок: {p.days.length}</span>
-        <div className="program-card-actions"><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button>{canEdit && <button className="link" onClick={() => openBuilder(p)}>Изменить</button>}</div>
+        <div className="program-card-actions"><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button>{(canEdit || p.id < 0) && <button className="link" onClick={() => openBuilder(p)}>Изменить</button>}</div>
       </section>)}
       {programs.some(p => !p.is_personal) && <div className="programs-section-title"><h2>Готовые программы</h2></div>}
       {programs.filter(p => !p.is_personal).sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id)).map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
         <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
         {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит вам</span>}
-        <span className="sub">{LEVEL[p.level] ?? p.level} · {p.days_per_week} в неделю</span>
-        {p.description && <span className="sub program-description">{p.description}</span>}
-        <div className="program-card-actions"><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button></div>
+        <span className="sub">{LEVEL[p.level] ?? p.level}</span>
+        <div className="program-card-actions"><button className="link" onClick={() => setPreviewProgramId(p.id)}>Посмотреть тренировки</button><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button></div>
       </section>)}
     </div>
-    {canEdit && <button className="btn" onClick={() => openBuilder('new')}>Создать программу</button>}
+    <button className="btn" onClick={() => openBuilder('new')}>Создать программу</button>
+    {!canEdit && <p className="sub">В деморежиме программа доступна до обновления страницы.</p>}
     {builderError && <p className="error" role="alert">{builderError}</p>}
   </div>
 
@@ -94,7 +154,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         <div className="list">
           {next.exercises.map((e, i) => (
             <div className="row" key={i}>
-              <div className="dot">{i + 1}</div>
+              <ExerciseThumbnail name={e.name} index={i} />
               <div className="row-main"><div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div><div className="row-sub">{e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''}</div></div>
             </div>
           ))}

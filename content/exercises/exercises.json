@@ -388,5 +388,765 @@
     "difficulty": "beginner",
     "description": "Прыжки на носках, вращение только кистями.",
     "is_bodyweight": false
+  },
+  {
+    "name": "Жим штанги на наклонной скамье",
+    "muscle_groups": [
+      "Грудь",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Штанга",
+      "Скамья"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Barbell_Incline_Bench_Press_-_Medium_Grip"
+  },
+  {
+    "name": "Жим штанги узким хватом",
+    "muscle_groups": [
+      "Трицепс",
+      "Грудь",
+      "Плечи"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Close-Grip_Barbell_Bench_Press"
+  },
+  {
+    "name": "Жим штанги на скамье с обратным наклоном",
+    "muscle_groups": [
+      "Грудь",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Штанга",
+      "Скамья"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Decline_Barbell_Bench_Press"
+  },
+  {
+    "name": "Фронтальные приседания со штангой",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Икроножные",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "expert",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Front_Barbell_Squat"
+  },
+  {
+    "name": "Выпады со штангой",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Икроножные",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Barbell_Lunge"
+  },
+  {
+    "name": "Ягодичный мост со штангой",
+    "muscle_groups": [
+      "Ягодицы",
+      "Икроножные",
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Barbell_Hip_Thrust"
+  },
+  {
+    "name": "Шраги со штангой",
+    "muscle_groups": [
+      "Трапеции"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Barbell_Shrug"
+  },
+  {
+    "name": "Наклоны в сторону со штангой",
+    "muscle_groups": [
+      "Пресс",
+      "Разгибатели спины"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Barbell_Side_Bend"
+  },
+  {
+    "name": "Зашагивания на платформу со штангой",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Икроножные",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Штанга",
+      "Платформа"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Barbell_Step_Ups"
+  },
+  {
+    "name": "Становая тяга сумо",
+    "muscle_groups": [
+      "Бицепс бедра",
+      "Приводящие мышцы бедра",
+      "Предплечья",
+      "Ягодицы",
+      "Разгибатели спины",
+      "Мышцы середины спины",
+      "Квадрицепс",
+      "Трапеции"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Sumo_Deadlift"
+  },
+  {
+    "name": "Становая тяга с трэп-грифом",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Trap_Bar_Deadlift"
+  },
+  {
+    "name": "Тяга штанги на прямых ногах",
+    "muscle_groups": [
+      "Бицепс бедра",
+      "Ягодицы",
+      "Разгибатели спины"
+    ],
+    "equipment": [
+      "Штанга"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Stiff-Legged_Barbell_Deadlift"
+  },
+  {
+    "name": "Приседания с собственным весом",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Bodyweight_Squat"
+  },
+  {
+    "name": "Выпады шагом с собственным весом",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Икроножные",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Bodyweight_Walking_Lunge"
+  },
+  {
+    "name": "Обратные отжимания от скамьи",
+    "muscle_groups": [
+      "Трицепс",
+      "Грудь",
+      "Плечи"
+    ],
+    "equipment": [
+      "Скамья"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Bench_Dips"
+  },
+  {
+    "name": "Отжимания от пола широким хватом",
+    "muscle_groups": [
+      "Грудь",
+      "Пресс",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Push-Up_Wide"
+  },
+  {
+    "name": "Отжимания от пола узким хватом",
+    "muscle_groups": [
+      "Трицепс",
+      "Грудь",
+      "Плечи"
+    ],
+    "equipment": [],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Push-Ups_-_Close_Triceps_Position"
+  },
+  {
+    "name": "Отжимания с ногами на возвышении",
+    "muscle_groups": [
+      "Грудь",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Платформа"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Push-Ups_With_Feet_Elevated"
+  },
+  {
+    "name": "Отжимания руками от опоры",
+    "muscle_groups": [
+      "Грудь",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Платформа"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Incline_Push-Up"
+  },
+  {
+    "name": "Подтягивания лопатками",
+    "muscle_groups": [
+      "Трапеции",
+      "Широчайшие мышцы спины",
+      "Мышцы середины спины"
+    ],
+    "equipment": [
+      "Турник"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Scapular_Pull-Up"
+  },
+  {
+    "name": "Подтягивания с резиновой петлёй",
+    "muscle_groups": [
+      "Широчайшие мышцы спины",
+      "Пресс",
+      "Предплечья",
+      "Мышцы середины спины"
+    ],
+    "equipment": [
+      "Турник"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Band_Assisted_Pull-Up"
+  },
+  {
+    "name": "Отжимание с переходом в боковую планку",
+    "muscle_groups": [
+      "Грудь",
+      "Пресс",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Push_Up_to_Side_Plank"
+  },
+  {
+    "name": "Жим гантелей лёжа",
+    "muscle_groups": [
+      "Грудь",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Dumbbell_Bench_Press"
+  },
+  {
+    "name": "Жим гантелей лёжа нейтральным хватом",
+    "muscle_groups": [
+      "Грудь",
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Dumbbell_Bench_Press_with_Neutral_Grip"
+  },
+  {
+    "name": "Приседания с гантелями",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Икроножные",
+      "Ягодицы",
+      "Бицепс бедра",
+      "Разгибатели спины"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Dumbbell_Squat"
+  },
+  {
+    "name": "Гоблет-приседания",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Икроножные",
+      "Ягодицы",
+      "Бицепс бедра",
+      "Плечи"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Goblet_Squat"
+  },
+  {
+    "name": "Сплит-приседания с гантелями",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы",
+      "Бицепс бедра"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Split_Squat_with_Dumbbells"
+  },
+  {
+    "name": "Тяга гантелей на прямых ногах",
+    "muscle_groups": [
+      "Бицепс бедра",
+      "Ягодицы",
+      "Разгибатели спины"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Stiff-Legged_Dumbbell_Deadlift"
+  },
+  {
+    "name": "Сгибание рук с гантелями на наклонной скамье",
+    "muscle_groups": [
+      "Бицепс"
+    ],
+    "equipment": [
+      "Гантели",
+      "Скамья"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Incline_Dumbbell_Curl"
+  },
+  {
+    "name": "Сгибание рук с гантелями сидя",
+    "muscle_groups": [
+      "Бицепс"
+    ],
+    "equipment": [
+      "Гантели"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Seated_Dumbbell_Curl"
+  },
+  {
+    "name": "Попеременный жим гирь",
+    "muscle_groups": [
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Alternating_Kettlebell_Press"
+  },
+  {
+    "name": "Попеременная тяга гирь в наклоне",
+    "muscle_groups": [
+      "Мышцы середины спины",
+      "Бицепс",
+      "Широчайшие мышцы спины"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Alternating_Kettlebell_Row"
+  },
+  {
+    "name": "Тяга гири одной рукой в наклоне",
+    "muscle_groups": [
+      "Мышцы середины спины",
+      "Бицепс",
+      "Широчайшие мышцы спины"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "One-Arm_Kettlebell_Row"
+  },
+  {
+    "name": "Махи гирей одной рукой",
+    "muscle_groups": [
+      "Бицепс бедра",
+      "Икроножные",
+      "Ягодицы",
+      "Разгибатели спины",
+      "Плечи"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "One-Arm_Kettlebell_Swings"
+  },
+  {
+    "name": "Вращение гири вокруг головы",
+    "muscle_groups": [
+      "Плечи",
+      "Трапеции",
+      "Мышцы середины спины",
+      "Пресс",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Kettlebell_Halo"
+  },
+  {
+    "name": "Тяга гири на одной ноге",
+    "muscle_groups": [
+      "Бицепс бедра",
+      "Ягодицы",
+      "Разгибатели спины"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Kettlebell_One-Legged_Deadlift"
+  },
+  {
+    "name": "Разгибание рук с гирей из-за головы",
+    "muscle_groups": [
+      "Трицепс",
+      "Плечи",
+      "Пресс"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Kettlebell_Overhead_Triceps_Extension"
+  },
+  {
+    "name": "Жим гири сидя",
+    "muscle_groups": [
+      "Плечи",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Kettlebell_Seated_Press"
+  },
+  {
+    "name": "Трастер с гирей",
+    "muscle_groups": [
+      "Плечи",
+      "Квадрицепс",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Kettlebell_Thruster"
+  },
+  {
+    "name": "Тяга двух гирь в наклоне",
+    "muscle_groups": [
+      "Мышцы середины спины",
+      "Бицепс",
+      "Широчайшие мышцы спины"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Two-Arm_Kettlebell_Row"
+  },
+  {
+    "name": "Турецкий подъём с гирей через выпад",
+    "muscle_groups": [
+      "Плечи",
+      "Пресс",
+      "Бицепс бедра",
+      "Квадрицепс",
+      "Трицепс"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Kettlebell_Turkish_Get-Up_Lunge_style"
+  },
+  {
+    "name": "Фронтальные приседания с двумя гирями",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Икроножные",
+      "Ягодицы"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": null,
+    "is_bodyweight": false,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Front_Squats_With_Two_Kettlebells"
+  },
+  {
+    "name": "Подтягивания прямым хватом",
+    "muscle_groups": [
+      "Широчайшие мышцы спины",
+      "Бицепс"
+    ],
+    "equipment": [
+      "Турник"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source_id": "Pullups",
+    "source": "https://github.com/yuhonas/free-exercise-db"
+  },
+  {
+    "name": "Австралийские подтягивания",
+    "muscle_groups": [
+      "Широчайшие мышцы спины",
+      "Мышцы середины спины",
+      "Бицепс"
+    ],
+    "equipment": [
+      "Низкая перекладина"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source_id": "Inverted_Row",
+    "source": "https://github.com/yuhonas/free-exercise-db"
+  },
+  {
+    "name": "Мёртвый жук",
+    "muscle_groups": [
+      "Пресс"
+    ],
+    "equipment": [],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source_id": "Dead_Bug",
+    "source": "https://github.com/yuhonas/free-exercise-db"
+  },
+  {
+    "name": "Тяга гири с пола",
+    "muscle_groups": [
+      "Ягодицы",
+      "Бицепс бедра",
+      "Разгибатели спины"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": false
+  },
+  {
+    "name": "Выпады с гирей",
+    "muscle_groups": [
+      "Квадрицепс",
+      "Ягодицы"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Держите гирю у груди или в руке, выполняйте выпад с контролем равновесия.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Супермен",
+    "muscle_groups": [
+      "Разгибатели спины",
+      "Ягодицы"
+    ],
+    "equipment": [],
+    "difficulty": "beginner",
+    "description": null,
+    "is_bodyweight": true,
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "source_id": "Superman"
   }
 ]

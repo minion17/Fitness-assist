@@ -1,0 +1,27 @@
+{
+  "status": "draft_not_for_recommendations",
+  "note": "Черновики для проверки: справочник продуктов и аллергены требуют отдельной экспертной проверки. Не использовать для автоматического подбора.",
+  "recipes": [
+    {
+      "id": "oats_apple",
+      "name": "Овсянка с яблоком",
+      "ingredients": [{"product": "Хлопья овсяные Геркулес", "grams": 60}, {"product": "Яблоко", "grams": 120}],
+      "instructions": "Сварите хлопья на воде по инструкции на упаковке. Добавьте нарезанное яблоко.",
+      "allergens_verified": false
+    },
+    {
+      "id": "cottage_cheese_banana",
+      "name": "Творог с бананом",
+      "ingredients": [{"product": "Творог 2%", "grams": 150}, {"product": "Банан", "grams": 100}],
+      "instructions": "Нарежьте банан и добавьте к творогу.",
+      "allergens_verified": false
+    },
+    {
+      "id": "chicken_cucumber_tomato",
+      "name": "Курица с овощами",
+      "ingredients": [{"product": "Куриное филе отварное", "grams": 150}, {"product": "Огурец", "grams": 100}, {"product": "Помидор", "grams": 100}],
+      "instructions": "Нарежьте полностью готовое отварное куриное филе, огурец и помидор.",
+      "allergens_verified": false
+    }
+  ]
+}

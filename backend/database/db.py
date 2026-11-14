@@ -61,6 +61,17 @@ ADDED_COLUMNS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS program_id INTEGER REFERENCES programs(id) ON DELETE SET NULL",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS portion_g FLOAT",
     "ALTER TABLE products ADD COLUMN IF NOT EXISTS portion_name VARCHAR(40)",
+    *(f"ALTER TABLE meal_preferences ADD COLUMN IF NOT EXISTS {c}" for c in (
+        "persons INTEGER NOT NULL DEFAULT 1",
+        "selected_meals VARCHAR[] NOT NULL DEFAULT ARRAY['breakfast','lunch','dinner']::VARCHAR[]",
+        "shared_meals VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]",
+        "dietary_type VARCHAR(16) NOT NULL DEFAULT 'omnivore'",
+        "cooking_mode VARCHAR(16) NOT NULL DEFAULT 'daily'",
+        "batch_days INTEGER NOT NULL DEFAULT 2",
+        "liked_recipe_ids VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]",
+        "disliked_recipe_ids VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]",
+        "sex VARCHAR(8)",
+    )),
     # name+brand unique only among shared products (was: across all, which blocked users' own dishes)
     "ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_brand_key",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_products_shared_name_brand ON products (name, brand) WHERE owner_user_id IS NULL",

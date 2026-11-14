@@ -19,7 +19,7 @@ import Progress, { type Achievement } from './Progress'
 import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
-import { GOALS, YEAR, type ProfileData, type Recommendation } from './profile'
+import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
 import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import { MEALS, mealNow, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar, Sheet } from './ui'
@@ -123,7 +123,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
         <LevelCard p={progress} />
       </section>
       <section className="card profile-overview">
-        <div className="card-head"><h2>Мои данные</h2><button className="link" aria-label={data ? 'Изменить анкету' : 'Заполнить анкету'} onClick={onEdit}>{data ? 'Изменить' : 'Заполнить'}</button></div>
+        <div className="card-head"><h2>Мои данные</h2><button className="link" aria-label={data ? 'Изменить анкету' : 'Заполнить анкету'} onClick={onEdit}>{data ? 'Моя анкета →' : 'Заполнить →'}</button></div>
       <div className="grid2 profile-metrics">
         <section className="card"><span className="sub">Возраст</span><div className="stat">{shown.age}<small>лет</small></div></section>
         <section className="card"><span className="sub">Рост</span><div className="stat">{shown.height}<small>см</small></div></section>
@@ -160,6 +160,7 @@ export default function App() {
   const [boostUntil, setBoostUntil] = useState<string | null>(boot?.auth.settings.boost_until ?? null) // x2 XP after a duel win
   const [me, setMe] = useState<ProfileData | null>(boot?.auth.profile ?? null)
   const [editing, setEditing] = useState(false)
+  const [profileResult, setProfileResult] = useState<{ profile: ProfileData; recommendation: Recommendation | null } | null>(null)
   const [canEdit, setCanEdit] = useState(Boolean(boot))
   const [foodDay, setFoodDay] = useState<FoodDay>(boot?.food_day ?? demoFoodDay)
   const [programs, setPrograms] = useState<Program[] | null>(boot?.programs ?? null)
@@ -236,7 +237,7 @@ export default function App() {
       if (snap.auth.settings.program_id) startup.current.selectProgram(snap.auth.settings.program_id, false)
     }
     if (!tg?.initData) {
-      publicGet<Program[]>('/api/programs').then(setPrograms).catch(() => setPrograms(demoPrograms)).finally(() => setLoading(false))
+      publicGet<Program[]>('/api/programs').then(items => setPrograms([...items, ...demoPrograms.slice(1).filter(example => !items.some(item => item.name === example.name))])).catch(() => setPrograms(demoPrograms)).finally(() => setLoading(false))
       return
     }
     api<Bootstrap>('/api/bootstrap', { method: 'POST' })
@@ -373,10 +374,38 @@ export default function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p),
     })
-    setMe(saved ?? p)
+    const resultProfile = saved ?? { ...p, targets: calculateTargets(p) }
+    setMe(resultProfile)
+    let recommendation: Recommendation | null = null
+    if (saved) {
+      try {
+        const result = await api<{ recommended_program: Recommendation | null }>('/api/auth', { method: 'POST' })
+        recommendation = result?.recommended_program ?? null
+        setRecommended(recommendation)
+      } catch { setRecommended(null) }
+      refreshJournal().catch(() => {})
+    }
+    setProfileResult({ profile: resultProfile, recommendation })
     setEditing(false)
     window.scrollTo(0, 0)
-    if (saved) refreshJournal().catch(() => {}) // new answers -> new program recommendation
+  }
+
+  if (profileResult) {
+    const targets = profileResult.profile.targets
+    const suggestion = programs?.find((p) => p.id === profileResult.recommendation?.program_id)
+    const finish = (destination: Tab) => { setProfileResult(null); go(destination) }
+    return <div className="app"><main className="screen profile-results">
+      <div><p className="hello">Анкета заполнена</p><h1>Ваши первые ориентиры</h1><p className="sub">Ответы помогут настроить питание и тренировки под вас.</p></div>
+      <section className="card profile-results-card"><h2>Питание на день</h2>
+        {targets ? <><div className="profile-results-calories">{targets.calories} <span>ккал</span></div><div className="sub">Белки {targets.protein} г · Жиры {targets.fat} г · Углеводы {targets.carbs} г</div><p className="sub">Это расчётные ориентиры, не готовый рацион. Их можно уточнять по мере наблюдения за результатами.</p></> : <p className="sub">Ориентиры недоступны в деморежиме. Откройте приложение с подключённым аккаунтом.</p>}
+      </section>
+      <section className="card"><h2>Тренировки</h2>
+        {suggestion ? <><div className="profile-results-program">{suggestion.name}</div>{profileResult.recommendation?.reasons.length ? <p className="sub">{profileResult.recommendation.reasons.join(' · ')}</p> : <p className="sub">Посмотрите программу и решите, подходит ли она вам.</p>}<p className="sub">Подбор учитывает уровень, оборудование и частоту занятий; ограничения и травмы автоматически не проверяются.</p></> : <p className="sub">Рекомендация пока недоступна. Можно посмотреть готовые программы и создать свою.</p>}
+      </section>
+      <button className="btn" onClick={() => finish('workouts')}>Посмотреть тренировки</button>
+      <button className="btn btn-ghost" onClick={() => finish('food')}>Перейти к питанию</button>
+      <button className="link profile-results-close" onClick={() => finish('profile')}>Вернуться в профиль</button>
+    </main></div>
   }
 
   if (canEdit && consent && !consent.ok) {
@@ -412,7 +441,7 @@ export default function App() {
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />

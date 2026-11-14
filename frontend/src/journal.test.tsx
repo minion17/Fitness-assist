@@ -172,7 +172,10 @@ test('weight trend over 30 days', () => {
   expect(weightTrend(ms, today)).toEqual({ latest: 77.5, delta: -1.6 }) // 09-01 is older than 30 days
 })
 
-test('body: add measurement prefilled with latest values, validated', async () => {
+test('body: add measurement prefilled with latest values, validated', async ({ onTestFinished }) => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  onTestFinished(() => { vi.useRealTimers() })
+  vi.setSystemTime(new Date('2026-10-29T12:00:00'))
   const onSave = vi.fn().mockResolvedValue(undefined)
   render(<Body measurements={[m(2, '2026-10-20', 79.1), m(1, '2026-10-13', 79.6, 85)]} canEdit onSave={onSave} onDelete={vi.fn()} />)
   expect(screen.getByText('79.1')).toBeTruthy()

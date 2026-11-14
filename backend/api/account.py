@@ -1,12 +1,12 @@
 """Consent to data processing (152-ФЗ) and deleting the account with all its data."""
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
-from sqlalchemy import delete, update
+from sqlalchemy import delete, select, update
 
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import Profile, User
+from backend.database.models import MealPreferences, Profile, SavedMealPlan, User
 
 router = APIRouter(prefix="/api")
 
@@ -19,11 +19,14 @@ class ConsentIn(BaseModel):
 async def consent(body: ConsentIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """Give consent, or change the health part later. Taking the health consent back erases those answers."""
     user = await get_or_create_user(tg, session)
+    user = await session.scalar(select(User).where(User.id == user.id).with_for_update().execution_options(populate_existing=True))
     now = clock.now()
     user.consent_at = user.consent_at or now
     user.health_consent_at = (user.health_consent_at or now) if body.health else None
     if not body.health:
         await session.execute(update(Profile).where(Profile.user_id == user.id).values(allergies=None, injury=None))
+        await session.execute(delete(SavedMealPlan).where(SavedMealPlan.user_id == user.id))
+        await session.execute(update(MealPreferences).where(MealPreferences.user_id == user.id).values(allergies=""))
     await session.commit()
     return {"consent": True, "health_consent": body.health}
 

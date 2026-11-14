@@ -97,6 +97,9 @@ test('step-by-step questionnaire validates each step and saves all answers', asy
   click('Колени')
   click('Готово')
 
+  expect(await screen.findByText('Ваши первые ориентиры')).toBeTruthy()
+  expect(screen.getByText(/Это расчётные ориентиры/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Вернуться в профиль' }))
   expect(await screen.findByText('Набор мышц')).toBeTruthy()
   expect(screen.getByText('168')).toBeTruthy()
   expect(screen.getByText('61.5')).toBeTruthy()

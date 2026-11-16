@@ -29,6 +29,7 @@ from backend.api.habits import habit_list, router as habits_router
 from backend.api.kitchen import router as kitchen_router
 from backend.api.energy import router as energy_router
 from backend.api.leagues import router as leagues_router
+from backend.api.challenges import router as challenges_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
@@ -796,6 +797,7 @@ app.include_router(habits_router)
 app.include_router(kitchen_router)
 app.include_router(energy_router)
 app.include_router(leagues_router)
+app.include_router(challenges_router)
 app.include_router(account_router)
 app.include_router(meal_preferences_router)
 app.include_router(saved_meal_plan_router)

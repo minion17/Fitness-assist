@@ -3,6 +3,7 @@ import asyncio
 import logging
 from sqlalchemy import func
 
+from backend.api.challenges import finish_challenges
 from backend.api.leagues import finish_leagues
 from backend.api.social import finish_duels, name, pending_messages, reward_invites, week_numbers
 from backend.bot import cards
@@ -55,6 +56,7 @@ async def run(bot, keyboard) -> None:
                     await finish_duels(session)
                     await reward_invites(session)
                     await finish_leagues(session)
+                    await finish_challenges(session)
             await send_pending(bot, keyboard)
         except Exception as e:
             log.warning("outbox loop failed, retrying", exc_info=True)

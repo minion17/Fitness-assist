@@ -603,3 +603,20 @@ test('progression: add weight only when every set reached the top of the plan', 
   expect(nextWeight([s(15, 0)], '15')).toBeNull() // bodyweight
   expect(nextWeight(undefined, '10')).toBeNull()
 })
+
+test('challenges: accept an invitation, tick today', async () => {
+  const { default: Challenges } = await import('./Challenges')
+  const ch = { id: 5, title: 'Без сладкого', emoji: '🍬', days: 7, day: 2, end_day: '', finished: false, mine: false, invited: true,
+    members: [{ name: 'Аня', me: false, joined: true, done: 2, today: true }, { name: 'Вы', me: true, joined: false, done: 0, today: false }] }
+  let state = ch
+  apiMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/join')) state = { ...ch, invited: false, members: ch.members.map((m) => (m.me ? { ...m, joined: true } : m)) }
+    if (url.endsWith('/check')) state = { ...state, members: state.members.map((m) => (m.me ? { ...m, today: true, done: 1 } : m)) }
+    return url === '/api/challenges' ? [state] : state
+  })
+  render(<Challenges friends={[{ id: 2, name: 'Аня' }]} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Принять' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Отметить день' }))
+  await screen.findByRole('button', { name: '✓ Сегодня' })
+  expect(apiMock).toHaveBeenCalledWith('/api/challenges/5/check', expect.objectContaining({ body: JSON.stringify({ done: true }) }))
+})

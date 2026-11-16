@@ -1215,3 +1215,14 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .league-list li.me { outline: 2px solid var(--accent); font-weight: 700; }
 .league-rank { color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
 .league-xp { font-variant-numeric: tabular-nums; font-weight: 700; }
+
+.challenges { display: flex; flex-direction: column; gap: 12px; }
+.challenges .card-head { display: flex; justify-content: space-between; align-items: center; }
+.challenge-form { display: flex; flex-direction: column; gap: 10px; }
+.challenge { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.challenge-head { display: flex; align-items: center; gap: 10px; }
+.challenge-head > div { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.challenge-emoji { font-size: 26px; }
+.challenge-member { display: grid; grid-template-columns: 90px 1fr 44px; align-items: center; gap: 10px; font-size: 14px; }
+.challenge-member > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.challenge-member .sub { text-align: right; font-variant-numeric: tabular-nums; }

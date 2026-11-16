@@ -1707,3 +1707,61 @@ def test_weekly_leagues(client, seeded):
     assert any("Серебро" in m for m in msgs)
     assert client.get("/api/league", headers=heads[0]).json()["tier_name"] == "Серебро"  # a new week, a new group
     assert LeagueMember
+
+
+def test_group_challenges(client, seeded):
+    import random
+    from datetime import timedelta
+
+    from sqlalchemy import select, update
+
+    from backend.api import social
+    from backend.api.challenges import finish_challenges
+    from backend.database.db import SessionLocal
+    from backend.database.models import Challenge, ChallengeCheck, Outbox, User
+
+    ids = [random.randint(9 * 10**9, 10 * 10**9) for _ in range(3)]
+    a, b, c = ({"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Боря", "Вера")))
+    for h in (a, b, c):
+        client.put("/api/profile", headers=h, json=PROFILE)
+
+    async def befriend(x, y):
+        async with SessionLocal() as s:
+            me = await s.scalar(select(User).where(User.telegram_id == x))
+            await social.befriend(s, await social.invite_code(s, me), y, "Друг")
+    client.portal.call(befriend, ids[0], ids[1])
+    board = client.get("/api/friends", headers=a).json()["board"]
+    boris = next(r["id"] for r in board if not r["me"])
+    vera = client.get("/api/friends", headers=c).json()["board"][0]["id"]  # Vera isn't Anya's friend
+
+    assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 5, "friend_ids": [boris]}).status_code == 422
+    assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 7, "friend_ids": [vera]}).status_code == 422
+    ch = client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "emoji": "🍬", "days": 7, "friend_ids": [boris, vera]}).json()
+    assert [m["name"] for m in ch["members"]] == ["Вы", "Боря"] and ch["members"][1]["joined"] is False  # Vera wasn't added
+    cid = ch["id"]
+    assert client.post(f"/api/challenges/{cid}/check", headers=b, json={"done": True}).status_code == 409  # accept first
+    got = client.get("/api/challenges", headers=b).json()[0]
+    assert got["invited"] is True and got["title"] == "Без сладкого"
+    client.post(f"/api/challenges/{cid}/join", headers=b)
+    assert client.post(f"/api/challenges/{cid}/check", headers=a, json={"done": True}).json()["members"][0]["today"] is True
+    assert client.post(f"/api/challenges/{cid}/join", headers=c).status_code == 404  # not invited
+
+    async def finish():
+        async with SessionLocal() as s:  # move it a week back and give Anya 6 of 7 days, Borya 1
+            await s.execute(update(Challenge).where(Challenge.id == cid).values(start_day=Challenge.start_day - timedelta(days=9)))
+            await s.execute(update(ChallengeCheck).where(ChallengeCheck.challenge_id == cid).values(day=ChallengeCheck.day - timedelta(days=9)))
+            ua = await s.scalar(select(User.id).where(User.telegram_id == ids[0]))
+            ub = await s.scalar(select(User.id).where(User.telegram_id == ids[1]))
+            start = (await s.get(Challenge, cid)).start_day
+            for d in range(1, 6):
+                s.add(ChallengeCheck(challenge_id=cid, user_id=ua, day=start + timedelta(days=d)))
+            s.add(ChallengeCheck(challenge_id=cid, user_id=ub, day=start + timedelta(days=3)))
+            await s.commit()
+            n = await finish_challenges(s)
+            texts = {i: list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == i, Outbox.text.like("%завершён%")))) for i in ids[:2]}
+            xa = await s.scalar(select(User.xp).where(User.id == ua))
+            return n, texts, xa
+    n, texts, xp = client.portal.call(finish)
+    assert n >= 1 and "справились: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
+    assert "1 из 7" in texts[ids[1]][0] and "Аня 6/7" in texts[ids[1]][0]
+    assert client.get("/api/challenges", headers=a).json()[0]["finished"] is True

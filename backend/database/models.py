@@ -371,6 +371,36 @@ class WeeklyQuest(Base):
     slot: Mapped[int] = mapped_column(Integer)  # display order
 
 
+class Challenge(Base):
+    """A group challenge among friends: a daily tick for N days ("30 дней без сладкого")."""
+
+    __tablename__ = "challenges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    creator_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(60))
+    emoji: Mapped[str] = mapped_column(String(8), default="🔥")
+    days: Mapped[int] = mapped_column(Integer)
+    start_day: Mapped[date] = mapped_column(Date)  # in the creator's calendar
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+
+class ChallengeMember(Base):
+    __tablename__ = "challenge_members"
+
+    challenge_id: Mapped[int] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    joined: Mapped[bool] = mapped_column(Boolean, default=False)  # False: invited, not answered yet
+
+
+class ChallengeCheck(Base):
+    __tablename__ = "challenge_checks"
+
+    challenge_id: Mapped[int] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+
+
 class League(Base):
     """A weekly group of up to 20 people of one tier competing by XP (Duolingo-style)."""
 

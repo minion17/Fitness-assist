@@ -42,10 +42,10 @@ test('helpers: next program day and meal by time', () => {
 
 test('workout session: logs sets, then completes', async () => {
   const onChanged = vi.fn()
-  apiMock.mockResolvedValueOnce({}) // last time: nothing yet
-    .mockResolvedValueOnce({ id: 99 }) // start workout
-    .mockResolvedValueOnce({ id: 1 }) // set
-    .mockResolvedValueOnce({ ok: true, xp_awarded: 50 }) // complete
+  apiMock.mockImplementation(async (url: string) =>
+    url.startsWith('/api/exercises/last') ? {} // last time: nothing yet
+      : url === '/api/workout-logs' ? { id: 99 } : url.endsWith('/sets') ? { id: 1, record: null }
+      : url.endsWith('/complete') ? { ok: true, xp_awarded: 50 } : { ok: true }) // rest timer
   render(<Workouts programs={[program]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={onChanged} />)
 
   fireEvent.click(screen.getByRole('button', { name: 'Начать тренировку' }))
@@ -63,7 +63,7 @@ test('workout session: logs sets, then completes', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: /Завершить тренировку/ }))
   await waitFor(() => expect(onChanged).toHaveBeenCalledWith(50))
-  expect(apiMock.mock.calls[3][0]).toBe('/api/workout-logs/99/complete')
+  expect(apiMock.mock.calls.map((c) => c[0])).toContain('/api/workout-logs/99/complete')
 })
 
 test('workout session shows last time and prefills its weights', async () => {
@@ -591,4 +591,15 @@ test('real expenditure: shows the estimate, the forecast and applies the suggest
   fireEvent.click(screen.getByRole('button', { name: /Сделать норму 2.000 ккал/ }))
   await waitFor(() => expect(onNorm).toHaveBeenCalled())
   expect(apiMock).toHaveBeenCalledWith('/api/insights/energy/apply', expect.objectContaining({ body: JSON.stringify({ kcal: 2000 }) }))
+})
+
+test('progression: add weight only when every set reached the top of the plan', async () => {
+  const { nextWeight, topReps } = await import('./progression')
+  const s = (reps: number, weight_kg: number) => ({ reps, duration_seconds: null, weight_kg })
+  expect(topReps('8-12')).toBe(12)
+  expect(nextWeight([s(12, 60), s(12, 60), s(12, 60)], '8-12')).toBe(62.5)
+  expect(nextWeight([s(12, 60), s(10, 60)], '8-12')).toBeNull() // not all sets made it
+  expect(nextWeight([s(10, 12), s(10, 12)], '10')).toBe(13) // dumbbells: +1 kg
+  expect(nextWeight([s(15, 0)], '15')).toBeNull() // bodyweight
+  expect(nextWeight(undefined, '10')).toBeNull()
 })

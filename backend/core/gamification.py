@@ -16,16 +16,17 @@ RULES: dict[str, int] = {
     "quest_50": 50,
     "quest_80": 80,
     "quests_all": 50,  # all three of the week done
+    "personal_record": 15,  # a set better than every earlier one of that exercise (capped: 3 a day)
     "product_shared": 25,  # a product you added was confirmed by 2+ other people and joined the shared catalog  # when the invited friend fills the profile (not on the click: no farming with empty accounts)
 }
 
 BOOST = 1.5  # XP multiplier after a duel win
 BOOST_HOURS = 24
-NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared"}
+NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record"}
 MAX_INVITE_REWARDS = 10
 # Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling
 # 20 hours) stop "travelling" through timezones to collect the same day's XP twice.
-ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5}
+ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5, "personal_record": 3}
 CAP_WINDOW_HOURS = 20
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...

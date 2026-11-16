@@ -457,7 +457,7 @@ export default function App() {
         {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} onLogSet={logSet} onSaved={flash} onLogBatch={logBatch} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
-            canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />
+            canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} onRecord={(t) => { celebrate(t); refreshJournal().catch(() => {}) }} />
         )}
         {tab === 'progress' && (
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}

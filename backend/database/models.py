@@ -478,5 +478,6 @@ class Outbox(Base):
     text: Mapped[str] = mapped_column(Text)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))  # whose card to draw
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    send_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # a delayed message (rest timer)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 

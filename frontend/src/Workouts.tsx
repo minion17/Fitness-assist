@@ -6,6 +6,7 @@ import Empty from './Empty'
 import exerciseCatalog from '../../content/exercises/exercises.json'
 import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
+import { nextWeight } from './progression'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
@@ -19,7 +20,8 @@ function ExerciseThumbnail({ name, index }: { name: string; index: number }) {
   </span>
 }
 
-export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange }: {
+export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord }: {
+  onRecord?: (text: string) => void // a personal record: confetti in the app
   recommended?: Recommendation | null
   programs: Program[] | null
   logs: WorkoutLog[]
@@ -93,7 +95,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   if (programs === null) return <><h1>Тренировки</h1><p className="sub">Загружаем программы…</p></>
 
   if (session && program) {
-    return <Session program={program} day={session} onExit={() => setSession(null)} onChanged={onChanged} />
+    return <Session program={program} day={session} onExit={() => setSession(null)} onChanged={onChanged} onRecord={onRecord} />
   }
 
   if (personalList && previewProgramId !== null) {
@@ -197,12 +199,47 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
 type SetState = { reps: string; weight: string; saved: boolean }
 
-function Session({ program, day, onExit, onChanged }: {
+type Rest = { until: number; total: number; next: string }
+const clockText = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+function Session({ program, day, onExit, onChanged, onRecord }: {
   program: Program
   day: ProgramDay
   onExit: () => void
   onChanged: (xp: number) => void
+  onRecord?: (text: string) => void
 }) {
+  const [rest, setRest] = useState<Rest | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!rest) return
+    const t = setInterval(() => {
+      setNow(Date.now())
+      if (Date.now() < rest.until) return
+      // over while the app is open: buzz here and drop the Telegram message queued for the background case
+      tg?.HapticFeedback?.notificationOccurred?.('success')
+      try { navigator.vibrate?.([200, 100, 200]) } catch { /* not supported */ }
+      if (document.visibilityState === 'visible') api('/api/rest-timer', { method: 'DELETE' }).catch(() => {})
+      setRest(null)
+    }, 250)
+    return () => clearInterval(t)
+  }, [rest])
+  const restLeft = rest ? Math.max(0, Math.ceil((rest.until - now) / 1000)) : 0
+
+  function startRest(seconds: number, next: string) {
+    setRest({ until: Date.now() + seconds * 1000, total: seconds, next })
+    setNow(Date.now())
+    api('/api/rest-timer', postJson({ seconds, next })).catch(() => {}) // a message if they leave the app meanwhile
+  }
+  function addRest(sec: number) {
+    if (!rest) return
+    const left = Math.max(10, restLeft + sec)
+    startRest(left, rest.next)
+  }
+  function skipRest() {
+    setRest(null)
+    api('/api/rest-timer', { method: 'DELETE' }).catch(() => {})
+  }
   // shortcut: unsaved inputs live in component state and are lost on tab switch; saved sets are on the server
   const [logId, setLogId] = useState<number | null>(null)
   const [sets, setSets] = useState<SetState[][]>(() =>
@@ -222,8 +259,9 @@ function Session({ program, day, onExit, onChanged }: {
       // empty weight fields take last time's weight for the same set (or the last set done)
       setSets((prev) => prev.map((row, ei) => {
         const done = r[day.exercises[ei].exercise_id]?.sets
+        const up = nextWeight(done, day.exercises[ei].reps) // every set hit the top of the plan last time: a bit heavier
         return !done?.length ? row : row.map((x, si) => x.saved || x.weight !== '' ? x
-          : { ...x, weight: String((done[si] ?? done[done.length - 1]).weight_kg || '') })
+          : { ...x, weight: String(up ?? ((done[si] ?? done[done.length - 1]).weight_kg || '')) })
       }))
     }).catch(() => {})  // hint only: the workout works without it
     return () => { stale = true }
@@ -252,9 +290,16 @@ function Session({ program, day, onExit, onChanged }: {
     setBusy(true)
     try {
       const id = await ensureLog()
-      await api(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
+      const r = await api<{ record: { kind: string } | null }>(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
       update(ei, si, { saved: true })
+      // the next sets of this exercise start from the weight just done, if they have none yet
+      if (weight) setSets((prev) => prev.map((row, i) => (i !== ei ? row : row.map((x, j) => (j > si && !x.saved && x.weight === '' ? { ...x, weight: s.weight } : x)))))
       tg?.HapticFeedback?.impactOccurred?.('medium')
+      if (r?.record) onRecord?.(`🏆 Личный рекорд: ${day.exercises[ei].name} — ${timed ? `${reps} с` : weight ? `${String(weight).replace('.', ',')} кг × ${reps}` : `${reps} повт`}`)
+      // rest before the next set (of this exercise, or the next one when this was its last)
+      const more = sets[ei].some((x, j) => j !== si && !x.saved)
+      const nextName = more ? day.exercises[ei].name : day.exercises[ei + 1]?.name
+      if (nextName && day.exercises[ei].rest_seconds >= 10) startRest(day.exercises[ei].rest_seconds, nextName)
       if (!list && ei === cur && cur < day.exercises.length - 1 && sets[ei].every((x, j) => j === si || x.saved)) {
         setTimeout(() => setCur((c) => (c === ei ? c + 1 : c)), 450) // the exercise is done: next one
       }
@@ -266,6 +311,7 @@ function Session({ program, day, onExit, onChanged }: {
   }
 
   async function finish() {
+    if (rest) skipRest()
     setBusy(true)
     try {
       const r = await api<{ xp_awarded: number }>(`/api/workout-logs/${logId}/complete`, { method: 'POST' })
@@ -278,6 +324,7 @@ function Session({ program, day, onExit, onChanged }: {
   }
 
   function exit() {
+    if (rest) skipRest()
     if (savedCount > 0) onChanged(0) // refresh history: the unfinished workout is already on the server
     onExit()
   }
@@ -313,6 +360,9 @@ function Session({ program, day, onExit, onChanged }: {
             {last[e.exercise_id]?.sets.length ? (
               <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
             ) : null}
+            {nextWeight(last[e.exercise_id]?.sets, e.reps) && (
+              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуйте {String(nextWeight(last[e.exercise_id]?.sets, e.reps)).replace('.', ',')} кг</div>
+            )}
           </div>
           <div className="session-set-labels" aria-hidden="true"><span>Подход</span><span>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'Время' : 'Повторы'}</span><span>Вес</span><span>Готово</span></div>
           {sets[ei].map((s, si) => (
@@ -335,6 +385,16 @@ function Session({ program, day, onExit, onChanged }: {
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}
+      {rest && (
+        <div className="rest-timer" role="timer" aria-live="off">
+          <div className="rest-bar" style={{ width: `${(restLeft / rest.total) * 100}%` }} />
+          <div className="rest-body">
+            <span><b>Отдых {clockText(restLeft)}</b><small>дальше: {rest.next}</small></span>
+            <button className="link" onClick={() => addRest(15)}>+15 с</button>
+            <button className="link" onClick={skipRest}>Пропустить</button>
+          </div>
+        </div>
+      )}
       <button className={!list && total > 1 && cur < total - 1 ? 'btn btn-ghost' : 'btn'} disabled={savedCount === 0 || busy} onClick={finish}>
         {savedCount === 0 ? 'Отметьте хотя бы один подход' : `Завершить тренировку · ${savedCount} подх.`}
       </button>

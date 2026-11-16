@@ -1604,3 +1604,46 @@ def test_what_to_eat_from_own_meals(client, seeded):
     assert logged["logged"] == 2
     assert client.post("/api/food-logs/batch", headers=new_user_headers(), json={"meal_type": "dinner",
            "items": [{"product_id": 10**9, "amount_g": 100}]}).status_code == 404
+
+
+def test_personal_records_and_rest_timer(client, seeded):
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import select
+
+    from backend.api.social import pending_messages
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox
+
+    tg_id = random.randint(7 * 10**9, 8 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    ex = client.get("/api/exercises", headers=h).json()[0]["id"]
+
+    def workout(*sets):
+        log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
+        return [client.post(f"/api/workout-logs/{log}/sets", headers=h, json={"exercise_id": ex, "set_number": i + 1, **s}).json()
+                for i, s in enumerate(sets)]
+
+    first = workout({"reps": 8, "weight_kg": 60})
+    assert first[0]["record"] is None  # the very first set isn't a record
+    r = workout({"reps": 8, "weight_kg": 60}, {"reps": 6, "weight_kg": 70}, {"reps": 20, "weight_kg": 50})
+    assert r[0]["record"] is None  # same as before
+    assert r[1]["record"]["kind"] == "weight" and r[1]["record"]["value"] > r[1]["record"]["previous"] and r[1]["xp_awarded"] == 15
+    assert r[2]["record"] is None  # 20 reps: the 1RM formula isn't trusted
+    pull = workout({"reps": 5, "weight_kg": 0}, {"reps": 7, "weight_kg": 0})
+    assert pull[0]["record"] is None and pull[1]["record"] == {"kind": "reps", "value": 7, "previous": 5}
+    assert pull[1]["xp_awarded"] == 0  # one record XP per exercise per day
+
+    client.post("/api/rest-timer", headers=h, json={"seconds": 90, "next": "Жим лёжа"})
+    client.post("/api/rest-timer", headers=h, json={"seconds": 10})  # a new timer replaces the old one
+
+    async def queued(at_shift=0):
+        async with SessionLocal() as s:
+            rows = list(await s.scalars(select(Outbox).where(Outbox.telegram_id == tg_id, Outbox.kind == "rest")))
+            due = [m for m in await pending_messages(s, 10000) if m.telegram_id == tg_id]
+            return len(rows), len(due), rows[0].send_after - datetime.now(timezone.utc) if rows else None
+    n, due, left = client.portal.call(queued)
+    assert n == 1 and due == 0 and timedelta(seconds=10) < left <= timedelta(seconds=15)  # not sent before the time
+    client.delete("/api/rest-timer", headers=h)
+    assert client.portal.call(queued)[0] == 0

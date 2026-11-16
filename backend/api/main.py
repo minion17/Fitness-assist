@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from sqlalchemy import func, literal, or_, select, text
+from sqlalchemy import delete, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
@@ -40,6 +40,7 @@ from backend.database.models import (
     Exercise,
     FoodLog,
     Product,
+    Outbox,
     Profile,
     Program,
     SearchMiss,
@@ -630,10 +631,65 @@ async def log_set(
         raise HTTPException(404, "Упражнение не найдено")
     if (body.reps is None) == (body.duration_seconds is None):
         raise HTTPException(422, "Укажите повторы или время")
+    record = await personal_record(session, user, body)  # before adding: compare with what was there
     ws = WorkoutSet(workout_log_id=w.id, **body.model_dump())
     session.add(ws)
     await session.commit()
-    return {"id": ws.id}
+    xp = await award_xp(session, user.id, "personal_record", f"pr:{body.exercise_id}:{clock.today()}") if record else 0
+    return {"id": ws.id, "record": record, "xp_awarded": xp}
+
+
+def e1rm(weight: float, reps: int) -> float:
+    """Estimated one-rep max (Epley): compares 60 kg × 10 with 70 kg × 5."""
+    return weight * (1 + reps / 30)
+
+
+async def personal_record(session: AsyncSession, user: User, body: "WorkoutSetIn") -> dict | None:
+    """Is this set better than every earlier set of the exercise? Weighted: by estimated 1RM (reps ≤ 15 only, beyond
+    that the formula lies); bodyweight: by reps; timed: by seconds. The very first time is not a record yet."""
+    rows = list(await session.execute(
+        select(WorkoutSet.reps, WorkoutSet.duration_seconds, WorkoutSet.weight_kg)
+        .join(WorkoutLog, WorkoutLog.id == WorkoutSet.workout_log_id)
+        .where(WorkoutLog.user_id == user.id, WorkoutSet.exercise_id == body.exercise_id)))
+    if not rows:
+        return None
+    if body.duration_seconds:
+        best = max((d or 0) for _, d, _ in rows)
+        return {"kind": "time", "value": body.duration_seconds, "previous": best} if best and body.duration_seconds > best else None
+    if body.weight_kg > 0 and body.reps <= 15:
+        best = max((e1rm(w, r) for r, _, w in rows if r and w and r <= 15), default=0)
+        now = e1rm(body.weight_kg, body.reps)
+        return {"kind": "weight", "value": round(now, 1), "previous": round(best, 1)} if best and now > best * 1.005 else None
+    if body.weight_kg == 0:
+        best = max((r or 0 for r, _, w in rows if not w), default=0)
+        return {"kind": "reps", "value": body.reps, "previous": best} if best and body.reps > best else None
+    return None
+
+
+class RestIn(BaseModel):
+    seconds: int = Field(ge=10, le=900)
+    next: str = Field(default="", max_length=120)  # the exercise to go back to
+
+
+@app.post("/api/rest-timer")
+async def rest_timer(body: RestIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """A Telegram message when the rest is over, for when the app is in the background. The app cancels it if it is
+    open when the time comes (hence the few spare seconds); one timer per user."""
+    user = await get_or_create_user(tg, session)
+    await session.execute(delete(Outbox).where(Outbox.telegram_id == user.telegram_id, Outbox.kind == "rest", Outbox.sent_at.is_(None)))
+    text_ = "⏱ Отдых окончен — пора на следующий подход" + (f": {body.next}" if body.next else "")
+    session.add(Outbox(telegram_id=user.telegram_id, kind="rest", text=text_,
+                       send_after=datetime.now(timezone.utc) + timedelta(seconds=body.seconds + 4)))
+    await session.commit()
+    return {"ok": True}
+
+
+@app.delete("/api/rest-timer")
+async def cancel_rest_timer(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    await session.execute(delete(Outbox).where(Outbox.telegram_id == user.telegram_id, Outbox.kind == "rest", Outbox.sent_at.is_(None)))
+    await session.commit()
+    return {"ok": True}
 
 
 @app.post("/api/workout-logs/{log_id}/complete")

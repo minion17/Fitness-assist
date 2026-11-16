@@ -301,8 +301,56 @@ async def log_batch(body: BatchIn, tg: dict = Depends(telegram_user), session: A
     if any(pid not in known for pid, *_ in items):
         raise HTTPException(404, "Продукт не найден")
     when, day = entry_time(body.day, body.meal_type, body.snack_slot)
-    session.add_all(FoodLog(user_id=user.id, product_id=pid, amount_g=g, unit=str(u)[:12] if u else None,
-                            qty=float(q) if q else None, meal_type=body.meal_type, **when) for pid, g, u, q in items)
+    logs = [FoodLog(user_id=user.id, product_id=pid, amount_g=g, unit=str(u)[:12] if u else None,
+                    qty=float(q) if q else None, meal_type=body.meal_type, **when) for pid, g, u, q in items]
+    session.add_all(logs)
     await session.commit()
     xp = await meal_xp(session, user, day, body.meal_type)
-    return {"logged": len(items), "xp_awarded": xp}
+    return {"logged": len(items), "ids": [log.id for log in logs], "xp_awarded": xp}  # ids: "Отменить" deletes them
+
+
+# ---- "Как обычно": the meal the user eats again and again, logged in one tap from Home ----
+
+USUAL_DAYS = 28
+
+
+def usual_of(days: list[list]) -> list | None:
+    """days: [(log, product), ...] of one meal type per past day, newest first. The same set of products on 2+ days,
+    else the products eaten on at least half of the days (3+ days). Amounts from the latest time."""
+    keys = [frozenset(p.id for _, p in d) for d in days]
+    repeated = next((d for d, k in zip(days, keys) if keys.count(k) >= 2), None)
+    if repeated:
+        return repeated
+    seen: dict[int, list] = {}
+    for d in days:
+        for pid in {p.id for _, p in d}:
+            seen.setdefault(pid, []).append(next(x for x in d if x[1].id == pid))
+    often = [rows[0] for rows in seen.values() if len(rows) >= 3 and len(rows) * 2 >= len(days)]
+    return often or None
+
+
+@router.get("/usual")
+async def usual_meal(meal_type: str, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """The usual breakfast / lunch / dinner — offered on Home while that meal is still empty today."""
+    from datetime import timedelta
+
+    if meal_type not in MEALS:
+        raise HTTPException(422, "Неизвестный приём пищи")
+    user = await get_or_create_user(tg, session)
+    today = clock.today()
+    rows = await session.execute(
+        select(FoodLog, Product).join(Product, Product.id == FoodLog.product_id)
+        .where(FoodLog.user_id == user.id, FoodLog.meal_type == meal_type, FoodLog.logged_at >= local_start(today - timedelta(days=USUAL_DAYS)))
+        .order_by(FoodLog.logged_at.desc()))
+    by_day: dict = {}
+    for log, p in rows:
+        by_day.setdefault(log.logged_at.astimezone(clock.tz()).date(), []).append((log, p))
+    if today in by_day:
+        return None  # already eaten today
+    items = usual_of(list(by_day.values()))
+    if not items:
+        return None
+    items = sorted(items, key=lambda x: x[0].logged_at)
+    return {"meal_type": meal_type, "title": ", ".join(p.name for _, p in items[:3]) + ("…" if len(items) > 3 else ""),
+            "items": [{"product_id": p.id, "amount_g": log.amount_g, "unit": log.unit, "qty": log.qty} for log, p in items],
+            **totals((p, log.amount_g) for log, p in items)}

@@ -1609,7 +1609,7 @@ def test_what_to_eat_from_own_meals(client, seeded):
     assert not any(cake["name"] in t for t in titles)  # 400 g of cake doesn't fit what's left
     opt = r["options"][0]
     logged = client.post("/api/food-logs/batch", headers=h, json={"meal_type": "dinner", "items": opt["items"]}).json()
-    assert logged["logged"] == 2
+    assert logged["logged"] == 2 and len(logged["ids"]) == 2
     assert client.post("/api/food-logs/batch", headers=new_user_headers(), json={"meal_type": "dinner",
            "items": [{"product_id": 10**9, "amount_g": 100}]}).status_code == 404
 
@@ -1835,3 +1835,22 @@ def test_food_calendar(client, seeded):
     assert list(r["days"]) == [today.isoformat()] and r["days"][today.isoformat()] > 0 and r["goal"] > 0
     assert client.get("/api/food-calendar?month=2026-13", headers=h).status_code == 422
     assert client.get("/api/food-calendar?month=2099-01", headers=h).json() == {"days": {}, "goal": None}
+
+
+def test_usual_meal(client, seeded):
+    from datetime import date, timedelta
+
+    h = new_user_headers()
+    search = lambda q: client.get(f"/api/products/search?q={q}", headers=h).json()[0]["id"]  # noqa: E731
+    oats, egg = search("Овсянка"), search("Яйцо")
+    day = lambda n: (date.today() - timedelta(days=n)).isoformat()  # noqa: E731
+    log = lambda pid, n, g=100: client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": g, "meal_type": "breakfast", "day": day(n)})  # noqa: E731
+    assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # no history yet
+    log(oats, 3, 60); log(egg, 3, 110)
+    assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # once is not "usual"
+    log(oats, 1, 80); log(egg, 1, 110)
+    u = client.get("/api/usual?meal_type=breakfast", headers=h).json()
+    assert {i["product_id"]: i["amount_g"] for i in u["items"]} == {oats: 80, egg: 110} and u["kcal"] > 0  # latest amounts
+    assert client.get("/api/usual?meal_type=snack2", headers=h).status_code == 422
+    client.post("/api/food-logs", headers=h, json={"product_id": oats, "amount_g": 50, "meal_type": "breakfast"})
+    assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # eaten today: nothing to offer

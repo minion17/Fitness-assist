@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useCountUp } from './motion'
 import { useBack } from './back'
 
@@ -51,5 +52,21 @@ export function Chevron() {
   return (
     <svg className="chev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+  )
+}
+
+const tipKey = (id: string) => `setly-tip-${id}`
+const tipSeen = (id: string) => { try { return Boolean(localStorage.getItem(tipKey(id))) } catch { return true } }
+
+/** A one-time hint about a gesture; "Понятно" hides it for good. `after`: wait until that tip is dismissed (one at a time). */
+export function Tip({ id, after, children }: { id: string; after?: string; children: React.ReactNode }) {
+  const [shown, setShown] = useState(() => !tipSeen(id) && (!after || tipSeen(after)))
+  if (!shown) return null
+  return (
+    <div className="tip" role="note">
+      <span className="tip-icon" aria-hidden="true">💡</span>
+      <span className="tip-text">{children}</span>
+      <button className="link" onClick={() => { try { localStorage.setItem(tipKey(id), '1') } catch { /* private mode */ } setShown(false) }}>Понятно</button>
+    </div>
   )
 }

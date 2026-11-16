@@ -115,7 +115,7 @@ test('food: search a product and add grams to a meal', async () => {
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
 
-test('food: line actions — change grams, delete asks for confirmation', async () => {
+test('food: line actions — change grams, move, delete', async () => {
   const day: FoodDay = {
     date: '', totals: { kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 },
     items: [{ id: 42, meal_type: 'lunch', amount_g: 100, logged_at: '', kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3,
@@ -137,11 +137,7 @@ test('food: line actions — change grams, delete asks for confirmation', async 
   await waitFor(() => expect(onMove).toHaveBeenCalledWith(42, 'dinner'))
 
   fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
-  expect(onDelete).not.toHaveBeenCalled()
-  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Да, удалить' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' })) // no "are you sure": the toast offers undo
   await waitFor(() => expect(onDelete).toHaveBeenCalledWith(42))
 })
 
@@ -687,4 +683,33 @@ test('food: the calendar colours days by the norm and opens a picked day; old da
   render(<Food day={empty} date={old.toLocaleDateString('sv-SE')} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
   expect(screen.getByText(/только для просмотра/)).toBeTruthy()
   expect(screen.queryByRole('button', { name: '+ Добавить' })).toBeNull()
+})
+
+test('food: quick amounts and what is left of the norm after a product', async () => {
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 1500, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  apiMock.mockResolvedValue(null)
+  publicGetMock.mockResolvedValue([{ id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 }])
+  const onAdd = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={empty} targets={{ calories: 2000, protein: 120, fat: 70, carbs: 230 }} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'тв' } })
+  expect(await screen.findByText('останется 379', {}, { timeout: 2000 })).toBeTruthy() // 500 left − 121
+  fireEvent.click(screen.getByRole('button', { name: /^Творог 5%/ }))
+  fireEvent.click(within(screen.getByRole('group', { name: 'Быстрое количество' })).getByRole('button', { name: '300' }))
+  expect((screen.getByRole('textbox', { name: 'Количество' }) as HTMLInputElement).value).toBe('300')
+  expect(screen.getByText(/останется 137/)).toBeTruthy()
+  fireEvent.click(within(screen.getByRole('group', { name: 'Быстрое количество' })).getByRole('button', { name: '200' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Количество' }), { target: { value: '500' } })
+  expect(screen.getByText(/сверх нормы на 105/)).toBeTruthy()
+})
+
+test('home: the usual meal in one tap', async () => {
+  const { default: Home } = await import('./Home')
+  const run = vi.fn()
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  render(<Home name="Егор" level={1} streak={0} day={empty} logs={[]} water={{ ml: 0, goal_ml: 2000 }} aiEnabled={false} canEdit
+    onFood={vi.fn()} onNutrition={vi.fn()} onWorkouts={vi.fn()} onWater={vi.fn()}
+    usual={{ meal: 'Завтрак', title: 'Овсянка, Яйцо', kcal: 380, run }} />)
+  fireEvent.click(screen.getByRole('button', { name: /Завтрак как обычно/ }))
+  expect(run).toHaveBeenCalled()
 })

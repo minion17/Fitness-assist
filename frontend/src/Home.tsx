@@ -87,6 +87,17 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
   )
 }
 
+function UsualCard({ meal, title, kcal, run }: { meal: string; title: string; kcal: number; run: () => void }) {
+  const [busy, setBusy] = useState(false)
+  return (
+    <button className="card usual-card" disabled={busy} onClick={() => { setBusy(true); run() }}>
+      <span className="usual-icon" aria-hidden="true">↻</span>
+      <span className="step-text"><b>{meal} как обычно</b><span className="sub">{title} · {fmt(kcal)} ккал</span></span>
+      <span className="usual-go">{busy ? '…' : 'Записать'}</span>
+    </button>
+  )
+}
+
 export default function Home(props: {
   name: string
   level: number
@@ -109,6 +120,7 @@ export default function Home(props: {
   habits?: React.ReactNode
   weight?: React.ReactNode // quick weigh-in, below the day's main cards
   repeat?: { title: string; kcal: number; run: () => void } | null
+  usual?: { meal: string; title: string; kcal: number; run: () => void } | null // "Как обычно": the usual meal in one tap
 }) {
   const { targets, day, water } = props
   const [waterOpen, setWaterOpen] = useState(false) // the glass with +/- and portions, under the day card
@@ -177,6 +189,7 @@ export default function Home(props: {
           <button className="btn btn-ghost btn-side water-quick" aria-label="Добавить стакан воды, 250 мл" onClick={() => props.onWater(250)}>+💧 250</button>
         </div>
       )}
+      {props.usual && <UsualCard {...props.usual} />}
       {props.repeat && (
         <button className="link repeat-link" onClick={props.repeat.run}>↻ {props.repeat.title.toLowerCase()} · {fmt(props.repeat.kcal)} ккал</button>
       )}

@@ -13,7 +13,7 @@ import { api, ApiError, postJson, publicGet, tg } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
 import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
-import { Bar, Ring, Sheet, Chevron } from './ui'
+import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
 const MACROS = [
@@ -47,19 +47,20 @@ const ACTIONS_W = 148 // px revealed by a swipe: "Граммы" + "Удалит�
 
 const LONG_PRESS_MS = 450
 
-/** A diary line. Swipe left for "Граммы" / "Удалить"; a long press (or ⋯) opens the menu: amount, move, copy to today, delete. */
+/** A diary line. Swipe left for "Граммы" / "Удалить"; a long press (or ⋯) opens the menu: amount, move, copy to today, delete.
+ * Deleting doesn't ask: the toast offers "Отменить". */
 function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
   item: FoodItem; canEdit: boolean; onDelete: (id: number) => Promise<void>; onGrams: (id: number, grams: number) => Promise<void>
   onMove?: (id: number, meal: MealType) => Promise<void>; onCopyToday?: (item: FoodItem) => Promise<void>
 }) {
   const [open, setOpen] = useState(false)
-  const [menu, setMenu] = useState<'menu' | 'confirm' | null>(null)
+  const [menu, setMenu] = useState(false)
   const [busy, setBusy] = useState(false)
   const press = useRef<ReturnType<typeof setTimeout> | null>(null)
   const stopPress = () => { if (press.current) clearTimeout(press.current); press.current = null }
-  const act = (run: () => Promise<void>) => { setBusy(true); run().then(() => setMenu(null)).catch(() => {}).finally(() => setBusy(false)) }
+  const act = (run: () => Promise<void>) => { setBusy(true); run().then(() => setMenu(false)).catch(() => {}).finally(() => setBusy(false)) }
   const [drag, setDrag] = useState<number | null>(null) // live offset while the finger moves
-  const [mode, setMode] = useState<'grams' | 'confirm' | null>(null)
+  const [mode, setMode] = useState<'grams' | null>(null)
   const [grams, setGrams] = useState(String(i.amount_g))
   const start = useRef<{ x: number; y: number; base: number } | null>(null)
   const g = Number(grams.replace(',', '.'))
@@ -85,7 +86,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
       {canEdit && (
         <div className="swipe-actions" aria-hidden={!open}>
           <button tabIndex={open ? 0 : -1} onClick={() => { setGrams(String(i.amount_g)); setMode('grams') }}>Граммы</button>
-          <button className="swipe-delete" tabIndex={open ? 0 : -1} onClick={() => setMode('confirm')}>Удалить</button>
+          <button className="swipe-delete" tabIndex={open ? 0 : -1} onClick={() => { setOpen(false); onDelete(i.id).catch(() => {}) }}>Удалить</button>
         </div>
       )}
       <div className={`row swipe-front${drag === null ? '' : ' dragging'}`} style={{ transform: `translateX(${offset}px)` }}
@@ -93,7 +94,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
           if (!canEdit || mode !== null) return
           start.current = { x: e.clientX, y: e.clientY, base: open ? -ACTIONS_W : 0 }
           stopPress()
-          press.current = setTimeout(() => { start.current = null; setDrag(null); setOpen(false); tg?.HapticFeedback?.impactOccurred?.('medium'); setMenu('menu') }, LONG_PRESS_MS)
+          press.current = setTimeout(() => { start.current = null; setDrag(null); setOpen(false); tg?.HapticFeedback?.impactOccurred?.('medium'); setMenu(true) }, LONG_PRESS_MS)
         }}
         onPointerMove={(e) => {
           const s0 = start.current
@@ -111,29 +112,14 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
           <div className="row-title">{i.product.name}</div>
           <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${unitWord(i.unit, i.qty)} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
         </div>
-        {mode === 'confirm' ? (
-          <div className="confirm">
-            <button className="link danger" onClick={() => onDelete(i.id)}>Удалить</button>
-            <button className="link" onClick={() => { setMode(null); setOpen(false) }}>Отмена</button>
-          </div>
-        ) : (
-          <>
-            <div className="row-end">{Math.round(i.kcal)} ккал</div>
-            {canEdit && <button className="icon-btn" aria-label={`Действия: ${i.product.name}`} aria-haspopup="dialog" onClick={() => { setOpen(false); setMenu('menu') }}>⋯</button>}
-          </>
-        )}
+        <div className="row-end">{Math.round(i.kcal)} ккал</div>
+        {canEdit && <button className="icon-btn" aria-label={`Действия: ${i.product.name}`} aria-haspopup="dialog" onClick={() => { setOpen(false); setMenu(true) }}>⋯</button>}
       </div>
       {menu && (
-        <Sheet title={i.product.name} onClose={() => setMenu(null)}>
+        <Sheet title={i.product.name} onClose={() => setMenu(false)}>
           <p className="sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${unitWord(i.unit, i.qty)} · ` : ''}{i.amount_g} г · {Math.round(i.kcal)} ккал</p>
-          {menu === 'confirm' ? (
-            <div className="food-menu">
-              <button className="btn btn-danger" disabled={busy} onClick={() => act(() => onDelete(i.id))}>Да, удалить</button>
-              <button className="btn btn-ghost" onClick={() => setMenu('menu')}>Отмена</button>
-            </div>
-          ) : (
-            <div className="food-menu">
-              <button className="btn btn-ghost" onClick={() => { setMenu(null); setGrams(String(i.amount_g)); setMode('grams') }}>Изменить количество</button>
+          <div className="food-menu">
+              <button className="btn btn-ghost" onClick={() => { setMenu(false); setGrams(String(i.amount_g)); setMode('grams') }}>Изменить количество</button>
               {onMove && (
                 <>
                   <span className="sub">Перенести в</span>
@@ -145,9 +131,8 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
                 </>
               )}
               {onCopyToday && <button className="btn btn-ghost" disabled={busy} onClick={() => act(() => onCopyToday(i))}>Скопировать на сегодня</button>}
-              <button className="btn btn-ghost danger" onClick={() => setMenu('confirm')}>Удалить</button>
-            </div>
-          )}
+              <button className="btn btn-ghost danger" disabled={busy} onClick={() => act(() => onDelete(i.id))}>Удалить</button>
+          </div>
         </Sheet>
       )}
     </div>
@@ -220,15 +205,16 @@ function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, it
   )
 }
 
-export default function Food({ day, date = today(), onDate, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, onMove, onCopyToday, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onLogSet, onSaved, onLogBatch }: {
+export default function Food({ day, date = today(), onDate, queued = 0, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, onMove, onCopyToday, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onLogSet, onSaved, onLogBatch }: {
   day: FoodDay
   date?: string // the day on screen, YYYY-MM-DD
+  queued?: number // entries logged offline, waiting for the network
   onDate?: (iso: string) => void
   targets?: Targets
   canEdit: boolean
   healthConsent?: boolean
   profile?: ProfileData | null
-  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
+  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }, name?: string) => Promise<void>
   onDelete: (id: number) => Promise<void>
   onGrams?: (id: number, grams: number) => Promise<void>
   onMove?: (id: number, meal: MealType) => Promise<void>
@@ -301,6 +287,7 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
         </div>
         {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
       </section>
+      {editable && onDate && <Tip id="days">Смахните карточку КБЖУ вбок — откроется соседний день. Нажмите на дату — календарь.</Tip>}
       {canEdit && !editable && <p className="sub">Дописать можно только последние {BACKFILL_DAYS} дней — этот день только для просмотра.</p>}
       {editable && <button className="btn nutrition-add" onClick={() => setAdding({ meal: isToday ? mealNow() : 'dinner' })}>{isToday ? '+ Добавить продукт' : `+ Дописать за ${dayLabel(date).toLowerCase()}`}</button>}
       {canEdit && isToday && aiEnabled && (
@@ -312,6 +299,8 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
 
       <section className="meal-diary">
       <h2>Приёмы пищи</h2>
+      {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажмите продукт — изменить количество, перенести в другой приём или удалить. Смахните влево — быстрые действия.</Tip>}
+      {queued > 0 && <p className="queued" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
       {mealGroups(day).map(({ key, meal, slot, title, items }) => {
         const kcal = items.reduce((s, i) => s + i.kcal, 0)
         const main = meal !== 'snack'
@@ -369,7 +358,7 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
           }}>Сохранить</button>
         </Sheet>
       )}
-      {adding && <AddFood meal={adding.meal} slot={adding.slot} dayTitle={isToday ? null : dayLabel(date)} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled && isToday} onLogSet={onLogSet}
+      {adding && <AddFood meal={adding.meal} slot={adding.slot} dayTitle={isToday ? null : dayLabel(date)} kcalLeft={targets ? goals.calories - t.kcal : undefined} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled && isToday} onLogSet={onLogSet}
         onAiText={(text) => { setAdding(null); setAiText(text); setAiMode('text') }} />}
     </>
   )
@@ -393,8 +382,9 @@ const plural = (n: number, one: string, few: string, many: string) =>
 type MealSetData = { id: number; name: string; items: { product_id: number; name: string; amount_g: number }[]; kcal: number }
 
 /** Search and add; the sheet stays open for the next product of the meal ("Готово" closes it). */
-function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onAdd, aiEnabled = false, onAiText, onLogSet }: {
+function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, onClose, onAdd, aiEnabled = false, onAiText, onLogSet }: {
   meal: MealType
+  kcalLeft?: number // of the day's norm: each result shows what would be left after it
   slot?: string | null
   dayTitle?: string | null // a past day of the diary
   aiEnabled?: boolean
@@ -427,6 +417,14 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
   const [justAdded, setJustAdded] = useState<number | null>(null) // product id: a brief ✓ on its "+"
   const search = useRef<HTMLInputElement>(null)
   const addedKcal = added.reduce((n, a) => n + a.kcal, 0)
+  const [fromScan, setFromScan] = useState(false) // scanning in a row: after adding, the camera opens again
+
+  /** "останется 1 650" / "сверх нормы на 120" for a portion of `kcal`. */
+  function leftAfter(kcal: number) {
+    if (kcalLeft === undefined) return null
+    const rest = Math.round(kcalLeft - kcal)
+    return <span className={rest < 0 ? 'left-after over' : 'left-after'}>{rest >= 0 ? `останется ${rest.toLocaleString('ru-RU')}` : `сверх нормы на ${(-rest).toLocaleString('ru-RU')}`}</span>
+  }
 
   /** Added: stay in the sheet, back to an empty search for the next product. */
   function done(p: Product, grams: number) {
@@ -434,7 +432,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
     setJustAdded(p.id)
     setTimeout(() => setJustAdded((id) => (id === p.id ? null : id)), 1200)
     setPicked(null); setQ(''); setResults(null); setWanted(null); setThanks(false)
-    setTimeout(() => search.current?.focus(), 0)
+    if (fromScan) setTimeout(() => setScanner(true), 250)
+    else setTimeout(() => search.current?.focus(), 0)
   }
 
   /** "+" on a row: the last amount for recent products, else what the row shows (typed amount, a piece, a portion, 100 g). */
@@ -473,8 +472,12 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
   const [favorites, setFavorites] = useState<Product[] | null>(null)
 
   useEffect(() => {
-    api<RecentProduct[]>('/api/products/recent').then(setRecent).catch(() => {})
-    api<Product[]>('/api/favorites').then(setFavorites).catch(() => {})
+    // kept on the phone too: offline, recent and favourites still work (the entry waits in the offline queue)
+    const cached = <T,>(path: string, key: string, set: (v: T) => void) => api<T>(path)
+      .then((v) => { set(v as T); try { if (v) localStorage.setItem(key, JSON.stringify(v)) } catch { /* private mode */ } })
+      .catch(() => { try { const v = localStorage.getItem(key); if (v) set(JSON.parse(v)) } catch { /* nothing kept */ } })
+    cached<RecentProduct[]>('/api/products/recent', 'setly-recent', setRecent)
+    cached<Product[]>('/api/favorites', 'setly-favorites', setFavorites)
   }, [])
 
   const isFav = picked != null && favorites?.some((f) => f.id === picked.id)
@@ -552,7 +555,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
           <div className="row-title">{p.name}</div>
           <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}на 100 г: {Math.round(p.kcal)} ккал · Б {p.protein_g} · Ж {p.fat_g} · У {p.carbs_g}</div>
         </button>
-        <div className="row-end result-kcal">{kcal} ккал<small>{fmtQty(shown.qty)} {unitWord(shown.unit.label, shown.qty)}</small></div>
+        <div className="row-end result-kcal">{kcal} ккал<small>{fmtQty(shown.qty)} {unitWord(shown.unit.label, shown.qty)}</small>{leftAfter(kcal)}</div>
         {plusButton(p, `${fmtQty(shown.qty)} ${unitWord(shown.unit.label, shown.qty)}`)}
       </div>
     )
@@ -604,7 +607,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
         <>
           <div className="input-wrap">
             <input autoFocus ref={search} placeholder="Поиск: творог, гречка…" value={q}
-              onChange={(e) => { setQ(e.target.value); setError(''); if (e.target.value.trim().length < 2) setResults(null) }} />
+              onChange={(e) => { setQ(e.target.value); setError(''); setFromScan(false); if (e.target.value.trim().length < 2) setResults(null) }} />
           </div>
           {recent && (
             <div className="meal-actions">
@@ -627,6 +630,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
           )}
           {q.trim().length < 2 && recent && favorites && (
             <>
+              {recent.length > 0 && <Tip id="quick-add">«+» справа добавляет сразу, без экрана количества. Окно не закрывается — добавляйте следующий продукт.</Tip>}
               <div className="seg seg-inline">
                 <button type="button" aria-pressed={list === 'recent'} onClick={() => setList('recent')}>Недавние</button>
                 <button type="button" aria-pressed={list === 'favorites'} onClick={() => setList('favorites')}>Избранное</button>
@@ -670,7 +674,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
                       <div className="row quick-row" key={p.id}>
                         <button className="row-main row-btn-plain" onClick={() => pick(p)}>
                           <div className="row-title">{p.name}</div>
-                          <div className="row-sub">{amount} · {kcal} ккал</div>
+                          <div className="row-sub">{amount} · {kcal} ккал{kcalLeft !== undefined && <> · {leftAfter(kcal)}</>}</div>
                         </button>
                         {plusButton(p, amount)}
                       </div>
@@ -739,9 +743,17 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
               ))}
             </div>
           )}
+          <div className="unit-chips amount-chips" role="group" aria-label="Быстрое количество">
+            {(unit.label === 'г' || unit.label === 'мл' ? [50, 100, 150, 200, 300] : [0.5, 1, 1.5, 2, 3]).map((v) => (
+              <button type="button" key={v} className="habit-chip" aria-pressed={qty === v} onClick={() => setGrams(fmtQty(v))}>
+                {({ 0.5: '½', 1.5: '1½' } as Record<number, string>)[v] ?? v}
+              </button>
+            ))}
+          </div>
           {valid && (
             <p className="sub">
               {Math.round((picked.kcal * g) / 100)} ккал · Б {r1((picked.protein_g * g) / 100)} · Ж {r1((picked.fat_g * g) / 100)} · У {r1((picked.carbs_g * g) / 100)}
+              {kcalLeft !== undefined && <> · {leftAfter((picked.kcal * g) / 100)}</>}
             </p>
           )}
           <button className="btn" disabled={!valid || busy} onClick={add}>{busy ? 'Добавляем…' : `Добавить в «${MEALS[meal]}»`}</button>
@@ -755,7 +767,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, onClose, onA
         </div>
       )}
       {scanner && (
-        <Scanner onCode={(c) => { setScanner(false); lookup(c) }} onClose={() => setScanner(false)}
+        <Scanner note={fromScan && added.length ? `Добавлено: ${added.length} · ${addedKcal} ккал — сканируйте следующий` : undefined}
+          onCode={(c) => { setScanner(false); setFromScan(true); lookup(c) }} onClose={() => { setScanner(false); setFromScan(false) }}
           onPhoto={(f) => { setScanner(false); onPhoto(f) }} onManual={() => { setScanner(false); setScan('manual') }} />
       )}
     </Sheet>

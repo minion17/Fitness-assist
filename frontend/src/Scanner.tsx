@@ -5,7 +5,8 @@ import { readBarcode } from './barcode'
 import { tg } from './telegram'
 import { useBack } from './back'
 
-export default function Scanner({ onCode, onPhoto, onManual, onClose }: {
+export default function Scanner({ onCode, onPhoto, onManual, onClose, note }: {
+  note?: string // scanning in a row: what's been added so far
   onCode: (code: string) => void
   onPhoto: (file: File) => void
   onManual: () => void
@@ -71,6 +72,7 @@ export default function Scanner({ onCode, onPhoto, onManual, onClose }: {
         <button className="link" onClick={onClose}>Закрыть</button>
       </div>
       <div className="scan-bottom">
+        {note && !error && <p className="scan-note">{note}</p>}
         <p className={error ? 'error' : 'sub'}>{error || 'Наведите камеру на штрихкод или квадратный код «Честного знака»'}</p>
         <div className="meal-actions">
           <label className="link">

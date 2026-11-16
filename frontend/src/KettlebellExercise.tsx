@@ -87,7 +87,7 @@ export function hasExerciseGuide(name: string) { return name in GUIDE }
 export function getExerciseGuideImage(name: string): string | null {
   const guide = Object.hasOwn(GUIDE, name) ? GUIDE[name] : undefined
   if (!guide) return null
-  const file = /\.(?:png|jpe?g|webp)$/i.test(guide.image) ? guide.image : `${guide.image}.png`
+  const file = /\.(?:png|jpe?g|webp)$/i.test(guide.image) ? guide.image : `${guide.image}.webp`
   return `/images/workout-guide/${file}`
 }
 

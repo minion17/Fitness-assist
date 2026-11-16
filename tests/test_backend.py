@@ -1655,3 +1655,55 @@ def test_personal_records_and_rest_timer(client, seeded):
     assert n == 1 and due == 0 and timedelta(seconds=10) < left <= timedelta(seconds=15)  # not sent before the time
     client.delete("/api/rest-timer", headers=h)
     assert client.portal.call(queued)[0] == 0
+
+
+def test_weekly_leagues(client, seeded):
+    import random
+    from datetime import timedelta
+
+    from sqlalchemy import select, update
+
+    from backend.api import leagues
+    from backend.database.db import SessionLocal
+    from backend.database.models import League, LeagueMember, Outbox, User, XpEvent
+
+    async def reset():  # other tests' users may sit in this week's groups of the shared test database
+        async with SessionLocal() as s:
+            await s.execute(update(League).values(closed=True))
+            await s.execute(update(User).values(league_tier=3))  # nobody else in Bronze this time
+            await s.commit()
+    client.portal.call(reset)
+    ids = [random.randint(8 * 10**9, 9 * 10**9) for _ in range(22)]
+    heads = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': f'Игрок{n} Фамилия'})}"} for n, i in enumerate(ids)]
+
+    async def set_tier_and_xp():
+        async with SessionLocal() as s:
+            for n, i in enumerate(ids):
+                u = await s.scalar(select(User).where(User.telegram_id == i))
+                u.league_tier = 0
+                s.add(XpEvent(user_id=u.id, event_type="test", event_key=f"lg{n}", xp=100 - n * 4))  # player 0 has the most
+            await s.commit()
+    for h in heads:
+        client.get("/api/settings", headers=h)  # creates the users
+    client.portal.call(set_tier_and_xp)
+    boards = [client.get("/api/league", headers=h).json() for h in heads]
+    assert boards[0]["tier_name"] == "Бронза" and boards[0]["promote"] == 5 and boards[0]["demote"] == 0  # nowhere below Bronze
+    assert len(boards[0]["members"]) == 1 and len(boards[19]["members"]) == 20 and len(boards[20]["members"]) == 1  # 20 per group
+    b = client.get("/api/league", headers=heads[0]).json()
+    assert [m["name"] for m in b["members"][:2]] == ["Вы", "Игрок1"] and b["members"][0]["xp"] == 100  # strangers: first name only
+
+    async def close_week():
+        async with SessionLocal() as s:
+            await s.execute(update(League).where(League.closed.is_(False)).values(week_start=League.week_start - timedelta(days=7)))
+            await s.execute(update(XpEvent).where(XpEvent.event_type == "test", XpEvent.event_key.like("lg%"))
+                            .values(created_at=XpEvent.created_at - timedelta(days=7)))
+            await s.commit()
+            n = await leagues.finish_leagues(s)
+            tiers = [await s.scalar(select(User.league_tier).where(User.telegram_id == i)) for i in ids]
+            msgs = list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == ids[0])))
+            return n, tiers, msgs
+    n, tiers, msgs = client.portal.call(close_week)
+    assert n == 2 and tiers[:5] == [1] * 5 and tiers[5:20] == [0] * 15  # top 5 up; Bronze can't go down
+    assert any("Серебро" in m for m in msgs)
+    assert client.get("/api/league", headers=heads[0]).json()["tier_name"] == "Серебро"  # a new week, a new group
+    assert LeagueMember

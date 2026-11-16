@@ -28,6 +28,7 @@ class User(Base):
     invited_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # gets XP once we fill the profile
     boost_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # x2 XP until then (duel win)
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # agreed to the data processing (152-ФЗ)
+    league_tier: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # 0 Бронза … 4 Алмаз
     health_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # separately: allergies, injuries
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -368,6 +369,24 @@ class WeeklyQuest(Base):
     code: Mapped[str] = mapped_column(String(20), primary_key=True)
     target: Mapped[int] = mapped_column(Integer)
     slot: Mapped[int] = mapped_column(Integer)  # display order
+
+
+class League(Base):
+    """A weekly group of up to 20 people of one tier competing by XP (Duolingo-style)."""
+
+    __tablename__ = "leagues"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    week_start: Mapped[date] = mapped_column(Date, index=True)  # Monday, UTC
+    tier: Mapped[int] = mapped_column(Integer)
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+
+class LeagueMember(Base):
+    __tablename__ = "league_members"
+
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
 
 
 class MealSet(Base):

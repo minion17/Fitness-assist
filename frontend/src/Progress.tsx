@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
 import Empty from './Empty'
 import Friends from './Friends'
+import League from './League'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar } from './ui'
 
@@ -20,7 +21,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
   const [error, setError] = useState('')
   const [ex, setEx] = useState<number | null>(null)
   const [chart, setChart] = useState<'calories' | 'water' | 'weight'>('calories')
-  const [view, setView] = useState<'me' | 'friends'>('me')
+  const [view, setView] = useState<'me' | 'friends' | 'league'>('me')
 
   useEffect(() => {
     if (!canEdit) return
@@ -47,10 +48,11 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
       {canEdit && (
         <div className="tabs progress-view" role="tablist" aria-label="Раздел">
           <button role="tab" aria-selected={view === 'me'} onClick={() => setView('me')}>Мой прогресс</button>
+          <button role="tab" aria-selected={view === 'league'} onClick={() => setView('league')}>Лига</button>
           <button role="tab" aria-selected={view === 'friends'} onClick={() => setView('friends')}>Друзья</button>
         </div>
       )}
-      {view === 'friends' ? <Friends /> : <>
+      {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : <>
       {top}
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
       {canEdit && (

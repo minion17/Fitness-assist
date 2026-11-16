@@ -1203,3 +1203,15 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .rest-body > span { flex: 1; display: flex; flex-direction: column; }
 .rest-body b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .rest-body small { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.league { display: flex; flex-direction: column; gap: 10px; }
+.league-head { display: flex; align-items: center; gap: 12px; }
+.league-head h2 { margin: 0; }
+.league-medal { font-size: 34px; line-height: 1; }
+.league-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.league-list li { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 12px; }
+.league-list li.up { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.league-list li.down { background: color-mix(in srgb, #e5484d 10%, transparent); }
+.league-list li.me { outline: 2px solid var(--accent); font-weight: 700; }
+.league-rank { color: var(--muted); font-variant-numeric: tabular-nums; text-align: center; }
+.league-xp { font-variant-numeric: tabular-nums; font-weight: 700; }

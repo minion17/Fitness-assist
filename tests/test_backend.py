@@ -1789,3 +1789,6 @@ def test_pdf_report(client, seeded):
     empty = {**data, "profile": None, "nutrition": {**data["nutrition"], "days": 0}, "body": {"points": [], "first": {}, "last": {}},
              "workouts": {"sessions": [], "sets": 0}, "water_ml": 0}
     assert render(empty)[:5] == b"%PDF-"  # a new user still gets a (sparse) report
+    from backend.bot.report import cut, printable
+    assert printable("🦊 Егор ✨") == "Егор" and printable("💪") == ""  # emoji-only name -> generic title
+    assert cut("День 1: Верх тела + Кор · Домашняя тренировка для начинающих", 24, 500).endswith("…")

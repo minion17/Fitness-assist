@@ -2,6 +2,8 @@
 
 Drawn with Pillow (already used for the bot's cards) and saved as a PDF: no extra dependency. White A4 pages at 150 dpi.
 """
+import re
+import unicodedata
 from datetime import date
 from functools import lru_cache
 from io import BytesIO
@@ -25,6 +27,22 @@ def font(size: int, weight: int = 500, name: str = "Manrope") -> ImageFont.FreeT
 def n(x: float, digits: int = 0) -> str:
     s = f"{x:,.{digits}f}".replace(",", " ").replace(".", ",")
     return s
+
+
+def printable(s: str) -> str:
+    """Only what the font can draw: letters, digits, spaces and simple punctuation (no emoji in Telegram names)."""
+    s = "".join(c for c in s if unicodedata.category(c) not in ("So", "Sk", "Cs", "Co", "Cf") and not 0xFE00 <= ord(c) <= 0xFE0F)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def cut(s: str, size: int, width: int) -> str:
+    """Shorten to fit `width` px, ending with "…" at a word boundary when possible."""
+    f = font(size)
+    if f.getlength(s) <= width:
+        return s
+    while s and f.getlength(s + "…") > width:
+        s = s[:-1]
+    return (s.rsplit(" ", 1)[0] if " " in s[-12:] else s).rstrip(" ·,") + "…"
 
 
 def d(x: date) -> str:
@@ -60,13 +78,14 @@ class Page:
         x0, x1, top, bottom = M + 70, W - M, self.y, self.y + height
         hi = max([*values, (norm or 0) * 1.15, 1])
         step = (x1 - x0) / max(len(values), 1)
+        bar = min(step * 0.64, 44)  # a week of data: slim bars, not blobs
         for i, v in enumerate(values):
             if v <= 0:
                 continue
-            h = (bottom - top) * v / hi
+            h = max((bottom - top) * v / hi, 6)
             over = norm and v > norm * 1.1
-            self.dr.rounded_rectangle([x0 + i * step + step * 0.18, bottom - h, x0 + (i + 1) * step - step * 0.18, bottom],
-                                      max(2, int(step * 0.2)), fill=WARN if over else ACCENT)
+            cx = x0 + (i + 0.5) * step
+            self.dr.rounded_rectangle([cx - bar / 2, bottom - h, cx + bar / 2, bottom], int(min(bar / 2, 8)), fill=WARN if over else ACCENT)
         if norm:
             y = bottom - (bottom - top) * norm / hi
             for x in range(x0, x1, 18):
@@ -114,7 +133,8 @@ def render(data: dict) -> bytes:
     p.text((M, p.y), "Setly", 30, ACCENT, 700, name="Unbounded")
     p.text((W - M, p.y + 4), f"{d(since)} — {d(until)}", 24, MUTED, 600, anchor="ra")
     p.y += 70
-    p.text((M, p.y), f"Отчёт: {data['name']}", 46, INK, 700, name="Unbounded")
+    who = printable(data["name"])
+    p.text((M, p.y), f"Отчёт: {who}" if who else "Отчёт о прогрессе", 46, INK, 700, name="Unbounded")
     p.y += 76
     prof = data.get("profile")
     if prof:
@@ -156,7 +176,7 @@ def render(data: dict) -> bytes:
     q.h2("Тренировки")
     if w["sessions"]:
         q.kv([("Тренировок", str(len(w["sessions"]))), ("Подходов всего", str(w["sets"]))])
-        q.table(["Дата", "Тренировка", "Подходов"], [[d(s["date"]), s["title"][:42], str(s["sets"])] for s in w["sessions"][:14]], [0.2, 0.62, 0.18])
+        q.table(["Дата", "Тренировка", "Подходов"], [[d(s["date"]), cut(printable(s["title"]), 24, int((W - 2 * M) * 0.6)), str(s["sets"])] for s in w["sessions"][:14]], [0.2, 0.62, 0.18])
     else:
         q.text((M, q.y), "Тренировок за период не было.", 26, MUTED)
         q.y += 50

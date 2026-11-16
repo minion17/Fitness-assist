@@ -1563,3 +1563,44 @@ def test_real_expenditure_forecast_and_plateau(client, seeded):
     assert client.get("/api/profile", headers=h).json()["targets"]["calories"] == e["suggest"]
     client.put("/api/profile", headers=h, json={**PROFILE, "goal": "maintenance"})  # a new goal drops the accepted norm
     assert client.get("/api/profile", headers=h).json()["kcal_override"] is None
+
+
+def test_what_to_eat_from_own_meals(client, seeded):
+    import random
+    from datetime import date, datetime, time, timedelta
+
+    from sqlalchemy import select
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, User
+
+    tg_id = random.randint(6 * 10**9, 7 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    norm = client.get("/api/profile", headers=h).json()["targets"]
+    find = lambda q: next(p for p in client.get("/api/products/search", params={"q": q}).json())  # noqa: E731
+    chicken, rice, cake = find("куриная грудка"), find("рис"), find("торт наполеон")
+    past = [((3, "dinner"), [(chicken, 200), (rice, 150)]), ((5, "dinner"), [(cake, 400)]), ((6, "lunch"), [(chicken, 200), (rice, 150)])]
+
+    async def seed():
+        async with SessionLocal() as s:
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            for (back, meal), items in past:
+                for p, g in items:
+                    s.add(FoodLog(user_id=user.id, product_id=p["id"], amount_g=g, meal_type=meal,
+                                  logged_at=datetime.combine(date.today() - timedelta(days=back), time(19)).astimezone()))
+            await s.commit()
+    client.portal.call(seed)
+    # today: breakfast and lunch already eaten, about 700 kcal left
+    eaten_g = (norm["calories"] - 700) * 100 / rice["kcal"]
+    client.post("/api/food-logs", headers=h, json={"product_id": rice["id"], "amount_g": min(eaten_g, 5000), "meal_type": "lunch"})
+    r = client.get("/api/suggest/meal", headers=h).json()
+    assert 600 <= r["kcal_left"] <= 800 or eaten_g > 5000
+    titles = [o["title"] for o in r["options"]]
+    assert titles and titles[0].startswith(chicken["name"]) and len(set(titles)) == len(titles)  # same meal twice -> once
+    assert not any(cake["name"] in t for t in titles)  # 400 g of cake doesn't fit what's left
+    opt = r["options"][0]
+    logged = client.post("/api/food-logs/batch", headers=h, json={"meal_type": "dinner", "items": opt["items"]}).json()
+    assert logged["logged"] == 2
+    assert client.post("/api/food-logs/batch", headers=new_user_headers(), json={"meal_type": "dinner",
+           "items": [{"product_id": 10**9, "amount_g": 100}]}).status_code == 404

@@ -219,3 +219,88 @@ async def delete_recipe(product_id: int, tg: dict = Depends(telegram_user), sess
         await session.delete(p)
     await session.commit()
     return {"ok": True}
+
+
+# ---- "What to eat": the user's own past meals that fit what is left of today's norm ----
+
+def score(c: dict, kcal_left: float, protein_left: float) -> float:
+    """Lower is better: close to the calories left, and covering the protein still missing."""
+    miss = max(0.0, protein_left - c["protein_g"]) / max(protein_left, 1)
+    return abs(kcal_left - c["kcal"]) / max(kcal_left, 1) + 0.8 * miss
+
+
+@router.get("/suggest/meal")
+async def suggest_meal(meal_type: str = "dinner", tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    from datetime import timedelta
+
+    from backend.api.stats import targets
+    from backend.database.models import Profile
+
+    user = await get_or_create_user(tg, session)
+    t = targets(await session.get(Profile, user.id))
+    if not t:
+        return {"options": []}
+    today = clock.today()
+    since = local_start(today - timedelta(days=30))
+    logs = list(await session.execute(
+        select(FoodLog, Product).join(Product, Product.id == FoodLog.product_id)
+        .where(FoodLog.user_id == user.id, FoodLog.logged_at >= since).order_by(FoodLog.logged_at)))
+    eaten = {k: 0.0 for k in MACROS}
+    meals: dict[tuple, list] = {}
+    for log, p in logs:
+        day = log.logged_at.astimezone(clock.tz()).date()
+        if day == today:
+            for k in MACROS:
+                eaten[k] += getattr(p, k) * log.amount_g / 100
+        elif log.meal_type in ("lunch", "dinner"):
+            meals.setdefault((day, log.meal_type), []).append((log, p))
+    kcal_left, protein_left = t["calories"] - eaten["kcal"], t["protein"] - eaten["protein_g"]
+    out = {"kcal_left": round(kcal_left), "protein_left": round(max(protein_left, 0)), "options": []}
+    if kcal_left < 200:
+        return out
+    candidates, seen = [], set()
+    for items in reversed(list(meals.values())):  # newest first, so a tie goes to what they ate lately
+        key = frozenset(p.id for _, p in items)
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append({
+            "title": ", ".join(p.name for _, p in items[:3]) + ("…" if len(items) > 3 else ""),
+            "items": [{"product_id": p.id, "name": p.name, "amount_g": log.amount_g, "unit": log.unit, "qty": log.qty} for log, p in items],
+            **totals((p, log.amount_g) for log, p in items)})
+    for s in await session.scalars(select(MealSet).where(MealSet.user_id == user.id)):
+        candidates.append({**(c := await set_out(session, user, s)), "title": f"☆ {c['name']}"})
+    fit = [c for c in candidates if 0.35 * kcal_left <= c["kcal"] <= 1.1 * kcal_left and c["items"]]
+    out["options"] = [{k: c[k] for k in ("title", "items", *MACROS)} for c in sorted(fit, key=lambda c: score(c, kcal_left, protein_left))[:3]]
+    return out
+
+
+class BatchIn(BaseModel):
+    meal_type: str
+    snack_slot: str | None = None
+    items: list[dict] = Field(min_length=1, max_length=30)  # [{"product_id", "amount_g", "unit"?, "qty"?}]
+
+
+@router.post("/food-logs/batch")
+async def log_batch(body: BatchIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """Several products into one meal at once (a suggested meal)."""
+    from backend.api.main import snack_slot
+
+    if body.meal_type not in MEALS:
+        raise HTTPException(422, "Неизвестный приём пищи")
+    user = await get_or_create_user(tg, session)
+    try:
+        items = [(int(i["product_id"]), float(i["amount_g"]), i.get("unit"), i.get("qty")) for i in body.items]
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(422, "Неверные продукты") from None
+    if any(not 0 < g <= 5000 for _, g, _, _ in items):
+        raise HTTPException(422, "Граммы: от 1 до 5000")
+    known = await products(session, user, {pid for pid, *_ in items})
+    if any(pid not in known for pid, *_ in items):
+        raise HTTPException(404, "Продукт не найден")
+    slot = snack_slot(body.meal_type, body.snack_slot)
+    session.add_all(FoodLog(user_id=user.id, product_id=pid, amount_g=g, unit=str(u)[:12] if u else None,
+                            qty=float(q) if q else None, meal_type=body.meal_type, snack_slot=slot) for pid, g, u, q in items)
+    await session.commit()
+    xp = await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{body.meal_type}")
+    return {"logged": len(items), "xp_awarded": xp}

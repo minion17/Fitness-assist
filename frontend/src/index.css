@@ -1192,3 +1192,5 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .energy-note { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--streak, #ff9f43) 16%, transparent); font-size: 14px; line-height: 1.45; }
 .energy-target { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
 .energy-target .input-wrap { width: 110px; }
+
+.suggest .card-head { display: flex; justify-content: space-between; align-items: center; }

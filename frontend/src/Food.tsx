@@ -115,7 +115,40 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
 
 const today = () => new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD in the phone's zone
 
-export default function Food({ day, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onLogSet, onSaved }: {
+type Suggest = { kcal_left: number; protein_left: number; options: { title: string; items: { product_id: number; amount_g: number; unit?: string | null; qty?: number | null }[]; kcal: number; protein_g: number }[] }
+
+/** Lunch and dinner time: the user's own past meals that fit what's left of today's norm. */
+function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, items: Suggest['options'][0]['items']) => Promise<void> }) {
+  const meal = mealNow()
+  const key = `suggest-hidden-${today()}-${meal}`
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(key) === '1' } catch { return false } })
+  const [s, setS] = useState<Suggest | null>(null)
+  const [busy, setBusy] = useState(false)
+  const show = !hidden && (meal === 'lunch' || meal === 'dinner')
+  useEffect(() => {
+    if (show) api<Suggest>(`/api/suggest/meal?meal_type=${meal}`).then((r) => setS(r)).catch(() => {})
+  }, [show, meal, eaten])
+  if (!show || !s?.options.length) return null
+  return (
+    <section className="card suggest">
+      <div className="card-head">
+        <h2>Что съесть на {meal === 'lunch' ? 'обед' : 'ужин'}</h2>
+        <button className="link" aria-label="Скрыть на сегодня" onClick={() => { setHidden(true); try { localStorage.setItem(key, '1') } catch { /* private mode */ } }}>✕</button>
+      </div>
+      <p className="sub">Осталось {s.kcal_left} ккал{s.protein_left > 10 ? ` и ${s.protein_left} г белка` : ''} — из того, что вы ели раньше:</p>
+      <div className="list">
+        {s.options.map((o) => (
+          <button className="row row-btn" key={o.title} disabled={busy} onClick={() => { setBusy(true); onLog(meal, o.items).finally(() => setBusy(false)) }}>
+            <div className="row-main"><div className="row-title">{o.title}</div><div className="row-sub">белок {Math.round(o.protein_g)} г</div></div>
+            <div className="row-end result-kcal">{Math.round(o.kcal)} ккал<small>+ записать</small></div>
+          </button>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+export default function Food({ day, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onLogSet, onSaved, onLogBatch }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
@@ -130,6 +163,7 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
   onCopy?: (fromDay: string, meal: MealType) => Promise<void>
   onLogSet?: (setId: number, meal: MealType, slot: string | null) => Promise<void>
   onSaved?: (message: string) => void
+  onLogBatch?: (meal: MealType, items: { product_id: number; amount_g: number }[]) => Promise<void>
 }) {
   const goals = targets ?? DEFAULT_GOALS
   const [saving, setSaving] = useState<{ meal: MealType; slot?: string | null; name: string } | null>(null)
@@ -171,6 +205,7 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
         {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
       </section>
       {canEdit && <button className="btn nutrition-add" onClick={() => setAdding({ meal: mealNow() })}>+ Добавить продукт</button>}
+      {canEdit && targets && onLogBatch && <WhatToEat eaten={Math.round(day.totals.kcal)} onLog={onLogBatch} />}
       {canEdit && aiEnabled && (
         <div className="ai-row">
           <button className="btn btn-ghost" onClick={() => setAiMode('text')}>✨ Текстом</button>

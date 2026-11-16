@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
-import Body, { type MeasurementInput } from './Body'
+import Body, { QuickWeight, type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
@@ -23,7 +23,7 @@ import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } 
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
 import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
-import { MEALS, mealNow, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
+import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar, Sheet } from './ui'
 import Workouts from './Workouts'
 
@@ -183,6 +183,8 @@ export default function App() {
   const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>(boot?.week ?? { streak: 0, days: [] })
   const [ach, setAch] = useState<{ items: Achievement[]; new: Achievement[]; freezes: number }>(boot ? { ...boot.achievements, new: [] } : { items: [], new: [], freezes: 0 })
   const [foodIntent, setFoodIntent] = useState<FoodIntent | null>(null)
+  const [foodDate, setFoodDate] = useState('') // a past day open in the diary; '' = today
+  const [pastDay, setPastDay] = useState<FoodDay | null>(null)
   const [reward, setReward] = useState(false)
   const [loading, setLoading] = useState(!boot) // no data yet (first open, nothing kept on the phone)
   const [quests, setQuests] = useState<QuestWeek | null>(boot?.quests ?? null)
@@ -276,10 +278,27 @@ export default function App() {
     setTimeout(() => setParty((p) => (p === id ? 0 : p)), 2200)
   }
 
-  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) {
-    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}), ...(counted ?? {}) }))
-    tg?.HapticFeedback?.notificationOccurred?.('success')
+  const at = foodDate ? { day: foodDate } : {} // diary writes go to the day on screen
+  const loadPast = useCallback(async (d: string) => { const r = await api<FoodDay>(`/api/food-logs?day=${d}`); if (r) setPastDay(r) }, [])
+  useEffect(() => {
+    if (!foodDate) return
+    let stale = false
+    api<FoodDay>(`/api/food-logs?day=${foodDate}`).then((r) => { if (r && !stale) setPastDay(r) }).catch(() => {})
+    return () => { stale = true }
+  }, [foodDate])
+  async function refreshFood() {
     await refreshJournal()
+    if (foodDate) await loadPast(foodDate)
+  }
+  function openDay(d: string) {
+    setPastDay(null)
+    setFoodDate(d === localDay() ? '' : d)
+  }
+
+  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) {
+    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}), ...(counted ?? {}), ...at }))
+    tg?.HapticFeedback?.notificationOccurred?.('success')
+    await refreshFood()
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
   }
 
@@ -292,20 +311,20 @@ export default function App() {
   }
 
   async function copyMeal(fromDay: string, meal: MealType) {
-    const r = await api<{ copied: number; xp_awarded: number }>('/api/food-logs/copy', postJson({ from_day: fromDay, meal_type: meal }))
-    await refreshJournal()
+    const r = await api<{ copied: number; xp_awarded: number }>('/api/food-logs/copy', postJson({ from_day: fromDay, meal_type: meal, ...(at.day ? { to_day: at.day } : {}) }))
+    await refreshFood()
     flash(r?.xp_awarded ? `Повторено · +${r.xp_awarded} XP` : 'Повторено')
   }
 
   async function logSet(setId: number, meal: MealType, slot: string | null) {
-    const r = await api<{ logged: number; xp_awarded: number }>(`/api/meal-sets/${setId}/log`, postJson({ meal_type: meal, snack_slot: slot }))
-    await refreshJournal()
+    const r = await api<{ logged: number; xp_awarded: number }>(`/api/meal-sets/${setId}/log`, postJson({ meal_type: meal, snack_slot: slot, ...at }))
+    await refreshFood()
     flash(r?.xp_awarded ? `Набор добавлен · +${r.xp_awarded} XP` : 'Набор добавлен')
   }
 
   async function logBatch(meal: MealType, items: { product_id: number; amount_g: number }[]) {
-    const r = await api<{ logged: number; xp_awarded: number }>('/api/food-logs/batch', postJson({ meal_type: meal, items }))
-    await refreshJournal()
+    const r = await api<{ logged: number; xp_awarded: number }>('/api/food-logs/batch', postJson({ meal_type: meal, items, ...at }))
+    await refreshFood()
     flash(r?.xp_awarded ? `Записано · +${r.xp_awarded} XP` : 'Записано')
   }
 
@@ -316,12 +335,26 @@ export default function App() {
 
   async function changeGrams(id: number, grams: number) {
     await api(`/api/food-logs/${id}`, { ...postJson({ amount_g: grams }), method: 'PATCH' })
+    await refreshFood()
+  }
+
+  async function moveFood(id: number, meal: MealType) {
+    await api(`/api/food-logs/${id}`, { ...postJson({ meal_type: meal }), method: 'PATCH' })
+    await refreshFood()
+    flash(`Перенесено в «${MEALS[meal]}»`)
+  }
+
+  /** "Скопировать на сегодня" from a past day of the diary. */
+  async function copyToToday(item: FoodItem) {
+    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: item.product.id, amount_g: item.amount_g, meal_type: item.meal_type,
+      ...(item.unit && item.qty ? { unit: item.unit, qty: item.qty } : {}) }))
     await refreshJournal()
+    flash(r?.xp_awarded ? `Скопировано на сегодня · +${r.xp_awarded} XP` : 'Скопировано на сегодня')
   }
 
   async function deleteFood(id: number) {
     await api(`/api/food-logs/${id}`, { method: 'DELETE' })
-    await refreshJournal()
+    await refreshFood()
   }
 
   async function saveMeasurement(m: MeasurementInput) {
@@ -377,6 +410,7 @@ export default function App() {
     tg?.HapticFeedback?.selectionChanged()
     setDir(Math.sign(TAB_ORDER.indexOf(t) - TAB_ORDER.indexOf(tab)))
     setFoodIntent(null)
+    setFoodDate('')
     setTab(t)
     window.scrollTo(0, 0)
   }
@@ -443,6 +477,7 @@ export default function App() {
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
             habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />}
+            weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
             repeat={canEdit ? repeatOffer() : null}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
@@ -455,7 +490,8 @@ export default function App() {
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} onLogSet={logSet} onSaved={flash} onLogBatch={logBatch} />}
+        {tab === 'food' && <Food day={foodDate ? pastDay ?? { date: foodDate, items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } } : foodDay}
+          date={foodDate || localDay()} onDate={openDay} onMove={moveFood} onCopyToday={copyToToday} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} onLogSet={logSet} onSaved={flash} onLogBatch={logBatch} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} onRecord={(t) => { celebrate(t); refreshJournal().catch(() => {}) }} />

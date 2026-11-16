@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { readBarcode } from './barcode'
 import { tg } from './telegram'
+import { useBack } from './back'
 
 export default function Scanner({ onCode, onPhoto, onManual, onClose }: {
   onCode: (code: string) => void
@@ -10,6 +11,7 @@ export default function Scanner({ onCode, onPhoto, onManual, onClose }: {
   onManual: () => void
   onClose: () => void
 }) {
+  useBack(onClose)
   const video = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState('')
   const onCodeRef = useRef(onCode) // the camera must not restart when the parent re-renders

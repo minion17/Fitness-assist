@@ -1,4 +1,5 @@
 """Own meal sets ("Мой завтрак" in one tap) and home recipes (a dish from catalog products, logged per plate)."""
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select
@@ -6,7 +7,6 @@ from sqlalchemy import func, select
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.api.quick_food import local_start, product_out
 from backend.core import clock
-from backend.database.rewards import award_xp
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import FoodLog, MealSet, Product, Recipe, User, _search_text
 
@@ -101,12 +101,13 @@ async def delete_set(set_id: int, tg: dict = Depends(telegram_user), session: As
 class LogSetIn(BaseModel):
     meal_type: str
     snack_slot: str | None = None
+    day: date | None = None
 
 
 @router.post("/meal-sets/{set_id}/log")
 async def log_set(set_id: int, body: LogSetIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    """Everything of the set into today's meal; XP as for any meal (once per meal per day)."""
-    from backend.api.main import snack_slot
+    """Everything of the set into a meal (today or a past day); XP as for any meal (once per meal per day)."""
+    from backend.api.main import entry_time, meal_xp
 
     if body.meal_type not in MEALS:
         raise HTTPException(422, "Неизвестный приём пищи")
@@ -118,11 +119,11 @@ async def log_set(set_id: int, body: LogSetIn, tg: dict = Depends(telegram_user)
     items = [i for i in s.items if i["product_id"] in known]
     if not items:
         raise HTTPException(404, "Продуктов из набора больше нет")
-    slot = snack_slot(body.meal_type, body.snack_slot)
+    when, day = entry_time(body.day, body.meal_type, body.snack_slot)
     session.add_all(FoodLog(user_id=user.id, product_id=i["product_id"], amount_g=i["amount_g"], unit=i.get("unit"),
-                            qty=i.get("qty"), meal_type=body.meal_type, snack_slot=slot) for i in items)
+                            qty=i.get("qty"), meal_type=body.meal_type, **when) for i in items)
     await session.commit()
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{body.meal_type}")
+    xp = await meal_xp(session, user, day, body.meal_type)
     return {"logged": len(items), "xp_awarded": xp}
 
 
@@ -279,12 +280,13 @@ class BatchIn(BaseModel):
     meal_type: str
     snack_slot: str | None = None
     items: list[dict] = Field(min_length=1, max_length=30)  # [{"product_id", "amount_g", "unit"?, "qty"?}]
+    day: date | None = None
 
 
 @router.post("/food-logs/batch")
 async def log_batch(body: BatchIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """Several products into one meal at once (a suggested meal)."""
-    from backend.api.main import snack_slot
+    from backend.api.main import entry_time, meal_xp
 
     if body.meal_type not in MEALS:
         raise HTTPException(422, "Неизвестный приём пищи")
@@ -298,9 +300,9 @@ async def log_batch(body: BatchIn, tg: dict = Depends(telegram_user), session: A
     known = await products(session, user, {pid for pid, *_ in items})
     if any(pid not in known for pid, *_ in items):
         raise HTTPException(404, "Продукт не найден")
-    slot = snack_slot(body.meal_type, body.snack_slot)
+    when, day = entry_time(body.day, body.meal_type, body.snack_slot)
     session.add_all(FoodLog(user_id=user.id, product_id=pid, amount_g=g, unit=str(u)[:12] if u else None,
-                            qty=float(q) if q else None, meal_type=body.meal_type, snack_slot=slot) for pid, g, u, q in items)
+                            qty=float(q) if q else None, meal_type=body.meal_type, **when) for pid, g, u, q in items)
     await session.commit()
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{body.meal_type}")
+    xp = await meal_xp(session, user, day, body.meal_type)
     return {"logged": len(items), "xp_awarded": xp}

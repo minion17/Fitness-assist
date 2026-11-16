@@ -1,4 +1,6 @@
 import { useCountUp } from './motion'
+import { useBack } from './back'
+
 
 const pct = (a: number, b: number) => `${b > 0 ? Math.min(100, Math.round((a / b) * 100)) : 0}%`
 
@@ -30,6 +32,7 @@ export function Ring({ value: target, goal }: { value: number; goal: number }) {
 }
 
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  useBack(onClose)
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>

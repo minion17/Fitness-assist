@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import AiMeal from './AiMeal'
 import AiSummary from './AiSummary'
@@ -96,13 +96,22 @@ test('food: search a product and add grams to a meal', async () => {
 
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[2]) // dinner
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'тв' } })
-  fireEvent.click(await screen.findByRole('button', { name: /Творог 5%/ }, { timeout: 2000 }))
+  fireEvent.click(await screen.findByRole('button', { name: /^Творог 5%/ }, { timeout: 2000 }))
   expect(publicGetMock).toHaveBeenCalledWith('/api/products/search?q=%D1%82%D0%B2')
 
   fireEvent.change(screen.getByDisplayValue('100'), { target: { value: '200' } })
   expect(screen.getByText(/242 ккал/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Добавить в «Ужин»' }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 200, 'dinner', null))
+  // the sheet stays open for the next product: empty search, a running total
+  expect((await screen.findByRole('status')).textContent).toContain('Добавлено: 1')
+  expect((screen.getByPlaceholderText(/Поиск/) as HTMLInputElement).value).toBe('')
+  // "+" on a row adds the shown amount in one tap
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'тв' } })
+  fireEvent.click(await screen.findByRole('button', { name: 'Добавить 100 г: Творог 5%' }, { timeout: 2000 }))
+  await waitFor(() => expect(onAdd).toHaveBeenLastCalledWith(5, 100, 'dinner', null))
+  expect((await screen.findByRole('status')).textContent).toContain('Добавлено: 2')
+  fireEvent.click(screen.getByRole('button', { name: 'Готово' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
 
@@ -114,21 +123,25 @@ test('food: line actions — change grams, delete asks for confirmation', async 
   }
   const onDelete = vi.fn().mockResolvedValue(undefined)
   const onGrams = vi.fn().mockResolvedValue(undefined)
-  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} onGrams={onGrams} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Обед' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' })) // same as a swipe left
-  fireEvent.click(screen.getByRole('button', { name: 'Граммы' }))
+  const onMove = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} onGrams={onGrams} onMove={onMove} />)
+  // meals are open: the line is visible right away; ⋯ (or a long press) opens its menu
+  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Изменить количество' }))
   fireEvent.change(screen.getByLabelText('Граммы, Творог 5%'), { target: { value: '150' } })
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
   await waitFor(() => expect(onGrams).toHaveBeenCalledWith(42, 150))
 
   fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
-  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0]) // the revealed action
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Ужин' }))
+  await waitFor(() => expect(onMove).toHaveBeenCalledWith(42, 'dinner'))
+
+  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' }))
   fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
   expect(onDelete).not.toHaveBeenCalled()
-  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
-  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0])
-  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' }).at(-1)!) // the confirmation
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Да, удалить' }))
   await waitFor(() => expect(onDelete).toHaveBeenCalledWith(42))
 })
 
@@ -270,9 +283,9 @@ test('food: each snack is its own card in time order; adding to a snack keeps it
   render(<Food day={day} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
   const titles = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
   expect(titles).toEqual(['КБЖУ за сегодня', 'Приёмы пищи', 'Завтрак', 'Перекус 11:30', 'Обед', 'Перекус 16:40', 'Ужин'])
-  expect(screen.getByText(/180 ккал · Б/)).toBeTruthy() // 11:30 snack total
+  expect(screen.getByRole('button', { name: /Перекус 11:30\s*180 ккал/ })).toBeTruthy() // 11:30 snack total
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[1]) // into the 11:30 snack
-  fireEvent.click(await screen.findByRole('button', { name: /Творог 5%/ }))
+  fireEvent.click(await screen.findByRole('button', { name: /^Творог 5%/ }))
   fireEvent.click(screen.getByRole('button', { name: /Добавить в «Перекус»/ }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 50, 'snack', '11:30'))
   expect(screen.getByRole('button', { name: '+ Перекус' })).toBeTruthy()
@@ -517,20 +530,21 @@ test('search: an amount in the query opens the product with it; brands of one pr
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
 
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'яйцо 2' } })
-  const row = await screen.findByRole('button', { name: /Яйцо куриное/ }, { timeout: 2000 })
-  expect(row.textContent).toContain('173 ккал') // 2 × 55 g
+  const row = await screen.findByRole('button', { name: /^Яйцо куриное/ }, { timeout: 2000 })
+  expect(row.parentElement!.textContent).toContain('173 ккал') // 2 × 55 g
+  expect(screen.getByRole('button', { name: 'Добавить 2 шт: Яйцо куриное' })).toBeTruthy()
   expect(publicGetMock).toHaveBeenCalledWith(`/api/products/search?q=${encodeURIComponent('яйцо 2')}&quiet=1`) // tried whole first
   fireEvent.click(row)
   expect((screen.getByRole('textbox', { name: 'Количество' }) as HTMLInputElement).value).toBe('2')
   fireEvent.click(screen.getByRole('button', { name: /Добавить в/ }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(7, 110, 'breakfast', null, { unit: 'шт', qty: 2 }))
 
-  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  await screen.findByRole('status') // still open: the next product
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'молоко' } })
   await screen.findByRole('button', { name: 'ещё 2 варианта ›' }, { timeout: 2000 })
-  expect(screen.getAllByRole('button', { name: /Молоко 2.5%/ })).toHaveLength(1) // brands folded under the plain one
+  expect(screen.getAllByRole('button', { name: /^Молоко 2.5%/ })).toHaveLength(1) // brands folded under the plain one
   fireEvent.click(screen.getByRole('button', { name: 'ещё 2 варианта ›' }))
-  expect(screen.getAllByRole('button', { name: /Молоко 2.5%/ })).toHaveLength(3)
+  expect(screen.getAllByRole('button', { name: /^Молоко 2.5%/ })).toHaveLength(3)
 })
 
 test('search: nothing found offers AI, a label photo and the scanner', async () => {
@@ -619,4 +633,36 @@ test('challenges: accept an invitation, tick today', async () => {
   fireEvent.click(await screen.findByRole('button', { name: 'Отметить день' }))
   await screen.findByRole('button', { name: '✓ Сегодня' })
   expect(apiMock).toHaveBeenCalledWith('/api/challenges/5/check', expect.objectContaining({ body: JSON.stringify({ done: true }) }))
+})
+
+test('food: day switcher — arrows, a past day writes there, Esc closes a sheet', async () => {
+  const iso = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('sv-SE') }
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  apiMock.mockResolvedValue(null)
+  const onDate = vi.fn()
+  const { rerender } = render(<Food day={empty} date={iso(0)} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  expect((screen.getByRole('button', { name: 'Следующий день' }) as HTMLButtonElement).disabled).toBe(true) // no future
+  fireEvent.click(screen.getByRole('button', { name: 'Предыдущий день' }))
+  expect(onDate).toHaveBeenCalledWith(iso(-1))
+
+  rerender(<Food day={empty} date={iso(-1)} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  expect(screen.getByText('Вчера')).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'КБЖУ · Вчера' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '+ Дописать за вчера' }))
+  expect(screen.getByRole('dialog', { name: 'Дописать · Вчера' })).toBeTruthy()
+  fireEvent.keyDown(window, { key: 'Escape' })
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+})
+
+test('quick weight on Home keeps the rest of today\'s measurement', async () => {
+  const { QuickWeight } = await import('./Body')
+  const today = new Date().toLocaleDateString('sv-SE')
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<QuickWeight measurements={[{ id: 1, measured_on: today, weight_kg: null, waist_cm: 80, chest_cm: null, hips_cm: null, body_fat_pct: null },
+    { id: 2, measured_on: '2026-01-01', weight_kg: 75, waist_cm: null, chest_cm: null, hips_cm: null, body_fat_pct: null }]} onSave={onSave} />)
+  fireEvent.click(screen.getByRole('button', { name: /Взвеситься/ }))
+  expect((screen.getByLabelText('Вес, кг') as HTMLInputElement).value).toBe('75') // the last weight
+  fireEvent.click(screen.getByRole('button', { name: 'Минус 0,1 кг' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith({ weight_kg: 74.9, waist_cm: 80, chest_cm: null, hips_cm: null, body_fat_pct: null }))
 })

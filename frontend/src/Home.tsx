@@ -107,6 +107,7 @@ export default function Home(props: {
   intro?: React.ReactNode
   quests?: React.ReactNode
   habits?: React.ReactNode
+  weight?: React.ReactNode // quick weigh-in, below the day's main cards
   repeat?: { title: string; kcal: number; run: () => void } | null
 }) {
   const { targets, day, water } = props
@@ -190,6 +191,7 @@ export default function Home(props: {
         {props.habits}
         {props.quests}
       </div>
+      {props.weight}
     </>
   )
 }

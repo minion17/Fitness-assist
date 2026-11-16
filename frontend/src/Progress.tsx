@@ -81,7 +81,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
               <span className="sub">Вес</span>
               <div className="stat">{w.length ? fmt(w[w.length - 1].kg, 1) : '—'}<small>кг</small></div>
               <span className={delta !== null && delta <= 0 ? 'sub pos' : 'sub'}>
-                {delta === null ? 'запишите вес ниже' : `${delta > 0 ? '+' : ''}${fmt(delta, 1)} кг за период`}
+                {delta === null ? 'запишите на Главной' : `${delta > 0 ? '+' : ''}${fmt(delta, 1)} кг за период`}
               </span>
             </section>
             <section className="card tile-stat">
@@ -105,20 +105,20 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
           </section>
 
           {s.goal && logged.length > 0 && (
-            <section className="card">
-              <div className="card-head"><h2>БЖУ в среднем</h2><span className="sub">за дни с записями</span></div>
+            <details className="card achievements-disclosure fold">
+              <summary><span>БЖУ в среднем</span><span className="sub">за дни с записями <span aria-hidden="true">⌄</span></span></summary>
               {([['Белки', 'protein', 'var(--protein)'], ['Жиры', 'fat', 'var(--fat)'], ['Углеводы', 'carbs', 'var(--carbs)']] as const).map(([label, k, color]) => (
                 <div key={k}>
                   <div className="macro-row"><span>{label}</span><span>{fmt(avg(k))} / {s.goal![k]} г</span></div>
                   <Bar value={avg(k)} goal={s.goal![k]} color={color} />
                 </div>
               ))}
-            </section>
+            </details>
           )}
 
           {exercise && (
-            <section className="card">
-              <h2>Рабочие веса</h2>
+            <details className="card achievements-disclosure fold">
+              <summary><span>Рабочие веса</span><span className="sub">{s.exercises.length} упр. <span aria-hidden="true">⌄</span></span></summary>
               <div className="chips-scroll" role="group" aria-label="Упражнение">
                 {s.exercises.map((e) => (
                   <button key={e.id} className="chip" aria-pressed={e.id === exercise.id} onClick={() => setEx(e.id)}>{e.name}</button>
@@ -127,7 +127,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
               {exercise.points.some((p) => p.kg > 0)
                 ? <LineChart points={exercise.points.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={76} />
                 : <p className="sub">Упражнение с собственным весом: лучший подход — {Math.max(...exercise.points.map((p) => p.reps))} повт.</p>}
-            </section>
+            </details>
           )}
         </>
       )}

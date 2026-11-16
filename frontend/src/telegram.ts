@@ -16,6 +16,7 @@ type WebApp = {
   isVersionAtLeast?(version: string): boolean
   close?(): void
   shareToStory?(mediaUrl: string, params?: { text?: string; widget_link?: { url: string; name?: string } }): void
+  BackButton?: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void }
   HapticFeedback?: {
     selectionChanged(): void
     impactOccurred?(style: 'light' | 'medium' | 'heavy'): void

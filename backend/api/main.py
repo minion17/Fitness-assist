@@ -425,11 +425,35 @@ class FoodLogIn(BaseModel):
     qty: float | None = Field(default=None, gt=0, le=5000)
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
     snack_slot: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # which snack of the day
+    day: date | None = None  # a past day of the diary (a forgotten dinner); default today
 
 
 def snack_slot(meal_type: str, slot: str | None) -> str | None:
     """Snacks without an explicit slot start a new one at the current time; other meals have none."""
     return (slot or clock.now().strftime("%H:%M")) if meal_type == "snack" else None
+
+
+BACKFILL_DAYS = 30
+MEAL_HOUR = {"breakfast": "08:00", "lunch": "13:00", "dinner": "19:00", "snack": "16:00"}
+
+
+def entry_time(day: date | None, meal_type: str, slot: str | None) -> tuple[dict, date]:
+    """FoodLog fields that file an entry under `day` (None = now): past days get the meal's usual hour."""
+    today = clock.today()
+    if day is None or day == today:
+        return {"snack_slot": snack_slot(meal_type, slot)}, today
+    if not today - timedelta(days=BACKFILL_DAYS) <= day < today:
+        raise HTTPException(422, f"Дописать можно только последние {BACKFILL_DAYS} дней")
+    slot = (slot or MEAL_HOUR["snack"]) if meal_type == "snack" else None
+    hh, mm = map(int, (slot or MEAL_HOUR[meal_type]).split(":"))
+    return {"snack_slot": slot, "logged_at": clock.local_start(day) + timedelta(hours=hh, minutes=mm)}, day
+
+
+async def meal_xp(session: AsyncSession, user: User, day: date, meal_type: str) -> int:
+    """Today and yesterday earn XP (a forgotten dinner counts); older back-fills don't, so the diary can't be farmed."""
+    if day < clock.today() - timedelta(days=1):
+        return 0
+    return await award_xp(session, user.id, "meal_logged", f"meal:{day}:{meal_type}")
 
 
 def food_log_out(log: FoodLog) -> dict:
@@ -450,12 +474,13 @@ async def add_food_log(body: FoodLogIn, tg: dict = Depends(telegram_user), sessi
     product = await session.get(Product, body.product_id)
     if product is None or product.owner_user_id not in (None, user.id):
         raise HTTPException(404, "Продукт не найден")
-    log = FoodLog(user_id=user.id, **{**body.model_dump(), "snack_slot": snack_slot(body.meal_type, body.snack_slot)})
+    when, day = entry_time(body.day, body.meal_type, body.snack_slot)
+    log = FoodLog(user_id=user.id, **{**body.model_dump(exclude={"day"}), **when})
     session.add(log)
     await session.commit()
     log = await session.scalar(select(FoodLog).options(selectinload(FoodLog.product)).where(FoodLog.id == log.id))
     # One reward per meal type per day, so XP can't be farmed by logging many items.
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{log.logged_at.astimezone(clock.tz()).date()}:{log.meal_type}")
+    xp = await meal_xp(session, user, day, log.meal_type)
     return {**food_log_out(log), "xp_awarded": xp}
 
 
@@ -492,19 +517,24 @@ async def delete_food_log(log_id: int, tg: dict = Depends(telegram_user), sessio
 
 
 class FoodLogPatch(BaseModel):
-    amount_g: float = Field(gt=0, le=5000)
+    amount_g: float | None = Field(default=None, gt=0, le=5000)  # not sent = keep the amount (a move to another meal)
     unit: str | None = Field(default=None, max_length=12)  # not sent = typed in grams
     qty: float | None = Field(default=None, gt=0, le=5000)
+    meal_type: Literal["breakfast", "lunch", "dinner", "snack"] | None = None
 
 
 @app.patch("/api/food-logs/{log_id}")
 async def change_food_log(log_id: int, body: FoodLogPatch, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    """Fix the grams of an entry (swipe in the diary)."""
+    """Fix the grams of an entry, or move it to another meal of the same day (diary menu)."""
     user = await get_or_create_user(tg, session)
     log = await session.scalar(select(FoodLog).options(selectinload(FoodLog.product)).where(FoodLog.id == log_id))
     if log is None or log.user_id != user.id:
         raise HTTPException(404, "Запись не найдена")
-    log.amount_g, log.unit, log.qty = body.amount_g, body.unit, body.qty
+    if body.amount_g is not None:
+        log.amount_g, log.unit, log.qty = body.amount_g, body.unit, body.qty
+    if body.meal_type and body.meal_type != log.meal_type:
+        # a snack keeps to its day: the slot is the entry's own local time
+        log.meal_type, log.snack_slot = body.meal_type, clock.local(log.logged_at).strftime("%H:%M") if body.meal_type == "snack" else None
     await session.commit()
     return food_log_out(log)
 

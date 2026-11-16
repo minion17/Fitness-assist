@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import './MealDay.css'
 import type { PlannedExercise } from './types'
+import { useBack } from './back'
 
 const GUIDE: Record<string, { image: string; muscles: string; steps: string }> = {
   'Жим штанги лежа': { image: 'barbell_bench', muscles: 'Грудь, трицепсы, плечи', steps: 'Лягте на устойчивую скамью, уприте стопы в пол. Контролируемо опустите штангу к груди и выжмите вверх.' },
@@ -92,6 +93,7 @@ export function getExerciseGuideImage(name: string): string | null {
 }
 
 export default function KettlebellExercise({ exercise, onClose }: { exercise: PlannedExercise; onClose: () => void }) {
+  useBack(onClose)
   const name = exercise.name
   const dialog = useRef<HTMLDialogElement>(null)
   const guide = GUIDE[name]

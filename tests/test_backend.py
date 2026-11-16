@@ -1792,3 +1792,32 @@ def test_pdf_report(client, seeded):
     from backend.bot.report import cut, printable
     assert printable("🦊 Егор ✨") == "Егор" and printable("💪") == ""  # emoji-only name -> generic title
     assert cut("День 1: Верх тела + Кор · Домашняя тренировка для начинающих", 24, 500).endswith("…")
+
+
+def test_diary_past_days(client, seeded):
+    """A forgotten meal goes into an earlier day: yesterday still earns XP, older days don't, nothing past 30 days."""
+    from datetime import date, timedelta
+
+    h = new_user_headers()
+    pid = client.get("/api/products/search?q=Гречка", headers=h).json()[0]["id"]
+    day = lambda n: (date.today() - timedelta(days=n)).isoformat()  # noqa: E731
+    add = lambda n, meal="dinner": client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": meal, "day": day(n)})  # noqa: E731
+    r = add(1)
+    assert r.status_code == 200 and r.json()["xp_awarded"] > 0
+    assert add(1).json()["xp_awarded"] == 0  # once per meal per day
+    assert add(5).json()["xp_awarded"] == 0  # old back-fill: logged, no XP
+    assert add(40).status_code == 422 and add(-1).status_code == 422
+    y = client.get(f"/api/food-logs?day={day(1)}", headers=h).json()
+    assert len(y["items"]) == 2 and client.get("/api/food-logs", headers=h).json()["items"] == []
+    snack = add(3, "snack").json()
+    assert snack["snack_slot"] == "16:00"
+
+    # move to another meal of the same day; the amount stays
+    moved = client.patch(f"/api/food-logs/{y['items'][0]['id']}", headers=h, json={"meal_type": "lunch"}).json()
+    assert moved["meal_type"] == "lunch" and moved["amount_g"] == 100
+    assert client.get(f"/api/food-logs?day={day(1)}", headers=h).json()["items"][0]["meal_type"] == "lunch"
+    # copy yesterday's dinner into a day before it, and a set / batch into a past day
+    r = client.post("/api/food-logs/copy", headers=h, json={"from_day": day(1), "meal_type": "dinner", "to_day": day(2)}).json()
+    assert r["copied"] == 1
+    assert client.post("/api/food-logs/batch", headers=h, json={"meal_type": "breakfast", "day": day(2), "items": [{"product_id": pid, "amount_g": 50}]}).status_code == 200
+    assert {i["meal_type"] for i in client.get(f"/api/food-logs?day={day(2)}", headers=h).json()["items"]} == {"dinner", "breakfast"}

@@ -1454,6 +1454,14 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
     assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] == usual["id"]  # what I eat comes first
     assert client.get("/api/products/search", params={"q": "курица"}, headers=new_user_headers()).json()[0]["id"] != usual["id"] or len(found) == 1
 
+    async def clean():  # earlier runs' misses would crowd the top 10 of the shared test database
+        from sqlalchemy import delete
+
+        from backend.database.models import SearchMiss
+        async with SessionLocal() as s:
+            await s.execute(delete(SearchMiss).where(SearchMiss.q.like("ъъъ%")))
+            await s.commit()
+    client.portal.call(clean)
     miss = f"ъъъ продукт {random.randint(10**5, 10**6)}"
     for _ in range(2):
         assert client.get("/api/products/search", params={"q": miss}, headers=h).json() == []

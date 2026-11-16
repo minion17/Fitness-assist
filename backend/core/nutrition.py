@@ -15,11 +15,18 @@ GOAL_RU = {
 OLD_GOALS = {"lose": "weight_loss", "maintain": "maintenance", "gain": "muscle_gain"}
 
 
-def daily_targets(sex: str, birth_year: int, height_cm: int, weight_kg: float, activity: str, goal: str) -> dict:
-    goal = OLD_GOALS.get(goal, goal)
+def maintenance(sex: str, birth_year: int, height_cm: int, weight_kg: float, activity: str) -> int:
+    """Expenditure by the formula: BMR × activity."""
     age = date.today().year - birth_year
     bmr = 10 * weight_kg + 6.25 * height_cm - 5 * age + (5 if sex == "male" else -161)
-    calories = max(round(bmr * ACTIVITY[activity] * GOAL_FACTOR[goal]), MIN_CALORIES[sex])
+    return round(bmr * ACTIVITY[activity])
+
+
+def daily_targets(sex: str, birth_year: int, height_cm: int, weight_kg: float, activity: str, goal: str,
+                  calories: int | None = None) -> dict:
+    """`calories`: the user's own accepted norm (from their real expenditure) instead of the formula."""
+    goal = OLD_GOALS.get(goal, goal)
+    calories = calories or max(round(maintenance(sex, birth_year, height_cm, weight_kg, activity) * GOAL_FACTOR[goal]), MIN_CALORIES[sex])
     protein = round(weight_kg * PROTEIN_G_PER_KG[goal])
     fat = round(weight_kg * FAT_G_PER_KG)
     carbs = max(0, round((calories - protein * 4 - fat * 9) / 4))

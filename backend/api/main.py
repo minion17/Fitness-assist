@@ -27,6 +27,7 @@ from backend.api.meal_preferences import router as meal_preferences_router
 from backend.api.saved_meal_plan import router as saved_meal_plan_router
 from backend.api.habits import habit_list, router as habits_router
 from backend.api.kitchen import router as kitchen_router
+from backend.api.energy import router as energy_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
@@ -108,7 +109,8 @@ def profile_out(profile: Profile | None) -> dict | None:
     if profile is None:
         return None
     data = ProfileIn.model_validate(profile, from_attributes=True).model_dump()
-    return {**data, "targets": daily_targets(**{k: data[k] for k in BASE_FIELDS})}
+    return {**data, "target_weight_kg": profile.target_weight_kg, "kcal_override": profile.kcal_override,
+            "targets": daily_targets(**{k: data[k] for k in BASE_FIELDS}, calories=profile.kcal_override)}
 
 
 async def recommended_program(session: AsyncSession, profile: Profile | None) -> dict | None:
@@ -210,6 +212,8 @@ async def save_profile(
     data = body.model_dump()
     if user.health_consent_at is None:  # health data only with its separate consent (152-ФЗ ст. 10)
         data.update(allergies=None, injury=None)
+    if existing and existing.goal != body.goal:
+        profile.kcal_override = None  # an accepted norm was for the old goal
     for k, v in data.items():
         setattr(profile, k, v)
     session.add(profile)
@@ -733,6 +737,7 @@ app.include_router(social_router)
 app.include_router(quests_router)
 app.include_router(habits_router)
 app.include_router(kitchen_router)
+app.include_router(energy_router)
 app.include_router(account_router)
 app.include_router(meal_preferences_router)
 app.include_router(saved_meal_plan_router)

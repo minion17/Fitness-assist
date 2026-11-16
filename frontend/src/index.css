@@ -1183,3 +1183,12 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .recipe-ing .input-wrap { width: 96px; flex: none; }
 .recipe-total { margin: 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, transparent); font-size: 14px; }
 .row-actions { display: flex; flex-direction: column; gap: 8px; }
+
+.energy { display: flex; flex-direction: column; gap: 10px; }
+.energy-main { display: flex; align-items: baseline; gap: 8px; }
+.energy-main b { font-family: 'Unbounded Variable', sans-serif; font-size: 34px; color: var(--accent-text, var(--accent)); }
+.energy-main span { color: var(--muted); font-weight: 600; }
+.energy-forecast { margin: 0; font-size: 15px; }
+.energy-note { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--streak, #ff9f43) 16%, transparent); font-size: 14px; line-height: 1.45; }
+.energy-target { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+.energy-target .input-wrap { width: 110px; }

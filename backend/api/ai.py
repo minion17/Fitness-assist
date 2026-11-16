@@ -258,7 +258,7 @@ async def summary_data(session: AsyncSession, user: User, period: str) -> str:
     profile = await session.get(Profile, user.id)
     lines = [f"Период: {'сегодня' if period == 'day' else 'последние 7 дней'} (по {today.isoformat()})."]
     if profile:
-        t = daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal)
+        t = daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal, profile.kcal_override)
         lines.append(f"Цель: {GOAL_RU.get(profile.goal, profile.goal)}. "
                      f"Норма в день: {t['calories']} ккал, Б {t['protein']} г, Ж {t['fat']} г, У {t['carbs']} г.")
         extra = [

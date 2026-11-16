@@ -11,6 +11,7 @@ import Quests, { type QuestWeek } from './Quests'
 import Habits, { type Habit } from './Habits'
 import { animate } from './motion'
 import Consent, { PrivacyCard, type ConsentState } from './Consent'
+import EnergyCard from './Energy'
 import { canStory, shareStory } from './story'
 import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
@@ -456,6 +457,9 @@ export default function App() {
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
               norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}
+              {canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
+                api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
+              }} />}
               {aiEnabled && <AiSummary />}</>}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
         )}

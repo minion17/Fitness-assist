@@ -1513,3 +1513,53 @@ def test_meal_sets_and_recipes(client, seeded):
     client.delete(f"/api/recipes/{r['id']}", headers=h)
     assert client.get("/api/recipes", headers=h).json() == []
     assert any(i["product"]["id"] == r["id"] for i in client.get("/api/food-logs", headers=h).json()["items"])  # the plate stays
+
+
+def test_real_expenditure_forecast_and_plateau(client, seeded):
+    from datetime import date, datetime, time, timedelta
+
+    from backend.api.energy import estimate, slope
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, User
+
+    assert abs(slope([(0, 80), (7, 79.5), (14, 79)]) - (-1 / 14)) < 1e-9
+    assert estimate([2000] * 9, [(0, 80), (7, 79), (14, 78)]) is None  # not enough logged days yet
+    # ate 2000 a day and lost 0.5 kg a week -> spent 2000 + 0.5/7 × 7700 = 2550
+    assert estimate([2000] * 14, [(0, 80), (7, 79.5), (14, 79)]) == {"tdee": 2550, "intake": 2000, "kg_per_week": -0.5}
+    assert estimate([300] * 14, [(0, 80), (7, 79.5), (14, 79)]) is None  # implausible: the diary has gaps
+
+    import random
+
+    tg_id = random.randint(5 * 10**9, 6 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json={**PROFILE, "goal": "weight_loss"})
+    e = client.get("/api/insights/energy", headers=h).json()
+    assert e["ready"] is False and e["days_logged"] == 0 and e["formula"] > 1000
+    assert client.post("/api/profile/target-weight", headers=h, json={"target_weight_kg": 75}).json()["target_weight_kg"] == 75
+
+    # 21 days: 2000 kcal a day; weight 80 -> 78.5 over three weeks, then flat for the last two
+    product = next(p for p in client.get("/api/products/search", params={"q": "гречка"}).json() if p["kcal"] > 50)
+    grams = 2000 * 100 / product["kcal"]
+    today = date.today()
+
+    async def seed():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            for i in range(1, 22):
+                s.add(FoodLog(user_id=user.id, product_id=product["id"], amount_g=grams, meal_type="lunch",
+                              logged_at=datetime.combine(today - timedelta(days=i), time(13)).astimezone()))
+            await s.commit()
+    client.portal.call(seed)
+    for back, kg in ((21, 80.0), (14, 79.2), (12, 78.6), (7, 78.55), (1, 78.5)):
+        client.put("/api/measurements", headers=h, json={"measured_on": (today - timedelta(days=back)).isoformat(), "weight_kg": kg})
+    e = client.get("/api/insights/energy", headers=h).json()
+    assert e["ready"] and e["days_logged"] == 21 and 2000 < e["tdee"] < 3200 and e["kg_per_week"] < 0
+    assert e["suggest"] == max(round((e["tdee"] - 550) / 10) * 10, 1500) and e["eta"] and e["plateau"] is True
+
+    assert client.post("/api/insights/energy/apply", headers=h, json={"kcal": 900}).status_code == 422  # below the safe floor
+    client.post("/api/insights/energy/apply", headers=h, json={"kcal": e["suggest"]})
+    assert client.get("/api/profile", headers=h).json()["targets"]["calories"] == e["suggest"]
+    client.put("/api/profile", headers=h, json={**PROFILE, "goal": "maintenance"})  # a new goal drops the accepted norm
+    assert client.get("/api/profile", headers=h).json()["kcal_override"] is None

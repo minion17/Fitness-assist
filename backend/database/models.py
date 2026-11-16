@@ -57,6 +57,8 @@ class Profile(Base):
     sleep_hours: Mapped[float | None] = mapped_column(Float)
     stress: Mapped[str | None] = mapped_column(String(16))
     injury: Mapped[str | None] = mapped_column(String(16))  # None = no injuries; knees | back | shoulders | other
+    target_weight_kg: Mapped[float | None] = mapped_column(Float)
+    kcal_override: Mapped[int | None] = mapped_column(Integer)  # accepted from the real-expenditure estimate; None = formula
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

@@ -22,7 +22,8 @@ router = APIRouter(prefix="/api")
 def targets(profile: Profile | None) -> dict | None:
     if profile is None:
         return None
-    return daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal)
+    return daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal,
+                         profile.kcal_override)
 
 
 async def daily_series(session: AsyncSession, user: User, since: date, until: date) -> list[dict]:

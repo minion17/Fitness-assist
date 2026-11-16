@@ -115,7 +115,7 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
         if todo:
             eaten, t = await eaten_today(session, user, local_start(today))
             p = await session.get(Profile, user.id)
-            goal = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal)
+            goal = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal, p.kcal_override)
             macros = {"Белки": (t["protein"], goal["protein"]), "Жиры": (t["fat"], goal["fat"]), "Углеводы": (t["carbs"], goal["carbs"])}
             out += [(f"{today}:{m}", f"🍽 Не забудьте записать {MEALS[m]} — так норма КБЖУ будет честной.",
                      Render(cards.meal, MEALS[m].capitalize(), t["kcal"], goal["calories"], macros, **look), None)

@@ -1226,3 +1226,5 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .challenge-member { display: grid; grid-template-columns: 90px 1fr 44px; align-items: center; gap: 10px; font-size: 14px; }
 .challenge-member > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .challenge-member .sub { text-align: right; font-variant-numeric: tabular-nums; }
+
+.report-card { display: flex; flex-direction: column; gap: 10px; }

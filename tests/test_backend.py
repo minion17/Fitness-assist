@@ -1765,3 +1765,27 @@ def test_group_challenges(client, seeded):
     assert n >= 1 and "справились: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
     assert "1 из 7" in texts[ids[1]][0] and "Аня 6/7" in texts[ids[1]][0]
     assert client.get("/api/challenges", headers=a).json()[0]["finished"] is True
+
+
+def test_pdf_report(client, seeded):
+    from datetime import date, timedelta
+
+    from backend.bot.report import render
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    assert client.post("/api/report", headers=h, json={"days": 14}).status_code == 422
+    assert client.post("/api/report", headers=h, json={"days": 30}).json() == {"ok": True}
+    assert client.post("/api/report", headers=h, json={"days": 30}).status_code == 429  # one at a time
+    today = date.today()
+    data = {"name": "Егор", "since": today - timedelta(days=29), "until": today, "span": 30,
+            "profile": {"goal": "снижение веса", "height": 180, "kcal": 2200, "protein": 160, "fat": 70, "carbs": 230},
+            "nutrition": {"days": 20, "in_norm": 12, "kcal": 2150, "protein": 150, "fat": 70, "carbs": 220, "daily": [2100 + i * 10 for i in range(30)]},
+            "body": {"points": [(0, 82.0), (14, 81.2), (29, 80.4)], "first": {"weight_kg": 82.0, "waist_cm": 90}, "last": {"weight_kg": 80.4, "waist_cm": 88}},
+            "workouts": {"sessions": [{"date": today - timedelta(days=i), "title": "День 1 · Все тело", "sets": 12} for i in range(20)], "sets": 240},
+            "water_ml": 2100}
+    pdf = render(data)
+    assert pdf[:5] == b"%PDF-" and pdf.count(b"/Type /Page") - pdf.count(b"/Type /Pages") == 2  # long workout list -> 2 pages
+    empty = {**data, "profile": None, "nutrition": {**data["nutrition"], "days": 0}, "body": {"points": [], "first": {}, "last": {}},
+             "workouts": {"sessions": [], "sets": 0}, "water_ml": 0}
+    assert render(empty)[:5] == b"%PDF-"  # a new user still gets a (sparse) report

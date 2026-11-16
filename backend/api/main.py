@@ -23,6 +23,8 @@ from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
 from backend.api.account import router as account_router
+from backend.api.meal_preferences import router as meal_preferences_router
+from backend.api.saved_meal_plan import router as saved_meal_plan_router
 from backend.api.habits import habit_list, router as habits_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
@@ -730,6 +732,8 @@ app.include_router(social_router)
 app.include_router(quests_router)
 app.include_router(habits_router)
 app.include_router(account_router)
+app.include_router(meal_preferences_router)
+app.include_router(saved_meal_plan_router)
 
 
 # Serve the built Mini App from the same origin, so one HTTPS tunnel covers UI + API.

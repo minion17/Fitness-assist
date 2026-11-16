@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
-import type { Targets } from './profile'
+import type { ProfileData, Targets } from './profile'
 import AiMeal from './AiMeal'
+import MealPlan from './MealPlan'
 import { shrink } from './image'
 import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
@@ -111,10 +112,12 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
   )
 }
 
-export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
+export default function Food({ day, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
+  healthConsent?: boolean
+  profile?: ProfileData | null
   onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
   onDelete: (id: number) => Promise<void>
   onGrams?: (id: number, grams: number) => Promise<void>
@@ -124,6 +127,7 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams =
   onCopy?: (fromDay: string, meal: MealType) => Promise<void>
 }) {
   const goals = targets ?? DEFAULT_GOALS
+  const [planning, setPlanning] = useState(false)
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
   const [expandedMeals, setExpandedMeals] = useState<string[]>([])
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
@@ -138,9 +142,12 @@ export default function Food({ day, targets, canEdit, onAdd, onDelete, onGrams =
     api<FoodDay>(`/api/food-logs?day=${iso}`).then(setYesterday).catch(() => {})
   }, [canEdit])
 
+  if (planning) return <MealPlan onClose={() => setPlanning(false)} canEdit={canEdit} healthConsent={healthConsent || !canEdit} profile={profile} />
+
   return (
     <>
       <h1>Питание</h1>
+      <button className="card meal-plan-entry" onClick={() => setPlanning(true)}><span><strong>Подбор рациона</strong><small>По вашим предпочтениям</small></span><span>Открыть →</span></button>
       <section className="card nutrition-summary">
         <div className="card-head"><h2>КБЖУ за сегодня</h2><span className="sub">{Math.round(t.kcal)} / {goals.calories}</span></div>
         <div className="ring-wrap">

@@ -74,7 +74,7 @@ async def import_products(s) -> int:
 
 async def import_exercises(s) -> int:
     added = 0
-    for e in load("exercises/exercises.json"):
+    for e in [*load("exercises/exercises.json"), *load("exercises/translated_exercises.json")]:
         if await s.scalar(select(Exercise.id).where(Exercise.name == e["name"], Exercise.owner_user_id.is_(None))):
             continue
         s.add(Exercise(
@@ -104,7 +104,7 @@ async def import_programs(s) -> int:
                     raise ValueError(f"Программа «{p['name']}»: упражнения «{x['name']}» нет в exercises.json")
                 day.items.append(ProgramExercise(
                     exercise_id=exercise_ids[x["name"]], sets=x["sets"], reps=str(x["reps"]),
-                    rest_seconds=x["rest_seconds"], notes=x.get("notes"), position=k,
+                    rest_seconds=x["rest_seconds"], notes=x.get("notes"), unit=x.get("unit", "reps"), position=k,
                 ))
             program.days.append(day)
         s.add(program)

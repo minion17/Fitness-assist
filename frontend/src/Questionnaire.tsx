@@ -77,22 +77,22 @@ function checkNum(d: Draft, k: NumKey): string | null {
 
 const STEPS: { title: string; hint: string; check: (d: Draft) => string | null }[] = [
   {
-    title: 'О себе', hint: 'Нужно для расчёта нормы калорий.',
+    title: 'О себе', hint: 'Расскажите немного о себе — это поможет рассчитать ваши ориентиры.',
     check: (d) => (!d.sex ? 'Выберите пол' : checkNum(d, 'birth_year') ?? checkNum(d, 'height_cm') ?? checkNum(d, 'weight_kg')),
   },
   { title: 'Цель', hint: 'От цели зависит калорийность и белок.', check: (d) => (!d.goal ? 'Выберите цель' : null) },
   {
-    title: 'Опыт и активность', hint: 'Подберём нагрузку под ваш уровень.',
+    title: 'Опыт и активность', hint: 'Эти ответы помогут подобрать подходящую программу.',
     check: (d) => (!d.experience ? 'Выберите уровень подготовки' : !d.activity ? 'Выберите уровень активности' : null),
   },
   {
-    title: 'Тренировки', hint: 'По этим ответам подберём программу.',
+    title: 'Тренировки', hint: 'Расскажите, где и как вам удобно тренироваться.',
     check: (d) => (!d.equipment.length ? 'Отметьте доступное оборудование'
       : !d.sessions_per_week ? 'Выберите количество дней' : !d.session_minutes ? 'Выберите длительность' : null),
   },
   { title: 'Питание', hint: 'Сколько раз в день вы обычно едите.', check: (d) => (!d.meals_per_day ? 'Выберите число приёмов пищи' : null) },
   {
-    title: 'Восстановление', hint: 'Сон и стресс влияют на результат не меньше тренировок.',
+    title: 'Восстановление', hint: 'Эти ответы помогут учитывать ваше восстановление.',
     check: (d) => checkNum(d, 'sleep_hours') ?? (!d.stress ? 'Выберите уровень стресса'
       : d.health && !d.has_injury ? 'Укажите, есть ли травмы' : d.health && d.has_injury === 'yes' && !d.injury ? 'Выберите зону ограничения' : null),
   },
@@ -171,17 +171,17 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
   )
 
   return (
-    <form className="screen" onSubmit={next} noValidate>
+    <form className="screen questionnaire" onSubmit={next} noValidate>
       <div className="steps" aria-label={`Шаг ${step + 1} из ${STEPS.length}`}>
         {STEPS.map((_, i) => <i key={i} className={i <= step ? 'on' : ''} />)}
       </div>
-      <div>
+      <div className="questionnaire-heading">
         <p className="hello">Шаг {step + 1} из {STEPS.length}</p>
         <h1>{step === 0 && !initial ? 'Давайте знакомиться' : STEPS[step].title}</h1>
         <p className="sub">{STEPS[step].hint}</p>
       </div>
 
-      <section className="card" key={step}>
+      <section className="card questionnaire-card" key={step}>
         {step === 0 && (
           <>
             <Choice label="Пол" options={SEX} value={d.sex} onChange={set('sex')} />

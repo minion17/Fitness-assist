@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, func
+from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.db import Base
@@ -60,6 +60,35 @@ class Profile(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class MealPreferences(Base):
+    __tablename__ = "meal_preferences"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    days: Mapped[int] = mapped_column(Integer)
+    goal: Mapped[str] = mapped_column(String(16))
+    allergies: Mapped[str] = mapped_column(Text, default="")
+    liked: Mapped[str] = mapped_column(Text, default="")
+    disliked: Mapped[str] = mapped_column(Text, default="")
+    budget: Mapped[int | None] = mapped_column(Integer)
+    current_spend: Mapped[int | None] = mapped_column(Integer)
+    persons: Mapped[int] = mapped_column(Integer, server_default="1")
+    selected_meals: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{breakfast,lunch,dinner}")
+    shared_meals: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
+    dietary_type: Mapped[str] = mapped_column(String(16), server_default="omnivore")
+    cooking_mode: Mapped[str] = mapped_column(String(16), server_default="daily")
+    batch_days: Mapped[int] = mapped_column(Integer, server_default="2")
+    liked_recipe_ids: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
+    disliked_recipe_ids: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
+    sex: Mapped[str | None] = mapped_column(String(8))
+
+
+class SavedMealPlan(Base):
+    __tablename__ = "saved_meal_plans"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 
 class XpEvent(Base):

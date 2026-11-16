@@ -1,4 +1,6 @@
 // Demo data shown outside Telegram (no account), so the UI can be previewed in a browser.
+import programCatalog from '../../content/programs/programs.json'
+import exerciseCatalog from '../../content/exercises/exercises.json'
 import type { FoodDay, Measurement, Program } from './types'
 
 const p = (id: number, name: string, kcal: number, protein_g: number, fat_g: number, carbs_g: number) =>
@@ -24,6 +26,25 @@ export const demoPrograms: Program[] = [{
     ],
   }],
 }]
+
+
+// The browser preview uses the same program data as the database seed.
+const previewExercises = new Map(exerciseCatalog.map((exercise, index) => [exercise.name, -100000 - index]))
+for (const [index, program] of programCatalog.slice(3).entries()) {
+  demoPrograms.push({
+    id: -100 - index, name: program.name, goal: program.goal, level: program.level,
+    days_per_week: program.days_per_week, description: program.description,
+    days: program.days.map((day, dayIndex) => ({
+      id: -1000 - index * 10 - dayIndex, day_name: day.day_name, day_order: day.day_order,
+      exercises: day.exercises.map(exercise => ({
+        exercise_id: previewExercises.get(exercise.name) ?? 0,
+        name: exercise.name, sets: exercise.sets, reps: exercise.reps,
+        rest_seconds: exercise.rest_seconds, notes: exercise.notes ?? null,
+        unit: 'unit' in exercise && exercise.unit === 'seconds' ? 'seconds' : 'reps',
+      })),
+    })),
+  })
+}
 
 export const demoMeasurements: Measurement[] = [
   { id: 3, measured_on: '2026-10-27', weight_kg: 78.4, waist_cm: 84, chest_cm: 101, hips_cm: 97, body_fat_pct: 17 },

@@ -32,3 +32,16 @@ export const GOALS: Record<Goal, string> = {
 }
 
 export const YEAR = new Date().getFullYear()
+
+// Matches the server's daily_targets calculation for an offline profile.
+export function calculateTargets(profile: ProfileData, goal: Goal = profile.goal): Targets {
+  const activity = { low: 1.2, light: 1.375, moderate: 1.55, high: 1.725, very_high: 1.9 }
+  const factors = { weight_loss: .8, fat_loss: .85, maintenance: 1, muscle_gain: 1.15, mass_gain: 1.2 }
+  const proteinPerKg = { weight_loss: 2, fat_loss: 2, maintenance: 1.6, muscle_gain: 1.8, mass_gain: 1.6 }
+  const age = new Date().getFullYear() - profile.birth_year
+  const bmr = 10 * profile.weight_kg + 6.25 * profile.height_cm - 5 * age + (profile.sex === 'male' ? 5 : -161)
+  const calories = Math.max(Math.round(bmr * activity[profile.activity] * factors[goal]), profile.sex === 'male' ? 1500 : 1200)
+  const protein = Math.round(profile.weight_kg * proteinPerKg[goal])
+  const fat = Math.round(profile.weight_kg * .9)
+  return { calories, protein, fat, carbs: Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4)) }
+}

@@ -3,7 +3,7 @@ import type { Program } from './types'
 
 const formatRest = (seconds: number) => seconds >= 60 ? `${Math.floor(seconds / 60)} мин${seconds % 60 ? ` ${seconds % 60} с` : ''}` : `${seconds} с`
 
-export type ExerciseOption = { id: number; name: string }
+export type ExerciseOption = { id: number; name: string; equipment?: string[]; is_bodyweight?: boolean }
 export type ProgramDraft = { name: string; days: { id?: number; name: string; exercises: { exercise_id: number; sets: number; reps: string; rest_seconds: number; unit?: 'reps' | 'seconds'; superset?: number | null; planned_weights?: (number | null)[] | null }[] }[] }
 
 export default function ProgramBuilder({ exercises, initial, onSave, onCancel, onCreateExercise }: {
@@ -18,6 +18,7 @@ export default function ProgramBuilder({ exercises, initial, onSave, onCancel, o
   const [activeDay, setActiveDay] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [equipmentFilter, setEquipmentFilter] = useState('Все')
   const [searches, setSearches] = useState<Record<string, string>>({})
   const closePicker = (key: string) => setSearches(current => { const next = { ...current }; delete next[key]; return next })
   const updateDay = (i: number, patch: Partial<ProgramDraft['days'][number]>) => setDraft(d => ({ ...d, days: d.days.map((day, n) => n === i ? { ...day, ...patch } : day) }))
@@ -49,7 +50,8 @@ export default function ProgramBuilder({ exercises, initial, onSave, onCancel, o
         <div className="builder-picker">
           <label>Упражнение<input aria-label={`Упражнение ${ei + 1}`} placeholder="Выберите или введите название" value={searches[`${di}-${ei}`] ?? exercises.find(ex => ex.id === item.exercise_id)?.name ?? ''} onFocus={() => setSearches({ [`${di}-${ei}`]: '' })} onChange={e => setSearches({ [`${di}-${ei}`]: e.target.value })} onKeyDown={e => { if (e.key === 'Escape') closePicker(`${di}-${ei}`) }} /></label>
           {Object.hasOwn(searches, `${di}-${ei}`) && <div className="builder-options">
-            {exercises.filter(ex => ex.name.toLowerCase().replaceAll('ё', 'е').includes(searches[`${di}-${ei}`].toLowerCase().replaceAll('ё', 'е'))).map(ex => <button key={ex.id} type="button" onClick={() => { updateExercise(di, ei, { exercise_id: ex.id }); closePicker(`${di}-${ei}`); setError('') }}>{ex.name}</button>)}
+            <label className="builder-equipment-filter">Оборудование<select aria-label="Фильтр оборудования" value={equipmentFilter} onChange={e => setEquipmentFilter(e.target.value)}><option>Все</option><option>Собственный вес</option><option>Штанга</option><option>Гантели</option><option>Гиря</option><option>Турник</option></select></label>
+            {exercises.filter(ex => (equipmentFilter === 'Все' || (equipmentFilter === 'Собственный вес' ? ex.is_bodyweight : ex.equipment?.includes(equipmentFilter)))).filter(ex => ex.name.toLowerCase().replaceAll('ё', 'е').includes(searches[`${di}-${ei}`].toLowerCase().replaceAll('ё', 'е'))).map(ex => <button key={ex.id} type="button" onClick={() => { updateExercise(di, ei, { exercise_id: ex.id }); closePicker(`${di}-${ei}`); setError('') }}>{ex.name}</button>)}
             {onCreateExercise && searches[`${di}-${ei}`].trim() && !exercises.some(ex => ex.name.toLowerCase() === searches[`${di}-${ei}`].trim().toLowerCase()) && <button type="button" className="builder-create" onClick={async () => { try { const ex = await onCreateExercise(searches[`${di}-${ei}`].trim()); updateExercise(di, ei, { exercise_id: ex.id }); closePicker(`${di}-${ei}`); setError('') } catch { setError('Не удалось добавить упражнение.') } }}>+ Добавить «{searches[`${di}-${ei}`].trim()}»</button>}
           </div>}
         </div>

@@ -1469,3 +1469,47 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
         async with SessionLocal() as s:
             return await summary(s)
     assert f"• {miss} — 2" in client.portal.call(stats)
+
+
+def test_meal_sets_and_recipes(client, seeded):
+    from datetime import date
+
+    h, other = new_user_headers(), new_user_headers()
+    find = lambda q: next(p for p in client.get("/api/products/search", params={"q": q}).json())  # noqa: E731
+    oats, banana = find("овсяные хлопья"), find("банан")
+    client.post("/api/food-logs", headers=h, json={"product_id": oats["id"], "amount_g": 60, "meal_type": "breakfast"})
+    client.post("/api/food-logs", headers=h, json={"product_id": banana["id"], "amount_g": 120, "meal_type": "breakfast", "unit": "шт", "qty": 1})
+    today = date.today().isoformat()
+    s = client.post("/api/meal-sets", headers=h, json={"name": " Мой завтрак ", "from_day": today, "meal_type": "breakfast"}).json()
+    assert s["name"] == "Мой завтрак" and len(s["items"]) == 2 and s["items"][1]["unit"] == "шт"
+    assert s["kcal"] == round(oats["kcal"] * 0.6 + banana["kcal"] * 1.2, 1)
+    assert s["protein_g"] == round(oats["protein_g"] * 0.6 + banana["protein_g"] * 1.2, 1) > 0
+    assert client.post("/api/meal-sets", headers=h, json={"name": "x", "from_day": today, "meal_type": "dinner"}).status_code == 404
+    assert client.post(f"/api/meal-sets/{s['id']}/log", headers=other, json={"meal_type": "lunch"}).status_code == 404
+    assert client.post(f"/api/meal-sets/{s['id']}/log", headers=h, json={"meal_type": "lunch"}).json()["logged"] == 2
+    lunch = [i for i in client.get("/api/food-logs", headers=h).json()["items"] if i["meal_type"] == "lunch"]
+    assert sorted(i["amount_g"] for i in lunch) == [60, 120]
+    assert [x["id"] for x in client.get("/api/meal-sets", headers=h).json()] == [s["id"]]
+    client.delete(f"/api/meal-sets/{s['id']}", headers=h)
+    assert client.get("/api/meal-sets", headers=h).json() == []
+
+    # a recipe: 500 g of ingredients boiled down to 400 g, 4 portions
+    beet, beef = find("свекла"), find("говядина")
+    body = {"name": "Борщ мамин", "ingredients": [{"product_id": beet["id"], "grams": 300}, {"product_id": beef["id"], "grams": 200}],
+            "cooked_g": 400, "servings": 4}
+    r = client.post("/api/recipes", headers=h, json=body).json()
+    expect = (beet["kcal"] * 3 + beef["kcal"] * 2) * 100 / 400
+    assert abs(r["kcal"] - expect) <= 1 and r["portion_g"] == 100 and r["category"] == "Мой рецепт"
+    assert abs(r["protein_g"] - (beet["protein_g"] * 3 + beef["protein_g"] * 2) * 100 / 400) <= 0.1 and r["protein_g"] > 0
+    assert client.get("/api/products/search", headers=h, params={"q": "борщ мамин"}).json()[0]["id"] == r["id"]
+    assert client.get("/api/products/search", headers=other, params={"q": "борщ мамин"}).json() == []  # private
+    assert client.post("/api/recipes", headers=h, json={**body, "cooked_g": 50}).status_code == 422  # can't shrink 10x
+    body["name"], body["cooked_g"] = "Борщ мамин наваристый", None
+    u = client.put(f"/api/recipes/{r['id']}", headers=h, json=body).json()
+    assert abs(u["kcal"] - expect * 400 / 500) <= 1 and u["total_g"] == 500
+    assert client.get("/api/products/search", headers=h, params={"q": "наваристый"}).json()[0]["id"] == r["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": r["id"], "amount_g": 300, "meal_type": "dinner"})
+    assert client.delete(f"/api/recipes/{r['id']}", headers=other).status_code == 404
+    client.delete(f"/api/recipes/{r['id']}", headers=h)
+    assert client.get("/api/recipes", headers=h).json() == []
+    assert any(i["product"]["id"] == r["id"] for i in client.get("/api/food-logs", headers=h).json()["items"])  # the plate stays

@@ -368,6 +368,30 @@ class WeeklyQuest(Base):
     slot: Mapped[int] = mapped_column(Integer)  # display order
 
 
+class MealSet(Base):
+    """A user's usual meal ("Мой завтрак"): products with amounts, logged in one tap."""
+
+    __tablename__ = "meal_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    items: Mapped[list] = mapped_column(JSON)  # [{"product_id", "amount_g", "unit", "qty"}]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Recipe(Base):
+    """A home dish built from catalog products; it is logged as its own product (per 100 g computed from these)."""
+
+    __tablename__ = "recipes"
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    ingredients: Mapped[list] = mapped_column(JSON)  # [{"product_id", "grams"}]
+    cooked_g: Mapped[float | None] = mapped_column(Float)  # weighed after cooking; None = sum of ingredients
+    servings: Mapped[int | None] = mapped_column(Integer)
+
+
 class SearchMiss(Base):
     """A product search that found nothing, counted per day: tells the owner what to add to the catalog."""
 

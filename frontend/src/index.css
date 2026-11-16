@@ -1174,3 +1174,12 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .exercise-plan-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 14px 0 0; padding: 12px 0; border-block: 1px solid var(--card-border); }
 .exercise-plan-stats dt { color: var(--muted); font-size: 12px; }
 .exercise-plan-stats dd { margin: 4px 0 0; font-size: 16px; font-weight: 700; }
+
+.row-btn-plain { all: unset; cursor: pointer; display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.row-btn-plain .row-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recipe { display: flex; flex-direction: column; gap: 12px; }
+.recipe-ing { display: flex; align-items: center; gap: 8px; }
+.recipe-ing-name { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; }
+.recipe-ing .input-wrap { width: 96px; flex: none; }
+.recipe-total { margin: 0; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 14%, transparent); font-size: 14px; }
+.row-actions { display: flex; flex-direction: column; gap: 8px; }

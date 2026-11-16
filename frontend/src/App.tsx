@@ -295,6 +295,12 @@ export default function App() {
     flash(r?.xp_awarded ? `Повторено · +${r.xp_awarded} XP` : 'Повторено')
   }
 
+  async function logSet(setId: number, meal: MealType, slot: string | null) {
+    const r = await api<{ logged: number; xp_awarded: number }>(`/api/meal-sets/${setId}/log`, postJson({ meal_type: meal, snack_slot: slot }))
+    await refreshJournal()
+    flash(r?.xp_awarded ? `Набор добавлен · +${r.xp_awarded} XP` : 'Набор добавлен')
+  }
+
   async function aiMealDone(xpAwarded: number) {
     await refreshJournal()
     flash(xpAwarded ? `Добавлено · +${xpAwarded} XP` : 'Добавлено')
@@ -441,7 +447,7 @@ export default function App() {
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} onLogSet={logSet} onSaved={flash} />}
         {tab === 'workouts' && (
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
             canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />

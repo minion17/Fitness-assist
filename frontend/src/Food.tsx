@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ProfileData, Targets } from './profile'
 import AiMeal from './AiMeal'
+import RecipeEditor, { type RecipeData } from './Recipe'
 import MealPlan from './MealPlan'
 import { shrink } from './image'
 import type { FoodIntent } from './Home'
@@ -112,7 +113,9 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
   )
 }
 
-export default function Food({ day, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
+const today = () => new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD in the phone's zone
+
+export default function Food({ day, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onLogSet, onSaved }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
@@ -125,8 +128,12 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
   onAiDone?: (xp: number) => Promise<void>
   intent?: FoodIntent | null // shortcut from Home: open the matching sheet right away
   onCopy?: (fromDay: string, meal: MealType) => Promise<void>
+  onLogSet?: (setId: number, meal: MealType, slot: string | null) => Promise<void>
+  onSaved?: (message: string) => void
 }) {
   const goals = targets ?? DEFAULT_GOALS
+  const [saving, setSaving] = useState<{ meal: MealType; slot?: string | null; name: string } | null>(null)
+  const [saveError, setSaveError] = useState('')
   const [planning, setPlanning] = useState(false)
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
   const [expandedMeals, setExpandedMeals] = useState<string[]>([])
@@ -193,6 +200,7 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
             {canEdit && (
               <div className="meal-actions">
                 <button className="link" onClick={() => setAdding({ meal, slot })}>+ Добавить</button>
+                {items.length > 1 && <button className="link" onClick={() => setSaving({ meal, slot, name: `Мой ${MEALS[meal].toLowerCase()}` })}>☆ В наборы</button>}
                 {main && items.length === 0 && yesterday?.items.some((i) => i.meal_type === meal) && (
                   <button className="link meal-repeat" disabled={copying === meal}
                     onClick={() => { setCopying(meal); onCopy(yesterday.date, meal).finally(() => setCopying(null)) }}>
@@ -208,7 +216,20 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
       </section>
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
       {aiMode && <AiMeal mode={aiMode} initialText={aiText} onClose={() => { setAiMode(null); setAiText('') }} onDone={onAiDone} />}
-      {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled}
+      {saving && (
+        <Sheet title="Сохранить как набор" onClose={() => setSaving(null)}>
+          <p className="sub">Весь «{MEALS[saving.meal]}» — одним нажатием в любой день: «+ Добавить» → «Наборы».</p>
+          <div className="input-wrap"><input autoFocus aria-label="Название набора" maxLength={60} value={saving.name} onChange={(e) => setSaving({ ...saving, name: e.target.value })} /></div>
+          {saveError && <p className="error" role="alert">{saveError}</p>}
+          <button className="btn" disabled={!saving.name.trim()} onClick={() => {
+            setSaveError('')
+            api('/api/meal-sets', postJson({ name: saving.name, from_day: day.date || today(), meal_type: saving.meal, snack_slot: saving.slot }))
+              .then(() => { setSaving(null); onSaved?.('Набор сохранён') })
+              .catch((e) => setSaveError(e instanceof Error && e.message ? e.message : 'Не получилось сохранить'))
+          }}>Сохранить</button>
+        </Sheet>
+      )}
+      {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled} onLogSet={onLogSet}
         onAiText={(text) => { setAdding(null); setAiText(text); setAiMode('text') }} />}
     </>
   )
@@ -229,10 +250,13 @@ function groupByName(list: Product[]): [Product, Product[]][] {
 const plural = (n: number, one: string, few: string, many: string) =>
   n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many
 
-function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = false, onAiText }: {
+type MealSetData = { id: number; name: string; items: { product_id: number; name: string; amount_g: number }[]; kcal: number }
+
+function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = false, onAiText, onLogSet }: {
   meal: MealType
   slot?: string | null
   aiEnabled?: boolean
+  onLogSet?: (setId: number, meal: MealType, slot: string | null) => Promise<void>
   onAiText?: (text: string) => void // nothing found: describe it to the AI instead
   onClose: () => void
   onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
@@ -247,13 +271,28 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
   const [openGroups, setOpenGroups] = useState<string[]>([])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [list, setList] = useState<'recent' | 'favorites'>('recent')
+  const [list, setList] = useState<'recent' | 'favorites' | 'mine'>('recent')
+  const [sets, setSets] = useState<MealSetData[] | null>(null)
+  const [recipes, setRecipes] = useState<RecipeData[] | null>(null)
+  const [recipe, setRecipe] = useState<RecipeData | 'new' | null>(null)
   const [custom, setCustom] = useState<false | true | 'notFound'>(false)
   const [lastCode, setLastCode] = useState<string | null>(null) // unknown scanned code, linked to the custom product
   const [scan, setScan] = useState<'idle' | 'busy' | 'manual'>('idle')
   const [code, setCode] = useState('')
   const [scanner, setScanner] = useState(false)
   const [menuMode, setMenuMode] = useState(false)
+
+  function openMine() {
+    setList('mine')
+    api<MealSetData[]>('/api/meal-sets').then((r) => setSets(r ?? [])).catch(() => setSets([]))
+    api<RecipeData[]>('/api/recipes').then((r) => setRecipes(r ?? [])).catch(() => setRecipes([]))
+  }
+
+  async function logSet(id: number) {
+    if (!onLogSet) return
+    setBusy(true)
+    try { await onLogSet(id, meal, meal === 'snack' ? slot : null); onClose() } catch { setError('Не удалось добавить набор'); setBusy(false) }
+  }
   const [thanks, setThanks] = useState(false)
   const [recent, setRecent] = useState<RecentProduct[] | null>(null)
   const [favorites, setFavorites] = useState<Product[] | null>(null)
@@ -369,7 +408,10 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
         ))}
       </div>
 
-      {custom && !picked ? (
+      {recipe && !picked ? (
+        <RecipeEditor initial={recipe === 'new' ? null : recipe} onCancel={() => setRecipe(null)}
+          onSaved={(p) => { setRecipe(null); setRecipes(null); pick(p) }} />
+      ) : custom && !picked ? (
         <CustomProduct aiEnabled={aiEnabled} barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); setThanks(!!p.shared); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
       ) : menuMode && !picked ? (
         <MenuImport onPick={(p) => { setMenuMode(false); pick(p) }} onCancel={() => setMenuMode(false)} />
@@ -385,6 +427,7 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
                 {scan === 'busy' ? 'Ищем товар…' : '▥ Сканировать штрихкод'}
               </button>
               <button type="button" className="link" onClick={() => setCustom(true)}>+ Свой продукт</button>
+              <button type="button" className="link" onClick={() => setRecipe('new')}>🍲 Рецепт</button>
               {aiEnabled && <button type="button" className="link" onClick={() => setMenuMode(true)}>📷 Меню ресторана</button>}
             </div>
           )}
@@ -402,8 +445,35 @@ function AddFood({ meal: initialMeal, slot = null, onClose, onAdd, aiEnabled = f
               <div className="seg seg-inline">
                 <button type="button" aria-pressed={list === 'recent'} onClick={() => setList('recent')}>Недавние</button>
                 <button type="button" aria-pressed={list === 'favorites'} onClick={() => setList('favorites')}>Избранное</button>
+                <button type="button" aria-pressed={list === 'mine'} onClick={openMine}>Наборы</button>
               </div>
-              {(list === 'recent' ? recent : favorites).length === 0 ? (
+              {list === 'mine' ? (
+                <div className="list scroll-list">
+                  {sets === null || recipes === null ? <p className="sub">Загружаем…</p> : sets.length + recipes.length === 0 ? (
+                    <p className="sub">Наборы — то, что вы обычно едите вместе: в дневнике под приёмом пищи нажмите «☆ В наборы». Рецепт — своё блюдо из продуктов: «🍲 Рецепт» выше.</p>
+                  ) : null}
+                  {sets?.map((s) => (
+                    <div className="row" key={`s${s.id}`}>
+                      <button className="row-main row-btn-plain" disabled={busy} onClick={() => logSet(s.id)}>
+                        <div className="row-title">☆ {s.name}</div>
+                        <div className="row-sub">{s.items.map((i) => i.name).join(', ')}</div>
+                      </button>
+                      <span className="row-end">{Math.round(s.kcal)} ккал</span>
+                      <button className="link" aria-label={`Удалить набор ${s.name}`} onClick={() => api(`/api/meal-sets/${s.id}`, { method: 'DELETE' }).then(() => setSets(sets.filter((x) => x.id !== s.id)))}>✕</button>
+                    </div>
+                  ))}
+                  {recipes?.map((r) => (
+                    <div className="row" key={`r${r.id}`}>
+                      <button className="row-main row-btn-plain" onClick={() => pick(r)}>
+                        <div className="row-title">🍲 {r.name}</div>
+                        <div className="row-sub">{Math.round(r.kcal)} ккал на 100 г{r.portion_g ? ` · порция ${r.portion_g} г` : ''}</div>
+                      </button>
+                      <button className="link" aria-label={`Изменить рецепт ${r.name}`} onClick={() => setRecipe(r)}>✎</button>
+                      <button className="link" aria-label={`Удалить рецепт ${r.name}`} onClick={() => api(`/api/recipes/${r.id}`, { method: 'DELETE' }).then(() => setRecipes(recipes.filter((x) => x.id !== r.id)))}>✕</button>
+                    </div>
+                  ))}
+                </div>
+              ) : (list === 'recent' ? recent : favorites).length === 0 ? (
                 <p className="sub">{list === 'recent' ? 'Здесь появятся продукты, которые вы добавляли.' : 'Отметьте продукт звёздочкой — он появится здесь.'}</p>
               ) : (
                 <div className="list scroll-list">

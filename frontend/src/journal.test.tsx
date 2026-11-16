@@ -559,3 +559,21 @@ test('units: parse amounts typed into the search', async () => {
   expect([1, 2, 5, 11, 22, 1.5].map((n) => unitWord('ломтик', n))).toEqual(['ломтик', 'ломтика', 'ломтиков', 'ломтиков', 'ломтика', 'ломтика'])
   expect(unitWord('шт', 5)).toBe('шт')
 })
+
+test('recipe: per 100 g from ingredients and the cooked weight, saved to the API', async () => {
+  const { default: RecipeEditor } = await import('./Recipe')
+  const beet = { id: 3, name: 'Свёкла', brand: null, category: null, kcal: 40, protein_g: 1.5, fat_g: 0.1, carbs_g: 8.8 }
+  apiMock.mockImplementation(async (url: string) => (url.startsWith('/api/products/search') ? [beet] : { ...beet, id: 99, name: 'Борщ' }))
+  const onSaved = vi.fn()
+  render(<RecipeEditor onSaved={onSaved} onCancel={vi.fn()} />)
+  fireEvent.change(screen.getByPlaceholderText(/Например/), { target: { value: 'Борщ' } })
+  fireEvent.change(screen.getByLabelText('Добавить продукт в рецепт'), { target: { value: 'свекла' } })
+  fireEvent.click(await screen.findByRole('button', { name: /Свёкла/ }, { timeout: 2000 }))
+  fireEvent.change(screen.getByLabelText('Свёкла, граммы'), { target: { value: '500' } })
+  fireEvent.change(screen.getByPlaceholderText('500'), { target: { value: '400' } }) // boiled down from 500 g to 400 g
+  expect(screen.getByText(/50 ккал/)).toBeTruthy() // 200 kcal in 400 g
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить рецепт' }))
+  await waitFor(() => expect(onSaved).toHaveBeenCalled())
+  expect(apiMock).toHaveBeenLastCalledWith('/api/recipes', expect.objectContaining({ method: 'POST',
+    body: JSON.stringify({ name: 'Борщ', ingredients: [{ product_id: 3, grams: 500 }], cooked_g: 400, servings: null }) }))
+})

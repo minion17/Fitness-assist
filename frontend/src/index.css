@@ -1276,7 +1276,41 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .weight-stepper input { text-align: center; font-size: 22px; font-weight: 700; }
 .weight-stepper .icon-btn { width: 48px; height: 48px; font-size: 24px; color: var(--text); background: var(--card-2); border-radius: 14px; }
 .fold[open] > summary { margin-bottom: 12px; }
-.fold[open] summary [aria-hidden] { display: inline-block; transform: rotate(180deg); }
 .card.quick-weight:not(.open) { flex-direction: row; align-items: center; text-align: left; justify-content: flex-start; }
 .card.quick-weight:not(.open) .step-text { align-items: flex-start; }
 body:has(.added-bar) .toast { display: none; } /* the sheet's own bar already says what was added */
+.chev { display: block; flex-shrink: 0; color: var(--muted); transition: transform .2s ease; }
+summary .chev { display: inline-block; vertical-align: -3px; margin-left: 2px; }
+details[open] > summary .chev { transform: rotate(180deg); }
+.meal-chevron, .reminders-chevron, .plan-basket-chevron { display: inline-flex; align-items: center; font-size: 0; line-height: 0; }
+.meal-toggle .meal-chevron { width: 28px; height: 28px; justify-content: center; border-radius: 8px; }
+.meal-toggle:active .meal-chevron { background: var(--card-2); }
+@media (prefers-reduced-motion: reduce) { .chev { transition: none; } }
+
+/* ---- Diary calendar ---- */
+.date-label { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; border-radius: 10px; color: var(--text); }
+.date-label svg { color: var(--accent-text); flex-shrink: 0; }
+.date-label:active { background: var(--card-2); }
+.cal-head { display: flex; align-items: center; justify-content: space-between; }
+.cal-head strong { font-size: 17px; }
+.cal-head .icon-btn { width: 44px; height: 44px; font-size: 24px; color: var(--text); }
+.cal-head .icon-btn:disabled { opacity: .25; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; touch-action: pan-y; }
+.cal-week { text-align: center; font-size: 12px; color: var(--muted); padding-bottom: 4px; }
+.cal-day { position: relative; aspect-ratio: 1; max-height: 52px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); transition: background .15s, transform .1s; }
+.cal-day:active:not(:disabled) { transform: scale(.92); }
+.cal-day:disabled { color: var(--muted); opacity: .35; }
+.cal-day i { width: 6px; height: 6px; border-radius: 50%; background: transparent; }
+.cal-day.ok { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.cal-day.ok i, .cal-legend .ok { background: var(--accent); }
+.cal-day.under { background: color-mix(in srgb, var(--muted) 14%, transparent); }
+.cal-day.under i, .cal-legend .under { background: var(--muted); }
+.cal-day.over { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.cal-day.over i, .cal-legend .over { background: var(--warn); }
+.cal-day.today { box-shadow: inset 0 0 0 1.5px var(--muted); }
+.cal-day.picked { background: var(--primary-bg); color: var(--primary-fg); box-shadow: none; }
+.cal-day.picked i { background: var(--primary-fg); }
+.cal-legend { display: flex; gap: 14px; justify-content: center; font-size: 12px; color: var(--muted); }
+.cal-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.cal-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }

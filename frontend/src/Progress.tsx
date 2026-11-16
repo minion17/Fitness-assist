@@ -5,7 +5,7 @@ import Empty from './Empty'
 import Friends from './Friends'
 import League from './League'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
-import { Bar } from './ui'
+import { Bar, Chevron } from './ui'
 
 export type Achievement = { code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
 
@@ -106,7 +106,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
 
           {s.goal && logged.length > 0 && (
             <details className="card achievements-disclosure fold">
-              <summary><span>БЖУ в среднем</span><span className="sub">за дни с записями <span aria-hidden="true">⌄</span></span></summary>
+              <summary><span>БЖУ в среднем</span><span className="sub">за дни с записями <Chevron /></span></summary>
               {([['Белки', 'protein', 'var(--protein)'], ['Жиры', 'fat', 'var(--fat)'], ['Углеводы', 'carbs', 'var(--carbs)']] as const).map(([label, k, color]) => (
                 <div key={k}>
                   <div className="macro-row"><span>{label}</span><span>{fmt(avg(k))} / {s.goal![k]} г</span></div>
@@ -118,7 +118,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
 
           {exercise && (
             <details className="card achievements-disclosure fold">
-              <summary><span>Рабочие веса</span><span className="sub">{s.exercises.length} упр. <span aria-hidden="true">⌄</span></span></summary>
+              <summary><span>Рабочие веса</span><span className="sub">{s.exercises.length} упр. <Chevron /></span></summary>
               <div className="chips-scroll" role="group" aria-label="Упражнение">
                 {s.exercises.map((e) => (
                   <button key={e.id} className="chip" aria-pressed={e.id === exercise.id} onClick={() => setEx(e.id)}>{e.name}</button>
@@ -134,7 +134,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
 
       {canEdit && achievements.length > 0 && (
         <details className="card achievements-disclosure">
-          <summary><span>Достижения</span><span className="sub">{unlocked} из {achievements.length} <span aria-hidden="true">⌄</span></span></summary>
+          <summary><span>Достижения</span><span className="sub">{unlocked} из {achievements.length} <Chevron /></span></summary>
           <p className="sub">❄ Заморозок серии: {freezes} из 2 — даются за каждые 7 дней подряд и спасают серию, если день пропущен.</p>
           <div className="badges">
             {achievements.map((a) => (

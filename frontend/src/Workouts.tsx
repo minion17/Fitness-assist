@@ -7,6 +7,7 @@ import exerciseCatalog from '../../content/exercises/exercises.json'
 import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 import { nextWeight } from './progression'
+import { Chevron } from './ui'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
@@ -104,7 +105,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       <div className="card-head"><h1>{preview.name}</h1><button className="link" onClick={() => setPreviewProgramId(null)}>Назад</button></div>
       <span className="sub">{LEVEL[preview.level] ?? preview.level}</span>
       {preview.days.map(day => <details className="card ready-program-day" key={day.id}>
-        <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <span aria-hidden="true">⌄</span></span></summary>
+        <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <Chevron /></span></summary>
         <div>{day.exercises.map((exercise, index) => {
           const canOpen = hasExerciseGuide(exercise.name)
           const info = <><ExerciseThumbnail name={exercise.name} index={index} /><span className="ready-exercise-main"><strong>{exercise.name}</strong><small>{exercise.sets} × {exercise.reps}{exercise.unit === 'seconds' ? ' с' : ' повт.'} · отдых {exercise.rest_seconds} с</small></span>{canOpen && <span className="ready-exercise-arrow" aria-hidden="true">→</span>}</>

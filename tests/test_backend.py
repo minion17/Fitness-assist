@@ -1821,3 +1821,17 @@ def test_diary_past_days(client, seeded):
     assert r["copied"] == 1
     assert client.post("/api/food-logs/batch", headers=h, json={"meal_type": "breakfast", "day": day(2), "items": [{"product_id": pid, "amount_g": 50}]}).status_code == 200
     assert {i["meal_type"] for i in client.get(f"/api/food-logs?day={day(2)}", headers=h).json()["items"]} == {"dinner", "breakfast"}
+
+
+def test_food_calendar(client, seeded):
+    from datetime import date
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    pid = client.get("/api/products/search?q=Гречка", headers=h).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "lunch"})
+    today = date.today()
+    r = client.get(f"/api/food-calendar?month={today:%Y-%m}", headers=h).json()
+    assert list(r["days"]) == [today.isoformat()] and r["days"][today.isoformat()] > 0 and r["goal"] > 0
+    assert client.get("/api/food-calendar?month=2026-13", headers=h).status_code == 422
+    assert client.get("/api/food-calendar?month=2099-01", headers=h).json() == {"days": {}, "goal": None}

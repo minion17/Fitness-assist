@@ -666,3 +666,25 @@ test('quick weight on Home keeps the rest of today\'s measurement', async () => 
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
   await waitFor(() => expect(onSave).toHaveBeenCalledWith({ weight_kg: 74.9, waist_cm: 80, chest_cm: null, hips_cm: null, body_fat_pct: null }))
 })
+
+test('food: the calendar colours days by the norm and opens a picked day; old days are read only', async () => {
+  const d = new Date(), month = d.toLocaleDateString('sv-SE').slice(0, 7)
+  const day1 = `${month}-01`
+  apiMock.mockImplementation(async (path: string) => (path.startsWith('/api/food-calendar') ? { days: { [day1]: 2000 }, goal: 2200 } : null))
+  const onDate = vi.fn()
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  render(<Food day={empty} date={d.toLocaleDateString('sv-SE')} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: /открыть календарь/ }))
+  expect(apiMock).toHaveBeenCalledWith(`/api/food-calendar?month=${month}`)
+  const cell = await screen.findByRole('button', { name: /^1 .*, 2000 ккал$/ })
+  expect(cell.className).toContain('ok') // 2000 of 2200: within 10%
+  expect(screen.getByText(/Записано 1 день, в норме — 1/)).toBeTruthy()
+  fireEvent.click(cell)
+  expect(onDate).toHaveBeenCalledWith(day1)
+  cleanup()
+
+  const old = new Date(); old.setDate(old.getDate() - 60)
+  render(<Food day={empty} date={old.toLocaleDateString('sv-SE')} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  expect(screen.getByText(/только для просмотра/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '+ Добавить' })).toBeNull()
+})

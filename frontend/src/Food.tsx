@@ -8,11 +8,12 @@ import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
 import MenuImport from './MenuImport'
 import Scanner from './Scanner'
+import Calendar from './Calendar'
 import { api, ApiError, postJson, publicGet, tg } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
 import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
-import { Bar, Ring, Sheet } from './ui'
+import { Bar, Ring, Sheet, Chevron } from './ui'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
 const MACROS = [
@@ -166,17 +167,22 @@ function dayLabel(iso: string): string {
   return new Date(`${iso}T12:00:00`).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })
 }
 
-/** ‹ Сегодня › — arrows, a tap on the label opens the calendar. */
+const HISTORY_DAYS = 365 // how far back the diary can be viewed (written: BACKFILL_DAYS)
+
+/** ‹ Сегодня › — arrows step a day, a tap on the label opens the month calendar. */
 function DateBar({ date, onDate }: { date: string; onDate: (iso: string) => void }) {
-  const max = today(), min = shiftDay(max, -BACKFILL_DAYS)
+  const [calendar, setCalendar] = useState(false)
+  const max = today(), min = shiftDay(max, -HISTORY_DAYS)
   return (
     <div className="date-bar">
       <button className="icon-btn" aria-label="Предыдущий день" disabled={date <= min} onClick={() => onDate(shiftDay(date, -1))}>‹</button>
-      <label className="date-label">
+      <button className="date-label" aria-label={`${dayLabel(date)}: открыть календарь`} onClick={() => setCalendar(true)}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
+          <rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
         <span>{dayLabel(date)}</span>
-        <input type="date" aria-label="Выбрать день" min={min} max={max} value={date} onChange={(e) => { if (e.target.value && e.target.value >= min && e.target.value <= max) onDate(e.target.value) }} />
-      </label>
+      </button>
       <button className="icon-btn" aria-label="Следующий день" disabled={date >= max} onClick={() => onDate(shiftDay(date, 1))}>›</button>
+      {calendar && <Calendar value={date} onPick={onDate} onClose={() => setCalendar(false)} />}
     </div>
   )
 }
@@ -237,6 +243,7 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
 }) {
   const goals = targets ?? DEFAULT_GOALS
   const isToday = date === today()
+  const editable = canEdit && date >= shiftDay(today(), -BACKFILL_DAYS) // older days: read only
   const [saving, setSaving] = useState<{ meal: MealType; slot?: string | null; name: string } | null>(null)
   const [saveError, setSaveError] = useState('')
   const [planning, setPlanning] = useState(false)
@@ -259,7 +266,7 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
 
   const go = (n: number) => {
     const next = shiftDay(date, n)
-    if (!onDate || next > today() || next < shiftDay(today(), -BACKFILL_DAYS)) return
+    if (!onDate || next > today() || next < shiftDay(today(), -HISTORY_DAYS)) return
     tg?.HapticFeedback?.selectionChanged()
     setBefore(null)
     onDate(next)
@@ -294,7 +301,8 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
         </div>
         {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
       </section>
-      {canEdit && <button className="btn nutrition-add" onClick={() => setAdding({ meal: isToday ? mealNow() : 'dinner' })}>{isToday ? '+ Добавить продукт' : `+ Дописать за ${dayLabel(date).toLowerCase()}`}</button>}
+      {canEdit && !editable && <p className="sub">Дописать можно только последние {BACKFILL_DAYS} дней — этот день только для просмотра.</p>}
+      {editable && <button className="btn nutrition-add" onClick={() => setAdding({ meal: isToday ? mealNow() : 'dinner' })}>{isToday ? '+ Добавить продукт' : `+ Дописать за ${dayLabel(date).toLowerCase()}`}</button>}
       {canEdit && isToday && aiEnabled && (
         <div className="ai-row">
           <button className="btn btn-ghost" onClick={() => setAiMode('text')}>✨ Текстом</button>
@@ -316,19 +324,19 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
                 onClick={() => setCollapsed((c) => (c.includes(key) ? c.filter((k) => k !== key) : [...c, key]))}>
                 <h2>{title}</h2>
                 {items.length > 0 && <span className="meal-kcal">{Math.round(kcal)} ккал</span>}
-                {items.length > 0 && <span className="meal-chevron" aria-hidden="true">⌄</span>}
+                {items.length > 0 && <span className="meal-chevron" aria-hidden="true"><Chevron /></span>}
               </button>
-              {canEdit && <button className="link meal-add" onClick={() => setAdding({ meal, slot })}>+ Добавить</button>}
+              {editable && <button className="link meal-add" onClick={() => setAdding({ meal, slot })}>+ Добавить</button>}
             </div>
             {items.length > 0 && <div className="meal-totals">Б {Math.round(items.reduce((n, i) => n + i.protein_g, 0))} · Ж {Math.round(items.reduce((n, i) => n + i.fat_g, 0))} · У {Math.round(items.reduce((n, i) => n + i.carbs_g, 0))}</div>}
             {items.length > 0 && !shut && (
               <div className="list">
                 {items.map((i) => (
-                  <FoodRow key={i.id} item={i} canEdit={canEdit} onDelete={onDelete} onGrams={onGrams} onMove={onMove} onCopyToday={isToday ? undefined : onCopyToday} />
+                  <FoodRow key={i.id} item={i} canEdit={editable} onDelete={onDelete} onGrams={onGrams} onMove={onMove} onCopyToday={isToday ? undefined : onCopyToday} />
                 ))}
               </div>
             )}
-            {canEdit && (items.length > 1 || repeat) && (
+            {editable && (items.length > 1 || repeat) && (
               <div className="meal-actions">
                 {items.length > 1 && <button className="link" onClick={() => setSaving({ meal, slot, name: `Мой ${MEALS[meal].toLowerCase()}` })}>☆ В наборы</button>}
                 {repeat && before && (
@@ -342,7 +350,7 @@ export default function Food({ day, date = today(), onDate, targets, canEdit, he
           </section>
         )
       })}
-      {canEdit && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: isToday ? nowSlot() : null })}>+ Перекус</button>}
+      {editable && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: isToday ? nowSlot() : null })}>+ Перекус</button>}
       </section>
       {canEdit && isToday && targets && onLogBatch && <WhatToEat eaten={Math.round(day.totals.kcal)} onLog={onLogBatch} />}
       <button className="card meal-plan-entry" onClick={() => setPlanning(true)}><span><strong>Подбор рациона</strong><small>По вашим предпочтениям</small></span><span>Открыть →</span></button>

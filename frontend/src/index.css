@@ -1362,3 +1362,10 @@ body:has(.sheet) .toast-undo { display: none; } /* don't cover the sheet's butto
 .home-setting .icon-btn:disabled { opacity: .25; }
 .home-setting .switch { margin-left: 6px; }
 .sheet-grab, .sheet-grab * { -webkit-user-select: none; user-select: none; }
+
+/* ---- Bottom nav: every label fits its pill ("Тренировки" is the longest), and the bar keeps still on tab changes ---- */
+.nav-inner { display: flex; gap: 2px; }
+.nav button { flex: 1 0 auto; min-width: 0; padding: 8px 6px; white-space: nowrap; letter-spacing: -.01em; }
+@media (max-width: 350px) { .nav button { font-size: 9px; padding: 8px 4px; } .nav svg { width: 22px; height: 22px; } }
+/* its own compositing layer: Android WebView otherwise repaints the blurred fixed bar with the sliding screen and it twitches */
+.nav { transform: translateZ(0); will-change: transform; }

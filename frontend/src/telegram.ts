@@ -16,6 +16,7 @@ type WebApp = {
   isVersionAtLeast?(version: string): boolean
   close?(): void
   shareToStory?(mediaUrl: string, params?: { text?: string; widget_link?: { url: string; name?: string } }): void
+  disableVerticalSwipes?: () => void
   BackButton?: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void }
   HapticFeedback?: {
     selectionChanged(): void
@@ -37,6 +38,8 @@ export function initTelegram() {
   if (!tg) return
   tg.ready()
   tg.expand()
+  // a quick vertical move inside the app must not pull Telegram's sheet down (the whole app jumped on tab changes)
+  tg.disableVerticalSwipes?.()
 }
 
 /** Public reference data (products, programs) — works outside Telegram too. */

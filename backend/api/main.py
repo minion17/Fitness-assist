@@ -198,6 +198,15 @@ class ProfileIn(BaseModel):
     sleep_hours: float | None = Field(default=None, ge=3, le=12)
     stress: Literal["low", "moderate", "high"] | None = None
     injury: Literal["knees", "back", "shoulders", "other"] | None = None
+    # body and fitness check (newer questionnaire)
+    body_now: int | None = Field(default=None, ge=1, le=8)
+    body_target: int | None = Field(default=None, ge=1, le=5)
+    squats: Literal["lt15", "15_30", "gt30", "unknown"] | None = None
+    pushups: Literal["lt10", "10_20", "gt20", "unknown"] | None = None
+    pullups: Literal["none", "1_5", "6_10", "gt10", "unknown"] | None = None
+    place: Literal["home", "gym", "outdoor"] | None = None
+    focus: list[Literal["arms", "chest", "belly", "glutes", "legs", "back"]] | None = Field(default=None, max_length=6)
+    target_weight_kg: float | None = Field(default=None, ge=30, le=300)
 
 
 @app.get("/api/profile")
@@ -214,6 +223,8 @@ async def save_profile(
     existing = await session.get(Profile, user.id)
     profile = existing or Profile(user_id=user.id)
     data = body.model_dump()
+    if data["target_weight_kg"] is None:
+        data.pop("target_weight_kg")  # an older client: keep the target set elsewhere (Прогресс)
     if user.health_consent_at is None:  # health data only with its separate consent (152-ФЗ ст. 10)
         data.update(allergies=None, injury=None)
     if existing and existing.goal != body.goal:

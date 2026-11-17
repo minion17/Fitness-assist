@@ -282,8 +282,22 @@ def test_extended_questionnaire_and_program_recommendation(client, seeded):
     rec = client.post("/api/auth", headers=h).json()["recommended_program"]
     assert programs[rec["program_id"]] == "Тяни-Толкай-Ноги (PPL)" and "всё оборудование у вас есть" in rec["reasons"]
 
-    # old-style profile (no extended answers) is still valid
-    assert client.put("/api/profile", headers=h, json=PROFILE).json()["experience"] is None
+    # the self-test caps a stated level: "advanced" who can't do 10 push-ups gets a program for today's form
+    weak = {**gym, "experience": "advanced", "squats": "lt15", "pushups": "lt10", "pullups": "none", "body_now": 6,
+            "body_target": 2, "place": "gym", "focus": ["belly", "arms"], "target_weight_kg": 76}
+    saved = client.put("/api/profile", headers=h, json={**PROFILE, **weak}).json()
+    assert {k: saved[k] for k in ("squats", "pushups", "pullups", "body_now", "body_target", "place", "focus", "target_weight_kg")} == \
+        {"squats": "lt15", "pushups": "lt10", "pullups": "none", "body_now": 6, "body_target": 2, "place": "gym", "focus": ["belly", "arms"], "target_weight_kg": 76}
+    from backend.core.programs import tested_level, training_level
+    from types import SimpleNamespace as P
+    assert training_level(P(experience="advanced", squats="lt15", pushups="lt10", pullups="none")) == ("beginner", True)
+    assert training_level(P(experience="beginner", squats="gt30", pushups="gt20", pullups="gt10")) == ("beginner", False)  # not raised
+    assert tested_level(P(squats="unknown", pushups=None, pullups=None)) is None
+    assert client.put("/api/profile", headers=h, json={**PROFILE, **weak, "body_now": 9}).status_code == 422
+
+    # old-style profile (no extended answers) is still valid; the target weight set before is kept
+    old = client.put("/api/profile", headers=h, json=PROFILE).json()
+    assert old["experience"] is None and old["target_weight_kg"] == 76
 
 
 @pytest.mark.parametrize("bad", [

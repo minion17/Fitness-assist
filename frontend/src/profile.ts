@@ -18,6 +18,15 @@ export type ProfileData = {
   sleep_hours?: number | null
   stress?: 'low' | 'moderate' | 'high' | null
   injury?: 'knees' | 'back' | 'shoulders' | 'other' | null
+  // body and fitness check (newer questionnaire)
+  body_now?: number | null
+  body_target?: number | null
+  squats?: 'lt15' | '15_30' | 'gt30' | 'unknown' | null
+  pushups?: 'lt10' | '10_20' | 'gt20' | 'unknown' | null
+  pullups?: 'none' | '1_5' | '6_10' | 'gt10' | 'unknown' | null
+  place?: 'home' | 'gym' | 'outdoor' | null
+  focus?: string[] | null
+  target_weight_kg?: number | null
   targets?: Targets
 }
 

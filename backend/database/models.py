@@ -59,6 +59,14 @@ class Profile(Base):
     stress: Mapped[str | None] = mapped_column(String(16))
     injury: Mapped[str | None] = mapped_column(String(16))  # None = no injuries; knees | back | shoulders | other
     target_weight_kg: Mapped[float | None] = mapped_column(Float)
+    # body and fitness check from the questionnaire: for picking the program (levels 1..8 / 1..5 match the pictures)
+    body_now: Mapped[int | None] = mapped_column(Integer)
+    body_target: Mapped[int | None] = mapped_column(Integer)
+    squats: Mapped[str | None] = mapped_column(String(8))  # lt15 | 15_30 | gt30 | unknown
+    pushups: Mapped[str | None] = mapped_column(String(8))  # lt10 | 10_20 | gt20 | unknown
+    pullups: Mapped[str | None] = mapped_column(String(8))  # none | 1_5 | 6_10 | gt10 | unknown
+    place: Mapped[str | None] = mapped_column(String(8))  # home | gym | outdoor
+    focus: Mapped[list[str] | None] = mapped_column(ARRAY(String))  # arms, chest, belly, glutes, legs, back
     kcal_override: Mapped[int | None] = mapped_column(Integer)  # accepted from the real-expenditure estimate; None = formula
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

@@ -17,12 +17,22 @@ export type LibExercise = {
 const LEVELS: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый', expert: 'Продвинутый' }
 const KINDS: Record<string, string> = { strength: 'Силовые', stretching: 'Растяжка', cardio: 'Кардио', plyometrics: 'Прыжки' }
 const KIND_OF = (e: LibExercise) => (e.category === 'plyometrics' || e.category === 'cardio' || e.category === 'stretching' ? e.category : 'strength')
-// equipment filter -> the labels it covers (ours and the library's)
+// "what I have" filter -> the equipment labels it covers (ours and the library's)
 const GEAR: Record<string, string[]> = {
-  none: [], dumbbells: ['Гантели', 'Гантель'], barbell: ['Штанга', 'EZ-гриф', 'Стойки'], kettlebell: ['Гиря', 'Гири'],
-  machine: ['Тренажёр', 'Блок'], band: ['Эспандер', 'Резина'], bar: ['Турник', 'Брусья'],
+  none: [], dumbbells: ['Гантели', 'Гантель'], barbell: ['Штанга', 'EZ-гриф', 'Стойки'], bench: ['Скамья', 'Платформа'],
+  kettlebell: ['Гиря', 'Гири'], bar: ['Турник', 'Брусья', 'Низкая перекладина'], band: ['Эспандер', 'Резина'],
+  machine: ['Тренажёр', 'Блок', 'Римский стул'], ball: ['Фитбол', 'Медбол'], other: ['Петли TRX', 'Тумба', 'Скакалка', 'Ролик'],
 }
-const GEAR_NAMES: Record<string, string> = { none: 'Без инвентаря', dumbbells: 'Гантели', barbell: 'Штанга', kettlebell: 'Гиря', machine: 'Тренажёры', band: 'Резина', bar: 'Турник' }
+const GEAR_NAMES: Record<string, string> = {
+  none: 'Без инвентаря', dumbbells: 'Гантели', barbell: 'Штанга', bench: 'Скамья', kettlebell: 'Гиря', bar: 'Турник / брусья',
+  band: 'Резина', machine: 'Тренажёры', ball: 'Мяч', other: 'TRX, тумба, ролик',
+}
+const FREE = ['Собственный вес', 'Коврик', 'Оборудование не указано']
+/** Doable with the chosen equipment: everything it needs is among it ("Без инвентаря" covers exercises needing nothing). */
+const doable = (e: LibExercise, gear: string[]) => {
+  const need = e.equipment.filter((x) => !FREE.includes(x))
+  return need.length ? need.every((x) => gear.some((g) => GEAR[g].includes(x))) : gear.includes('none')
+}
 // the questionnaire's equipment codes -> labels the user has
 const HAVE: Record<string, string[]> = {
   bodyweight: ['Собственный вес', 'Коврик'], dumbbells: ['Гантели', 'Гантель'], barbell: ['Штанга', 'EZ-гриф', 'Стойки'], bench: ['Скамья'],
@@ -129,7 +139,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
   const [muscles, setMuscles] = useState<Muscle[]>([])
-  const [gear, setGear] = useState<string | null>(null)
+  const [gear, setGear] = useState<string[]>([])
   const [kind, setKind] = useState<string>('strength')
   const [shown, setShown] = useState(PAGE)
   const [open, setOpen] = useState<LibExercise | null>(null)
@@ -145,10 +155,11 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
     if (!all) return []
     const words = norm(q).split(/\s+/).filter(Boolean)
     return all.filter((e) => (!words.length || words.every((w) => norm(e.name).includes(w)))
-      && (!muscles.length || muscles.some((m) => e.primary.includes(m)))
-      && (!gear || (gear === 'none' ? usesNoGear(e) : e.equipment.some((x) => GEAR[gear].includes(x))))
+      && (!muscles.length || muscles.some((m) => e.primary.includes(m) || e.secondary.includes(m)))
+      && (!gear.length || doable(e, gear))
       && (q || KIND_OF(e) === kind))
-      .sort(byUsefulness)
+      // the chosen muscle as the main one first, then where it helps
+      .sort((a, b) => Number(muscles.some((m) => b.primary.includes(m))) - Number(muscles.some((m) => a.primary.includes(m))) || byUsefulness(a, b))
   }, [all, q, muscles, gear, kind])
 
   if (plan) return <WorkoutPlan plan={plan} all={all ?? []} profile={profile} muscles={muscles} onBack={() => setPlan(null)} onSave={onSaveWorkout} />
@@ -174,8 +185,11 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
           <div className="lib-chips" role="group" aria-label="Вид">
             {Object.entries(KINDS).map(([k, t]) => <button key={k} className="habit-chip" aria-pressed={!q && kind === k} onClick={() => { setKind(k); setShown(PAGE) }}>{t}</button>)}
           </div>
+          <span className="lib-label">Что есть под рукой — можно несколько</span>
           <div className="lib-chips" role="group" aria-label="Оборудование">
-            {Object.entries(GEAR_NAMES).map(([k, t]) => <button key={k} className="habit-chip" aria-pressed={gear === k} onClick={() => { setGear(gear === k ? null : k); setShown(PAGE) }}>{t}</button>)}
+            {Object.entries(GEAR_NAMES).map(([k, t]) => <button key={k} className="habit-chip" aria-pressed={gear.includes(k)}
+              onClick={() => { setGear(gear.includes(k) ? gear.filter((g) => g !== k) : [...gear, k]); setShown(PAGE) }}>{t}</button>)}
+            {gear.length > 0 && <button className="link" onClick={() => setGear([])}>Сбросить</button>}
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           {!all && !error && <p className="sub">Загружаем упражнения…</p>}

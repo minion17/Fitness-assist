@@ -44,6 +44,30 @@ RU_MUSCLE = {
 }
 
 
+# equipment the source doesn't list ("body only" for pull-ups): read from the English name
+EXTRA_GEAR = [
+    (r"\bPull-?Ups?\b|\bPullups?\b|(?<!To )\bChin(?:-?Ups?|s)?\b(?! To)|\bHanging\b(?! Bar Good)|\bMuscle Up\b|\bToes? to Bar\b", "Турник"),
+    (r"\bDips?\b(?! Squat)|Parallel Bar", "Брусья"),
+    (r"Bench Press|Incline .*Press|Decline .*Press|Bench Dip|on Bench|on Incline|Dumbbell Flyes|Incline .*Fly|Decline .*Fly|Flat Bench|Pullover|Preacher|Step.?Ups?", "Скамья"),
+    (r"Exercise Ball|Stability Ball|Physioball|Swiss Ball|Bosu", "Фитбол"),
+    (r"Medicine Ball", "Медбол"),
+    (r"Band", "Эспандер"),
+    (r"Kettlebell", "Гиря"),
+    (r"Smith", "Тренажёр"),
+    (r"Cable|Pulley|Pulldown|Pushdown", "Блок"),
+    (r"Sled|Prowler", "Сани"),
+    (r"Suspended|Straps|TRX", "Петли TRX"),
+    (r"\bBox\b", "Тумба"),
+    (r"SMR|Foam", "Ролик"),
+    (r"Rope Jump|Jump Rope|Rope Jumping", "Скакалка"),
+]
+
+
+def gear(name_en: str, base: list[str]) -> list[str]:
+    extra = [label for pattern, label in EXTRA_GEAR if re.search(pattern, name_en, re.I)]
+    return list(dict.fromkeys([*[g for g in base if g != "Оборудование не указано" or not extra], *extra]))
+
+
 def fix(text: str | None) -> str | None:
     if not text:
         return text
@@ -78,7 +102,8 @@ def main():
     for sid, e in old.items():  # keeps equipment / level / bodyweight as already mapped to our labels
         if sid in curated:
             continue
-        library.append({**e, "name": names[sid], "description": fix(ru[sid]["instructions_ru"]) or e.get("description"), **extra(sid)})
+        library.append({**e, "name": names[sid], "description": fix(ru[sid]["instructions_ru"]) or e.get("description"),
+                        "equipment": gear(source[sid]["name"], e.get("equipment") or []), **extra(sid)})
     (HERE / "translated_exercises.json").write_text(json.dumps(library, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     for e in ours:  # our own exercises: muscles and photos from the same source when we know it, else from our muscle names

@@ -772,7 +772,17 @@ test('library: tap a muscle on the map, open an exercise; build a workout for ch
   const profile = { sex: 'male', birth_year: 1995, height_cm: 180, weight_kg: 80, activity: 'moderate', goal: 'muscle_gain', experience: 'beginner', equipment: ['bodyweight', 'barbell', 'bench'] } as ProfileData
   const { unmount } = render(<Library canEdit profile={profile} mode="browse" onClose={vi.fn()} onSaveWorkout={onSave} />)
   expect(await screen.findByText('Нашлось: 6')).toBeTruthy() // strength only by default
-  fireEvent.click(screen.getAllByRole('button', { name: 'Грудь' })[0]) // a zone on the body map
+  // equipment at hand, several at once: only what's doable with it
+  fireEvent.click(screen.getByRole('button', { name: 'Гантели' }))
+  expect(screen.getByText('Нашлось: 1')).toBeTruthy() // flyes; not the barbell press, not push-ups
+  fireEvent.click(screen.getByRole('button', { name: 'Без инвентаря' }))
+  expect(screen.getByText('Нашлось: 4')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Сбросить' }))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Трицепс' })[0]) // a zone on the body map
+  expect(screen.getByText('Нашлось: 6')).toBeTruthy() // main or helper muscle
+  expect(document.querySelector('.lib-row b')!.textContent).toBe('Обратные отжимания') // main muscle first
+  fireEvent.click(screen.getAllByRole('button', { name: 'Трицепс' })[0])
+  fireEvent.click(screen.getAllByRole('button', { name: 'Грудь' })[0])
   expect(screen.getByText('Нашлось: 3')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: /Жим штанги лёжа/ }))
   const card = screen.getByRole('dialog', { name: 'Жим штанги лёжа' })

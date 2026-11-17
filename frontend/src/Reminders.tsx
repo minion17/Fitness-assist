@@ -1,6 +1,7 @@
 // Bot reminder settings (Profile). Saved on every change; the bot reads them once a minute.
 import { useEffect, useState } from 'react'
 import { api, ApiError } from './telegram'
+import { Chevron } from './ui'
 
 type Settings = {
   meals: boolean; water: boolean; streak: boolean; weekly: boolean
@@ -40,7 +41,7 @@ export default function Reminders() {
 
   return (
     <section className="card reminders-card">
-      <button className="reminders-toggle" aria-expanded={expanded} aria-controls="reminders-panel" onClick={() => setExpanded(v => !v)}><span>Напоминания в боте</span><span className="reminders-chevron" aria-hidden="true">⌄</span></button>
+      <button className="reminders-toggle" aria-expanded={expanded} aria-controls="reminders-panel" onClick={() => setExpanded(v => !v)}><span>Напоминания в боте</span><span className="reminders-chevron" aria-hidden="true"><Chevron /></span></button>
       <div className="reminders-panel" id="reminders-panel" data-open={expanded} inert={!expanded}><div className="reminders-inner"><div className="list">
         <div className="row">
           <div className="row-main">

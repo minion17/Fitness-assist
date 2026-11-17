@@ -1454,6 +1454,14 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
     assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] == usual["id"]  # what I eat comes first
     assert client.get("/api/products/search", params={"q": "курица"}, headers=new_user_headers()).json()[0]["id"] != usual["id"] or len(found) == 1
 
+    async def clean():  # earlier runs' misses would crowd the top 10 of the shared test database
+        from sqlalchemy import delete
+
+        from backend.database.models import SearchMiss
+        async with SessionLocal() as s:
+            await s.execute(delete(SearchMiss).where(SearchMiss.q.like("ъъъ%")))
+            await s.commit()
+    client.portal.call(clean)
     miss = f"ъъъ продукт {random.randint(10**5, 10**6)}"
     for _ in range(2):
         assert client.get("/api/products/search", params={"q": miss}, headers=h).json() == []
@@ -1469,3 +1477,380 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
         async with SessionLocal() as s:
             return await summary(s)
     assert f"• {miss} — 2" in client.portal.call(stats)
+
+
+def test_meal_sets_and_recipes(client, seeded):
+    from datetime import date
+
+    h, other = new_user_headers(), new_user_headers()
+    find = lambda q: next(p for p in client.get("/api/products/search", params={"q": q}).json())  # noqa: E731
+    oats, banana = find("овсяные хлопья"), find("банан")
+    client.post("/api/food-logs", headers=h, json={"product_id": oats["id"], "amount_g": 60, "meal_type": "breakfast"})
+    client.post("/api/food-logs", headers=h, json={"product_id": banana["id"], "amount_g": 120, "meal_type": "breakfast", "unit": "шт", "qty": 1})
+    today = date.today().isoformat()
+    s = client.post("/api/meal-sets", headers=h, json={"name": " Мой завтрак ", "from_day": today, "meal_type": "breakfast"}).json()
+    assert s["name"] == "Мой завтрак" and len(s["items"]) == 2 and s["items"][1]["unit"] == "шт"
+    assert s["kcal"] == round(oats["kcal"] * 0.6 + banana["kcal"] * 1.2, 1)
+    assert s["protein_g"] == round(oats["protein_g"] * 0.6 + banana["protein_g"] * 1.2, 1) > 0
+    assert client.post("/api/meal-sets", headers=h, json={"name": "x", "from_day": today, "meal_type": "dinner"}).status_code == 404
+    assert client.post(f"/api/meal-sets/{s['id']}/log", headers=other, json={"meal_type": "lunch"}).status_code == 404
+    assert client.post(f"/api/meal-sets/{s['id']}/log", headers=h, json={"meal_type": "lunch"}).json()["logged"] == 2
+    lunch = [i for i in client.get("/api/food-logs", headers=h).json()["items"] if i["meal_type"] == "lunch"]
+    assert sorted(i["amount_g"] for i in lunch) == [60, 120]
+    assert [x["id"] for x in client.get("/api/meal-sets", headers=h).json()] == [s["id"]]
+    client.delete(f"/api/meal-sets/{s['id']}", headers=h)
+    assert client.get("/api/meal-sets", headers=h).json() == []
+
+    # a recipe: 500 g of ingredients boiled down to 400 g, 4 portions
+    beet, beef = find("свекла"), find("говядина")
+    body = {"name": "Борщ мамин", "ingredients": [{"product_id": beet["id"], "grams": 300}, {"product_id": beef["id"], "grams": 200}],
+            "cooked_g": 400, "servings": 4}
+    r = client.post("/api/recipes", headers=h, json=body).json()
+    expect = (beet["kcal"] * 3 + beef["kcal"] * 2) * 100 / 400
+    assert abs(r["kcal"] - expect) <= 1 and r["portion_g"] == 100 and r["category"] == "Мой рецепт"
+    assert abs(r["protein_g"] - (beet["protein_g"] * 3 + beef["protein_g"] * 2) * 100 / 400) <= 0.1 and r["protein_g"] > 0
+    assert client.get("/api/products/search", headers=h, params={"q": "борщ мамин"}).json()[0]["id"] == r["id"]
+    assert client.get("/api/products/search", headers=other, params={"q": "борщ мамин"}).json() == []  # private
+    assert client.post("/api/recipes", headers=h, json={**body, "cooked_g": 50}).status_code == 422  # can't shrink 10x
+    body["name"], body["cooked_g"] = "Борщ мамин наваристый", None
+    u = client.put(f"/api/recipes/{r['id']}", headers=h, json=body).json()
+    assert abs(u["kcal"] - expect * 400 / 500) <= 1 and u["total_g"] == 500
+    assert client.get("/api/products/search", headers=h, params={"q": "наваристый"}).json()[0]["id"] == r["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": r["id"], "amount_g": 300, "meal_type": "dinner"})
+    assert client.delete(f"/api/recipes/{r['id']}", headers=other).status_code == 404
+    client.delete(f"/api/recipes/{r['id']}", headers=h)
+    assert client.get("/api/recipes", headers=h).json() == []
+    assert any(i["product"]["id"] == r["id"] for i in client.get("/api/food-logs", headers=h).json()["items"])  # the plate stays
+
+
+def test_real_expenditure_forecast_and_plateau(client, seeded):
+    from datetime import date, datetime, time, timedelta
+
+    from backend.api.energy import estimate, slope
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, User
+
+    assert abs(slope([(0, 80), (7, 79.5), (14, 79)]) - (-1 / 14)) < 1e-9
+    assert estimate([2000] * 9, [(0, 80), (7, 79), (14, 78)]) is None  # not enough logged days yet
+    # ate 2000 a day and lost 0.5 kg a week -> spent 2000 + 0.5/7 × 7700 = 2550
+    assert estimate([2000] * 14, [(0, 80), (7, 79.5), (14, 79)]) == {"tdee": 2550, "intake": 2000, "kg_per_week": -0.5}
+    assert estimate([300] * 14, [(0, 80), (7, 79.5), (14, 79)]) is None  # implausible: the diary has gaps
+
+    import random
+
+    tg_id = random.randint(5 * 10**9, 6 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json={**PROFILE, "goal": "weight_loss"})
+    e = client.get("/api/insights/energy", headers=h).json()
+    assert e["ready"] is False and e["days_logged"] == 0 and e["formula"] > 1000
+    assert client.post("/api/profile/target-weight", headers=h, json={"target_weight_kg": 75}).json()["target_weight_kg"] == 75
+
+    # 21 days: 2000 kcal a day; weight 80 -> 78.5 over three weeks, then flat for the last two
+    product = next(p for p in client.get("/api/products/search", params={"q": "гречка"}).json() if p["kcal"] > 50)
+    grams = 2000 * 100 / product["kcal"]
+    today = date.today()
+
+    async def seed():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            for i in range(1, 22):
+                s.add(FoodLog(user_id=user.id, product_id=product["id"], amount_g=grams, meal_type="lunch",
+                              logged_at=datetime.combine(today - timedelta(days=i), time(13)).astimezone()))
+            await s.commit()
+    client.portal.call(seed)
+    for back, kg in ((21, 80.0), (14, 79.2), (12, 78.6), (7, 78.55), (1, 78.5)):
+        client.put("/api/measurements", headers=h, json={"measured_on": (today - timedelta(days=back)).isoformat(), "weight_kg": kg})
+    e = client.get("/api/insights/energy", headers=h).json()
+    assert e["ready"] and e["days_logged"] == 21 and 2000 < e["tdee"] < 3200 and e["kg_per_week"] < 0
+    assert e["suggest"] == max(round((e["tdee"] - 550) / 10) * 10, 1500) and e["eta"] and e["plateau"] is True
+
+    assert client.post("/api/insights/energy/apply", headers=h, json={"kcal": 900}).status_code == 422  # below the safe floor
+    client.post("/api/insights/energy/apply", headers=h, json={"kcal": e["suggest"]})
+    assert client.get("/api/profile", headers=h).json()["targets"]["calories"] == e["suggest"]
+    client.put("/api/profile", headers=h, json={**PROFILE, "goal": "maintenance"})  # a new goal drops the accepted norm
+    assert client.get("/api/profile", headers=h).json()["kcal_override"] is None
+
+
+def test_what_to_eat_from_own_meals(client, seeded):
+    import random
+    from datetime import date, datetime, time, timedelta
+
+    from sqlalchemy import select
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, User
+
+    tg_id = random.randint(6 * 10**9, 7 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    norm = client.get("/api/profile", headers=h).json()["targets"]
+    find = lambda q: next(p for p in client.get("/api/products/search", params={"q": q}).json())  # noqa: E731
+    chicken, rice, cake = find("куриная грудка"), find("рис"), find("торт наполеон")
+    past = [((3, "dinner"), [(chicken, 200), (rice, 150)]), ((5, "dinner"), [(cake, 400)]), ((6, "lunch"), [(chicken, 200), (rice, 150)])]
+
+    async def seed():
+        async with SessionLocal() as s:
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            for (back, meal), items in past:
+                for p, g in items:
+                    s.add(FoodLog(user_id=user.id, product_id=p["id"], amount_g=g, meal_type=meal,
+                                  logged_at=datetime.combine(date.today() - timedelta(days=back), time(19)).astimezone()))
+            await s.commit()
+    client.portal.call(seed)
+    # today: breakfast and lunch already eaten, about 700 kcal left
+    eaten_g = (norm["calories"] - 700) * 100 / rice["kcal"]
+    client.post("/api/food-logs", headers=h, json={"product_id": rice["id"], "amount_g": min(eaten_g, 5000), "meal_type": "lunch"})
+    r = client.get("/api/suggest/meal", headers=h).json()
+    assert 600 <= r["kcal_left"] <= 800 or eaten_g > 5000
+    titles = [o["title"] for o in r["options"]]
+    assert titles and titles[0].startswith(chicken["name"]) and len(set(titles)) == len(titles)  # same meal twice -> once
+    assert not any(cake["name"] in t for t in titles)  # 400 g of cake doesn't fit what's left
+    opt = r["options"][0]
+    logged = client.post("/api/food-logs/batch", headers=h, json={"meal_type": "dinner", "items": opt["items"]}).json()
+    assert logged["logged"] == 2 and len(logged["ids"]) == 2
+    assert client.post("/api/food-logs/batch", headers=new_user_headers(), json={"meal_type": "dinner",
+           "items": [{"product_id": 10**9, "amount_g": 100}]}).status_code == 404
+
+
+def test_personal_records_and_rest_timer(client, seeded):
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import select
+
+    from backend.api.social import pending_messages
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox
+
+    tg_id = random.randint(7 * 10**9, 8 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    ex = client.get("/api/exercises", headers=h).json()[0]["id"]
+
+    def workout(*sets):
+        log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
+        return [client.post(f"/api/workout-logs/{log}/sets", headers=h, json={"exercise_id": ex, "set_number": i + 1, **s}).json()
+                for i, s in enumerate(sets)]
+
+    first = workout({"reps": 8, "weight_kg": 60})
+    assert first[0]["record"] is None  # the very first set isn't a record
+    r = workout({"reps": 8, "weight_kg": 60}, {"reps": 6, "weight_kg": 70}, {"reps": 20, "weight_kg": 50})
+    assert r[0]["record"] is None  # same as before
+    assert r[1]["record"]["kind"] == "weight" and r[1]["record"]["value"] > r[1]["record"]["previous"] and r[1]["xp_awarded"] == 15
+    assert r[2]["record"] is None  # 20 reps: the 1RM formula isn't trusted
+    pull = workout({"reps": 5, "weight_kg": 0}, {"reps": 7, "weight_kg": 0})
+    assert pull[0]["record"] is None and pull[1]["record"] == {"kind": "reps", "value": 7, "previous": 5}
+    assert pull[1]["xp_awarded"] == 0  # one record XP per exercise per day
+
+    client.post("/api/rest-timer", headers=h, json={"seconds": 90, "next": "Жим лёжа"})
+    client.post("/api/rest-timer", headers=h, json={"seconds": 10})  # a new timer replaces the old one
+
+    async def queued(at_shift=0):
+        async with SessionLocal() as s:
+            rows = list(await s.scalars(select(Outbox).where(Outbox.telegram_id == tg_id, Outbox.kind == "rest")))
+            due = [m for m in await pending_messages(s, 10000) if m.telegram_id == tg_id]
+            return len(rows), len(due), rows[0].send_after - datetime.now(timezone.utc) if rows else None
+    n, due, left = client.portal.call(queued)
+    assert n == 1 and due == 0 and timedelta(seconds=10) < left <= timedelta(seconds=15)  # not sent before the time
+    client.delete("/api/rest-timer", headers=h)
+    assert client.portal.call(queued)[0] == 0
+
+
+def test_weekly_leagues(client, seeded):
+    import random
+    from datetime import timedelta
+
+    from sqlalchemy import select, update
+
+    from backend.api import leagues
+    from backend.database.db import SessionLocal
+    from backend.database.models import League, LeagueMember, Outbox, User, XpEvent
+
+    async def reset():  # other tests' users may sit in this week's groups of the shared test database
+        async with SessionLocal() as s:
+            await s.execute(update(League).values(closed=True))
+            await s.execute(update(User).values(league_tier=3))  # nobody else in Bronze this time
+            await s.commit()
+    client.portal.call(reset)
+    ids = [random.randint(8 * 10**9, 9 * 10**9) for _ in range(22)]
+    heads = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': f'Игрок{n} Фамилия'})}"} for n, i in enumerate(ids)]
+
+    async def set_tier_and_xp():
+        async with SessionLocal() as s:
+            for n, i in enumerate(ids):
+                u = await s.scalar(select(User).where(User.telegram_id == i))
+                u.league_tier = 0
+                s.add(XpEvent(user_id=u.id, event_type="test", event_key=f"lg{n}", xp=100 - n * 4))  # player 0 has the most
+            await s.commit()
+    for h in heads:
+        client.get("/api/settings", headers=h)  # creates the users
+    client.portal.call(set_tier_and_xp)
+    boards = [client.get("/api/league", headers=h).json() for h in heads]
+    assert boards[0]["tier_name"] == "Бронза" and boards[0]["promote"] == 5 and boards[0]["demote"] == 0  # nowhere below Bronze
+    assert len(boards[0]["members"]) == 1 and len(boards[19]["members"]) == 20 and len(boards[20]["members"]) == 1  # 20 per group
+    b = client.get("/api/league", headers=heads[0]).json()
+    assert [m["name"] for m in b["members"][:2]] == ["Вы", "Игрок1"] and b["members"][0]["xp"] == 100  # strangers: first name only
+
+    async def close_week():
+        async with SessionLocal() as s:
+            await s.execute(update(League).where(League.closed.is_(False)).values(week_start=League.week_start - timedelta(days=7)))
+            await s.execute(update(XpEvent).where(XpEvent.event_type == "test", XpEvent.event_key.like("lg%"))
+                            .values(created_at=XpEvent.created_at - timedelta(days=7)))
+            await s.commit()
+            n = await leagues.finish_leagues(s)
+            tiers = [await s.scalar(select(User.league_tier).where(User.telegram_id == i)) for i in ids]
+            msgs = list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == ids[0])))
+            return n, tiers, msgs
+    n, tiers, msgs = client.portal.call(close_week)
+    assert n == 2 and tiers[:5] == [1] * 5 and tiers[5:20] == [0] * 15  # top 5 up; Bronze can't go down
+    assert any("Серебро" in m for m in msgs)
+    assert client.get("/api/league", headers=heads[0]).json()["tier_name"] == "Серебро"  # a new week, a new group
+    assert LeagueMember
+
+
+def test_group_challenges(client, seeded):
+    import random
+    from datetime import timedelta
+
+    from sqlalchemy import select, update
+
+    from backend.api import social
+    from backend.api.challenges import finish_challenges
+    from backend.database.db import SessionLocal
+    from backend.database.models import Challenge, ChallengeCheck, Outbox, User
+
+    ids = [random.randint(9 * 10**9, 10 * 10**9) for _ in range(3)]
+    a, b, c = ({"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Боря", "Вера")))
+    for h in (a, b, c):
+        client.put("/api/profile", headers=h, json=PROFILE)
+
+    async def befriend(x, y):
+        async with SessionLocal() as s:
+            me = await s.scalar(select(User).where(User.telegram_id == x))
+            await social.befriend(s, await social.invite_code(s, me), y, "Друг")
+    client.portal.call(befriend, ids[0], ids[1])
+    board = client.get("/api/friends", headers=a).json()["board"]
+    boris = next(r["id"] for r in board if not r["me"])
+    vera = client.get("/api/friends", headers=c).json()["board"][0]["id"]  # Vera isn't Anya's friend
+
+    assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 5, "friend_ids": [boris]}).status_code == 422
+    assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 7, "friend_ids": [vera]}).status_code == 422
+    ch = client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "emoji": "🍬", "days": 7, "friend_ids": [boris, vera]}).json()
+    assert [m["name"] for m in ch["members"]] == ["Вы", "Боря"] and ch["members"][1]["joined"] is False  # Vera wasn't added
+    cid = ch["id"]
+    assert client.post(f"/api/challenges/{cid}/check", headers=b, json={"done": True}).status_code == 409  # accept first
+    got = client.get("/api/challenges", headers=b).json()[0]
+    assert got["invited"] is True and got["title"] == "Без сладкого"
+    client.post(f"/api/challenges/{cid}/join", headers=b)
+    assert client.post(f"/api/challenges/{cid}/check", headers=a, json={"done": True}).json()["members"][0]["today"] is True
+    assert client.post(f"/api/challenges/{cid}/join", headers=c).status_code == 404  # not invited
+
+    async def finish():
+        async with SessionLocal() as s:  # move it a week back and give Anya 6 of 7 days, Borya 1
+            await s.execute(update(Challenge).where(Challenge.id == cid).values(start_day=Challenge.start_day - timedelta(days=9)))
+            await s.execute(update(ChallengeCheck).where(ChallengeCheck.challenge_id == cid).values(day=ChallengeCheck.day - timedelta(days=9)))
+            ua = await s.scalar(select(User.id).where(User.telegram_id == ids[0]))
+            ub = await s.scalar(select(User.id).where(User.telegram_id == ids[1]))
+            start = (await s.get(Challenge, cid)).start_day
+            for d in range(1, 6):
+                s.add(ChallengeCheck(challenge_id=cid, user_id=ua, day=start + timedelta(days=d)))
+            s.add(ChallengeCheck(challenge_id=cid, user_id=ub, day=start + timedelta(days=3)))
+            await s.commit()
+            n = await finish_challenges(s)
+            texts = {i: list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == i, Outbox.text.like("%завершён%")))) for i in ids[:2]}
+            xa = await s.scalar(select(User.xp).where(User.id == ua))
+            return n, texts, xa
+    n, texts, xp = client.portal.call(finish)
+    assert n >= 1 and "справились: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
+    assert "1 из 7" in texts[ids[1]][0] and "Аня 6/7" in texts[ids[1]][0]
+    assert client.get("/api/challenges", headers=a).json()[0]["finished"] is True
+
+
+def test_pdf_report(client, seeded):
+    from datetime import date, timedelta
+
+    from backend.bot.report import render
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    assert client.post("/api/report", headers=h, json={"days": 14}).status_code == 422
+    assert client.post("/api/report", headers=h, json={"days": 30}).json() == {"ok": True}
+    assert client.post("/api/report", headers=h, json={"days": 30}).status_code == 429  # one at a time
+    today = date.today()
+    data = {"name": "Егор", "since": today - timedelta(days=29), "until": today, "span": 30,
+            "profile": {"goal": "снижение веса", "height": 180, "kcal": 2200, "protein": 160, "fat": 70, "carbs": 230},
+            "nutrition": {"days": 20, "in_norm": 12, "kcal": 2150, "protein": 150, "fat": 70, "carbs": 220, "daily": [2100 + i * 10 for i in range(30)]},
+            "body": {"points": [(0, 82.0), (14, 81.2), (29, 80.4)], "first": {"weight_kg": 82.0, "waist_cm": 90}, "last": {"weight_kg": 80.4, "waist_cm": 88}},
+            "workouts": {"sessions": [{"date": today - timedelta(days=i), "title": "День 1 · Все тело", "sets": 12} for i in range(20)], "sets": 240},
+            "water_ml": 2100}
+    pdf = render(data)
+    assert pdf[:5] == b"%PDF-" and pdf.count(b"/Type /Page") - pdf.count(b"/Type /Pages") == 2  # long workout list -> 2 pages
+    empty = {**data, "profile": None, "nutrition": {**data["nutrition"], "days": 0}, "body": {"points": [], "first": {}, "last": {}},
+             "workouts": {"sessions": [], "sets": 0}, "water_ml": 0}
+    assert render(empty)[:5] == b"%PDF-"  # a new user still gets a (sparse) report
+    from backend.bot.report import cut, printable
+    assert printable("🦊 Егор ✨") == "Егор" and printable("💪") == ""  # emoji-only name -> generic title
+    assert cut("День 1: Верх тела + Кор · Домашняя тренировка для начинающих", 24, 500).endswith("…")
+
+
+def test_diary_past_days(client, seeded):
+    """A forgotten meal goes into an earlier day: yesterday still earns XP, older days don't, nothing past 30 days."""
+    from datetime import date, timedelta
+
+    h = new_user_headers()
+    pid = client.get("/api/products/search?q=Гречка", headers=h).json()[0]["id"]
+    day = lambda n: (date.today() - timedelta(days=n)).isoformat()  # noqa: E731
+    add = lambda n, meal="dinner": client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": meal, "day": day(n)})  # noqa: E731
+    r = add(1)
+    assert r.status_code == 200 and r.json()["xp_awarded"] > 0
+    assert add(1).json()["xp_awarded"] == 0  # once per meal per day
+    assert add(5).json()["xp_awarded"] == 0  # old back-fill: logged, no XP
+    assert add(40).status_code == 422 and add(-1).status_code == 422
+    y = client.get(f"/api/food-logs?day={day(1)}", headers=h).json()
+    assert len(y["items"]) == 2 and client.get("/api/food-logs", headers=h).json()["items"] == []
+    snack = add(3, "snack").json()
+    assert snack["snack_slot"] == "16:00"
+
+    # move to another meal of the same day; the amount stays
+    moved = client.patch(f"/api/food-logs/{y['items'][0]['id']}", headers=h, json={"meal_type": "lunch"}).json()
+    assert moved["meal_type"] == "lunch" and moved["amount_g"] == 100
+    assert client.get(f"/api/food-logs?day={day(1)}", headers=h).json()["items"][0]["meal_type"] == "lunch"
+    # copy yesterday's dinner into a day before it, and a set / batch into a past day
+    r = client.post("/api/food-logs/copy", headers=h, json={"from_day": day(1), "meal_type": "dinner", "to_day": day(2)}).json()
+    assert r["copied"] == 1
+    assert client.post("/api/food-logs/batch", headers=h, json={"meal_type": "breakfast", "day": day(2), "items": [{"product_id": pid, "amount_g": 50}]}).status_code == 200
+    assert {i["meal_type"] for i in client.get(f"/api/food-logs?day={day(2)}", headers=h).json()["items"]} == {"dinner", "breakfast"}
+
+
+def test_food_calendar(client, seeded):
+    from datetime import date
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    pid = client.get("/api/products/search?q=Гречка", headers=h).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "lunch"})
+    today = date.today()
+    r = client.get(f"/api/food-calendar?month={today:%Y-%m}", headers=h).json()
+    assert list(r["days"]) == [today.isoformat()] and r["days"][today.isoformat()] > 0 and r["goal"] > 0
+    assert client.get("/api/food-calendar?month=2026-13", headers=h).status_code == 422
+    assert client.get("/api/food-calendar?month=2099-01", headers=h).json() == {"days": {}, "goal": None}
+
+
+def test_usual_meal(client, seeded):
+    from datetime import date, timedelta
+
+    h = new_user_headers()
+    search = lambda q: client.get(f"/api/products/search?q={q}", headers=h).json()[0]["id"]  # noqa: E731
+    oats, egg = search("Овсянка"), search("Яйцо")
+    day = lambda n: (date.today() - timedelta(days=n)).isoformat()  # noqa: E731
+    log = lambda pid, n, g=100: client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": g, "meal_type": "breakfast", "day": day(n)})  # noqa: E731
+    assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # no history yet
+    log(oats, 3, 60); log(egg, 3, 110)
+    assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # once is not "usual"
+    log(oats, 1, 80); log(egg, 1, 110)
+    u = client.get("/api/usual?meal_type=breakfast", headers=h).json()
+    assert {i["product_id"]: i["amount_g"] for i in u["items"]} == {oats: 80, egg: 110} and u["kcal"] > 0  # latest amounts
+    assert client.get("/api/usual?meal_type=snack2", headers=h).status_code == 422
+    client.post("/api/food-logs", headers=h, json={"product_id": oats, "amount_g": 50, "meal_type": "breakfast"})
+    assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # eaten today: nothing to offer

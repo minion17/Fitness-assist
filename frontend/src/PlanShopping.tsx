@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { INGREDIENTS } from './mealCatalog'
 import type { MealPlan } from './mealPrototype'
+import { Chevron } from './ui'
 
 export default function PlanShopping({ items }: { items: MealPlan['shopping'] }) {
   const [category, setCategory] = useState('')
@@ -14,7 +15,7 @@ export default function PlanShopping({ items }: { items: MealPlan['shopping'] })
   const filter = groups.has(category) ? category : ''
   return <details className="meal-result-shopping plan-basket">
     <summary><span><small>На весь период</small><strong>Список продуктов</strong></span>
-      <span className="plan-basket-count">{items.length} поз.</span><span className="plan-basket-chevron" aria-hidden="true">⌄</span>
+      <span className="plan-basket-count">{items.length} поз.</span><span className="plan-basket-chevron" aria-hidden="true"><Chevron /></span>
     </summary>
     {categories.length > 1 && <label className="basket-filter">Категория
       <select value={filter} onChange={e => setCategory(e.target.value)}>

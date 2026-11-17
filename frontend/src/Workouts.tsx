@@ -7,6 +7,8 @@ import translatedCatalog from '../../content/exercises/translated_exercises.json
 import exerciseCatalog from '../../content/exercises/exercises.json'
 import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
+import { nextWeight } from './progression'
+import { Chevron } from './ui'
 
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
@@ -20,7 +22,8 @@ function ExerciseThumbnail({ name, index }: { name: string; index: number }) {
   </span>
 }
 
-export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange }: {
+export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord }: {
+  onRecord?: (text: string) => void // a personal record: confetti in the app
   recommended?: Recommendation | null
   programs: Program[] | null
   logs: WorkoutLog[]
@@ -93,7 +96,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   if (programs === null) return <><h1>Тренировки</h1><p className="sub">Загружаем программы…</p></>
 
   if (session && program) {
-    return <Session program={program} day={session} onExit={() => setSession(null)} onChanged={onChanged} />
+    return <Session program={program} day={session} onExit={() => setSession(null)} onChanged={onChanged} onRecord={onRecord} />
   }
 
   if (personalList && previewProgramId !== null) {
@@ -103,7 +106,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       <span className="sub">{LEVEL[preview.level] ?? preview.level}</span>
       {preview.name.startsWith('Гиря · ') && preview.description && <p className="sub">{preview.description}</p>}
       {preview.days.map(day => <details className="card ready-program-day" key={day.id}>
-        <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <span aria-hidden="true">⌄</span></span></summary>
+        <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <Chevron /></span></summary>
         <div>{day.exercises.map((exercise, index) => {
           const canOpen = hasExerciseGuide(exercise.name)
           const info = <><ExerciseThumbnail name={exercise.name} index={index} /><span className="ready-exercise-main"><strong>{exercise.name}</strong><small>{exercise.sets} × {exercise.reps}{exercise.unit === 'seconds' ? ' с' : ' повт.'} · отдых {exercise.rest_seconds} с</small></span>{canOpen && <span className="ready-exercise-arrow" aria-hidden="true">→</span>}</>
@@ -224,12 +227,40 @@ const timedExercise = (exercise: PlannedExercise) => exercise.unit === 'seconds'
 
 type SetState = { reps: string; weight: string; saved: boolean }
 
-function Session({ program, day, onExit, onChanged }: {
+type Rest = { until: number; total: number; next: string }
+
+function Session({ program, day, onExit, onChanged, onRecord }: {
   program: Program
   day: ProgramDay
   onExit: () => void
   onChanged: (xp: number) => void
+  onRecord?: (text: string) => void
 }) {
+  const [rest, setRest] = useState<Rest | null>(null)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!rest) return
+    const t = setInterval(() => {
+      setNow(Date.now())
+      if (Date.now() < rest.until) return
+      // over while the app is open: buzz here and drop the Telegram message queued for the background case
+      tg?.HapticFeedback?.notificationOccurred?.('success')
+      try { navigator.vibrate?.([200, 100, 200]) } catch { /* not supported */ }
+      if (document.visibilityState === 'visible') api('/api/rest-timer', { method: 'DELETE' }).catch(() => {})
+      setRest(null)
+    }, 250)
+    return () => clearInterval(t)
+  }, [rest])
+
+  function startRest(seconds: number, next: string) {
+    setRest({ until: Date.now() + seconds * 1000, total: seconds, next })
+    setNow(Date.now())
+    api('/api/rest-timer', postJson({ seconds, next })).catch(() => {}) // a message if they leave the app meanwhile
+  }
+  function skipRest() {
+    setRest(null)
+    api('/api/rest-timer', { method: 'DELETE' }).catch(() => {})
+  }
   // shortcut: unsaved inputs live in component state and are lost on tab switch; saved sets are on the server
   const [logId, setLogId] = useState<number | null>(null)
   const [sets, setSets] = useState<SetState[][]>(() =>
@@ -242,7 +273,6 @@ function Session({ program, day, onExit, onChanged }: {
   const [list, setList] = useState(false)  // or all of them as a list
   const [guideExercise, setGuideExercise] = useState<PlannedExercise | null>(null)
   const [timer, setTimer] = useState<SessionTimer | null>(null)
-  const [now, setNow] = useState(Date.now)
   useEffect(() => {
     if (!timer || (timer.phase === 'work' && timer.stoppedSeconds !== undefined)) return
     const id = window.setInterval(() => {
@@ -268,8 +298,9 @@ function Session({ program, day, onExit, onChanged }: {
       // empty weight fields take last time's weight for the same set (or the last set done)
       setSets((prev) => prev.map((row, ei) => {
         const done = r[day.exercises[ei].exercise_id]?.sets
+        const up = nextWeight(done, day.exercises[ei].reps) // every set hit the top of the plan last time: a bit heavier
         return !done?.length ? row : row.map((x, si) => x.saved || x.weight !== '' ? x
-          : { ...x, weight: String((done[si] ?? done[done.length - 1]).weight_kg || '') })
+          : { ...x, weight: String(up ?? ((done[si] ?? done[done.length - 1]).weight_kg || '')) })
       }))
     }).catch(() => {})  // hint only: the workout works without it
     return () => { stale = true }
@@ -299,12 +330,16 @@ function Session({ program, day, onExit, onChanged }: {
     setBusy(true)
     try {
       const id = await ensureLog()
-      await api(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
+      const r = await api<{ record: { kind: string } | null }>(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
       update(ei, si, { saved: true, reps: String(reps) })
       const rest = day.exercises[ei].rest_seconds
       const time = Date.now()
       setNow(time)
       setTimer(rest > 0 ? { phase: 'rest', end: time + rest * 1000, result: `Подход ${si + 1} · ${reps} ${timed ? 'с' : 'повт.'}` } : null)
+      if (weight) setSets(prev => prev.map((row, i) => i !== ei ? row : row.map((x, j) => j > si && !x.saved && x.weight === '' ? { ...x, weight: s.weight } : x)))
+      if (r?.record) onRecord?.(`🏆 Личный рекорд: ${day.exercises[ei].name}`)
+      const nextName = day.exercises[ei + 1]?.name ?? day.exercises[ei].name
+      if (rest >= 10) startRest(rest, nextName)
       tg?.HapticFeedback?.impactOccurred?.('medium')
       const group = day.exercises[ei].superset
       if (group && !list && ei === cur) {
@@ -331,6 +366,7 @@ function Session({ program, day, onExit, onChanged }: {
   }
 
   async function finish() {
+    if (rest) skipRest()
     setBusy(true)
     try {
       const r = await api<{ xp_awarded: number }>(`/api/workout-logs/${logId}/complete`, { method: 'POST' })
@@ -343,6 +379,7 @@ function Session({ program, day, onExit, onChanged }: {
   }
 
   function exit() {
+    if (rest) skipRest()
     if (savedCount > 0) onChanged(0) // refresh history: the unfinished workout is already on the server
     onExit()
   }
@@ -377,7 +414,7 @@ function Session({ program, day, onExit, onChanged }: {
       </div>}
       {timer?.phase === 'rest' && <div className="session-clock rest-clock">
         <div><small>{timer.result}</small><strong>{now < timer.end ? 'Отдых' : 'Отдых завершён'} <span role="timer">{clockLabel(Math.max(0, Math.ceil((timer.end - now) / 1000)))}</span></strong></div>
-        <button className="link" onClick={() => setTimer(null)}>{now < timer.end ? 'Пропустить' : 'Готово'}</button>
+        <button className="link" onClick={() => { skipRest(); setTimer(null) }}>{now < timer.end ? 'Пропустить' : 'Готово'}</button>
       </div>}
       {shown.map(([e, ei]) => {
         const nextSet = sets[ei].findIndex(s => !s.saved)
@@ -416,6 +453,9 @@ function Session({ program, day, onExit, onChanged }: {
             {last[e.exercise_id]?.sets.length ? (
               <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
             ) : null}
+            {nextWeight(last[e.exercise_id]?.sets, e.reps) && (
+              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуйте {String(nextWeight(last[e.exercise_id]?.sets, e.reps)).replace('.', ',')} кг</div>
+            )}
           </div>
           {timed ? <>
             {nextSet >= 0 && timer?.phase !== 'work' &&

@@ -1,7 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
-import Body, { type MeasurementInput } from './Body'
+import { enqueue, flush, pending, unreachable } from './offline'
+import Body, { QuickWeight, type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
 import Reminders from './Reminders'
@@ -11,6 +12,8 @@ import Quests, { type QuestWeek } from './Quests'
 import Habits, { type Habit } from './Habits'
 import { animate } from './motion'
 import Consent, { PrivacyCard, type ConsentState } from './Consent'
+import EnergyCard from './Energy'
+import ReportCard from './Report'
 import { canStory, shareStory } from './story'
 import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
@@ -21,7 +24,7 @@ import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } 
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
 import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
-import { MEALS, mealNow, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
+import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar, Sheet } from './ui'
 const Workouts = lazy(() => import('./Workouts'))
 
@@ -59,6 +62,7 @@ type Bootstrap = {
   yesterday?: { date: string; meals: Partial<Record<MealType, { kcal: number; items: number }>> }
 }
 /** Today in the phone's timezone as YYYY-MM-DD (same as the server's day for this user). */
+type Usual = { meal_type: MealType; title: string; kcal: number; items: { product_id: number; amount_g: number; unit: string | null; qty: number | null }[] }
 const localDay = () => new Date().toLocaleDateString('sv-SE')
 /** A kept answer from an earlier day still has the right profile, programs and history, but not today's food and water. */
 const fresh = (b: Bootstrap): Bootstrap => b.food_day.date === localDay() ? { ...b, quests: b.quests && { ...b.quests, xp_awarded: 0 } } : {
@@ -169,7 +173,9 @@ export default function App() {
   const [programId, setProgramId] = useState<number | null>(() => {
     try { return Number(localStorage.getItem(PROGRAM_KEY)) || null } catch { return null }
   })
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState<{ id: number; text: string; undo?: () => Promise<void> } | null>(null)
+  const [usual, setUsual] = useState<Usual | null>(null) // "Как обычно" on Home
+  const [queued, setQueued] = useState(() => pending().length) // food logged offline, not sent yet
   const [dir, setDir] = useState(0) // the next screen slides in from the side of its tab
   const [xpFloat, setXpFloat] = useState<{ id: number; n: number } | null>(null)
   const knownXp = useRef<number | null>(null)
@@ -181,6 +187,8 @@ export default function App() {
   const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>(boot?.week ?? { streak: 0, days: [] })
   const [ach, setAch] = useState<{ items: Achievement[]; new: Achievement[]; freezes: number }>(boot ? { ...boot.achievements, new: [] } : { items: [], new: [], freezes: 0 })
   const [foodIntent, setFoodIntent] = useState<FoodIntent | null>(null)
+  const [foodDate, setFoodDate] = useState('') // a past day open in the diary; '' = today
+  const [pastDay, setPastDay] = useState<FoodDay | null>(null)
   const [reward, setReward] = useState(false)
   const [loading, setLoading] = useState(!boot) // no data yet (first open, nothing kept on the phone)
   const [quests, setQuests] = useState<QuestWeek | null>(boot?.quests ?? null)
@@ -261,8 +269,14 @@ export default function App() {
   }, [apply])
 
   function flash(text: string) {
-    setToast(text)
-    setTimeout(() => setToast(''), 2500)
+    flashUndo(text)
+  }
+
+  /** A toast; with `undo` it stays 5 s and has "Отменить" (instead of asking "are you sure?" before). */
+  function flashUndo(text: string, undo?: () => Promise<void>) {
+    const id = Date.now() + Math.random()
+    setToast({ id, text, undo })
+    setTimeout(() => setToast((t) => (t?.id === id ? null : t)), undo ? 5000 : 2500)
   }
 
   /** A small win: toast + confetti + a success buzz. */
@@ -274,10 +288,38 @@ export default function App() {
     setTimeout(() => setParty((p) => (p === id ? 0 : p)), 2200)
   }
 
-  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) {
-    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}), ...(counted ?? {}) }))
-    tg?.HapticFeedback?.notificationOccurred?.('success')
+  const at = foodDate ? { day: foodDate } : {} // diary writes go to the day on screen
+  const loadPast = useCallback(async (d: string) => { const r = await api<FoodDay>(`/api/food-logs?day=${d}`); if (r) setPastDay(r) }, [])
+  useEffect(() => {
+    if (!foodDate) return
+    let stale = false
+    api<FoodDay>(`/api/food-logs?day=${foodDate}`).then((r) => { if (r && !stale) setPastDay(r) }).catch(() => {})
+    return () => { stale = true }
+  }, [foodDate])
+  async function refreshFood() {
     await refreshJournal()
+    if (foodDate) await loadPast(foodDate)
+  }
+  function openDay(d: string) {
+    setPastDay(null)
+    setFoodDate(d === localDay() ? '' : d)
+  }
+
+  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }, name = '') {
+    const body = { product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}), ...(counted ?? {}), ...at }
+    let r: { xp_awarded: number } | null
+    try {
+      r = await api<{ xp_awarded: number }>('/api/food-logs', postJson(body))
+    } catch (e) {
+      if (!unreachable(e)) throw e
+      // keep the day and the snack's time as of now: it may be sent tomorrow
+      enqueue({ name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
+      setQueued(pending().length)
+      flash('Нет связи — запишем, как только она появится')
+      return
+    }
+    tg?.HapticFeedback?.notificationOccurred?.('success')
+    await refreshFood()
     flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
   }
 
@@ -290,9 +332,21 @@ export default function App() {
   }
 
   async function copyMeal(fromDay: string, meal: MealType) {
-    const r = await api<{ copied: number; xp_awarded: number }>('/api/food-logs/copy', postJson({ from_day: fromDay, meal_type: meal }))
-    await refreshJournal()
+    const r = await api<{ copied: number; xp_awarded: number }>('/api/food-logs/copy', postJson({ from_day: fromDay, meal_type: meal, ...(at.day ? { to_day: at.day } : {}) }))
+    await refreshFood()
     flash(r?.xp_awarded ? `Повторено · +${r.xp_awarded} XP` : 'Повторено')
+  }
+
+  async function logSet(setId: number, meal: MealType, slot: string | null) {
+    const r = await api<{ logged: number; xp_awarded: number }>(`/api/meal-sets/${setId}/log`, postJson({ meal_type: meal, snack_slot: slot, ...at }))
+    await refreshFood()
+    flash(r?.xp_awarded ? `Набор добавлен · +${r.xp_awarded} XP` : 'Набор добавлен')
+  }
+
+  async function logBatch(meal: MealType, items: { product_id: number; amount_g: number }[]) {
+    const r = await api<{ logged: number; xp_awarded: number }>('/api/food-logs/batch', postJson({ meal_type: meal, items, ...at }))
+    await refreshFood()
+    flash(r?.xp_awarded ? `Записано · +${r.xp_awarded} XP` : 'Записано')
   }
 
   async function aiMealDone(xpAwarded: number) {
@@ -302,12 +356,69 @@ export default function App() {
 
   async function changeGrams(id: number, grams: number) {
     await api(`/api/food-logs/${id}`, { ...postJson({ amount_g: grams }), method: 'PATCH' })
-    await refreshJournal()
+    await refreshFood()
   }
 
-  async function deleteFood(id: number) {
-    await api(`/api/food-logs/${id}`, { method: 'DELETE' })
+  async function moveFood(id: number, meal: MealType) {
+    await api(`/api/food-logs/${id}`, { ...postJson({ meal_type: meal }), method: 'PATCH' })
+    await refreshFood()
+    flash(`Перенесено в «${MEALS[meal]}»`)
+  }
+
+  /** "Скопировать на сегодня" from a past day of the diary. */
+  async function copyToToday(item: FoodItem) {
+    const r = await api<{ xp_awarded: number }>('/api/food-logs', postJson({ product_id: item.product.id, amount_g: item.amount_g, meal_type: item.meal_type,
+      ...(item.unit && item.qty ? { unit: item.unit, qty: item.qty } : {}) }))
     await refreshJournal()
+    flash(r?.xp_awarded ? `Скопировано на сегодня · +${r.xp_awarded} XP` : 'Скопировано на сегодня')
+  }
+
+  /** Deleted at once; "Отменить" puts the same entry back (same meal, snack, day, amount). */
+  async function deleteFood(id: number) {
+    const item = (foodDate ? pastDay : foodDay)?.items.find((i) => i.id === id)
+    const where = at
+    await api(`/api/food-logs/${id}`, { method: 'DELETE' })
+    await refreshFood()
+    if (item) flashUndo(`Удалено: ${item.product.name}`, async () => {
+      await api('/api/food-logs', postJson({ product_id: item.product.id, amount_g: item.amount_g, meal_type: item.meal_type, ...where,
+        ...(item.snack_slot ? { snack_slot: item.snack_slot } : {}), ...(item.unit && item.qty ? { unit: item.unit, qty: item.qty } : {}) }))
+      await refreshFood()
+    })
+  }
+
+  // offline entries go out when the connection is back (and on every start)
+  useEffect(() => {
+    if (!canEdit) return
+    let busy = false
+    const send = async () => {
+      if (busy || !pending().length) return
+      busy = true
+      const n = await flush((body) => api('/api/food-logs', postJson(body))).finally(() => { busy = false })
+      setQueued(pending().length)
+      if (n) { await refreshJournal().catch(() => {}); flash(`Отправлено записей: ${n}`) }
+    }
+    send()
+    window.addEventListener('online', send)
+    const timer = setInterval(send, 30_000)
+    return () => { window.removeEventListener('online', send); clearInterval(timer) }
+  }, [canEdit, refreshJournal])
+
+  useEffect(() => {
+    if (!canEdit) return
+    let stale = false
+    api<Usual | null>(`/api/usual?meal_type=${mealNow()}`).then((r) => { if (!stale) setUsual(r ?? null) }).catch(() => {})
+    return () => { stale = true }
+  }, [canEdit, foodDay.items.length])
+
+  async function logUsual(u: Usual) {
+    const r = await api<{ ids: number[]; xp_awarded: number }>('/api/food-logs/batch', postJson({ meal_type: u.meal_type, items: u.items }))
+    tg?.HapticFeedback?.notificationOccurred?.('success')
+    setUsual(null)
+    await refreshJournal()
+    flashUndo(r?.xp_awarded ? `Записано · +${r.xp_awarded} XP` : 'Записано', async () => {
+      await Promise.all((r?.ids ?? []).map((id) => api(`/api/food-logs/${id}`, { method: 'DELETE' })))
+      await refreshJournal()
+    })
   }
 
   async function saveMeasurement(m: MeasurementInput) {
@@ -363,6 +474,7 @@ export default function App() {
     tg?.HapticFeedback?.selectionChanged()
     setDir(Math.sign(TAB_ORDER.indexOf(t) - TAB_ORDER.indexOf(tab)))
     setFoodIntent(null)
+    setFoodDate('')
     setTab(t)
     window.scrollTo(0, 0)
   }
@@ -429,7 +541,9 @@ export default function App() {
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
             habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />}
-            repeat={canEdit ? repeatOffer() : null}
+            weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
+            repeat={canEdit && !usual ? repeatOffer() : null}
+            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не удалось записать')) } : null}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
@@ -441,26 +555,30 @@ export default function App() {
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} onPlanLogged={refreshJournal} />}
+        {tab === 'food' && <Food day={foodDate ? pastDay ?? { date: foodDate, items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } } : foodDay}
+          date={foodDate || localDay()} onDate={openDay} queued={queued} onMove={moveFood} onCopyToday={copyToToday} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} onLogSet={logSet} onSaved={flash} onLogBatch={logBatch} onPlanLogged={refreshJournal} />}
         {tab === 'workouts' && (
           <Suspense fallback={<p role="status">Открываем тренировки…</p>}>
-            <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
-              canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />
+          <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
+            canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} onRecord={(t) => { celebrate(t); refreshJournal().catch(() => {}) }} />
           </Suspense>
         )}
         {tab === 'progress' && (
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
               norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}
+              {canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
+                api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
+              }} />}
               {aiEnabled && <AiSummary />}</>}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
         )}
         {tab === 'profile' && (
           <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
-            body={canEdit && consent && <PrivacyCard consent={consent} onHealth={(health) => {
+            body={canEdit && consent && <><ReportCard /><PrivacyCard consent={consent} onHealth={(health) => {
               setConsent({ ...consent, health })
               if (!health && me) setMe({ ...me, allergies: [], injury: null })
-            }} />} />
+            }} /></>} />
         )}
       </main>
       <nav className="nav">
@@ -473,7 +591,12 @@ export default function App() {
           ))}
         </div>
       </nav>
-      {toast && <div className="toast" role="status" key={toast}>{toast}</div>}
+      {toast && (
+        <div className={toast.undo ? 'toast toast-undo' : 'toast'} role="status" key={toast.id}>
+          <span>{toast.text}</span>
+          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не удалось отменить')) }}>Отменить</button>}
+        </div>
+      )}
       {xpFloat && <div className="xp-float" key={xpFloat.id} aria-hidden="true" onAnimationEnd={() => setXpFloat(null)}>+{xpFloat.n} XP</div>}
       {party > 0 && <Confetti key={party} />}
       {storyOffer && canEdit && canStory() && (

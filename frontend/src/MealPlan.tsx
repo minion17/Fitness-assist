@@ -7,6 +7,7 @@ import PlanShopping from './PlanShopping'
 import './MealOverview.css'
 import MealDay from './MealDay'
 import { RECIPES } from './mealCatalog'
+import { useBack } from './back'
 
 type Preferences = { days: 1 | 3 | 7 | 14; goal: 'weight_loss' | 'maintenance' | 'mass_gain'; allergies: string; liked: string; disliked: string; budget: number | null; current_spend: number | null }
 const DAYS: Record<number, string> = { 1: '1 день', 3: '3 дня', 7: '7 дней', 14: '14 дней' }
@@ -26,6 +27,7 @@ function AnswerGroup({ title, entries }: { title: string; entries: string[][] })
 const ALLERGIES: Record<string, string> = { dairy: 'молочное', eggs: 'яйца', gluten: 'глютен', nuts: 'орехи', fish: 'рыба' }
 
 export default function MealPlan({ onClose, showSaved = false, canEdit = false, healthConsent = true, profile = null }: { onClose: () => void; showSaved?: boolean; canEdit?: boolean; healthConsent?: boolean; profile?: ProfileData | null }) {
+  useBack(onClose)
   const [step, setStep] = useState(showSaved ? -1 : 0)
   const [dayIndex, setDayIndex] = useState<number | null>(null)
   const [days, setDays] = useState('7 дней')

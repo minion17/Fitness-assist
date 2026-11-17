@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
 import Empty from './Empty'
 import Friends from './Friends'
+import League from './League'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
-import { Bar } from './ui'
+import { Bar, Chevron } from './ui'
 
 export type Achievement = { code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
 
@@ -20,7 +21,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
   const [error, setError] = useState('')
   const [ex, setEx] = useState<number | null>(null)
   const [chart, setChart] = useState<'calories' | 'water' | 'weight'>('calories')
-  const [view, setView] = useState<'me' | 'friends'>('me')
+  const [view, setView] = useState<'me' | 'friends' | 'league'>('me')
 
   useEffect(() => {
     if (!canEdit) return
@@ -47,10 +48,11 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
       {canEdit && (
         <div className="tabs progress-view" role="tablist" aria-label="Раздел">
           <button role="tab" aria-selected={view === 'me'} onClick={() => setView('me')}>Мой прогресс</button>
+          <button role="tab" aria-selected={view === 'league'} onClick={() => setView('league')}>Лига</button>
           <button role="tab" aria-selected={view === 'friends'} onClick={() => setView('friends')}>Друзья</button>
         </div>
       )}
-      {view === 'friends' ? <Friends /> : <>
+      {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : <>
       {top}
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
       {canEdit && (
@@ -79,7 +81,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
               <span className="sub">Вес</span>
               <div className="stat">{w.length ? fmt(w[w.length - 1].kg, 1) : '—'}<small>кг</small></div>
               <span className={delta !== null && delta <= 0 ? 'sub pos' : 'sub'}>
-                {delta === null ? 'запишите вес ниже' : `${delta > 0 ? '+' : ''}${fmt(delta, 1)} кг за период`}
+                {delta === null ? 'запишите на Главной' : `${delta > 0 ? '+' : ''}${fmt(delta, 1)} кг за период`}
               </span>
             </section>
             <section className="card tile-stat">
@@ -103,20 +105,20 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
           </section>
 
           {s.goal && logged.length > 0 && (
-            <section className="card">
-              <div className="card-head"><h2>БЖУ в среднем</h2><span className="sub">за дни с записями</span></div>
+            <details className="card achievements-disclosure fold">
+              <summary><span>БЖУ в среднем</span><span className="sub">за дни с записями <Chevron /></span></summary>
               {([['Белки', 'protein', 'var(--protein)'], ['Жиры', 'fat', 'var(--fat)'], ['Углеводы', 'carbs', 'var(--carbs)']] as const).map(([label, k, color]) => (
                 <div key={k}>
                   <div className="macro-row"><span>{label}</span><span>{fmt(avg(k))} / {s.goal![k]} г</span></div>
                   <Bar value={avg(k)} goal={s.goal![k]} color={color} />
                 </div>
               ))}
-            </section>
+            </details>
           )}
 
           {exercise && (
-            <section className="card">
-              <h2>Рабочие веса</h2>
+            <details className="card achievements-disclosure fold">
+              <summary><span>Рабочие веса</span><span className="sub">{s.exercises.length} упр. <Chevron /></span></summary>
               <div className="chips-scroll" role="group" aria-label="Упражнение">
                 {s.exercises.map((e) => (
                   <button key={e.id} className="chip" aria-pressed={e.id === exercise.id} onClick={() => setEx(e.id)}>{e.name}</button>
@@ -125,14 +127,14 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
               {exercise.points.some((p) => p.kg > 0)
                 ? <LineChart points={exercise.points.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={76} />
                 : <p className="sub">Упражнение с собственным весом: лучший подход — {Math.max(...exercise.points.map((p) => p.reps))} повт.</p>}
-            </section>
+            </details>
           )}
         </>
       )}
 
       {canEdit && achievements.length > 0 && (
         <details className="card achievements-disclosure">
-          <summary><span>Достижения</span><span className="sub">{unlocked} из {achievements.length} <span aria-hidden="true">⌄</span></span></summary>
+          <summary><span>Достижения</span><span className="sub">{unlocked} из {achievements.length} <Chevron /></span></summary>
           <p className="sub">❄ Заморозок серии: {freezes} из 2 — даются за каждые 7 дней подряд и спасают серию, если день пропущен.</p>
           <div className="badges">
             {achievements.map((a) => (

@@ -16,6 +16,6 @@ test('каждое упражнение из обоих каталогов им�
 
 test('thumbnail paths preserve explicit image formats', () => {
   expect(getExerciseGuideImage('Румынская тяга')).toBe('/images/workout-guide/barbell_rdl.jpg')
-  expect(getExerciseGuideImage('Жим штанги лежа')).toBe('/images/workout-guide/barbell_bench.png')
+  expect(getExerciseGuideImage('Жим штанги лежа')).toBe('/images/workout-guide/barbell_bench.webp')
   expect(getExerciseGuideImage('Махи гирей двумя руками')).toBe('/images/workout-guide/kb_twohand_swing.png')
 })

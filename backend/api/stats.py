@@ -22,7 +22,8 @@ router = APIRouter(prefix="/api")
 def targets(profile: Profile | None) -> dict | None:
     if profile is None:
         return None
-    return daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal)
+    return daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal,
+                         profile.kcal_override)
 
 
 async def daily_series(session: AsyncSession, user: User, since: date, until: date) -> list[dict]:
@@ -56,6 +57,20 @@ async def daily_series(session: AsyncSession, user: User, since: date, until: da
         if r:
             r["workouts"] += 1
     return [{"date": d.isoformat(), **{k: round(v) if k != "water_ml" else v for k, v in r.items()}} for d, r in rows.items()]
+
+
+@router.get("/food-calendar")
+async def food_calendar(month: str = Query(pattern=r"^\d{4}-(0[1-9]|1[0-2])$"), tg: dict = Depends(telegram_user),
+                        session: AsyncSession = Depends(get_session)):
+    """The diary's month for the calendar: calories per logged day and the norm, to colour the days."""
+    user = await get_or_create_user(tg, session)
+    first = date.fromisoformat(f"{month}-01")
+    last = min((first + timedelta(days=32)).replace(day=1) - timedelta(days=1), clock.today())
+    if last < first or first < clock.today() - timedelta(days=400):
+        return {"days": {}, "goal": None}
+    t = targets(await session.get(Profile, user.id))
+    series = await daily_series(session, user, first, last)
+    return {"days": {r["date"]: r["kcal"] for r in series if r["kcal"] > 0}, "goal": t["calories"] if t else None}
 
 
 @router.get("/stats")

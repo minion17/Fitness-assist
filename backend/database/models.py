@@ -28,6 +28,7 @@ class User(Base):
     invited_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))  # gets XP once we fill the profile
     boost_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # x2 XP until then (duel win)
     consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # agreed to the data processing (152-ФЗ)
+    league_tier: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # 0 Бронза … 4 Алмаз
     health_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # separately: allergies, injuries
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
@@ -57,6 +58,8 @@ class Profile(Base):
     sleep_hours: Mapped[float | None] = mapped_column(Float)
     stress: Mapped[str | None] = mapped_column(String(16))
     injury: Mapped[str | None] = mapped_column(String(16))  # None = no injuries; knees | back | shoulders | other
+    target_weight_kg: Mapped[float | None] = mapped_column(Float)
+    kcal_override: Mapped[int | None] = mapped_column(Integer)  # accepted from the real-expenditure estimate; None = formula
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -368,6 +371,78 @@ class WeeklyQuest(Base):
     slot: Mapped[int] = mapped_column(Integer)  # display order
 
 
+class Challenge(Base):
+    """A group challenge among friends: a daily tick for N days ("30 дней без сладкого")."""
+
+    __tablename__ = "challenges"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    creator_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    title: Mapped[str] = mapped_column(String(60))
+    emoji: Mapped[str] = mapped_column(String(8), default="🔥")
+    days: Mapped[int] = mapped_column(Integer)
+    start_day: Mapped[date] = mapped_column(Date)  # in the creator's calendar
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+
+class ChallengeMember(Base):
+    __tablename__ = "challenge_members"
+
+    challenge_id: Mapped[int] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    joined: Mapped[bool] = mapped_column(Boolean, default=False)  # False: invited, not answered yet
+
+
+class ChallengeCheck(Base):
+    __tablename__ = "challenge_checks"
+
+    challenge_id: Mapped[int] = mapped_column(ForeignKey("challenges.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+
+
+class League(Base):
+    """A weekly group of up to 20 people of one tier competing by XP (Duolingo-style)."""
+
+    __tablename__ = "leagues"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    week_start: Mapped[date] = mapped_column(Date, index=True)  # Monday, UTC
+    tier: Mapped[int] = mapped_column(Integer)
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
+
+class LeagueMember(Base):
+    __tablename__ = "league_members"
+
+    league_id: Mapped[int] = mapped_column(ForeignKey("leagues.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+
+
+class MealSet(Base):
+    """A user's usual meal ("Мой завтрак"): products with amounts, logged in one tap."""
+
+    __tablename__ = "meal_sets"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(60))
+    items: Mapped[list] = mapped_column(JSON)  # [{"product_id", "amount_g", "unit", "qty"}]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Recipe(Base):
+    """A home dish built from catalog products; it is logged as its own product (per 100 g computed from these)."""
+
+    __tablename__ = "recipes"
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    ingredients: Mapped[list] = mapped_column(JSON)  # [{"product_id", "grams"}]
+    cooked_g: Mapped[float | None] = mapped_column(Float)  # weighed after cooking; None = sum of ingredients
+    servings: Mapped[int | None] = mapped_column(Integer)
+
+
 class SearchMiss(Base):
     """A product search that found nothing, counted per day: tells the owner what to add to the catalog."""
 
@@ -452,5 +527,6 @@ class Outbox(Base):
     text: Mapped[str] = mapped_column(Text)
     user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))  # whose card to draw
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    send_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # a delayed message (rest timer)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 

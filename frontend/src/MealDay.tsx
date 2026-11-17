@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MealPlan } from './mealPrototype'
 import './MealDay.css'
+import { useBack } from './back'
 
 type Day = MealPlan['days'][number]
 type Meal = Day['meals'][number]
@@ -48,6 +49,7 @@ export function RecipeCard({ meal, batch = false, error, onClose, onReplace }: {
 export default function MealDay({ day, batch, error, onReplace, onBack, onClearError }: {
   day: Day; batch: boolean; error: string; onReplace: (index: number) => void; onBack: () => void; onClearError: () => void
 }) {
+  useBack(onBack)
   const [active, setActive] = useState<number | null>(null)
   const title = useRef<HTMLHeadingElement>(null)
   useEffect(() => { title.current?.focus() }, [])

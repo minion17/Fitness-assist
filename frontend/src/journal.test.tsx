@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import AiMeal from './AiMeal'
 import AiSummary from './AiSummary'
@@ -42,10 +42,10 @@ test('helpers: next program day and meal by time', () => {
 
 test('workout session: logs sets, then completes', async () => {
   const onChanged = vi.fn()
-  apiMock.mockResolvedValueOnce({}) // last time: nothing yet
-    .mockResolvedValueOnce({ id: 99 }) // start workout
-    .mockResolvedValueOnce({ id: 1 }) // set
-    .mockResolvedValueOnce({ ok: true, xp_awarded: 50 }) // complete
+  apiMock.mockImplementation(async (url: string) =>
+    url.startsWith('/api/exercises/last') ? {} // last time: nothing yet
+      : url === '/api/workout-logs' ? { id: 99 } : url.endsWith('/sets') ? { id: 1, record: null }
+      : url.endsWith('/complete') ? { ok: true, xp_awarded: 50 } : { ok: true }) // rest timer
   render(<Workouts programs={[program]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={onChanged} />)
 
   fireEvent.click(screen.getByRole('button', { name: 'Начать тренировку' }))
@@ -62,7 +62,7 @@ test('workout session: logs sets, then completes', async () => {
 
   fireEvent.click(screen.getByRole('button', { name: /Завершить тренировку/ }))
   await waitFor(() => expect(onChanged).toHaveBeenCalledWith(50))
-  expect(apiMock.mock.calls[3][0]).toBe('/api/workout-logs/99/complete')
+  expect(apiMock.mock.calls.map((c) => c[0])).toContain('/api/workout-logs/99/complete')
 })
 
 test('workout session shows last time and prefills its weights', async () => {
@@ -95,17 +95,26 @@ test('food: search a product and add grams to a meal', async () => {
 
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[2]) // dinner
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'тв' } })
-  fireEvent.click(await screen.findByRole('button', { name: /Творог 5%/ }, { timeout: 2000 }))
+  fireEvent.click(await screen.findByRole('button', { name: /^Творог 5%/ }, { timeout: 2000 }))
   expect(publicGetMock).toHaveBeenCalledWith('/api/products/search?q=%D1%82%D0%B2')
 
   fireEvent.change(screen.getByDisplayValue('100'), { target: { value: '200' } })
   expect(screen.getByText(/242 ккал/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Добавить в «Ужин»' }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 200, 'dinner', null))
+  // the sheet stays open for the next product: empty search, a running total
+  expect((await screen.findByRole('status')).textContent).toContain('Добавлено: 1')
+  expect((screen.getByPlaceholderText(/Поиск/) as HTMLInputElement).value).toBe('')
+  // "+" on a row adds the shown amount in one tap
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'тв' } })
+  fireEvent.click(await screen.findByRole('button', { name: 'Добавить 100 г: Творог 5%' }, { timeout: 2000 }))
+  await waitFor(() => expect(onAdd).toHaveBeenLastCalledWith(5, 100, 'dinner', null))
+  expect((await screen.findByRole('status')).textContent).toContain('Добавлено: 2')
+  fireEvent.click(screen.getByRole('button', { name: 'Готово' }))
   await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
 })
 
-test('food: line actions — change grams, delete asks for confirmation', async () => {
+test('food: line actions — change grams, move, delete', async () => {
   const day: FoodDay = {
     date: '', totals: { kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 },
     items: [{ id: 42, meal_type: 'lunch', amount_g: 100, logged_at: '', kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3,
@@ -113,21 +122,21 @@ test('food: line actions — change grams, delete asks for confirmation', async 
   }
   const onDelete = vi.fn().mockResolvedValue(undefined)
   const onGrams = vi.fn().mockResolvedValue(undefined)
-  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} onGrams={onGrams} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Обед' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' })) // same as a swipe left
-  fireEvent.click(screen.getByRole('button', { name: 'Граммы' }))
+  const onMove = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={onDelete} onGrams={onGrams} onMove={onMove} />)
+  // meals are open: the line is visible right away; ⋯ (or a long press) opens its menu
+  fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Изменить количество' }))
   fireEvent.change(screen.getByLabelText('Граммы, Творог 5%'), { target: { value: '150' } })
   fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
   await waitFor(() => expect(onGrams).toHaveBeenCalledWith(42, 150))
 
   fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
-  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0]) // the revealed action
-  fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
-  expect(onDelete).not.toHaveBeenCalled()
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Ужин' }))
+  await waitFor(() => expect(onMove).toHaveBeenCalledWith(42, 'dinner'))
+
   fireEvent.click(screen.getByRole('button', { name: 'Действия: Творог 5%' }))
-  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' })[0])
-  fireEvent.click(screen.getAllByRole('button', { name: 'Удалить' }).at(-1)!) // the confirmation
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Удалить' })) // no "are you sure": the toast offers undo
   await waitFor(() => expect(onDelete).toHaveBeenCalledWith(42))
 })
 
@@ -269,9 +278,9 @@ test('food: each snack is its own card in time order; adding to a snack keeps it
   render(<Food day={day} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
   const titles = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)
   expect(titles).toEqual(['КБЖУ за сегодня', 'Приёмы пищи', 'Завтрак', 'Перекус 11:30', 'Обед', 'Перекус 16:40', 'Ужин'])
-  expect(screen.getByText(/180 ккал · Б/)).toBeTruthy() // 11:30 snack total
+  expect(screen.getByRole('button', { name: /Перекус 11:30\s*180 ккал/ })).toBeTruthy() // 11:30 snack total
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[1]) // into the 11:30 snack
-  fireEvent.click(await screen.findByRole('button', { name: /Творог 5%/ }))
+  fireEvent.click(await screen.findByRole('button', { name: /^Творог 5%/ }))
   fireEvent.click(screen.getByRole('button', { name: /Добавить в «Перекус»/ }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 50, 'snack', '11:30'))
   expect(screen.getByRole('button', { name: '+ Перекус' })).toBeTruthy()
@@ -516,20 +525,21 @@ test('search: an amount in the query opens the product with it; brands of one pr
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
 
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'яйцо 2' } })
-  const row = await screen.findByRole('button', { name: /Яйцо куриное/ }, { timeout: 2000 })
-  expect(row.textContent).toContain('173 ккал') // 2 × 55 g
+  const row = await screen.findByRole('button', { name: /^Яйцо куриное/ }, { timeout: 2000 })
+  expect(row.parentElement!.textContent).toContain('173 ккал') // 2 × 55 g
+  expect(screen.getByRole('button', { name: 'Добавить 2 шт: Яйцо куриное' })).toBeTruthy()
   expect(publicGetMock).toHaveBeenCalledWith(`/api/products/search?q=${encodeURIComponent('яйцо 2')}&quiet=1`) // tried whole first
   fireEvent.click(row)
   expect((screen.getByRole('textbox', { name: 'Количество' }) as HTMLInputElement).value).toBe('2')
   fireEvent.click(screen.getByRole('button', { name: /Добавить в/ }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(7, 110, 'breakfast', null, { unit: 'шт', qty: 2 }))
 
-  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  await screen.findByRole('status') // still open: the next product
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'молоко' } })
   await screen.findByRole('button', { name: 'ещё 2 варианта ›' }, { timeout: 2000 })
-  expect(screen.getAllByRole('button', { name: /Молоко 2.5%/ })).toHaveLength(1) // brands folded under the plain one
+  expect(screen.getAllByRole('button', { name: /^Молоко 2.5%/ })).toHaveLength(1) // brands folded under the plain one
   fireEvent.click(screen.getByRole('button', { name: 'ещё 2 варианта ›' }))
-  expect(screen.getAllByRole('button', { name: /Молоко 2.5%/ })).toHaveLength(3)
+  expect(screen.getAllByRole('button', { name: /^Молоко 2.5%/ })).toHaveLength(3)
 })
 
 test('search: nothing found offers AI, a label photo and the scanner', async () => {
@@ -592,4 +602,148 @@ test('круговая тренировка ведёт по упражнения
     { exercise_id: 7, set_number: 1, duration_seconds: 47, weight_kg: 0 },
     { exercise_id: 8, set_number: 1, reps: 8, weight_kg: 0 },
   ])
+})
+
+test('recipe: per 100 g from ingredients and the cooked weight, saved to the API', async () => {
+  const { default: RecipeEditor } = await import('./Recipe')
+  const beet = { id: 3, name: 'Свёкла', brand: null, category: null, kcal: 40, protein_g: 1.5, fat_g: 0.1, carbs_g: 8.8 }
+  apiMock.mockImplementation(async (url: string) => (url.startsWith('/api/products/search') ? [beet] : { ...beet, id: 99, name: 'Борщ' }))
+  const onSaved = vi.fn()
+  render(<RecipeEditor onSaved={onSaved} onCancel={vi.fn()} />)
+  fireEvent.change(screen.getByPlaceholderText(/Например/), { target: { value: 'Борщ' } })
+  fireEvent.change(screen.getByLabelText('Добавить продукт в рецепт'), { target: { value: 'свекла' } })
+  fireEvent.click(await screen.findByRole('button', { name: /Свёкла/ }, { timeout: 2000 }))
+  fireEvent.change(screen.getByLabelText('Свёкла, граммы'), { target: { value: '500' } })
+  fireEvent.change(screen.getByPlaceholderText('500'), { target: { value: '400' } }) // boiled down from 500 g to 400 g
+  expect(screen.getByText(/50 ккал/)).toBeTruthy() // 200 kcal in 400 g
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить рецепт' }))
+  await waitFor(() => expect(onSaved).toHaveBeenCalled())
+  expect(apiMock).toHaveBeenLastCalledWith('/api/recipes', expect.objectContaining({ method: 'POST',
+    body: JSON.stringify({ name: 'Борщ', ingredients: [{ product_id: 3, grams: 500 }], cooked_g: 400, servings: null }) }))
+})
+
+test('real expenditure: shows the estimate, the forecast and applies the suggested norm', async () => {
+  const { default: EnergyCard } = await import('./Energy')
+  const e = { ready: true, formula: 2400, days_logged: 21, weighins: 5, need_days: 10, need_weighins: 3, target_weight_kg: 75, kcal_override: null,
+    goal: 'weight_loss', tdee: 2550, intake: 2000, kg_per_week: -0.5, suggest: 2000, weight: 78.5, in_30_days: 76.4, eta: '2027-03-01', plateau: true }
+  apiMock.mockImplementation(async (url: string) => (url === '/api/insights/energy' ? e : {}))
+  const onNorm = vi.fn()
+  render(<EnergyCard calories={1900} onNormChanged={onNorm} />)
+  expect(await screen.findByText(/2 550|2 550/)).toBeTruthy()
+  expect(screen.getByText(/Вес стоит две недели/)).toBeTruthy()
+  expect(screen.getByText(/к 1 марта/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: /Сделать норму 2.000 ккал/ }))
+  await waitFor(() => expect(onNorm).toHaveBeenCalled())
+  expect(apiMock).toHaveBeenCalledWith('/api/insights/energy/apply', expect.objectContaining({ body: JSON.stringify({ kcal: 2000 }) }))
+})
+
+test('progression: add weight only when every set reached the top of the plan', async () => {
+  const { nextWeight, topReps } = await import('./progression')
+  const s = (reps: number, weight_kg: number) => ({ reps, duration_seconds: null, weight_kg })
+  expect(topReps('8-12')).toBe(12)
+  expect(nextWeight([s(12, 60), s(12, 60), s(12, 60)], '8-12')).toBe(62.5)
+  expect(nextWeight([s(12, 60), s(10, 60)], '8-12')).toBeNull() // not all sets made it
+  expect(nextWeight([s(10, 12), s(10, 12)], '10')).toBe(13) // dumbbells: +1 kg
+  expect(nextWeight([s(15, 0)], '15')).toBeNull() // bodyweight
+  expect(nextWeight(undefined, '10')).toBeNull()
+})
+
+test('challenges: accept an invitation, tick today', async () => {
+  const { default: Challenges } = await import('./Challenges')
+  const ch = { id: 5, title: 'Без сладкого', emoji: '🍬', days: 7, day: 2, end_day: '', finished: false, mine: false, invited: true,
+    members: [{ name: 'Аня', me: false, joined: true, done: 2, today: true }, { name: 'Вы', me: true, joined: false, done: 0, today: false }] }
+  let state = ch
+  apiMock.mockImplementation(async (url: string) => {
+    if (url.endsWith('/join')) state = { ...ch, invited: false, members: ch.members.map((m) => (m.me ? { ...m, joined: true } : m)) }
+    if (url.endsWith('/check')) state = { ...state, members: state.members.map((m) => (m.me ? { ...m, today: true, done: 1 } : m)) }
+    return url === '/api/challenges' ? [state] : state
+  })
+  render(<Challenges friends={[{ id: 2, name: 'Аня' }]} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Принять' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Отметить день' }))
+  await screen.findByRole('button', { name: '✓ Сегодня' })
+  expect(apiMock).toHaveBeenCalledWith('/api/challenges/5/check', expect.objectContaining({ body: JSON.stringify({ done: true }) }))
+})
+
+test('food: day switcher — arrows, a past day writes there, Esc closes a sheet', async () => {
+  const iso = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('sv-SE') }
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  apiMock.mockResolvedValue(null)
+  const onDate = vi.fn()
+  const { rerender } = render(<Food day={empty} date={iso(0)} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  expect((screen.getByRole('button', { name: 'Следующий день' }) as HTMLButtonElement).disabled).toBe(true) // no future
+  fireEvent.click(screen.getByRole('button', { name: 'Предыдущий день' }))
+  expect(onDate).toHaveBeenCalledWith(iso(-1))
+
+  rerender(<Food day={empty} date={iso(-1)} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  expect(screen.getByText('Вчера')).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'КБЖУ · Вчера' })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: '+ Дописать за вчера' }))
+  expect(screen.getByRole('dialog', { name: 'Дописать · Вчера' })).toBeTruthy()
+  fireEvent.keyDown(window, { key: 'Escape' })
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+})
+
+test('quick weight on Home keeps the rest of today\'s measurement', async () => {
+  const { QuickWeight } = await import('./Body')
+  const today = new Date().toLocaleDateString('sv-SE')
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  render(<QuickWeight measurements={[{ id: 1, measured_on: today, weight_kg: null, waist_cm: 80, chest_cm: null, hips_cm: null, body_fat_pct: null },
+    { id: 2, measured_on: '2026-01-01', weight_kg: 75, waist_cm: null, chest_cm: null, hips_cm: null, body_fat_pct: null }]} onSave={onSave} />)
+  fireEvent.click(screen.getByRole('button', { name: /Взвеситься/ }))
+  expect((screen.getByLabelText('Вес, кг') as HTMLInputElement).value).toBe('75') // the last weight
+  fireEvent.click(screen.getByRole('button', { name: 'Минус 0,1 кг' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+  await waitFor(() => expect(onSave).toHaveBeenCalledWith({ weight_kg: 74.9, waist_cm: 80, chest_cm: null, hips_cm: null, body_fat_pct: null }))
+})
+
+test('food: the calendar colours days by the norm and opens a picked day; old days are read only', async () => {
+  const d = new Date(), month = d.toLocaleDateString('sv-SE').slice(0, 7)
+  const day1 = `${month}-01`
+  apiMock.mockImplementation(async (path: string) => (path.startsWith('/api/food-calendar') ? { days: { [day1]: 2000 }, goal: 2200 } : null))
+  const onDate = vi.fn()
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  render(<Food day={empty} date={d.toLocaleDateString('sv-SE')} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: /открыть календарь/ }))
+  expect(apiMock).toHaveBeenCalledWith(`/api/food-calendar?month=${month}`)
+  const cell = await screen.findByRole('button', { name: /^1 .*, 2000 ккал$/ })
+  expect(cell.className).toContain('ok') // 2000 of 2200: within 10%
+  expect(screen.getByText(/Записано 1 день, в норме — 1/)).toBeTruthy()
+  fireEvent.click(cell)
+  expect(onDate).toHaveBeenCalledWith(day1)
+  cleanup()
+
+  const old = new Date(); old.setDate(old.getDate() - 60)
+  render(<Food day={empty} date={old.toLocaleDateString('sv-SE')} onDate={onDate} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  expect(screen.getByText(/только для просмотра/)).toBeTruthy()
+  expect(screen.queryByRole('button', { name: '+ Добавить' })).toBeNull()
+})
+
+test('food: quick amounts and what is left of the norm after a product', async () => {
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 1500, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  apiMock.mockResolvedValue(null)
+  publicGetMock.mockResolvedValue([{ id: 5, name: 'Творог 5%', brand: null, category: null, kcal: 121, protein_g: 17, fat_g: 5, carbs_g: 3 }])
+  const onAdd = vi.fn().mockResolvedValue(undefined)
+  render(<Food day={empty} targets={{ calories: 2000, protein: 120, fat: 70, carbs: 230 }} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'тв' } })
+  expect(await screen.findByText('останется 379', {}, { timeout: 2000 })).toBeTruthy() // 500 left − 121
+  fireEvent.click(screen.getByRole('button', { name: /^Творог 5%/ }))
+  fireEvent.click(within(screen.getByRole('group', { name: 'Быстрое количество' })).getByRole('button', { name: '300' }))
+  expect((screen.getByRole('textbox', { name: 'Количество' }) as HTMLInputElement).value).toBe('300')
+  expect(screen.getByText(/останется 137/)).toBeTruthy()
+  fireEvent.click(within(screen.getByRole('group', { name: 'Быстрое количество' })).getByRole('button', { name: '200' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Количество' }), { target: { value: '500' } })
+  expect(screen.getByText(/сверх нормы на 105/)).toBeTruthy()
+})
+
+test('home: the usual meal in one tap', async () => {
+  const { default: Home } = await import('./Home')
+  const run = vi.fn()
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  render(<Home name="Егор" level={1} streak={0} day={empty} logs={[]} water={{ ml: 0, goal_ml: 2000 }} aiEnabled={false} canEdit
+    onFood={vi.fn()} onNutrition={vi.fn()} onWorkouts={vi.fn()} onWater={vi.fn()}
+    usual={{ meal: 'Завтрак', title: 'Овсянка, Яйцо', kcal: 380, run }} />)
+  fireEvent.click(screen.getByRole('button', { name: /Завтрак как обычно/ }))
+  expect(run).toHaveBeenCalled()
 })

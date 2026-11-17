@@ -143,3 +143,50 @@ function AddMeasurement({ measurements, onClose, onSave }: {
     </Sheet>
   )
 }
+
+/** Home: today's weight in two taps — the last value prefilled, ± 0.1 kg steps. Keeps the rest of today's measurement. */
+export function QuickWeight({ measurements, onSave }: { measurements: Measurement[]; onSave: (m: MeasurementInput) => Promise<void> }) {
+  const [today] = useState(() => new Date().toLocaleDateString('sv-SE'))
+  const last = latestValues(measurements).weight_kg
+  const todays = measurements.find((m) => m.measured_on === today)
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const kg = Number(value.replace(',', '.'))
+  const ok = Number.isFinite(kg) && kg >= LIMITS.weight_kg[0] && kg <= LIMITS.weight_kg[1]
+  const step = (d: number) => setValue(String(Math.round(((ok ? kg : last?.value ?? 70) + d) * 10) / 10))
+
+  async function save() {
+    if (!ok) return setError(`Вес: от ${LIMITS.weight_kg[0]} до ${LIMITS.weight_kg[1]} кг`)
+    setBusy(true); setError('')
+    try {
+      const keep = Object.fromEntries(MEASURES.map(({ key }) => [key, todays?.[key] ?? null])) as MeasurementInput
+      await onSave({ ...keep, weight_kg: kg })
+      setOpen(false)
+    } catch { setError('Не удалось сохранить. Проверьте соединение.') }
+    setBusy(false)
+  }
+
+  if (!open) return (
+    <button className="card quick-weight" onClick={() => { setValue(String(todays?.weight_kg ?? last?.value ?? '')); setOpen(true) }}>
+      <span className="home-row-icon" aria-hidden="true">⚖️</span>
+      <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${todays.weight_kg} кг` : 'Взвеситься'}</b>
+        <span className="sub">{last ? `Последний: ${last.value} кг · ${dateRu(last.on)}` : 'Запишите вес — увидите динамику'}</span></span>
+      <span className="link">{todays?.weight_kg ? 'Изменить' : 'Записать'}</span>
+    </button>
+  )
+  return (
+    <section className="card quick-weight open">
+      <div className="card-head"><h2>Вес сегодня</h2><button className="link" onClick={() => setOpen(false)}>Отмена</button></div>
+      <div className="weight-stepper">
+        <button className="icon-btn" aria-label="Минус 0,1 кг" onClick={() => step(-0.1)}>−</button>
+        <div className="input-wrap"><input autoFocus inputMode="decimal" aria-label="Вес, кг" value={value}
+          onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save() }} /><i>кг</i></div>
+        <button className="icon-btn" aria-label="Плюс 0,1 кг" onClick={() => step(0.1)}>+</button>
+      </div>
+      {error && <p className="error" role="alert">{error}</p>}
+      <button className="btn" disabled={busy || !value} onClick={save}>{busy ? 'Сохраняем…' : 'Сохранить'}</button>
+    </section>
+  )
+}

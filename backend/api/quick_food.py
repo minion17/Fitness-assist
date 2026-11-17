@@ -91,14 +91,17 @@ async def remove_favorite(product_id: int, tg: dict = Depends(telegram_user), se
 class CopyIn(BaseModel):
     from_day: date
     meal_type: Literal["breakfast", "lunch", "dinner", "snack"]
+    to_day: date | None = None  # default today
 
 
 @router.post("/food-logs/copy")
 async def copy_meal(body: CopyIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    """Repeat a meal (e.g. yesterday's breakfast) into today."""
+    """Repeat a meal (e.g. yesterday's breakfast) into today or another recent day."""
+    from backend.api.main import entry_time, meal_xp
+
     user = await get_or_create_user(tg, session)
     today = clock.today()
-    if not (today - timedelta(days=30) <= body.from_day < today):
+    if not (today - timedelta(days=30) <= body.from_day <= today) or body.from_day == (body.to_day or today):
         raise HTTPException(422, "Можно повторить приём пищи только из последних 30 дней")
     start = local_start(body.from_day)
     src = (await session.scalars(
@@ -109,13 +112,14 @@ async def copy_meal(body: CopyIn, tg: dict = Depends(telegram_user), session: As
     )).all()
     if not src:
         raise HTTPException(404, "В этот день такого приёма пищи нет")
+    when, day = entry_time(body.to_day, body.meal_type, None)
     session.add_all(
         FoodLog(user_id=user.id, product_id=s.product_id, amount_g=s.amount_g, unit=s.unit, qty=s.qty, meal_type=s.meal_type,
-                snack_slot=s.snack_slot)
+                **{**when, "snack_slot": s.snack_slot})
         for s in src
     )
     await session.commit()
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{today}:{body.meal_type}")
+    xp = await meal_xp(session, user, day, body.meal_type)
     return {"copied": len(src), "xp_awarded": xp}
 
 

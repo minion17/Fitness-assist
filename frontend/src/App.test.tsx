@@ -13,7 +13,6 @@ test('bottom navigation opens all five sections', async () => {
 
   nav('Питание')
   expect(screen.getByText('КБЖУ за сегодня')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: 'Обед' }))
   expect(screen.getByText('Куриная грудка')).toBeTruthy() // demo diary outside Telegram
   expect(screen.getByText(/Демо-режим: чтобы вести дневник/)).toBeTruthy()
 

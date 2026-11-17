@@ -1,6 +1,7 @@
 // "Друзья" (in Прогресс): invite link, weekly leaderboard, friendly duels and a share card sent by the bot.
 import { useCallback, useEffect, useState } from 'react'
 import Empty from './Empty'
+import Challenges from './Challenges'
 import { canStory, shareStory } from './story'
 import { api, postJson, tg } from './telegram'
 
@@ -84,6 +85,7 @@ export default function Friends() {
         </section>
       )}
 
+      <Challenges friends={friends.map((f) => ({ id: f.id, name: f.name }))} />
       {friends.length > 0 && (
         <section className="card">
           <div className="card-head"><h2>Рейтинг недели</h2><span className="sub">XP с понедельника</span></div>

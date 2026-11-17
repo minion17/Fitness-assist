@@ -323,7 +323,8 @@ async def share(tg: dict = Depends(telegram_user), session: AsyncSession = Depen
 
 
 async def pending_messages(session: AsyncSession, limit: int = 100) -> list[Outbox]:
-    return list(await session.scalars(select(Outbox).where(Outbox.sent_at.is_(None)).order_by(Outbox.id).limit(limit)))
+    due = Outbox.send_after.is_(None) | (Outbox.send_after <= func.now())
+    return list(await session.scalars(select(Outbox).where(Outbox.sent_at.is_(None), due).order_by(Outbox.id).limit(limit)))
 
 
 # ---- Stories: the Mini App asks for a picture, Telegram's story editor downloads it by a one-time public link ----

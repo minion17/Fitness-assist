@@ -3,6 +3,7 @@ import './MealDay.css'
 import type { PlannedExercise } from './types'
 import translatedCatalog from '../../content/exercises/translated_exercises.json'
 import exerciseCatalog from '../../content/exercises/exercises.json'
+import { useBack } from './back'
 
 type Guide = { image?: string; startImage?: string; endImage?: string; endLabel?: string; muscles: string; steps: string }
 const GUIDE: Record<string, Guide> = {
@@ -136,11 +137,12 @@ export function hasExerciseGuide(name: string) { return !!findGuide(name) }
 export function getExerciseGuideImage(name: string): string | null {
   const guide = findGuide(name)
   if (!guide?.image) return null
-  const file = /\.(?:png|jpe?g|webp)$/i.test(guide.image) ? guide.image : `${guide.image}.png`
+  const file = /\.(?:png|jpe?g|webp)$/i.test(guide.image) ? guide.image : `${guide.image}.webp`
   return `/images/workout-guide/${file}`
 }
 
 export default function KettlebellExercise({ exercise, onClose }: { exercise: PlannedExercise; onClose: () => void }) {
+  useBack(onClose)
   const name = exercise.name
   const dialog = useRef<HTMLDialogElement>(null)
   const guide = findGuide(name)!

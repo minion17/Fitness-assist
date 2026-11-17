@@ -42,7 +42,7 @@
   .plan-recipe[open] { animation-name: up; animation-duration: 320ms; }
 }
 .plan-recipe-scroll { position: relative; overflow-y: auto; overscroll-behavior: contain; max-height: 87dvh; }
-.plan-recipe-cover { display: block; width: 100%; height: clamp(140px, 24dvh, 230px); object-fit: cover; }
+.plan-recipe-cover { display: block; width: 100%; height: clamp(200px, 34dvh, 300px); object-fit: contain; background: var(--card-2); }
 .plan-recipe-close {
   float: right;
   position: sticky;

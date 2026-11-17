@@ -141,7 +141,7 @@ it('сохраняет рацион и открывает его повторн�
   fireEvent.click(screen.getByLabelText(/у меня нет пищевой аллергии/i))
   fireEvent.click(screen.getByRole('button', { name: 'Составить рацион' }))
   expect(screen.getByText('Ориентир — 3300 ккал в день')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: 'Сохранить рацион' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить и использовать рацион' }))
   await waitFor(() => expect(screen.getByText('Рацион сохранён в вашем профиле.')).toBeTruthy())
   view.unmount()
   render(<MealPlan onClose={vi.fn()} canEdit />)

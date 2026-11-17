@@ -24,7 +24,7 @@ const slots = ['breakfast', 'lunch', 'dinner'] as const
 export type Slot = typeof slots[number]
 export type CookingFrequency = 'daily' | 'batch' | 'varied'
 export type Dietary = 'omnivore' | 'pescatarian' | 'vegetarian' | 'vegan'
-type Meal = {
+export type Meal = {
   id: string; name: string; meal: Slot; instructions: string; tags: string[]
   ingredients: { product: string; productId: string; grams: number }[]
   nutrition: Nutrients; costRub: number | null; portions: number
@@ -60,6 +60,12 @@ const terms: Record<string, RegExp> = {
   buckwheat: /греч(а|ка|ку|ки|и|у)|гречнев(ая|ую|ые|ый)/,
   pasta: /макарон(ы|ов)?|спагетти|лапш[аиу]|паст[ау]/, lentils: /чечевиц[аыуе]/,
   peas: /горох[ау]?|горошек|горошка/, greenBeans: /фасол[ьи]|стручков(ая|ую|ой)/,
+  beef: /говядин[аыуе]?|говяж(ий|ье|ья|ьи)/, chickpeas: /нут[ау]?/,
+  onion: /лук[ау]?/, garlic: /чеснок[ау]?/, pepper: /перец|перца|перцы|перцев/,
+  cabbage: /капуст[аыуе]/, berries: /ягод[аыу]?/, currant: /смородин[аыуе]/,
+  grape: /изюм[ау]?|виноград[ау]?/, flour: /мук[аиу]/, bread: /хлеб[ау]?/,
+  semolina: /манк[аиу]|манн(ая|ую|ой)/, yogurt: /йогурт[ау]?/, sourCream: /сметан[аыуе]/,
+  tuna: /тунец|тунца/, dill: /укроп[ау]?/,
   legumes: /бобов(ые|ых|ая|ый)/,
 }
 
@@ -148,7 +154,7 @@ function setup(input: PlanInput) {
     return tags.some(tag => excluded.has(tag)) ? [] : [portion(r, index, input.calories * fraction[index], tags)]
   }))
   if (choices.some((group, i) => selected.includes(slots[i]) && !group.length)) throw new Error('Не хватает блюд с учётом ограничений. Для каждого дня нужны завтрак, обед и ужин.')
-  return { choices, liked, selected }
+  return { choices, liked, selected, excluded }
 }
 function quality(meal: Meal, target: Nutrients, liked: Set<string>, uses: Map<string, number>) {
   const kcalError = Math.abs(meal.nutrition.kcal - target.kcal) / Math.max(1, target.kcal)
@@ -200,7 +206,11 @@ function distinct(pool: Meal[], others: Meal[]) {
   return alternatives.length ? alternatives : pool
 }
 function animalSources(meal: Meal) {
-  return meal.ingredients.filter(i => INGREDIENTS[i.productId].tags.some(t => t === 'meat' || t === 'fish')).map(i => i.productId)
+  // The same meat can appear raw in one recipe and already cooked in another.
+  const sources: Record<string, string> = { rawChicken: 'chicken', mince: 'beef', pollock: 'fish' }
+  return meal.ingredients
+    .filter(i => INGREDIENTS[i.productId].tags.some(t => t === 'meat' || t === 'fish'))
+    .map(i => sources[i.productId] ?? i.productId)
 }
 function fitsDaily(meals: Meal[]) {
   return new Set(meals.flatMap(animalSources)).size <= 1
@@ -254,7 +264,13 @@ export function createMealPlan(input: PlanInput): MealPlan {
   return best!
 }
 export function replaceMeal(input: PlanInput, plan: MealPlan, dayIndex: number, mealIndex: number): MealPlan {
-  const { choices, liked, selected } = setup(input)
+  const { choices, liked, selected, excluded } = setup(input)
+  const allowedSavedMeal = (meal: Meal) => selected.includes(meal.meal)
+    && !input.dislikedRecipeIds?.includes(meal.id)
+    && meal.ingredients.every(i => {
+      const ingredient = INGREDIENTS[i.productId]
+      return ingredient && ![i.productId, ...ingredient.tags].some(tag => excluded.has(tag))
+    })
   const day = plan.days[dayIndex]
   if (plan.days.length !== input.days || !day?.meals[mealIndex]) throw new Error('Выбранное блюдо не найдено.')
   const otherMeals = day.meals.filter((_, i) => i !== mealIndex)
@@ -267,7 +283,7 @@ export function replaceMeal(input: PlanInput, plan: MealPlan, dayIndex: number, 
     const weights: Weights = new Map()
     const uses = new Map<string, number>()
     for (const [d, current] of plan.days.entries()) for (const meal of current.meals) {
-      if (!selected.includes(meal.meal) || !choices[slots.indexOf(meal.meal)].some(m => m.id === meal.id)) throw new Error('Ограничения изменились. Составьте рацион заново.')
+      if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составьте рацион заново.')
       if (d >= batchStart && d < batchEnd && meal.meal !== 'breakfast') continue
       addMeal(weights, meal)
       uses.set(meal.id, (uses.get(meal.id) ?? 0) + 1)
@@ -306,7 +322,7 @@ export function replaceMeal(input: PlanInput, plan: MealPlan, dayIndex: number, 
   const uses = new Map<string, number>()
   for (const [d, current] of plan.days.entries()) for (const [s, meal] of current.meals.entries()) {
     if (d === dayIndex && s === mealIndex) continue
-    if (!selected.includes(meal.meal) || !choices[slots.indexOf(meal.meal)].some(m => m.id === meal.id)) throw new Error('Ограничения изменились. Составьте рацион заново.')
+    if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составьте рацион заново.')
     addMeal(weights, meal)
     uses.set(meal.id, (uses.get(meal.id) ?? 0) + 1)
   }

@@ -136,3 +136,23 @@ test('shows rest in minutes without losing seconds and keeps the editor compact'
   fireEvent.click(screen.getByRole('button',{name:'Готово'}))
   expect(screen.getByText(/отдых 1 мин 30 с/)).toBeTruthy()
 })
+
+test('добавляет гиревую разминку в начало и интервальное завершение в конец', async () => {
+  const save = vi.fn().mockResolvedValue(undefined)
+  const exercises = ['Вращение гири вокруг головы', 'Тяга гири с пола', 'Гоблет-приседания', 'Махи гирей двумя руками'].map((name, index) => ({ id: index + 1, name }))
+  render(<ProgramBuilder exercises={exercises} onSave={save} onCancel={() => {}} />)
+  fireEvent.change(screen.getByLabelText('Название программы'), { target: { value: 'Своя' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }))
+  fireEvent.click(screen.getByRole('button', { name: '+ Добавить тренировку' }))
+  fireEvent.click(screen.getByText('Комплексы с гирей'))
+  fireEvent.click(screen.getByRole('button', { name: '+ Разминка' }))
+  fireEvent.click(screen.getByRole('button', { name: '+ Завершение' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Готово' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить программу' }))
+  await waitFor(() => expect(save).toHaveBeenCalled())
+  const items = save.mock.calls[0][0].days[0].exercises
+  expect(items.map((item: { exercise_id: number }) => item.exercise_id)).toEqual([1, 2, 3, 4, 3])
+  expect(items.slice(0, 3).every((item: { superset: number }) => item.superset === 1)).toBe(true)
+  expect(items.slice(3).every((item: { unit: string; superset: number }) => item.unit === 'seconds' && item.superset === 2)).toBe(true)
+})

@@ -2,13 +2,15 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import type { ProfileData, Targets } from './profile'
 import AiMeal from './AiMeal'
 import MealPlan from './MealPlan'
+import { RecipeCard } from './MealDay'
+import type { Meal } from './mealPrototype'
 import { shrink } from './image'
 import type { FoodIntent } from './Home'
 import { readBarcode } from './barcode'
 import Empty from './Empty'
 import MenuImport from './MenuImport'
 import Scanner from './Scanner'
-import { api, ApiError, postJson, publicGet } from './telegram'
+import { api, ApiError, postJson, putJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
 import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
@@ -23,6 +25,7 @@ const MACROS = [
 
 const r1 = (n: number) => Math.round(n * 10) / 10
 type RecentProduct = Product & { last_amount_g: number }
+type TodayPlan = { finished: boolean; day?: number; meals: (Meal & { completed: boolean })[] }
 
 const MEAL_TIME: Record<MealType, string> = { breakfast: '07:00', lunch: '13:00', dinner: '19:00', snack: '16:00' }
 const nowSlot = () => new Date().toTimeString().slice(0, 5)
@@ -112,7 +115,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams }: {
   )
 }
 
-export default function Food({ day, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {} }: {
+export default function Food({ day, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onPlanLogged = async () => {} }: {
   day: FoodDay
   targets?: Targets
   canEdit: boolean
@@ -125,9 +128,24 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
   onAiDone?: (xp: number) => Promise<void>
   intent?: FoodIntent | null // shortcut from Home: open the matching sheet right away
   onCopy?: (fromDay: string, meal: MealType) => Promise<void>
+  onPlanLogged?: () => Promise<void>
 }) {
   const goals = targets ?? DEFAULT_GOALS
-  const [planning, setPlanning] = useState(false)
+  const [planning, setPlanning] = useState<'new' | 'saved' | null>(null)
+  const [recipe, setRecipe] = useState<Meal | null>(null)
+  const [todayPlan, setTodayPlan] = useState<TodayPlan | null>(null)
+  const [planBusy, setPlanBusy] = useState<number | null>(null)
+  const [planError, setPlanError] = useState('')
+  const togglePlanMeal = async (index: number, completed: boolean) => {
+    if (planBusy !== null) return
+    setPlanBusy(index); setPlanError('')
+    try {
+      await api(`/api/meal-plan/today/${index}`, putJson({ completed }))
+      await onPlanLogged()
+      setTodayPlan(await api<TodayPlan>('/api/meal-plan/today'))
+    } catch { setPlanError('Не удалось обновить приём пищи. Проверьте соединение и попробуйте ещё раз.') }
+    finally { setPlanBusy(null) }
+  }
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
   const [expandedMeals, setExpandedMeals] = useState<string[]>([])
   const [aiMode, setAiMode] = useState<'text' | 'photo' | null>(intent === 'search' ? null : intent)
@@ -142,12 +160,21 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
     api<FoodDay>(`/api/food-logs?day=${iso}`).then(setYesterday).catch(() => {})
   }, [canEdit])
 
-  if (planning) return <MealPlan onClose={() => setPlanning(false)} canEdit={canEdit} healthConsent={healthConsent || !canEdit} profile={profile} />
+  useEffect(() => {
+    if (!canEdit || planning) return
+    let active = true
+    api<TodayPlan>('/api/meal-plan/today').then(result => { if (active) { setTodayPlan(result && Array.isArray(result.meals) ? result : null); setPlanError('') } }).catch(() => { if (active) setPlanError('Не удалось загрузить рацион. Попробуйте позже.') })
+    return () => { active = false }
+  }, [canEdit, planning, day])
+
+  if (planning) return <MealPlan showSaved={planning === 'saved'} onClose={() => setPlanning(null)} canEdit={canEdit} healthConsent={healthConsent || !canEdit} profile={profile} />
 
   return (
     <>
       <h1>Питание</h1>
-      <button className="card meal-plan-entry" onClick={() => setPlanning(true)}><span><strong>Подбор рациона</strong><small>По вашим предпочтениям</small></span><span>Открыть →</span></button>
+      <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}>
+        <span><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По вашим предпочтениям'}</small></span><span>Открыть →</span>
+      </button>
       <section className="card nutrition-summary">
         <div className="card-head"><h2>КБЖУ за сегодня</h2><span className="sub">{Math.round(t.kcal)} / {goals.calories}</span></div>
         <div className="ring-wrap">
@@ -173,16 +200,30 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
 
       <section className="meal-diary">
       <h2>Приёмы пищи</h2>
+      {todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отметьте, что съели.</p>}
+      {todayPlan?.finished && <p className="sub plan-day-label">Рацион завершён. Вы можете подобрать новый.</p>}
+      {planError && <p className="error" role="alert">{planError}</p>}
       {mealGroups(day).map(({ key, meal, slot, title, items }) => {
         const kcal = items.reduce((s, i) => s + i.kcal, 0)
         const main = meal !== 'snack'
+        const planned = todayPlan?.meals.find(p => p.meal === meal)
+        const toggleItems = () => setExpandedMeals(current => current.includes(key) ? current.filter(k => k !== key) : [...current, key])
         return (
           <section className="meal-group" key={key}>
-            <button className="meal-toggle" aria-expanded={expandedMeals.includes(key)} onClick={() => setExpandedMeals(current => current.includes(key) ? current.filter(k => k !== key) : [...current, key])}>
+            {planned && todayPlan ? <div className="planned-meal">
+              <button className="planned-recipe-link" aria-label={`Открыть ${title} — ${planned.name}`} onClick={() => setRecipe(planned)}>
+                <img src={`/images/recipes/${planned.id}.jpg`} alt="" />
+                <span className="planned-meal-info"><span className="plan-slot">{title}</span><strong>{planned.name}</strong>
+                  <small>{Math.round(planned.nutrition.kcal)} ккал · Б {Math.round(planned.nutrition.protein_g)} · Ж {Math.round(planned.nutrition.fat_g)} · У {Math.round(planned.nutrition.carbs_g)}</small></span>
+                <span className="plan-arrow" aria-hidden="true">›</span>
+              </button>
+              <button className={planned.completed ? 'planned-meal-check is-done' : 'planned-meal-check'} role="checkbox" aria-checked={planned.completed} aria-label={`${planned.completed ? 'Отменить' : 'Отметить'}: ${planned.name}`} disabled={planBusy !== null} onClick={() => togglePlanMeal(todayPlan.meals.indexOf(planned), !planned.completed)}>{planned.completed ? '✓' : ''}</button>
+            </div> : <button className="meal-toggle" aria-expanded={expandedMeals.includes(key)} onClick={toggleItems}>
               <h2>{title}</h2><span className="meal-chevron" aria-hidden="true">⌄</span>
-            </button>
-            <div className="meal-totals">{items.length === 0 ? 'Пока пусто'
-              : `${Math.round(kcal)} ккал · Б ${Math.round(items.reduce((n, i) => n + i.protein_g, 0))} · Ж ${Math.round(items.reduce((n, i) => n + i.fat_g, 0))} · У ${Math.round(items.reduce((n, i) => n + i.carbs_g, 0))}`}</div>
+            </button>}
+            {planned && items.length > 0 && <button className="link diary-records" aria-expanded={expandedMeals.includes(key)} onClick={toggleItems}>Записи в дневнике · {items.length} ⌄</button>}
+            {(!planned || items.length > 0) && <div className="meal-totals">{items.length === 0 ? 'Пока пусто'
+              : `${Math.round(kcal)} ккал · Б ${Math.round(items.reduce((n, i) => n + i.protein_g, 0))} · Ж ${Math.round(items.reduce((n, i) => n + i.fat_g, 0))} · У ${Math.round(items.reduce((n, i) => n + i.carbs_g, 0))}`}</div>}
             {expandedMeals.includes(key) && (items.length === 0 ? <Empty art="plate" title="Тарелка пока пустая" text="Добавьте продукт — поиском, по штрихкоду или фото." /> : (
               <div className="list">
                 {items.map((i) => (
@@ -207,6 +248,7 @@ export default function Food({ day, targets, canEdit, healthConsent = false, pro
       {canEdit && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: nowSlot() })}>+ Перекус</button>}
       </section>
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
+      {recipe && <RecipeCard meal={recipe} onClose={() => setRecipe(null)} />}
       {aiMode && <AiMeal mode={aiMode} initialText={aiText} onClose={() => { setAiMode(null); setAiText('') }} onDone={onAiDone} />}
       {adding && <AddFood meal={adding.meal} slot={adding.slot} onClose={() => setAdding(null)} onAdd={onAdd} aiEnabled={aiEnabled}
         onAiText={(text) => { setAdding(null); setAiText(text); setAiMode('text') }} />}

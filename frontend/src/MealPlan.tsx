@@ -25,8 +25,8 @@ function AnswerGroup({ title, entries }: { title: string; entries: string[][] })
 }
 const ALLERGIES: Record<string, string> = { dairy: 'молочное', eggs: 'яйца', gluten: 'глютен', nuts: 'орехи', fish: 'рыба' }
 
-export default function MealPlan({ onClose, canEdit = false, healthConsent = true, profile = null }: { onClose: () => void; canEdit?: boolean; healthConsent?: boolean; profile?: ProfileData | null }) {
-  const [step, setStep] = useState(0)
+export default function MealPlan({ onClose, showSaved = false, canEdit = false, healthConsent = true, profile = null }: { onClose: () => void; showSaved?: boolean; canEdit?: boolean; healthConsent?: boolean; profile?: ProfileData | null }) {
+  const [step, setStep] = useState(showSaved ? -1 : 0)
   const [dayIndex, setDayIndex] = useState<number | null>(null)
   const [days, setDays] = useState('7 дней')
   const [goal, setGoal] = useState(profile?.goal === 'weight_loss' || profile?.goal === 'fat_loss' ? GOALS.weight_loss : profile?.goal === 'muscle_gain' || profile?.goal === 'mass_gain' ? GOALS.mass_gain : GOALS.maintenance)
@@ -61,22 +61,25 @@ export default function MealPlan({ onClose, canEdit = false, healthConsent = tru
     if (!canEdit) return
     let active = true
     api<{ input: PlanInput; plan: GeneratedPlan }>('/api/meal-plan').then(value => {
-      if (active && value?.plan?.days && value.input) setSavedPlan(value)
+      if (!active) return
+      if (value?.plan?.days && value.input) {
+        setSavedPlan(value)
+        if (showSaved) openSavedPlan(value)
+      } else if (showSaved) setPlanMessage('Сохранённый рацион не найден.')
     }).catch(() => { if (active) setPlanMessage('Не удалось загрузить сохранённый рацион.') })
     return () => { active = false }
-  }, [canEdit, healthConsent])
+  }, [canEdit, healthConsent, showSaved])
   const savePlan = async () => {
     if (!plan || !planInput || savingPlan) return
     setSavingPlan(true); setPlanMessage('')
     try {
       const result = await api<{ input: PlanInput; plan: GeneratedPlan }>('/api/meal-plan', putJson({ input: planInput, plan }))
       if (!result) throw new Error()
-      setSavedPlan(result); setPlanMessage('Рацион сохранён в вашем профиле.')
+      setSavedPlan(result); setPlanMessage('Рацион сохранён в вашем профиле.'); onClose()
     } catch { setPlanMessage('Не удалось сохранить рацион. Проверьте подключение и согласие в профиле.') }
     finally { setSavingPlan(false) }
   }
-  const openSavedPlan = () => {
-    if (!savedPlan) return
+  const openSavedPlan = (savedPlan: { input: PlanInput; plan: GeneratedPlan }) => {
     setPlan(savedPlan.plan); setPlanInput(savedPlan.input)
     setDays(DAYS[savedPlan.input.days] ?? `${savedPlan.input.days} дней`)
     setDiet(savedPlan.input.dietary ?? 'omnivore')
@@ -95,6 +98,13 @@ export default function MealPlan({ onClose, canEdit = false, healthConsent = tru
     let active = true
     api<Preferences>('/api/meal-preferences').then(data => {
       if (!active || !data) return
+      if (showSaved) {
+        setBudget(data.budget == null ? '' : String(data.budget))
+        setCurrentSpend(data.current_spend == null ? '' : String(data.current_spend))
+        setBudgetLimits([data.budget, data.current_spend].map(n => Math.max(30000, Math.ceil((n ?? 0) / 100) * 100)))
+        setSex((data as Preferences & { sex?: 'male' | 'female' }).sex ?? profile?.sex ?? null)
+        return
+      }
       setDays(DAYS[data.days]); setGoal(GOALS[data.goal]); setAllergies(healthConsent ? data.allergies : '')
       const extra = data as Preferences & { persons?: number; selected_meals?: Slot[]; shared_meals?: Slot[]; sex?: 'male' | 'female' | null; dietary_type?: Diet; cooking_mode?: 'daily' | 'batch' | 'varied'; batch_days?: 2 | 7; liked_recipe_ids?: string[]; disliked_recipe_ids?: string[] }
       setPersons(extra.persons ?? 1); setSelectedMeals(extra.selected_meals ?? ['breakfast', 'lunch', 'dinner']); setSharedMeals(extra.shared_meals ?? [])
@@ -154,9 +164,11 @@ export default function MealPlan({ onClose, canEdit = false, healthConsent = tru
       setError(e instanceof Error ? e.message : 'Не удалось заменить блюдо.')
     }
   }
-  const back = () => step === 0 ? onClose() : setStep((s) => s === 4 && persons === 1 ? 2 : s - 1)
+  const back = () => step === 0 || (showSaved && step === 12) ? onClose() : setStep((s) => s === 4 && persons === 1 ? 2 : s - 1)
   const visibleStep = step > 2 && persons === 1 ? step : step + 1
   const totalSteps = persons === 1 ? 10 : 11
+  if (step === -1) return <section className="meal-plan"><div className="meal-plan-heading"><h1>Весь рацион</h1><button className="link" onClick={onClose}>Назад</button></div>
+    <p role="status">{planMessage || 'Открываем меню…'}</p></section>
   if (step === 12 && dayIndex !== null && plan?.days[dayIndex]) {
     return <MealDay day={plan.days[dayIndex]} batch={planInput?.cookingMode === 'batch'} error={error}
       onBack={() => { setDayIndex(null); setError('') }}
@@ -166,7 +178,7 @@ export default function MealPlan({ onClose, canEdit = false, healthConsent = tru
     <div className="meal-plan-heading"><div>{step < 11 && <span className="sub">ПИТАНИЕ · {Math.min(visibleStep, totalSteps)} / {totalSteps}</span>}<h1>{step === 12 ? 'Рацион' : step === 11 ? 'Ваши ответы' : 'Подбор рациона'}</h1></div><button className="link" onClick={back}>Назад</button></div>
     {step < 11 && <div className="meal-plan-progress" aria-hidden="true"><span style={{ width: `${Math.min(visibleStep, totalSteps) * (100 / totalSteps)}%` }} /></div>}
     <section className={step === 12 ? 'meal-plan-result' : step === 11 ? 'meal-review-page' : 'card meal-plan-card'}>
-      {step === 0 && <><img src="/images/meal-planning.jpg" className="meal-q-food-image" alt="Пример сервировки блюд" />{savedPlan && <button className="btn btn-ghost meal-plan-next" onClick={openSavedPlan}>Открыть сохранённый рацион</button>}<h2>На сколько дней составить рацион?</h2><div className="meal-q-range-card"><strong className="meal-q-budget-value">{days}</strong>
+      {step === 0 && <><img src="/images/meal-planning.jpg" className="meal-q-food-image" alt="Пример сервировки блюд" />{savedPlan && <button className="btn btn-ghost meal-plan-next" onClick={() => openSavedPlan(savedPlan)}>Открыть сохранённый рацион</button>}<h2>На сколько дней составить рацион?</h2><div className="meal-q-range-card"><strong className="meal-q-budget-value">{days}</strong>
         <MealRange label="Срок рациона" min={0} max={dayOptions.length - 1} step={1} value={dayOptions.indexOf(days)} valueText={days} onChange={i => setDays(dayOptions[i])} />
         <div className="meal-q-range-labels">{dayOptions.map(v => <button key={v} type="button" className={days === v ? 'selected' : ''} aria-pressed={days === v} onClick={() => setDays(v)}>{v}</button>)}</div></div></>}
       {step === 1 && <><h2>Какая у вас цель?</h2><p className="sub">Это поможет подобрать направление питания.</p><div className="meal-q-range-card meal-q-goal"><strong className="meal-q-budget-value">{goal}</strong><MealRange label="Цель" min={0} max={2} step={1} value={goalOptions.indexOf(goal)} valueText={goal} onChange={i => setGoal(goalOptions[i])} /><div className="meal-q-range-labels">{goalOptions.map(v => <button key={v} type="button" className={goal === v ? 'selected' : ''} aria-pressed={goal === v} onClick={() => setGoal(v)}>{v}</button>)}</div></div></>}
@@ -215,7 +227,7 @@ export default function MealPlan({ onClose, canEdit = false, healthConsent = tru
           return <button key={day.day} className="plan-day-link" aria-label={`Открыть день ${day.day}`} onClick={() => setDayIndex(index)}>
             {featured && <img src={recipeImage(featured.id)} alt="" loading="lazy" />}
             <span className="plan-day-copy"><strong>День {day.day}</strong>
-              {featured && <small>{MEALS.find(m => m.id === featured.meal)?.label} · {featured.name}</small>}
+              {day.meals.map(m => <small key={m.meal}>{MEALS.find(slot => slot.id === m.meal)?.label} · {m.name}</small>)}
               <span>Б {day.totals.protein_g} · Ж {day.totals.fat_g} · У {day.totals.carbs_g} г</span>
             </span>
             <span className="plan-day-energy">≈ {day.totals.kcal}<small>ккал</small></span>
@@ -227,7 +239,7 @@ export default function MealPlan({ onClose, canEdit = false, healthConsent = tru
     </section>
     {error && <p role="alert">{error}</p>}
     {planMessage && <p role="status">{planMessage}</p>}
-    {step === 12 && canEdit && <button className="btn meal-plan-next" disabled={savingPlan} onClick={savePlan}>{savingPlan ? 'Сохраняем…' : 'Сохранить рацион'}</button>}
+    {step === 12 && canEdit && <button className="btn meal-plan-next" disabled={savingPlan} onClick={savePlan}>{savingPlan ? 'Сохраняем…' : 'Сохранить и использовать рацион'}</button>}
     {step === 12 && !canEdit && <p className="sub">В деморежиме рацион доступен до закрытия страницы. Для сохранения откройте SETLY в своём аккаунте.</p>}
     {step < 11 ? <button className="btn meal-plan-next" disabled={loading} onClick={next}>{step === 10 ? 'Посмотреть ответы' : 'Продолжить'}</button> : step === 11 ? <><button className="btn meal-plan-next" onClick={generate}>Составить рацион</button>{canEdit && <button className="btn btn-ghost meal-plan-next" disabled={loadFailed} onClick={save}>Сохранить ответы</button>}<button className="btn btn-ghost meal-plan-next" onClick={() => { setSaved(false); setStep(0) }}>Изменить ответы</button></> : <button className="btn btn-ghost meal-plan-next" onClick={() => setStep(11)}>К ответам</button>}
   </div>

@@ -489,6 +489,15 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .programs-section-title { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 2px 2px; }
 .programs-section-title h2 { font-size: 17px; }
 .programs-empty { padding: 22px 18px; border: 1px dashed var(--line); border-radius: 18px; color: var(--text); display: flex; flex-direction: column; gap: 5px; }
+ .program-level-group { border: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent); border-radius: 18px; background: var(--card); overflow: hidden; }
+.program-level-group summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 60px; padding: 14px 16px; cursor: pointer; list-style: none; }
+.program-level-group summary::-webkit-details-marker { display: none; }
+.program-level-group summary strong { font-size: 15px; }
+.program-level-meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.program-level-chevron { font-size: 18px; transition: transform .2s ease; }
+.program-level-group[open] .program-level-chevron { transform: rotate(180deg); }
+.program-level-content { display: grid; gap: 8px; padding: 0 10px 10px; }
+.program-level-content > .sub { margin: 0; padding: 4px 6px 10px; }
 .program-card { padding: 18px; gap: 8px; }
 .program-card.is-selected { border-color: color-mix(in srgb, var(--accent) 36%, var(--card-border)); background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--card)), var(--card) 70%); }
 .program-card .card-head { align-items: flex-start; }
@@ -754,8 +763,9 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .session-exercise.player .set-row input { font-size: 20px; height: 48px; }
 .session-exercise.player .check { width: 52px; height: 52px; font-size: 22px; }
 .set-row.current { border-radius: 14px; box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
-.player-nav { display: flex; gap: 10px; margin: 4px 0 10px; }
-.player-nav .btn { flex: 1; }
+.player-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.player-nav .link { min-height: 44px; padding: 0 6px; font-size: 14px; }
+.player-nav .link:disabled { opacity: .4; }
 
 /* ---- Theme character: not only colours ----
    Тёмная — собранная, спортивная: строгие скругления, заголовки шрифтом Unbounded.
@@ -1123,7 +1133,7 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .meal-q-budget-range::-moz-range-thumb { width: 18px; height: 18px; border: 4px solid var(--card); border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 0 18px color-mix(in srgb,var(--accent) 55%, transparent); }
 .meal-q-budget-range:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 4px; border-radius: 12px; }
 .meal-q-taste-card { overflow: hidden; padding: 0; gap: 0; background: var(--card-2); }
-.meal-q-taste-card .meal-q-taste-photo { display:block; width:100%; height:clamp(210px, 48vw, 310px); object-fit:cover; }
+.meal-q-taste-card .meal-q-taste-photo { display:block; width:100%; height:clamp(210px, 48vw, 310px); object-fit:contain; background:var(--card-2); }
 .meal-q-taste-card strong { padding: 17px 16px 5px; }
 .meal-q-taste-card .meal-q-taste-progress { padding: 0 16px 17px; }
 .meal-q-diet-photo { display:block; width:70px; height:70px; flex:none; object-fit:cover; border-radius:14px; }
@@ -1148,7 +1158,7 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .exercise-guide-link { color: var(--text); font: inherit; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
 .exercise-guide-link:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 4px; border-radius: 3px; }
 .exercise-guide-body p { margin: 6px 0 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
-.plan-recipe-cover.exercise-guide-image { height: auto; aspect-ratio: 3 / 2; object-fit: contain; background: #17181b; }
+.plan-recipe-cover.exercise-guide-image { height: auto; max-height: 44dvh; aspect-ratio: auto; object-fit: contain; background: #17181b; }
 .ready-exercise-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 0; border: 0; border-top: 1px solid var(--line); color: var(--text); background: transparent; text-align: left; font: inherit; }
 button.ready-exercise-row { cursor: pointer; }
 button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; border-radius: 8px; }
@@ -1175,3 +1185,63 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .more-brands { align-self: flex-start; padding: 6px 0 10px; font-size: 14px; }
 .not-found { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
 .not-found .link { align-self: center; }
+
+.session-guide-trigger { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.session-guide-trigger .exercise-thumbnail { flex: none; }
+.session-guide-trigger .row-title { min-width: 0; }
+.session-guide-trigger small { display: block; margin-top: 4px; color: var(--accent-text); font-size: 12px; font-weight: 600; }
+.session-guide-trigger:focus-visible, .exercise-image-button:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 3px; }
+.exercise-image-button { position: relative; display: block; width: 100%; padding: 0; border: 0; background: #17181b; cursor: zoom-in; overflow: hidden; }
+.exercise-image-button span { position: absolute; right: 12px; bottom: 12px; padding: 6px 10px; border-radius: 12px; background: rgb(15 16 18 / .82); color: white; font: 600 12px inherit; }
+.exercise-image-button.is-zoomed { cursor: zoom-out; overflow: auto; max-height: 65dvh; }
+.exercise-image-button.is-zoomed .exercise-guide-image { width: 160%; max-width: none; max-height: none; }
+.exercise-positions { display: flex; gap: 8px; padding: 12px 16px 0; }
+.exercise-positions button { flex: 1; min-height: 42px; padding: 8px; border: 1px solid var(--card-border); border-radius: 12px; background: var(--card-2); color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+.exercise-positions button[aria-pressed="true"] { color: var(--accent-text); border-color: var(--accent-text); }
+.compact-session, .compact-session.player {
+  display: grid;
+  gap: 8px;
+  padding: 12px 2px;
+  border-block: 1px solid var(--line);
+}
+.compact-session .session-exercise-title { padding: 0; }
+.compact-session .session-guide-trigger .exercise-thumbnail { width: clamp(78px, 22vw, 112px); height: clamp(66px, 16vw, 84px); }
+.compact-session .row-title { font-size: 18px; line-height: 1.3; }
+.session-prescription, .session-note, .session-manual summary, .session-start > span,
+.session-clock small, .session-splits { font-size: 13px; color: var(--muted); }
+.session-prescription { display: flex; flex-wrap: wrap; column-gap: clamp(22px, 8vw, 46px); row-gap: 6px; margin: 14px 0 4px; }
+.session-prescription dt { font-size: 13px; }
+.session-prescription dd { margin: 2px 0 0; color: var(--text); font-size: clamp(21px, 5vw, 26px); font-weight: 750; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.session-note summary, .session-manual summary { cursor: pointer; padding: 8px 0; }
+.session-note p { margin: 0 0 4px; color: var(--text); }
+.session-manual[open] .set-row { margin-top: 5px; }
+.compact-session.player .set-row { min-height: 44px; }
+.compact-session.player .set-row input { height: 44px; font-size: 16px; }
+.compact-session.player .check { width: 44px; height: 44px; font-size: 18px; }
+.compact-session .set-row.current { box-shadow: none; }
+.compact-session .set-row.current > .sub { color: var(--accent-text); }
+.session-start, .session-clock { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.session-start { padding-block: 2px; }
+.session-clock { padding: 10px 14px; border-radius: 14px; background: var(--card); flex-wrap: wrap; }
+.session-clock > div { display: grid; gap: 2px; }
+.session-clock strong { font-variant-numeric: tabular-nums; font-size: 24px; line-height: 1.2; }
+.rest-clock strong { font-size: 18px; }
+.session-clock-action { padding: 8px 14px; min-height: 44px; border-radius: 12px; background: var(--accent); color: var(--on-accent, #141414); font-weight: 700; }
+.session-splits { display: flex; flex-wrap: wrap; gap: 10px; font-variant-numeric: tabular-nums; }
+.kettlebell-blocks { margin-top:16px; border-top:1px solid var(--card-border); padding-top:14px; }
+.kettlebell-blocks summary { cursor:pointer; font-weight:650; }
+.kettlebell-blocks button { margin:4px 22px 4px 0; }
+
+/* Planned meals in the daily diary */
+.plan-day-label { margin: -2px 2px 2px; font-size: 13px; }
+.planned-meal { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 2px; padding: 11px 12px; border-radius: 14px; background: color-mix(in srgb, var(--accent) 7%, var(--card)); }
+.planned-recipe-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0; text-align: left; color: var(--text); }
+.planned-recipe-link img { width: clamp(52px, 15vw, 80px); aspect-ratio: 1; border-radius: 10px; object-fit: cover; flex-shrink: 0; }
+.planned-recipe-link .plan-arrow { flex-shrink: 0; }
+.diary-records { align-self: start; min-height: 36px; }
+.planned-meal-info { min-width: 0; display: grid; gap: 4px; }
+.planned-meal-info strong { font-size: 14px; line-height: 1.35; overflow-wrap: anywhere; }
+.planned-meal-info small { color: var(--muted); font-size: 12px; }
+.planned-meal-check { flex: 0 0 38px; width: 38px; height: 38px; border: 1px solid color-mix(in srgb, var(--accent) 50%, var(--card-border)); border-radius: 12px; background: transparent; color: var(--accent-text); font-size: 20px; cursor: pointer; }
+.planned-meal-check.is-done { background: var(--accent); color: #171717; }
+.planned-meal-check:disabled { opacity: .5; }

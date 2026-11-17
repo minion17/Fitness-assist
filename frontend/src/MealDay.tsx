@@ -6,8 +6,8 @@ type Day = MealPlan['days'][number]
 type Meal = Day['meals'][number]
 const labels = { breakfast: 'Завтрак', lunch: 'Обед', dinner: 'Ужин' }
 
-function RecipeCard({ meal, batch, error, onClose, onReplace }: {
-  meal: Meal; batch: boolean; error: string; onClose: () => void; onReplace: () => void
+export function RecipeCard({ meal, batch = false, error, onClose, onReplace }: {
+  meal: Meal; batch?: boolean; error?: string; onClose: () => void; onReplace?: () => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
   useEffect(() => {
@@ -38,7 +38,7 @@ function RecipeCard({ meal, batch, error, onClose, onReplace }: {
           {meal.ingredients.map(i => <div key={i.productId ?? i.product}><span>{i.product}</span><span>{i.grams} г</span></div>)}
         </section>
         <section className="meal-result-steps"><h3>Как приготовить</h3><ol>{steps.map((text, i) => <li key={i}>{text}</li>)}</ol></section>
-        <button className="link meal-result-replace" aria-label={`Заменить блюдо ${meal.name}`} onClick={onReplace}>{batch && meal.meal !== 'breakfast' ? 'Заменить во всей партии' : 'Заменить блюдо'} ↻</button>
+        {onReplace && <button className="link meal-result-replace" aria-label={`Заменить блюдо ${meal.name}`} onClick={onReplace}>{batch && meal.meal !== 'breakfast' ? 'Заменить во всей партии' : 'Заменить блюдо'} ↻</button>}
         {error && <p role="alert">{error}</p>}
       </div>
     </div>

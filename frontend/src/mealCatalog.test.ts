@@ -35,3 +35,16 @@ it('содержит разнообразные блюда с однозначн
   expect(INGREDIENTS.peanut.tags).toEqual(expect.arrayContaining(['nuts', 'legumes']))
   expect(INGREDIENTS.buckwheat.tags).toContain('buckwheat')
 })
+
+it.each([7, 14])('в разнообразном меню на %i дней чередует блюда и считает КБЖУ порций', days => {
+  const plan = createMealPlan({ days, calories: 2200, cookingMode: 'varied', allergies: '', disliked: '', liked: '' })
+  const meals = plan.days.flatMap(d => d.meals)
+  expect(new Set(meals.map(m => m.id)).size).toBeGreaterThanOrEqual(days * 2)
+  for (const meal of meals) {
+    for (const key of ['kcal', 'protein_g', 'fat_g', 'carbs_g'] as const) {
+      const calculated = meal.ingredients.reduce((sum, i) => sum + INGREDIENTS[i.productId][key] * i.grams / 100, 0)
+      expect(meal.nutrition[key]).toBe(Math.round(calculated))
+      expect(meal.nutrition[key]).toBeGreaterThan(0)
+    }
+  }
+})

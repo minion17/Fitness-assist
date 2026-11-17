@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
 import Body, { type MeasurementInput } from './Body'
@@ -23,7 +23,7 @@ import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } 
 import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import { MEALS, mealNow, type FoodDay, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar, Sheet } from './ui'
-import Workouts from './Workouts'
+const Workouts = lazy(() => import('./Workouts'))
 
 type Tab = 'home' | 'food' | 'workouts' | 'progress' | 'profile'
 
@@ -441,10 +441,12 @@ export default function App() {
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
-        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} />}
+        {tab === 'food' && <Food day={foodDay} targets={me?.targets} canEdit={canEdit} healthConsent={consent?.health} profile={me} onAdd={addFood} onDelete={deleteFood} onGrams={changeGrams} aiEnabled={aiEnabled} onAiDone={aiMealDone} intent={foodIntent} onCopy={copyMeal} onPlanLogged={refreshJournal} />}
         {tab === 'workouts' && (
-          <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
-            canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />
+          <Suspense fallback={<p role="status">Открываем тренировки…</p>}>
+            <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
+              canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} />
+          </Suspense>
         )}
         {tab === 'progress' && (
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}

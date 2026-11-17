@@ -3,6 +3,7 @@ import type { Recommendation } from './profile'
 import { api, postJson, publicGet, tg } from './telegram'
 import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
 import Empty from './Empty'
+import translatedCatalog from '../../content/exercises/translated_exercises.json'
 import exerciseCatalog from '../../content/exercises/exercises.json'
 import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
@@ -45,8 +46,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         ? await api<ExerciseOption[]>('/api/exercises')
         : await publicGet<ExerciseOption[]>('/api/exercises').catch(() => (programs ?? []).flatMap(program => program.days.flatMap(day => day.exercises.map(exercise => ({ id: exercise.exercise_id, name: exercise.name })))))
 
-      const translatedExerciseCatalog = canEdit ? [] : (await import('../../content/exercises/translated_exercises.json')).default
-      const localExercises = canEdit ? [] : [...exerciseCatalog, ...translatedExerciseCatalog].map((exercise, index) => ({
+      const localExercises = canEdit ? [] : [...exerciseCatalog, ...translatedCatalog].map((exercise, index) => ({
         id: -100000 - index, name: exercise.name, equipment: exercise.equipment, is_bodyweight: exercise.is_bodyweight,
       }))
       const existingNames = new Set((list ?? []).map(exercise => exercise.name.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е')))
@@ -101,6 +101,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     if (preview) return <div className="ready-program-page">
       <div className="card-head"><h1>{preview.name}</h1><button className="link" onClick={() => setPreviewProgramId(null)}>Назад</button></div>
       <span className="sub">{LEVEL[preview.level] ?? preview.level}</span>
+      {preview.name.startsWith('Гиря · ') && preview.description && <p className="sub">{preview.description}</p>}
       {preview.days.map(day => <details className="card ready-program-day" key={day.id}>
         <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <span aria-hidden="true">⌄</span></span></summary>
         <div>{day.exercises.map((exercise, index) => {
@@ -127,12 +128,30 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         <div className="program-card-actions"><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button>{(canEdit || p.id < 0) && <button className="link" onClick={() => openBuilder(p)}>Изменить</button>}</div>
       </section>)}
       {programs.some(p => !p.is_personal) && <div className="programs-section-title"><h2>Готовые программы</h2></div>}
-      {programs.filter(p => !p.is_personal).sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id)).map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
-        <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
-        {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит вам</span>}
-        <span className="sub">{LEVEL[p.level] ?? p.level}</span>
-        <div className="program-card-actions"><button className="link" onClick={() => setPreviewProgramId(p.id)}>Посмотреть тренировки</button><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button></div>
-      </section>)}
+      {(() => {
+        const ready = programs.filter(p => !p.is_personal)
+        const groups = [
+          { key: 'beginner', title: 'Для новичков' },
+          { key: 'intermediate', title: 'Средний уровень' },
+          { key: 'advanced', title: 'Для опытных' },
+          ...(ready.some(p => !['beginner', 'intermediate', 'advanced'].includes(p.level)) ? [{ key: 'other', title: 'Другие программы' }] : []),
+        ]
+        return groups.map(group => {
+          const items = ready.filter(p => group.key === 'other' ? !['beginner', 'intermediate', 'advanced'].includes(p.level) : p.level === group.key)
+            .sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id))
+          return <details className="program-level-group" key={group.key}>
+            <summary><strong>{group.title}</strong><span className="program-level-meta">{items.length}<span className="program-level-chevron" aria-hidden="true">⌄</span></span></summary>
+            <div className="program-level-content">
+              {items.length === 0 && <p className="sub">Программ пока нет</p>}
+              {items.map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
+                <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
+                {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит вам</span>}
+                <div className="program-card-actions"><button className="link" onClick={() => setPreviewProgramId(p.id)}>Посмотреть тренировки</button><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button></div>
+              </section>)}
+            </div>
+          </details>
+        })
+      })()}
     </div>
     <button className="btn" onClick={() => openBuilder('new')}>Создать программу</button>
     {!canEdit && <p className="sub">В деморежиме программа доступна до обновления страницы.</p>}
@@ -195,6 +214,14 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   )
 }
 
+type SessionTimer =
+  | { phase: 'work'; exercise: number; set: number; start: number; stoppedSeconds?: number }
+  | { phase: 'rest'; end: number; result: string }
+
+const clockLabel = (seconds: number) =>
+  `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
+const timedExercise = (exercise: PlannedExercise) => exercise.unit === 'seconds' || /сек/i.test(exercise.reps)
+
 type SetState = { reps: string; weight: string; saved: boolean }
 
 function Session({ program, day, onExit, onChanged }: {
@@ -213,6 +240,25 @@ function Session({ program, day, onExit, onChanged }: {
   const [last, setLast] = useState<Last>({})
   const [cur, setCur] = useState(0)        // the exercise on screen ("player": one at a time)
   const [list, setList] = useState(false)  // or all of them as a list
+  const [guideExercise, setGuideExercise] = useState<PlannedExercise | null>(null)
+  const [timer, setTimer] = useState<SessionTimer | null>(null)
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => {
+    if (!timer || (timer.phase === 'work' && timer.stoppedSeconds !== undefined)) return
+    const id = window.setInterval(() => {
+      const time = Date.now()
+      setNow(time)
+      if (timer.phase === 'rest' && time >= timer.end) window.clearInterval(id)
+    }, 200)
+    return () => window.clearInterval(id)
+  }, [timer])
+  function startWork(exercise: number, set: number) {
+    if (busy || timer?.phase === 'work' || set < 0) return
+    const start = Date.now()
+    setError('')
+    setNow(start)
+    setTimer({ phase: 'work', start, exercise, set })
+  }
 
   useEffect(() => {
     let stale = false
@@ -241,10 +287,11 @@ function Session({ program, day, onExit, onChanged }: {
     return w!.id
   }
 
-  async function saveSet(ei: number, si: number) {
+  async function saveSet(ei: number, si: number, measuredSeconds?: number) {
+    if (busy || sets[ei][si].saved || (timer?.phase === 'work' && measuredSeconds === undefined)) return
     const s = sets[ei][si]
-    const reps = Number(s.reps)
-    const timed = day.exercises[ei].unit === 'seconds' || /сек/i.test(day.exercises[ei].reps)
+    const reps = measuredSeconds ?? Number(s.reps)
+    const timed = timedExercise(day.exercises[ei])
     const weight = s.weight ? Number(s.weight.replace(',', '.')) : 0
     if (!Number.isInteger(reps) || reps <= 0 || reps > (timed ? 86400 : 500)) return setError(timed ? 'Время: укажите секунды' : 'Повторы: целое число от 1 до 500')
     if (!Number.isFinite(weight) || weight < 0 || weight > 500) return setError('Вес: от 0 до 500 кг')
@@ -253,16 +300,34 @@ function Session({ program, day, onExit, onChanged }: {
     try {
       const id = await ensureLog()
       await api(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
-      update(ei, si, { saved: true })
+      update(ei, si, { saved: true, reps: String(reps) })
+      const rest = day.exercises[ei].rest_seconds
+      const time = Date.now()
+      setNow(time)
+      setTimer(rest > 0 ? { phase: 'rest', end: time + rest * 1000, result: `Подход ${si + 1} · ${reps} ${timed ? 'с' : 'повт.'}` } : null)
       tg?.HapticFeedback?.impactOccurred?.('medium')
-      if (!list && ei === cur && cur < day.exercises.length - 1 && sets[ei].every((x, j) => j === si || x.saved)) {
-        setTimeout(() => setCur((c) => (c === ei ? c + 1 : c)), 450) // the exercise is done: next one
+      const group = day.exercises[ei].superset
+      if (group && !list && ei === cur) {
+        const members = day.exercises.map((exercise, index) => exercise.superset === group ? index : -1).filter(index => index >= 0)
+        const later = members.filter(index => index > ei && sets[index][si] && !sets[index][si].saved)
+        const earlier = members.filter(index => index <= ei && sets[index][si + 1] && !sets[index][si + 1].saved)
+        const next = later[0] ?? earlier[0] ?? (Math.max(...members) + 1 < day.exercises.length ? Math.max(...members) + 1 : undefined)
+        if (next !== undefined) setCur(next)
+      } else if (!list && ei === cur && cur < day.exercises.length - 1 && sets[ei].every((x, j) => j === si || x.saved)) {
+        setCur(ei + 1)
       }
     } catch {
       setError('Не удалось сохранить подход. Проверьте соединение.')
     } finally {
       setBusy(false)
     }
+  }
+
+  function stopWork() {
+    if (timer?.phase !== 'work' || busy) return
+    const seconds = timer.stoppedSeconds ?? Math.max(1, Math.floor((Date.now() - timer.start) / 1000))
+    setTimer({ ...timer, stoppedSeconds: seconds })
+    void saveSet(timer.exercise, timer.set, seconds)
   }
 
   async function finish() {
@@ -303,41 +368,76 @@ function Session({ program, day, onExit, onChanged }: {
           <button className="link" onClick={() => setList(!list)}>{list ? 'По одному' : 'Все упражнения'}</button>
         </div>
       )}
-      {shown.map(([e, ei]) => (
-        <section className={list ? 'card session-exercise' : 'card session-exercise player'} key={ei}>
+      {timer?.phase === 'work' && <div className="session-clock">
+        <div><small>{day.exercises[timer.exercise].name} · подход {timer.set + 1}</small>
+          <strong role="timer">{clockLabel(timer.stoppedSeconds ?? Math.max(0, Math.floor((now - timer.start) / 1000)))}</strong></div>
+        <button className="session-clock-action" onClick={stopWork} disabled={busy}>
+          {busy ? 'Сохраняем…' : timer.stoppedSeconds !== undefined ? 'Сохранить подход' : 'Завершить подход'}</button>
+        {timer.stoppedSeconds !== undefined && !busy && <button className="link" onClick={() => setTimer(null)}>Сбросить</button>}
+      </div>}
+      {timer?.phase === 'rest' && <div className="session-clock rest-clock">
+        <div><small>{timer.result}</small><strong>{now < timer.end ? 'Отдых' : 'Отдых завершён'} <span role="timer">{clockLabel(Math.max(0, Math.ceil((timer.end - now) / 1000)))}</span></strong></div>
+        <button className="link" onClick={() => setTimer(null)}>{now < timer.end ? 'Пропустить' : 'Готово'}</button>
+      </div>}
+      {shown.map(([e, ei]) => {
+        const nextSet = sets[ei].findIndex(s => !s.saved)
+        const timed = timedExercise(e)
+        const setTable = (
+          <>
+          <div className="session-set-labels" aria-hidden="true"><span>Подход</span><span>{timed ? 'Время' : 'Повторы'}</span><span>Вес</span><span>Готово</span></div>
+          {sets[ei].map((s, si) => (
+            <div className={si === nextSet ? 'set-row current' : 'set-row'} key={si}>
+              <span className="sub">{si + 1}</span>
+              <div className="input-wrap"><input inputMode="numeric" aria-label={`${e.name}, подход ${si + 1}, ${timed ? 'секунды' : 'повторы'}`} value={s.reps}
+                disabled={s.saved} onChange={(ev) => update(ei, si, { reps: ev.target.value })} /><i>{timed ? 'сек' : 'повт'}</i></div>
+              <div className="input-wrap"><input inputMode="decimal" aria-label={`${e.name}, подход ${si + 1}, вес`} value={s.weight}
+                disabled={s.saved} placeholder="0" onChange={(ev) => update(ei, si, { weight: ev.target.value })} /><i>кг</i></div>
+              <button className="check" aria-label={`Сохранить подход ${si + 1}`} aria-pressed={s.saved}
+                disabled={s.saved || busy || timer?.phase === 'work'} onClick={() => saveSet(ei, si)}>✓</button>
+            </div>
+          ))}
+          </>
+        )
+        return <section className={list ? 'session-exercise compact-session' : 'session-exercise compact-session player'} key={ei}>
           {!list && total > 1 && <span className="sub">Упражнение {ei + 1} из {total}</span>}
           <div className="session-exercise-title">
-            <div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div>
-            <div className="sub">План: {e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''} · отдых {e.rest_seconds} с</div>
-            {e.notes && <div className="sub">{e.notes}</div>}
+            {hasExerciseGuide(e.name)
+              ? <button className="session-guide-trigger" onClick={() => setGuideExercise(e)} aria-label={`Как выполнять ${e.name}`}>
+                  <ExerciseThumbnail name={e.name} index={ei} />
+                  <span className="row-title">{e.name}<small>Как выполнять →</small></span>
+                </button>
+              : <div className="row-title">{e.name}</div>}
+            {e.superset && !timed && <small className="sub">{program.name.startsWith('Гиря ·') ? 'Круг' : 'Суперсет'} {e.superset}</small>}
+            <dl className="session-prescription">
+              <div><dt>Подходы</dt><dd>{e.sets} × {e.reps}{timed && !/сек/i.test(e.reps) ? ' с' : ''}</dd></div>
+              {e.rest_seconds > 0 && <div><dt>Отдых</dt><dd>{e.rest_seconds} с</dd></div>}
+            </dl>
+            {e.notes && <details className="session-note"><summary>Подсказка</summary><p>{e.notes}</p></details>}
             {last[e.exercise_id]?.sets.length ? (
               <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
             ) : null}
           </div>
-          <div className="session-set-labels" aria-hidden="true"><span>Подход</span><span>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'Время' : 'Повторы'}</span><span>Вес</span><span>Готово</span></div>
-          {sets[ei].map((s, si) => (
-            <div className={si === sets[ei].findIndex((x) => !x.saved) ? 'set-row current' : 'set-row'} key={si}>
-              <span className="sub">{si + 1}</span>
-              <div className="input-wrap"><input inputMode="numeric" aria-label={`${e.name}, подход ${si + 1}, ${e.unit === 'seconds' || /сек/i.test(e.reps) ? 'секунды' : 'повторы'}`} value={s.reps}
-                disabled={s.saved} onChange={(ev) => update(ei, si, { reps: ev.target.value })} /><i>{e.unit === 'seconds' || /сек/i.test(e.reps) ? 'сек' : 'повт'}</i></div>
-              <div className="input-wrap"><input inputMode="decimal" aria-label={`${e.name}, подход ${si + 1}, вес`} value={s.weight}
-                disabled={s.saved} placeholder="0" onChange={(ev) => update(ei, si, { weight: ev.target.value })} /><i>кг</i></div>
-              <button className="check" aria-label={`Сохранить подход ${si + 1}`} aria-pressed={s.saved}
-                disabled={s.saved || busy} onClick={() => saveSet(ei, si)}>✓</button>
-            </div>
-          ))}
+          {timed ? <>
+            {nextSet >= 0 && timer?.phase !== 'work' &&
+              <div className="session-start"><span>{e.superset ? 'Круг' : 'Подход'} {nextSet + 1} из {e.sets}</span>
+                <button className="session-clock-action" disabled={busy} onClick={() => startWork(ei, nextSet)}>Засечь время</button></div>}
+            {sets[ei].some(s => s.saved) && <div className="session-splits">{sets[ei].map((s, i) => s.saved &&
+              <span key={i}>✓ {i + 1} · {clockLabel(Number(s.reps))}</span>)}</div>}
+            <details className="session-manual"><summary>Вес и подходы</summary>{setTable}</details>
+          </> : setTable}
         </section>
-      ))}
+      })}
       {!list && total > 1 && (
         <div className="player-nav">
-          <button className="btn btn-ghost" disabled={cur === 0} onClick={() => setCur(cur - 1)}>← Назад</button>
-          {cur < total - 1 && <button className="btn" onClick={() => setCur(cur + 1)}>{doneEx(cur) ? 'Следующее →' : 'Дальше →'}</button>}
+          <button className="link" disabled={cur === 0} onClick={() => setCur(cur - 1)}>← Назад</button>
+          {cur < total - 1 && <button className="link" onClick={() => setCur(cur + 1)}>{doneEx(cur) ? 'Следующее →' : 'Дальше →'}</button>}
         </div>
       )}
+      {guideExercise && <KettlebellExercise exercise={guideExercise} onClose={() => setGuideExercise(null)} />}
       {error && <p className="error" role="alert">{error}</p>}
-      <button className={!list && total > 1 && cur < total - 1 ? 'btn btn-ghost' : 'btn'} disabled={savedCount === 0 || busy} onClick={finish}>
-        {savedCount === 0 ? 'Отметьте хотя бы один подход' : `Завершить тренировку · ${savedCount} подх.`}
-      </button>
+      {savedCount > 0 && <button className="btn btn-ghost" disabled={busy || timer?.phase === 'work'} onClick={finish}>
+        Завершить тренировку · {savedCount} подх.
+      </button>}
     </>
   )
 }

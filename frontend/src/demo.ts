@@ -41,6 +41,7 @@ for (const [index, program] of programCatalog.slice(3).entries()) {
         name: exercise.name, sets: exercise.sets, reps: exercise.reps,
         rest_seconds: exercise.rest_seconds, notes: exercise.notes ?? null,
         unit: 'unit' in exercise && exercise.unit === 'seconds' ? 'seconds' : 'reps',
+        superset: 'superset' in exercise ? exercise.superset : null,
       })),
     })),
   })

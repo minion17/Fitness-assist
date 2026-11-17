@@ -26,6 +26,30 @@ export default function ProgramBuilder({ exercises, initial, onSave, onCancel, o
     const day = draft.days[di]
     updateDay(di, { exercises: day.exercises.map((e, n) => n === ei ? { ...e, ...patch } : e) })
   }
+  function addKettlebellBlock(dayIndex: number, kind: 'warmup' | 'finisher') {
+    const names = kind === 'warmup'
+      ? ['Вращение гири вокруг головы', 'Тяга гири с пола', 'Гоблет-приседания']
+      : ['Махи гирей двумя руками', 'Гоблет-приседания']
+    const found = names.map(name => exercises.find(exercise => exercise.name === name))
+    if (found.some(exercise => !exercise)) {
+      setError('Некоторые упражнения с гирей пока недоступны. Обновите каталог упражнений.')
+      return
+    }
+    const day = draft.days[dayIndex]
+    const group = Math.max(0, ...day.exercises.map(exercise => exercise.superset ?? 0)) + 1
+    const block = found.map((exercise, index) => ({
+      exercise_id: exercise!.id,
+      sets: 2,
+      reps: kind === 'warmup' ? ['5', '8', '6'][index] : '20',
+      unit: kind === 'warmup' ? 'reps' as const : 'seconds' as const,
+      rest_seconds: index === found.length - 1 ? (kind === 'warmup' ? 60 : 90) : (kind === 'warmup' ? 20 : 30),
+      superset: group,
+    }))
+    updateDay(dayIndex, { exercises: kind === 'warmup' ? [...block, ...day.exercises] : [...day.exercises, ...block] })
+    setError('')
+    setNotice(true)
+    window.setTimeout(() => setNotice(false), 1600)
+  }
   async function save() {
     if (Object.keys(searches).length) {
       setError('Выберите упражнение из списка или добавьте своё.')
@@ -66,6 +90,12 @@ export default function ProgramBuilder({ exercises, initial, onSave, onCancel, o
       {notice && <div className="builder-added" role="status">✓ Добавлено</div>}
       {editingItem === null && <div className="builder-actions"><button className="link" disabled={!exercises.length} onClick={() => { setEditingItem(day.exercises.length); updateDay(di, { exercises: [...day.exercises, { exercise_id: exercises[0].id, sets: 3, reps: '10', rest_seconds: 60 }] }) }}><span aria-hidden="true">+ </span>Добавить упражнение</button>
       <button className="link" disabled={!exercises.length} onClick={() => { const group = Math.max(0, ...day.exercises.map(e => e.superset ?? 0)) + 1; setEditingItem(day.exercises.length); updateDay(di, { exercises: [...day.exercises, ...[1, 2].map(() => ({ exercise_id: exercises[0].id, sets: 3, reps: '10', rest_seconds: 60, superset: group }))] }) }}><span aria-hidden="true">+ </span>Добавить суперсет</button></div>}
+      {editingItem === null && <details className="kettlebell-blocks">
+        <summary>Комплексы с гирей</summary>
+        <p className="sub">Два круга. Разминка добавляется в начало, завершение — в конец тренировки.</p>
+        <button className="link" onClick={() => addKettlebellBlock(di, 'warmup')}>+ Разминка</button>
+        <button className="link" onClick={() => addKettlebellBlock(di, 'finisher')}>+ Завершение</button>
+      </details>}
     </section>)}
     {stage === 'day' && editingItem === null && (draft.days[activeDay]?.exercises.length ?? 0) > 0 && <button className="btn" onClick={() => { if (Object.keys(searches).length) { setError('Выберите упражнение из списка или добавьте своё.'); return } if (!draft.days[activeDay]?.exercises.length) { setError('Добавьте хотя бы одно упражнение.'); return } setError(''); setStage('preview') }}>Готово</button>}
     {stage === 'preview' && draft.days[activeDay] && <><section className="card"><h2>{draft.days[activeDay].name}</h2>{draft.days[activeDay].exercises.map((e, i) => <div className="row" key={i}><div className="row-main"><div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{exercises.find(x => x.id === e.exercise_id)?.name ?? 'Упражнение'}</div><div className="row-sub">{e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ' повт.'} · отдых {formatRest(e.rest_seconds)}{e.planned_weights?.some(w => w !== null) ? ` · вес: ${e.planned_weights.map(w => w === null ? '—' : w).join(' / ')} кг` : ''}</div></div><button className="link" onClick={() => { setEditingItem(i); setStage('day') }}>Изменить</button></div>)}</section><button className="btn btn-ghost" onClick={() => setStage('day')}>Редактировать</button><button className="btn" onClick={() => setStage('days')}>Сохранить</button></>}

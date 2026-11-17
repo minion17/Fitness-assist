@@ -49,8 +49,7 @@ test('workout session: logs sets, then completes', async () => {
   render(<Workouts programs={[program]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={onChanged} />)
 
   fireEvent.click(screen.getByRole('button', { name: 'Начать тренировку' }))
-  const finish = screen.getByRole('button', { name: 'Отметьте хотя бы один подход' }) as HTMLButtonElement
-  expect(finish.disabled).toBe(true)
+  expect(screen.queryByRole('button', { name: /Завершить тренировку/ })).toBeNull()
 
   expect((screen.getByLabelText('Жим лёжа, подход 1, повторы') as HTMLInputElement).value).toBe('6') // from "6-8"
   fireEvent.change(screen.getByLabelText('Жим лёжа, подход 1, вес'), { target: { value: '62,5' } })
@@ -558,4 +557,39 @@ test('units: parse amounts typed into the search', async () => {
   const { unitWord } = await import('./units')
   expect([1, 2, 5, 11, 22, 1.5].map((n) => unitWord('ломтик', n))).toEqual(['ломтик', 'ломтика', 'ломтиков', 'ломтиков', 'ломтика', 'ломтика'])
   expect(unitWord('шт', 5)).toBe('шт')
+})
+
+test('круговая тренировка ведёт по упражнениям и возвращает к следующему кругу', async () => {
+  const circuit: Program = {
+    ...program,
+    days: [{ id: 20, day_name: 'Круг', day_order: 1, exercises: [
+      { exercise_id: 7, name: 'Первое упражнение', sets: 2, reps: '30', rest_seconds: 20, unit: 'seconds', superset: 1, notes: null },
+      { exercise_id: 8, name: 'Второе упражнение', sets: 2, reps: '8', rest_seconds: 90, superset: 1, notes: null },
+    ] }],
+  }
+  apiMock.mockResolvedValueOnce({}).mockResolvedValueOnce({ id: 99 }).mockResolvedValue({ id: 1 })
+  render(<Workouts programs={[circuit]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={() => {}} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Начать тренировку' }))
+  const start = Date.now()
+  const clock = vi.spyOn(Date, 'now').mockReturnValue(start)
+  try {
+    fireEvent.click(screen.getByRole('button', { name: 'Засечь время' }))
+    expect(screen.getByRole('timer').textContent).toBe('00:00')
+    clock.mockReturnValue(start + 47000)
+    await waitFor(() => expect(screen.getByRole('timer').textContent).toBe('00:47'))
+    fireEvent.click(screen.getByRole('button', { name: 'Завершить подход' }))
+    await waitFor(() => expect(screen.getByRole('timer').textContent).toBe('00:20'))
+    clock.mockReturnValue(start + 50000)
+    await waitFor(() => expect(screen.getByRole('timer').textContent).toBe('00:17'))
+  } finally { clock.mockRestore() }
+  await waitFor(() => expect(screen.getByLabelText('Второе упражнение, подход 1, повторы')).toBeTruthy())
+  expect(screen.getByText('Подход 1 · 47 с')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить подход 1' }))
+  await waitFor(() => expect(screen.getByLabelText('Первое упражнение, подход 2, секунды')).toBeTruthy())
+  expect(screen.getByText(/Круг 2 из 2/)).toBeTruthy()
+  const sent = apiMock.mock.calls.filter(([url]) => String(url).endsWith('/sets')).map(([, options]) => JSON.parse(options!.body as string))
+  expect(sent).toEqual([
+    { exercise_id: 7, set_number: 1, duration_seconds: 47, weight_kg: 0 },
+    { exercise_id: 8, set_number: 1, reps: 8, weight_kg: 0 },
+  ])
 })

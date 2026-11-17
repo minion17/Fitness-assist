@@ -279,6 +279,7 @@ async def list_exercises(tg: dict | None = Depends(optional_telegram_user), sess
             "difficulty": e.difficulty, "description": e.description, "is_bodyweight": e.is_bodyweight,
         }
         for e in rows
+        if e.owner_user_id is not None or e.name != "Удержание гири дном вверх у плеча"
     ]
 
 

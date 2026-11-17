@@ -66,3 +66,58 @@ def test_personal_program_preserves_planned_weights(client, seeded):
     assert created.json()['days'][0]['exercises'][0]['planned_weights'] == [20, 25, None]
     pid = created.json()['id']
     assert next(p for p in client.get('/api/programs', headers=owner).json() if p['id'] == pid)['days'][0]['exercises'][0]['planned_weights'] == [20, 25, None]
+
+
+def test_kettlebell_circuit_catalog(client, seeded):
+    programs = client.get('/api/programs').json()
+    circuit = next(p for p in programs if p['name'] == 'Гиря · интервальная круговая')
+    exercises = circuit['days'][0]['exercises']
+    assert len(exercises) == 4
+    assert all(e['superset'] == 1 and e['sets'] == 3 and e['unit'] == 'seconds' for e in exercises)
+    assert exercises[0]['name'] == 'Махи гирей двумя руками'
+    assert exercises[-1]['rest_seconds'] == 90
+
+
+def test_kettlebell_full_body_has_three_kettlebell_days(client, seeded):
+    programs = client.get('/api/programs').json()
+    full = next(p for p in programs if p['name'] == 'Гиря · всё тело')
+    assert len(full['days']) == 3
+    exercises = {e['id']: e for e in client.get('/api/exercises').json()}
+    for day in full['days']:
+        assert len(day['exercises']) >= 4
+        assert all('Гиря' in exercises[item['exercise_id']]['equipment'] for item in day['exercises'])
+    names = [item['name'] for day in full['days'] for item in day['exercises']]
+    assert len(names) == len(set(names))
+
+
+def test_seed_updates_legacy_kettlebell_program_without_changing_day_ids(client, seeded):
+    async def exercise_migration():
+        from sqlalchemy import select
+        from sqlalchemy.orm import selectinload
+        from backend.database.db import SessionLocal
+        from backend.database.models import Exercise, Program, ProgramDay, ProgramExercise
+        from backend.seed.import_data import import_programs
+
+        legacy = [
+            ['Гоблет-приседания', 'Тяга гири с пола', 'Тяга гири одной рукой в наклоне', 'Отжимания руками от опоры', 'Мёртвый жук'],
+            ['Выпады с гирей', 'Ягодичный мост', 'Тяга гири одной рукой в наклоне', 'Жим гири сидя', 'Планка'],
+        ]
+        async with SessionLocal() as session:
+            program = await session.scalar(select(Program).where(
+                Program.name == 'Гиря · всё тело', Program.owner_user_id.is_(None)
+            ).options(selectinload(Program.days).selectinload(ProgramDay.items)))
+            exercise_ids = dict((await session.execute(select(Exercise.name, Exercise.id).where(Exercise.owner_user_id.is_(None)))).all())
+            program.days[:] = program.days[:2]
+            for day, names in zip(program.days, legacy):
+                day.items.clear()
+                day.items.extend(ProgramExercise(exercise_id=exercise_ids[name], sets=2, reps='8',
+                    rest_seconds=60, position=index + 1, unit='reps') for index, name in enumerate(names))
+            await session.flush()
+            original_day_ids = [day.id for day in program.days]
+            await import_programs(session)
+            await session.flush()
+            assert [day.id for day in program.days[:2]] == original_day_ids
+            assert len(program.days) == 3
+            assert len({item.exercise_id for day in program.days for item in day.items}) == 12
+            await session.rollback()
+    client.portal.call(exercise_migration)

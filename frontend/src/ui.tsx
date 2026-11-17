@@ -44,7 +44,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
   return (
     <div className={leaving ? 'sheet-backdrop leaving' : 'sheet-backdrop'} onClick={close}
       style={dy ? { background: `rgba(0, 0, 0, ${0.55 * Math.max(0, 1 - dy / 400)})` } : undefined}>
-      <div className={drag.current?.moved ? 'sheet dragging' : 'sheet'} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}
+      <div className={dy ? 'sheet dragging' : 'sheet'} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}
         style={dy ? { transform: `translateY(${dy}px)` } : undefined}>
         <div className="sheet-grab"
           onPointerDown={(e) => { drag.current = { y: e.clientY, t: e.timeStamp, moved: false } }}

@@ -67,6 +67,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T | 
   return res.json()
 }
 
+/** A signed GET for a binary answer (an image): null outside Telegram or on 404. */
+export async function apiBlob(path: string): Promise<Blob | null> {
+  if (!tg?.initData) return null
+  const res = await fetch(path, { headers: { Authorization: `tma ${tg.initData}` } })
+  return res.ok ? res.blob() : null
+}
+
 /** Error with the backend's human-readable `detail` as the message. */
 export class ApiError extends Error {
   status: number

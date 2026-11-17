@@ -169,6 +169,7 @@ export default function Home(props: {
   intro?: React.ReactNode
   quests?: React.ReactNode
   habits?: React.ReactNode
+  habitsDone?: [number, number] // done, total: they count in the day's ring
   weight?: React.ReactNode // quick weigh-in, below the day's main cards
   repeat?: { title: string; kcal: number; run: () => void } | null
   usual?: { meal: string; title: string; kcal: number; run: () => void } | null // "Как обычно": the usual meal in one tap
@@ -191,7 +192,18 @@ export default function Home(props: {
   const foodRatio = goal > 0 ? Math.max(0, day.totals.kcal / goal) : 0
   const foodProgress = foodRatio < 0.9 ? foodRatio : foodRatio <= 1.1 ? 1 : Math.max(0, 2.1 - foodRatio)
   const waterProgress = water.goal_ml > 0 ? Math.min(1, Math.max(0, water.ml / water.goal_ml)) : 0
-  const progress = Math.round((foodProgress + waterProgress) * 50)
+  // the day's ring: food (in the norm = full; over it costs), water, habits (if any), a workout done today (rest days don't cost)
+  const [hDone, hTotal] = props.habitsDone ?? [0, 0]
+  const [todayIso] = useState(() => new Date().toLocaleDateString('sv-SE'))
+  const trained = props.logs.some((l) => l.completed_at && new Date(l.completed_at).toLocaleDateString('sv-SE') === todayIso)
+  const parts = [
+    { label: 'Питание', value: foodProgress, note: foodRatio > 1.1 ? `на ${fmt(day.totals.kcal - goal)} ккал больше нормы` : foodRatio >= 0.9 ? 'в норме' : `ещё ${fmt(goal - day.totals.kcal)} ккал` },
+    { label: 'Вода', value: waterProgress, note: water.ml >= water.goal_ml ? 'норма выполнена' : `ещё ${liters(water.goal_ml - water.ml)} л` },
+    ...(hTotal ? [{ label: 'Привычки', value: hDone / hTotal, note: `${hDone} из ${hTotal}` }] : []),
+    ...(trained ? [{ label: 'Тренировка', value: 1, note: 'сделана' }] : []),
+  ]
+  const progress = Math.round((parts.reduce((n, p) => n + p.value, 0) / parts.length) * 100)
+  const [whyOpen, setWhyOpen] = useState(false)
   const shownProgress = Math.round(useCountUp(props.loading ? 0 : progress))
   const shownKcal = useCountUp(day.totals.kcal)
   const next = props.program && nextDay(props.program, props.logs)
@@ -220,10 +232,10 @@ export default function Home(props: {
 
       {/* the day in one card: ring + calories + water */}
       <section className="card day-card" aria-busy={props.loading}>
-        <div className="daily-progress-ring" role="img" aria-label={props.loading ? 'Загрузка' : `Прогресс дня: ${progress}%`}>
+        <button className="daily-progress-ring" aria-expanded={whyOpen} aria-label={props.loading ? 'Загрузка' : `Прогресс дня: ${progress}%. Из чего он сложился`} onClick={() => setWhyOpen(!whyOpen)}>
           <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{!props.loading && shownProgress > 0 && <circle className={foodRatio > 1.1 ? 'daily-ring-value over' : 'daily-ring-value'} cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${shownProgress} 100`} />}</svg>
           <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <><strong>{shownProgress}%</strong><span className="sub">день</span></>}</div>
-        </div>
+        </button>
         <div className="day-stats">
           <button className="day-stat" onClick={props.onNutrition} aria-label="Питание: открыть дневник">
             <span className="sub">Питание</span>
@@ -235,6 +247,14 @@ export default function Home(props: {
             <span className="day-stat-value water-value">{liters(water.ml)} <small>/ {liters(water.goal_ml)} л</small></span>
           </button>
         </div>
+        {whyOpen && !props.loading && (
+          <ul className="day-why">
+            {parts.map((p) => (
+              <li key={p.label}><span>{p.label}</span><span className="sub">{p.note}</span><b className={p.value >= 1 ? 'full' : ''}>{Math.round(p.value * 100)}%</b></li>
+            ))}
+            {!trained && <li className="sub">Тренировка добавится в круг, когда вы её проведёте сегодня.</li>}
+          </ul>
+        )}
       </section>
 
       {waterOpen && <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} onPortion={choosePortion} />}

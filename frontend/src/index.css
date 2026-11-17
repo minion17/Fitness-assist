@@ -1369,3 +1369,14 @@ body:has(.sheet) .toast-undo { display: none; } /* don't cover the sheet's butto
 @media (max-width: 350px) { .nav button { font-size: 9px; padding: 8px 4px; } .nav svg { width: 22px; height: 22px; } }
 /* its own compositing layer: Android WebView otherwise repaints the blurred fixed bar with the sliding screen and it twitches */
 .nav { transform: translateZ(0); will-change: transform; }
+/* the next screen slides in from the right (translateX): without clipping, the page got 10-25 px wider for a moment and
+   Android's Telegram shifted the fixed bottom bar down and back */
+html, body { overflow-x: hidden; }
+@supports (overflow: clip) { html, body { overflow-x: visible; } .app { overflow-x: clip; } }
+/* ---- Day ring: tap to see what it's made of ---- */
+.day-card button.daily-progress-ring { padding: 0; border-radius: 50%; color: inherit; }
+.day-why { grid-column: 1 / -1; list-style: none; margin: 4px 0 0; padding: 12px 0 0; border-top: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 8px; animation: up .2s ease-out; }
+.day-why li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; font-size: 14px; }
+.day-why li.sub { display: block; font-size: 12px; }
+.day-why b { font-variant-numeric: tabular-nums; color: var(--warn); }
+.day-why b.full { color: var(--accent-text); }

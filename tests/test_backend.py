@@ -1867,3 +1867,21 @@ def test_local_catalog(client, seeded):
     assert len(items) > 2 and all(i["brand"] is None or i["mine"] for i in items)  # the rest: common plain products
     other = client.get("/api/products/local", headers=new_user_headers()).json()
     assert own["id"] not in {i["id"] for i in other}  # private products stay private
+
+
+def test_my_photo(client, monkeypatch):
+    from backend.api import account
+
+    calls = []
+
+    async def fake(uid):
+        calls.append(uid)
+        return b"\xff\xd8jpeg" if uid == 555000777 else None
+    monkeypatch.setattr(account, "fetch_photo", fake)
+    account._photos.clear()
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': 555000777})}"}
+    r = client.get("/api/me/photo", headers=h)
+    assert r.status_code == 200 and r.content == b"\xff\xd8jpeg" and r.headers["content-type"] == "image/jpeg"
+    client.get("/api/me/photo", headers=h)
+    assert calls == [555000777]  # cached
+    assert client.get("/api/me/photo", headers=new_user_headers()).status_code == 404  # hidden or no photo

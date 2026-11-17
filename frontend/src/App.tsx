@@ -24,7 +24,7 @@ import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
-import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
+import { api, apiBlob, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar, Sheet } from './ui'
 import Workouts from './Workouts'
@@ -111,6 +111,29 @@ function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
   )
 }
 
+const AVATAR_KEY = 'setly-avatar'
+
+/** Telegram's photo: photo_url when Telegram passes it (rarely), else the bot fetches it; kept on the phone for the next open. */
+function Avatar() {
+  const [src, setSrc] = useState<string | null>(() => tgUser?.photo_url ?? (() => { try { return localStorage.getItem(AVATAR_KEY) } catch { return null } })())
+  useEffect(() => {
+    if (tgUser?.photo_url) return
+    let stale = false
+    apiBlob('/api/me/photo').then((b) => {
+      if (!b || stale) return
+      const r = new FileReader()
+      r.onload = () => {
+        const url = String(r.result)
+        if (!stale) setSrc(url)
+        try { localStorage.setItem(AVATAR_KEY, url) } catch { /* too big or private mode */ }
+      }
+      r.readAsDataURL(b)
+    }).catch(() => {})
+    return () => { stale = true }
+  }, [])
+  return <div className="avatar">{src ? <img src={src} alt="" onError={() => setSrc(null)} /> : name[0]}</div>
+}
+
 function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
   synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void; body: React.ReactNode
   theme: ReturnType<typeof useTheme>
@@ -123,7 +146,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
     <>
       <section className="card profile-identity">
         <div className="profile-person">
-        <div className="avatar">{tgUser?.photo_url ? <img src={tgUser.photo_url} alt="" /> : name[0]}</div>
+        <Avatar />
         <div>
           <h1 style={{ fontSize: 22 }}>{name}</h1>
           <div className="sub">{tgUser?.username ? `@${tgUser.username}` : 'Открыто вне Telegram'}</div>
@@ -596,7 +619,7 @@ export default function App() {
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
-            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />}
+            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
             weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
             usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не удалось записать')) } : null}

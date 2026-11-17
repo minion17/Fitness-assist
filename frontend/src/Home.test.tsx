@@ -24,7 +24,21 @@ test('summarizes food and training with direct actions', () => {
 
 test('shows the average of nutrition and water progress', () => {
   render(<Home name="Тест" level={1} streak={0} targets={{ calories: 2000, protein: 100, fat: 70, carbs: 200 }} day={{date:'2026-11-05', meals: [], totals:{kcal:1000, protein_g:0, fat_g:0, carbs_g:0}} as never} logs={[]} water={{ml:500,goal_ml:1000}} aiEnabled={false} canEdit onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} />)
-  expect(screen.getByLabelText('Прогресс дня: 50%')).toBeTruthy()
+  expect(screen.getByLabelText('Прогресс дня: 50%. Из чего он сложился')).toBeTruthy()
+})
+
+test('the day ring counts habits and a workout done today, and shows its parts on tap', () => {
+  const now = new Date().toISOString()
+  render(<Home name="Тест" level={1} streak={0} targets={{ calories: 2000, protein: 100, fat: 70, carbs: 200 }}
+    day={{ date: '', items: [], totals: { kcal: 2700, protein_g: 0, fat_g: 0, carbs_g: 0 } }} habitsDone={[4, 4]}
+    logs={[{ id: 1, title: 'Т', program_day_id: null, started_at: now, completed_at: now, sets: 9 }]}
+    water={{ ml: 2600, goal_ml: 2500 }} aiEnabled={false} canEdit onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} />)
+  // food 135% of the norm → 75%; water, habits, workout 100% → (75 + 300) / 4 = 94%
+  const ring = screen.getByRole('button', { name: 'Прогресс дня: 94%. Из чего он сложился' })
+  fireEvent.click(ring)
+  expect(screen.getByText('на 700 ккал больше нормы')).toBeTruthy()
+  expect(screen.getByText('4 из 4')).toBeTruthy()
+  expect(screen.getByText('сделана')).toBeTruthy()
 })
 
 test('shows the x2 XP booster after a duel win', () => {

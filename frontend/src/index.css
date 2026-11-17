@@ -1355,12 +1355,18 @@ body:has(.sheet) .toast-undo { display: none; } /* don't cover the sheet's butto
 .set-go { min-height: 54px; font-size: 17px; }
 /* ---- Home layout settings ---- */
 .home-arrange { align-self: center; font-size: 13px; color: var(--muted); padding: 8px; }
-.home-settings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
-.home-setting { display: flex; align-items: center; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--card-border); }
-.home-setting .row-main { flex: 1; font-weight: 600; }
-.home-setting .icon-btn { width: 40px; height: 40px; color: var(--text); font-size: 18px; }
-.home-setting .icon-btn:disabled { opacity: .25; }
-.home-setting .switch { margin-left: 6px; }
+.home-settings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.home-settings-h { margin: 6px 0 -2px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.home-setting { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--card-border); transition: opacity .2s; }
+.home-setting .step-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.home-setting .step-text .sub { font-size: 12px; }
+.home-setting.off .home-row-icon, .home-setting.off .step-text { opacity: .45; }
+.home-setting.fixed { background: transparent; border-style: dashed; }
+.home-setting-move { display: flex; gap: 2px; }
+.home-setting-move .icon-btn { width: 36px; height: 36px; display: grid; place-items: center; color: var(--text); background: var(--card-2); }
+.home-setting-move .icon-btn:disabled { opacity: .2; }
+.home-settings-foot { display: flex; gap: 10px; margin-top: 4px; }
+.home-settings-foot .btn { flex: 1; }
 .sheet-grab, .sheet-grab * { -webkit-user-select: none; user-select: none; }
 
 /* ---- Bottom nav: every label fits its pill ("Тренировки" is the longest), and the bar keeps still on tab changes ---- */
@@ -1380,3 +1386,9 @@ html, body { overflow-x: hidden; }
 .day-why li.sub { display: block; font-size: 12px; }
 .day-why b { font-variant-numeric: tabular-nums; color: var(--warn); }
 .day-why b.full { color: var(--accent-text); }
+
+/* sheets open smoothly on phones: the sheet and its shade on their own layers, and the blurred bottom bar (costly to
+   repaint under a fading shade) loses its blur while a sheet is open */
+.sheet { will-change: transform; }
+.sheet-backdrop { will-change: opacity; }
+body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--card); }

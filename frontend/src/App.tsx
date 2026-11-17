@@ -113,14 +113,15 @@ function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
 
 const AVATAR_KEY = 'setly-avatar'
 
-/** Telegram's photo: photo_url when Telegram passes it (rarely), else the bot fetches it; kept on the phone for the next open. */
+/** Telegram's photo, fetched by the bot through our own server (Telegram's photo_url may be missing, or blocked on the
+ * phone's network like telegram.org); photo_url is only the fallback. Kept on the phone for the next open. */
 function Avatar() {
-  const [src, setSrc] = useState<string | null>(() => tgUser?.photo_url ?? (() => { try { return localStorage.getItem(AVATAR_KEY) } catch { return null } })())
+  const [src, setSrc] = useState<string | null>(() => { try { return localStorage.getItem(AVATAR_KEY) } catch { return null } })
   useEffect(() => {
-    if (tgUser?.photo_url) return
     let stale = false
     apiBlob('/api/me/photo').then((b) => {
-      if (!b || stale) return
+      if (stale) return
+      if (!b) { if (tgUser?.photo_url) setSrc((s) => s ?? tgUser!.photo_url!); return }
       const r = new FileReader()
       r.onload = () => {
         const url = String(r.result)
@@ -128,7 +129,7 @@ function Avatar() {
         try { localStorage.setItem(AVATAR_KEY, url) } catch { /* too big or private mode */ }
       }
       r.readAsDataURL(b)
-    }).catch(() => {})
+    }).catch(() => { if (!stale && tgUser?.photo_url) setSrc((s) => s ?? tgUser!.photo_url!) })
     return () => { stale = true }
   }, [])
   return <div className="avatar">{src ? <img src={src} alt="" onError={() => setSrc(null)} /> : name[0]}</div>

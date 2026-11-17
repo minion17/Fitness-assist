@@ -104,10 +104,16 @@ function UsualCard({ meal, title, kcal, run }: { meal: string; title: string; kc
 }
 
 type Block = 'workout' | 'habits' | 'quests' | 'weight' | 'usual'
-const BLOCKS: Record<Block, string> = { workout: 'Тренировка на сегодня', habits: 'Привычки', quests: 'Задания недели', weight: 'Вес', usual: 'Подсказка «как обычно»' }
+const BLOCKS: Record<Block, { icon: string; name: string; hint: string }> = {
+  workout: { icon: '🏋️', name: 'Тренировка на сегодня', hint: 'Следующий день вашей программы' },
+  habits: { icon: '✅', name: 'Привычки', hint: 'Отметки за день: сон, шаги, витамины' },
+  quests: { icon: '🏆', name: 'Задания недели', hint: 'Три задания и XP за них' },
+  weight: { icon: '⚖️', name: 'Вес', hint: 'Записать вес в два нажатия' },
+  usual: { icon: '↻', name: 'Подсказка «как обычно»', hint: 'Ваш обычный завтрак, обед или ужин — одной кнопкой' },
+}
 const LAYOUT_KEY = 'setly-home-layout'
 type Layout = { order: Block[]; hidden: Block[] }
-const DEFAULT_LAYOUT: Layout = { order: ['workout', 'habits', 'quests'], hidden: [] }
+const DEFAULT_LAYOUT: Layout = { order: ['workout', 'habits', 'quests', 'weight'], hidden: [] }
 function savedLayout(): Layout {
   try {
     const l = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null') as Layout | null
@@ -117,7 +123,7 @@ function savedLayout(): Layout {
   } catch { return DEFAULT_LAYOUT }
 }
 
-/** "Настроить главную": hide what one doesn't use, move the rows up and down. Kept on the phone. */
+/** "Главный экран": what to show and in which order; the screen behind updates as you go. Kept on the phone. */
 function HomeSettings({ layout, onChange, onClose }: { layout: Layout; onChange: (l: Layout) => void; onClose: () => void }) {
   const move = (b: Block, d: number) => {
     const o = [...layout.order], i = o.indexOf(b), j = i + d
@@ -126,25 +132,42 @@ function HomeSettings({ layout, onChange, onClose }: { layout: Layout; onChange:
     onChange({ ...layout, order: o })
   }
   const toggle = (b: Block) => onChange({ ...layout, hidden: layout.hidden.includes(b) ? layout.hidden.filter((x) => x !== b) : [...layout.hidden, b] })
-  const row = (b: Block, i?: number) => (
-    <li key={b} className="home-setting">
-      <span className="row-main">{BLOCKS[b]}</span>
-      {i !== undefined && <>
-        <button className="icon-btn" aria-label={`${BLOCKS[b]}: выше`} disabled={i === 0} onClick={() => move(b, -1)}>↑</button>
-        <button className="icon-btn" aria-label={`${BLOCKS[b]}: ниже`} disabled={i === layout.order.length - 1} onClick={() => move(b, 1)}>↓</button>
-      </>}
-      <button role="switch" className="switch" aria-checked={!layout.hidden.includes(b)} aria-label={`Показывать: ${BLOCKS[b]}`} onClick={() => toggle(b)}><i /></button>
-    </li>
-  )
+  const row = (b: Block, i?: number) => {
+    const on = !layout.hidden.includes(b), { icon, name, hint } = BLOCKS[b]
+    return (
+      <li key={b} className={on ? 'home-setting' : 'home-setting off'}>
+        <span className="home-row-icon" aria-hidden="true">{icon}</span>
+        <span className="step-text"><b>{name}</b><span className="sub">{on ? hint : 'Скрыто'}</span></span>
+        {i !== undefined && (
+          <span className="home-setting-move">
+            <button className="icon-btn" aria-label={`${name}: выше`} disabled={i === 0} onClick={() => move(b, -1)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+            </button>
+            <button className="icon-btn" aria-label={`${name}: ниже`} disabled={i === layout.order.length - 1} onClick={() => move(b, 1)}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+            </button>
+          </span>
+        )}
+        <button role="switch" className="switch" aria-checked={on} aria-label={`Показывать: ${name}`} onClick={() => toggle(b)}><i /></button>
+      </li>
+    )
+  }
+  const changed = JSON.stringify(layout) !== JSON.stringify(DEFAULT_LAYOUT)
   return (
-    <Sheet title="Настроить главную" onClose={onClose}>
-      <p className="sub">Питание и вода всегда наверху. Остальное — как удобно вам.</p>
-      <ul className="home-settings">
-        {layout.order.map((b, i) => row(b, i))}
-        {row('weight')}
-        {row('usual')}
-      </ul>
-      <button className="link" onClick={() => onChange(DEFAULT_LAYOUT)}>Вернуть как было</button>
+    <Sheet title="Главный экран" onClose={onClose}>
+      <p className="sub">Включите то, что хотите видеть, и расставьте стрелками в удобном порядке. Главная за окном меняется сразу.</p>
+      <div className="home-setting fixed">
+        <span className="home-row-icon" aria-hidden="true">🍽</span>
+        <span className="step-text"><b>Питание и вода</b><span className="sub">Всегда наверху</span></span>
+      </div>
+      <h3 className="home-settings-h">Блоки — сверху вниз</h3>
+      <ul className="home-settings">{layout.order.map((b, i) => row(b, i))}</ul>
+      <h3 className="home-settings-h">Подсказки</h3>
+      <ul className="home-settings">{row('usual')}</ul>
+      <div className="home-settings-foot">
+        {changed && <button className="btn btn-ghost" onClick={() => onChange(DEFAULT_LAYOUT)}>Как было</button>}
+        <button className="btn" onClick={onClose}>Готово</button>
+      </div>
     </Sheet>
   )
 }
@@ -277,9 +300,14 @@ export default function Home(props: {
         <button className="link repeat-link" onClick={props.repeat.run}>↻ {props.repeat.title.toLowerCase()} · {fmt(props.repeat.kcal)} ккал</button>
       )}
 
-      {layout.order.some(shows) && (
-        <div className="card home-rows">
-          {layout.order.filter(shows).map((b) => b === 'workout' ? (
+      {/* the blocks in the user's order; neighbouring rows share one card, the weight is a card of its own */}
+      {layout.order.filter(shows).reduce<Block[][]>((groups, b) => {
+        const last = groups[groups.length - 1]
+        if (b !== 'weight' && last && last[0] !== 'weight') last.push(b); else groups.push([b])
+        return groups
+      }, []).map((g) => g[0] === 'weight' ? <Fragment key="weight">{props.weight}</Fragment> : (
+        <div className="card home-rows" key={g.join()}>
+          {g.map((b) => b === 'workout' ? (
             <button key={b} className="home-row" onClick={props.onWorkouts}>
               <span className="home-row-icon" aria-hidden="true">🏋️</span>
               <span className="step-text"><b>{next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
@@ -288,9 +316,8 @@ export default function Home(props: {
             </button>
           ) : <Fragment key={b}>{b === 'habits' ? props.habits : props.quests}</Fragment>)}
         </div>
-      )}
-      {shows('weight') && props.weight}
-      {props.canEdit && <button className="link home-arrange" onClick={() => setArranging(true)}>⚙ Настроить главную</button>}
+      ))}
+      {props.canEdit && <button className="link home-arrange" onClick={() => setArranging(true)}>⚙ Настроить главный экран</button>}
       {arranging && <HomeSettings layout={layout} onChange={changeLayout} onClose={() => setArranging(false)} />}
     </>
   )

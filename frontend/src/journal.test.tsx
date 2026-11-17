@@ -737,12 +737,16 @@ test('home: hide and reorder the blocks, kept on the phone', async () => {
   const { unmount } = render(<Home {...props} />)
   const order = () => [...document.querySelectorAll('.home-rows > *')].map((e) => e.textContent?.slice(0, 12))
   expect(order()).toEqual(['🏋️Выберите ', 'Блок привыче', 'Блок заданий'])
-  fireEvent.click(screen.getByRole('button', { name: '⚙ Настроить главную' }))
+  fireEvent.click(screen.getByRole('button', { name: '⚙ Настроить главный экран' }))
   fireEvent.click(screen.getByRole('button', { name: 'Задания недели: выше' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Тренировка на сегодня' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Вес' }))
   expect(order()).toEqual(['Блок заданий', 'Блок привыче'])
   expect(screen.queryByText('Блок веса')).toBeNull()
+  fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Вес' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Вес: выше' })) // the weight can move between the rows: it splits the card
+  expect([...document.querySelectorAll('.home-rows')].length).toBe(2)
+  fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Вес' }))
   unmount()
   render(<Home {...props} />) // next open: the same layout
   expect(order()).toEqual(['Блок заданий', 'Блок привыче'])

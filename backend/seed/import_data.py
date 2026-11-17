@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 
 from backend.database.db import SessionLocal, engine, init_db
 from backend.database.models import Exercise, Product, Program, ProgramDay, ProgramExercise
@@ -91,7 +92,36 @@ async def import_programs(s) -> int:
     exercise_ids = dict((await s.execute(select(Exercise.name, Exercise.id).where(Exercise.owner_user_id.is_(None)))).all())
     added = 0
     for p in load("programs/programs.json"):
-        if await s.scalar(select(Program.id).where(Program.name == p["name"], Program.owner_user_id.is_(None))):
+        existing = await s.scalar(
+            select(Program).where(Program.name == p["name"], Program.owner_user_id.is_(None))
+            .options(selectinload(Program.days).selectinload(ProgramDay.items))
+        )
+        if existing:
+            # Update only the original built-in version; retain day IDs used by workout history.
+            legacy = [
+                ['Гоблет-приседания', 'Тяга гири с пола', 'Тяга гири одной рукой в наклоне', 'Отжимания руками от опоры', 'Мёртвый жук'],
+                ['Выпады с гирей', 'Ягодичный мост', 'Тяга гири одной рукой в наклоне', 'Жим гири сидя', 'Планка'],
+            ]
+            legacy_ids = [[exercise_ids.get(name) for name in day] for day in legacy]
+            existing_ids = [[item.exercise_id for item in day.items] for day in existing.days]
+            if p["name"] == "Гиря · всё тело" and existing_ids == legacy_ids:
+                existing.description = p.get("description")
+                existing.days_per_week = p["days_per_week"]
+                for index, day_data in enumerate(p["days"]):
+                    if index < len(existing.days):
+                        day = existing.days[index]
+                        day.day_name = day_data["day_name"]
+                        day.day_order = day_data["day_order"]
+                        day.items.clear()
+                    else:
+                        day = ProgramDay(day_name=day_data["day_name"], day_order=day_data["day_order"])
+                        existing.days.append(day)
+                    for position, item in enumerate(day_data["exercises"], 1):
+                        day.items.append(ProgramExercise(
+                            exercise_id=exercise_ids[item["name"]], sets=item["sets"], reps=str(item["reps"]),
+                            rest_seconds=item["rest_seconds"], notes=item.get("notes"), unit=item.get("unit", "reps"),
+                            superset=item.get("superset"), position=position,
+                        ))
             continue
         program = Program(
             name=p["name"], goal=p["goal"], level=p["level"],
@@ -104,7 +134,7 @@ async def import_programs(s) -> int:
                     raise ValueError(f"Программа «{p['name']}»: упражнения «{x['name']}» нет в exercises.json")
                 day.items.append(ProgramExercise(
                     exercise_id=exercise_ids[x["name"]], sets=x["sets"], reps=str(x["reps"]),
-                    rest_seconds=x["rest_seconds"], notes=x.get("notes"), unit=x.get("unit", "reps"), position=k,
+                    rest_seconds=x["rest_seconds"], notes=x.get("notes"), unit=x.get("unit", "reps"), superset=x.get("superset"), position=k,
                 ))
             program.days.append(day)
         s.add(program)

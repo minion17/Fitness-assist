@@ -288,92 +288,114 @@
     "name": "Гиря · всё тело",
     "goal": "ОФП",
     "level": "beginner",
-    "days_per_week": 2,
-    "description": "Одна гиря подходящего веса, нескользкая поверхность. Два раза в неделю с днём отдыха между занятиями. Разогрейтесь 5–10 минут. Подбирайте нагрузку так, чтобы сохранять технику и оставить 2–3 повтора в запасе. Постепенно увеличивайте повторы в указанном диапазоне.",
+    "days_per_week": 3,
+    "description": "Три тренировки с одной гирей для всего тела. Чередуйте дни с отдыхом между ними. Подберите вес, с которым движения остаются подконтрольными.",
     "sources": [
       "https://www.nhs.uk/live-well/exercise/how-to-improve-strength-flexibility/",
       "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
     ],
     "days": [
       {
-        "day_name": "Тренировка А",
+        "day_name": "Тренировка А · базовые движения",
         "day_order": 1,
         "exercises": [
           {
             "name": "Гоблет-приседания",
             "sets": 3,
-            "reps": "8-12",
-            "rest_seconds": 90,
-            "notes": "Держите гирю у груди."
+            "reps": "8-10",
+            "rest_seconds": 75,
+            "notes": ""
           },
           {
             "name": "Тяга гири с пола",
             "sets": 3,
-            "reps": "8-12",
-            "rest_seconds": 90,
-            "notes": "Отводите таз назад, гирю удерживайте двумя руками."
+            "reps": "8-10",
+            "rest_seconds": 75,
+            "notes": ""
           },
           {
             "name": "Тяга гири одной рукой в наклоне",
             "sets": 2,
-            "reps": "8-12",
-            "rest_seconds": 75,
-            "notes": "На каждую сторону."
-          },
-          {
-            "name": "Отжимания руками от опоры",
-            "sets": 2,
-            "reps": "6-12",
-            "rest_seconds": 75,
-            "notes": "Опора должна быть устойчивой."
-          },
-          {
-            "name": "Мёртвый жук",
-            "sets": 2,
             "reps": "8-10",
+            "rest_seconds": 75,
+            "notes": "На каждую руку."
+          },
+          {
+            "name": "Удержание гири одной рукой у бедра",
+            "sets": 2,
+            "reps": "20",
             "rest_seconds": 60,
-            "notes": "На каждую сторону."
+            "notes": "На каждую руку.",
+            "unit": "seconds"
           }
         ]
       },
       {
-        "day_name": "Тренировка Б",
+        "day_name": "Тренировка Б · сила и корпус",
         "day_order": 2,
         "exercises": [
           {
-            "name": "Выпады с гирей",
+            "name": "Выпад назад с гирей у груди",
             "sets": 2,
+            "reps": "6-8",
+            "rest_seconds": 75,
+            "notes": "На каждую ногу."
+          },
+          {
+            "name": "Жим гири лёжа на полу одной рукой",
+            "sets": 3,
             "reps": "8-10",
             "rest_seconds": 75,
-            "notes": "На каждую ногу. При необходимости выполняйте без гири."
+            "notes": "На каждую руку."
           },
           {
-            "name": "Ягодичный мост",
+            "name": "Румынская тяга с гирей двумя руками",
             "sets": 3,
-            "reps": "10-15",
+            "reps": "8-10",
             "rest_seconds": 75,
-            "notes": "Без веса или с гирей на тазу, если удобно."
+            "notes": ""
           },
           {
-            "name": "Тяга гири одной рукой в наклоне",
+            "name": "Передача гири вокруг корпуса",
+            "sets": 2,
+            "reps": "6",
+            "rest_seconds": 60,
+            "notes": "В каждую сторону, лёгкая гиря."
+          }
+        ]
+      },
+      {
+        "day_name": "Тренировка В · устойчивость и хват",
+        "day_order": 3,
+        "exercises": [
+          {
+            "name": "Становая тяга с гирей сумо",
             "sets": 3,
-            "reps": "8-12",
+            "reps": "8-10",
             "rest_seconds": 75,
-            "notes": "На каждую сторону."
+            "notes": ""
           },
           {
             "name": "Жим гири сидя",
             "sets": 2,
-            "reps": "6-10",
+            "reps": "6-8",
             "rest_seconds": 90,
-            "notes": "На каждую руку; используйте удобный вес."
+            "notes": "На каждую руку."
           },
           {
-            "name": "Планка",
+            "name": "Марш с гирей у груди",
             "sets": 2,
-            "reps": "20-40",
+            "reps": "30",
             "rest_seconds": 60,
-            "notes": "Секунды, сохраняйте ровное положение.",
+            "notes": "Ровное дыхание и контролируемый корпус.",
+            "unit": "seconds"
+          },
+          {
+            "name": "Фермерская прогулка с одной гирей",
+            "sets": 2,
+            "reps": "20",
+            "rest_seconds": 60,
+            "notes": "На каждую руку; если места мало, выполняйте удержание на месте.",
             "unit": "seconds"
           }
         ]
@@ -651,6 +673,343 @@
             "rest_seconds": 60,
             "notes": "Секунды.",
             "unit": "seconds"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Гиря · разминка",
+    "goal": "ОФП",
+    "level": "beginner",
+    "days_per_week": 1,
+    "description": "Два спокойных круга с лёгкой гирей. Отдых между движениями 20 секунд, после круга 60 секунд. Подходит перед основной тренировкой.",
+    "sources": [
+      "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/",
+      "https://www.acefitness.org/continuing-education/certified/august-2023/8402/lifting-beyond-limits-women-and-kettlebell-training/"
+    ],
+    "days": [
+      {
+        "day_name": "Гиря · разминка",
+        "day_order": 1,
+        "exercises": [
+          {
+            "name": "Вращение гири вокруг головы",
+            "sets": 2,
+            "reps": "5",
+            "rest_seconds": 20,
+            "unit": "reps",
+            "notes": "По 5 повторов в каждую сторону. Лёгкая гиря, плавное движение.",
+            "superset": 1
+          },
+          {
+            "name": "Тяга гири с пола",
+            "sets": 2,
+            "reps": "8",
+            "rest_seconds": 20,
+            "unit": "reps",
+            "notes": "Плавно отведите таз назад, без рывка.",
+            "superset": 1
+          },
+          {
+            "name": "Гоблет-приседания",
+            "sets": 2,
+            "reps": "6",
+            "rest_seconds": 60,
+            "unit": "reps",
+            "notes": "Небольшая комфортная амплитуда; после упражнения отдых до следующего круга.",
+            "superset": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Гиря · круговая для начинающих",
+    "goal": "ОФП",
+    "level": "beginner",
+    "days_per_week": 1,
+    "description": "Два круга с одной гирей. Сначала освоите каждое движение отдельно. Между упражнениями 30 секунд, после круга 90 секунд; гирю можно поставить на пол.",
+    "sources": [
+      "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/",
+      "https://www.acefitness.org/continuing-education/certified/august-2023/8402/lifting-beyond-limits-women-and-kettlebell-training/"
+    ],
+    "days": [
+      {
+        "day_name": "Гиря · круговая для начинающих",
+        "day_order": 1,
+        "exercises": [
+          {
+            "name": "Тяга гири с пола",
+            "sets": 2,
+            "reps": "8",
+            "rest_seconds": 30,
+            "unit": "reps",
+            "notes": "Сохраняйте устойчивость и нейтральную спину.",
+            "superset": 1
+          },
+          {
+            "name": "Гоблет-приседания",
+            "sets": 2,
+            "reps": "8",
+            "rest_seconds": 30,
+            "unit": "reps",
+            "notes": "Держите гирю у груди.",
+            "superset": 1
+          },
+          {
+            "name": "Тяга гири одной рукой в наклоне",
+            "sets": 2,
+            "reps": "8",
+            "rest_seconds": 30,
+            "unit": "reps",
+            "notes": "По 8 на каждую руку; опирайтесь свободной рукой.",
+            "superset": 1
+          },
+          {
+            "name": "Жим гири сидя",
+            "sets": 2,
+            "reps": "6",
+            "rest_seconds": 90,
+            "unit": "reps",
+            "notes": "По 6 на каждую руку; после круга отдых 90 секунд.",
+            "superset": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Гиря · интервальная круговая",
+    "goal": "ОФП",
+    "level": "intermediate",
+    "days_per_week": 1,
+    "description": "Три круга с одной гирей. На каждое движение 30 секунд, между ними 30 секунд отдыха; после круга отдых 90 секунд. Сначала освойте технику махов.",
+    "sources": [
+      "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/",
+      "https://www.acefitness.org/continuing-education/certified/august-2023/8402/lifting-beyond-limits-women-and-kettlebell-training/"
+    ],
+    "days": [
+      {
+        "day_name": "Гиря · интервальная круговая",
+        "day_order": 1,
+        "exercises": [
+          {
+            "name": "Махи гирей двумя руками",
+            "sets": 3,
+            "reps": "30",
+            "rest_seconds": 30,
+            "unit": "seconds",
+            "notes": "Работайте только пока сохраняется техника.",
+            "superset": 1
+          },
+          {
+            "name": "Гоблет-приседания",
+            "sets": 3,
+            "reps": "30",
+            "rest_seconds": 30,
+            "unit": "seconds",
+            "notes": "Выполняйте плавно, без гонки за количеством.",
+            "superset": 1
+          },
+          {
+            "name": "Тяга гири одной рукой в наклоне",
+            "sets": 3,
+            "reps": "30",
+            "rest_seconds": 30,
+            "unit": "seconds",
+            "notes": "Смените руку в середине интервала.",
+            "superset": 1
+          },
+          {
+            "name": "Выпады с гирей",
+            "sets": 3,
+            "reps": "30",
+            "rest_seconds": 90,
+            "unit": "seconds",
+            "notes": "Чередуйте ноги; затем отдых 90 секунд.",
+            "superset": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Гиря · завершение тренировки",
+    "goal": "ОФП",
+    "level": "intermediate",
+    "days_per_week": 1,
+    "description": "Два коротких круга в конце занятия. Выполняйте махи только при освоенной технике, сохраняйте запас сил. Между упражнениями 30 секунд, после круга 90 секунд.",
+    "sources": [
+      "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/",
+      "https://www.acefitness.org/continuing-education/certified/august-2023/8402/lifting-beyond-limits-women-and-kettlebell-training/"
+    ],
+    "days": [
+      {
+        "day_name": "Гиря · завершение тренировки",
+        "day_order": 1,
+        "exercises": [
+          {
+            "name": "Махи гирей двумя руками",
+            "sets": 2,
+            "reps": "20",
+            "rest_seconds": 30,
+            "unit": "seconds",
+            "notes": "20 секунд работы; закончите раньше, если теряете технику.",
+            "superset": 1
+          },
+          {
+            "name": "Гоблет-приседания",
+            "sets": 2,
+            "reps": "20",
+            "rest_seconds": 90,
+            "unit": "seconds",
+            "notes": "20 секунд плавной работы, затем отдых до следующего круга.",
+            "superset": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Гиря · хват и кисти",
+    "goal": "ОФП",
+    "level": "beginner",
+    "days_per_week": 2,
+    "description": "Два занятия на хват и устойчивость корпуса с одной гирей. Держите кисть ровно, подбирайте комфортный вес.",
+    "sources": [
+      "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/",
+      "https://www.acefitness.org/resources/pros/expert-articles/6526/one-weight-workout-kettlebell/"
+    ],
+    "days": [
+      {
+        "day_name": "Хват А · удержания и переноска",
+        "day_order": 1,
+        "exercises": [
+          {
+            "name": "Удержание гири одной рукой у бедра",
+            "sets": 3,
+            "reps": "20",
+            "rest_seconds": 60,
+            "notes": "На каждую руку.",
+            "unit": "seconds"
+          },
+          {
+            "name": "Фермерская прогулка с одной гирей",
+            "sets": 3,
+            "reps": "20",
+            "rest_seconds": 60,
+            "notes": "На каждую руку.",
+            "unit": "seconds"
+          },
+          {
+            "name": "Передача гири вокруг корпуса",
+            "sets": 2,
+            "reps": "8",
+            "rest_seconds": 45,
+            "notes": "В каждую сторону."
+          }
+        ]
+      },
+      {
+        "day_name": "Хват Б · контроль",
+        "day_order": 2,
+        "exercises": [
+          {
+            "name": "Тяга гири в стойке чемодан",
+            "sets": 3,
+            "reps": "8",
+            "rest_seconds": 75,
+            "notes": "На каждую руку."
+          },
+          {
+            "name": "Марш с гирей у груди",
+            "sets": 2,
+            "reps": "30",
+            "rest_seconds": 60,
+            "notes": "Удерживайте гирю двумя руками.",
+            "unit": "seconds"
+          },
+          {
+            "name": "Удержание гири одной рукой у бедра",
+            "sets": 2,
+            "reps": "25",
+            "rest_seconds": 60,
+            "notes": "На каждую руку.",
+            "unit": "seconds"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Гиря · динамика и техника",
+    "goal": "ОФП",
+    "level": "intermediate",
+    "days_per_week": 2,
+    "description": "Два комплекса с одной гирей для тех, кто уже освоил махи и взятие на грудь. Отдыхайте между движениями и кругами.",
+    "sources": [
+      "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/",
+      "https://www.acefitness.org/resources/pros/expert-articles/6526/one-weight-workout-kettlebell/"
+    ],
+    "days": [
+      {
+        "day_name": "Комплекс А · взятие и жим",
+        "day_order": 1,
+        "exercises": [
+          {
+            "name": "Махи гирей двумя руками",
+            "sets": 3,
+            "reps": "8",
+            "rest_seconds": 30,
+            "notes": "Только при уверенной технике.",
+            "superset": 1
+          },
+          {
+            "name": "Взятие гири на грудь одной рукой",
+            "sets": 3,
+            "reps": "5",
+            "rest_seconds": 30,
+            "notes": "На каждую руку.",
+            "superset": 1
+          },
+          {
+            "name": "Швунг гири одной рукой",
+            "sets": 3,
+            "reps": "5",
+            "rest_seconds": 90,
+            "notes": "На каждую руку; после упражнения отдых 90 секунд.",
+            "superset": 1
+          }
+        ]
+      },
+      {
+        "day_name": "Комплекс Б · смена рук",
+        "day_order": 2,
+        "exercises": [
+          {
+            "name": "Передача гири вокруг корпуса",
+            "sets": 3,
+            "reps": "6",
+            "rest_seconds": 20,
+            "notes": "В каждую сторону.",
+            "superset": 1
+          },
+          {
+            "name": "Махи гирей со сменой рук",
+            "sets": 3,
+            "reps": "8",
+            "rest_seconds": 30,
+            "notes": "Смена руки в верхней точке; начните с лёгкой гири.",
+            "superset": 1
+          },
+          {
+            "name": "Приседание с гирей у плеча",
+            "sets": 3,
+            "reps": "6",
+            "rest_seconds": 90,
+            "notes": "На каждую сторону; после упражнения отдых 90 секунд.",
+            "superset": 1
           }
         ]
       }

@@ -1148,5 +1148,302 @@
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
     "source_id": "Superman"
+  },
+  {
+    "name": "Махи гирей двумя руками",
+    "muscle_groups": [
+      "Ягодицы",
+      "Задняя поверхность бедра",
+      "Корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Отведите таз назад, удерживая гирю двумя руками. Разогните таз и направьте гирю до уровня груди; затем мягко вернитесь в наклон. Руки сопровождают движение.",
+    "is_bodyweight": false
+  },
+  {
+    "name": "Взятие гири на грудь одной рукой",
+    "muscle_groups": [
+      "Ноги",
+      "ягодицы",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Из небольшого наклона начните движение тазом. Держите гирю близко к телу, мягко примите её на предплечье у груди. Опустите под контролем и повторите другой рукой.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Швунг гири одной рукой",
+    "muscle_groups": [
+      "Плечи",
+      "трицепсы",
+      "ноги"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Удерживайте гирю у плеча. Немного согните колени с вертикальным корпусом, затем разогните ноги и направьте гирю вверх. Выпрямите руку, опустите гирю к плечу и смените сторону.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Толчок гири одной рукой",
+    "muscle_groups": [
+      "Плечи",
+      "трицепсы",
+      "ноги"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "advanced",
+    "description": "Из положения гири у плеча выполните неглубокий подсед и разогните ноги. Направьте гирю вверх, подсядьте под неё и выпрямитесь с зафиксированной рукой. Опустите к плечу под контролем.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Рывок гири одной рукой",
+    "muscle_groups": [
+      "Ягодицы",
+      "плечи",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "advanced",
+    "description": "Из наклона направьте гирю движением таза, удерживая её близко к телу. Проведите кисть в рукоять и зафиксируйте гирю над плечом. Контролируемо опустите и повторите другой рукой.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Махи гирей со сменой рук",
+    "muscle_groups": [
+      "Ягодицы",
+      "задняя поверхность бедра",
+      "хват"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Выполните мах одной рукой за счёт движения таза. В верхней точке плавно перехватите рукоять другой рукой и продолжите движение, сохраняя устойчивый корпус.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Передача гири вокруг корпуса",
+    "muscle_groups": [
+      "Корпус",
+      "предплечья"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Стоя устойчиво, передавайте лёгкую гирю из руки в руку вокруг талии. Держите корпус неподвижным и меняйте направление после заданного числа передач.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Передача гири восьмёркой между ног",
+    "muscle_groups": [
+      "Ягодицы",
+      "корпус",
+      "хват"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Слегка согните колени и наклонитесь с нейтральной спиной. Передавайте гирю из руки в руку между ног и вокруг бёдер по траектории восьмёрки, затем смените направление.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Жим гири лёжа на полу одной рукой",
+    "muscle_groups": [
+      "Грудь",
+      "трицепс",
+      "плечо"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Лягте на спину, согните колени. Удерживайте гирю у груди, локоть касается пола. Выжмите гирю над плечом, плавно опустите локоть и смените руку.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Жим гири стоя одной рукой",
+    "muscle_groups": [
+      "Плечи",
+      "трицепс",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Удерживайте гирю у плеча на внешней стороне предплечья. Напрягите корпус и выжмите руку вверх без толчка ногами. Опустите гирю к плечу и смените сторону.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Приседание с гирей у плеча",
+    "muscle_groups": [
+      "Ноги",
+      "ягодицы",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Держите гирю у одного плеча, локоть близко к корпусу. Присядьте в комфортной амплитуде, встаньте и выполните столько же повторов с другой стороны.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Становая тяга с гирей сумо",
+    "muscle_groups": [
+      "Ноги",
+      "ягодицы",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Поставьте стопы шире плеч, гирю разместите между ними. Отведите таз назад, возьмитесь за рукоять двумя руками и встаньте. Подконтрольно верните гирю на пол.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Румынская тяга с гирей двумя руками",
+    "muscle_groups": [
+      "Ягодицы",
+      "задняя поверхность бедра"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Держите гирю перед бёдрами двумя руками. Слегка согните колени, отведите таз назад и опустите гирю вдоль ног. Разогните таз и вернитесь в стойку.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Фермерская прогулка с одной гирей",
+    "muscle_groups": [
+      "Хват",
+      "предплечья",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Возьмите гирю одной рукой и идите короткими устойчивыми шагами, держа плечи ровно. Остановитесь, поставьте гирю и повторите другой рукой.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Прогулка с гирей у плеча",
+    "muscle_groups": [
+      "Корпус",
+      "плечо",
+      "хват"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "intermediate",
+    "description": "Удерживайте гирю в положении у плеча, локоть близко к туловищу. Идите устойчиво без наклона корпуса, затем повторите с другой стороны.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Удержание гири одной рукой у бедра",
+    "muscle_groups": [
+      "Хват",
+      "предплечья",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Возьмите гирю одной рукой и стойте прямо, не наклоняясь в сторону веса. Дышите спокойно, аккуратно поставьте гирю и смените руку.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Марш с гирей у груди",
+    "muscle_groups": [
+      "Корпус",
+      "ноги",
+      "хват"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Удерживайте гирю двумя руками у груди. Поочерёдно поднимайте колени и ставьте стопы обратно, сохраняя ровное положение корпуса.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Тяга гири к поясу двумя руками в наклоне",
+    "muscle_groups": [
+      "Спина",
+      "руки",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Отведите таз назад, сохраняя спину нейтральной. Держите гирю обеими руками, подтяните к нижней части живота и плавно опустите.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Тяга гири в стойке чемодан",
+    "muscle_groups": [
+      "Ноги",
+      "ягодицы",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Поставьте гирю рядом со стопой. Отведите таз назад, возьмите гирю одной рукой и встаньте без наклона корпуса. Опустите на пол и повторите с другой стороны.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
+  },
+  {
+    "name": "Выпад назад с гирей у груди",
+    "muscle_groups": [
+      "Ноги",
+      "ягодицы",
+      "корпус"
+    ],
+    "equipment": [
+      "Гиря"
+    ],
+    "difficulty": "beginner",
+    "description": "Удерживайте гирю у груди. Шагните одной ногой назад, плавно опуститесь и вернитесь. Повторите с другой ноги.",
+    "is_bodyweight": false,
+    "source": "https://www.acefitness.org/resources/pros/expert-articles/5269/how-to-get-started-with-kettlebells/"
   }
 ]

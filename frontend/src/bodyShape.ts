@@ -4,7 +4,7 @@ export type Sex = 'male' | 'female'
 type Pt = [number, number]
 
 /** A smooth closed/open path through points (Catmull-Rom turned into cubic Béziers). */
-function smooth(pts: Pt[], closed = false): string {
+export function smooth(pts: Pt[], closed = false): string {
   const p = closed ? [pts[pts.length - 1], ...pts, pts[0], pts[1]] : [pts[0], ...pts, pts[pts.length - 1]]
   let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`
   for (let i = 1; i < p.length - 2; i++) {
@@ -17,7 +17,7 @@ function smooth(pts: Pt[], closed = false): string {
 }
 
 /** Mirror the right half (x > 100) into a whole outline: down the right side, back up the left. */
-const both = (right: Pt[]): Pt[] => [...right, ...right.slice().reverse().map(([x, y]): Pt => [200 - x, y])]
+export const both = (right: Pt[]): Pt[] => [...right, ...right.slice().reverse().map(([x, y]): Pt => [200 - x, y])]
 
 export type Figure = { body: string; arms: string[]; legs: string[]; shorts: string; head: { cx: number; cy: number; rx: number; ry: number }; hair: string; lines: string[]; shoes: Pt[] }
 

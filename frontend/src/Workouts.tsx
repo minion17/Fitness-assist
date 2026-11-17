@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { Recommendation } from './profile'
+import type { ProfileData, Recommendation } from './profile'
+import Library from './Library'
 import { api, postJson, publicGet, tg } from './telegram'
 import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
 import Empty from './Empty'
@@ -9,6 +10,7 @@ import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './Progra
 import { nextWeight } from './progression'
 import { Chevron } from './ui'
 
+const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
 const dateRu = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
@@ -21,8 +23,9 @@ function ExerciseThumbnail({ name, index }: { name: string; index: number }) {
   </span>
 }
 
-export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord }: {
+export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord, profile = null }: {
   onRecord?: (text: string) => void // a personal record: confetti in the app
+  profile?: ProfileData | null // equipment and level for "Собрать тренировку"
   recommended?: Recommendation | null
   programs: Program[] | null
   logs: WorkoutLog[]
@@ -39,6 +42,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   const [editing, setEditing] = useState<Program | 'new' | null>(null)
   const [exercises, setExercises] = useState<ExerciseOption[]>([])
   const [builderError, setBuilderError] = useState('')
+  const [library, setLibrary] = useState<'browse' | 'build' | null>(null)
   const program = programs?.find((p) => p.id === programId)
   const programsButton = <button className="programs-entry" aria-label="Программы" onClick={() => setPersonalList(true)}><span className="programs-entry-text"><strong>Программы</strong><span>{program ? `Выбрана: ${program.name}` : 'Программа не выбрана'}</span></span><span className="programs-entry-action">Открыть <span aria-hidden="true">→</span></span></button>
 
@@ -58,14 +62,14 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       setEditing(p)
     } catch { setBuilderError('Не удалось загрузить упражнения. Попробуйте ещё раз.') }
   }
-  async function saveProgram(draft: ProgramDraft) {
+  async function saveProgram(draft: ProgramDraft, target: Program | 'new' | null = editing) {
     if (!canEdit) {
-      const id = editing === 'new' ? -Date.now() : (editing as Program).id
+      const id = target === 'new' ? -Date.now() : (target as Program).id
       const result: Program = {
         id, name: draft.name, goal: 'custom', level: 'beginner', days_per_week: draft.days.length, description: null, is_personal: true,
         days: draft.days.map((day, index) => ({
           id: day.id ?? -(index + 1), day_name: day.name, day_order: index,
-          exercises: day.exercises.map(exercise => ({ ...exercise, name: exercises.find(item => item.id === exercise.exercise_id)?.name ?? 'Упражнение', notes: null }))
+          exercises: day.exercises.map(exercise => ({ ...exercise, name: exercises.find(item => item.id === exercise.exercise_id)?.name ?? draftNames.get(exercise.exercise_id) ?? 'Упражнение', notes: null }))
         }))
       }
       onProgramsChange?.([...(programs ?? []).filter(program => program.id !== id), result])
@@ -73,8 +77,8 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       setEditing(null)
       return
     }
-    const path = editing === 'new' ? '/api/programs' : `/api/programs/${(editing as Program).id}`
-    const result = await api<Program>(path, { ...postJson(draft), method: editing === 'new' ? 'POST' : 'PUT' })
+    const path = target === 'new' ? '/api/programs' : `/api/programs/${(target as Program).id}`
+    const result = await api<Program>(path, { ...postJson(draft), method: target === 'new' ? 'POST' : 'PUT' })
     if (!result) throw new Error('No account')
     onProgramsChange?.([...(programs ?? []).filter(p => p.id !== result.id), result])
     onSelectProgram(result.id)
@@ -92,6 +96,9 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     setExercises(prev => [...prev.filter(e => e.id !== created.id), created])
     return created
   }} />
+
+  if (library) return <Library canEdit={canEdit} profile={profile} mode={library} onClose={() => setLibrary(null)}
+    onSaveWorkout={async (draft, names) => { names?.forEach((n, id) => draftNames.set(id, n)); await saveProgram(draft, 'new'); setLibrary(null) }} />
 
   if (programs === null) return <><h1>Тренировки</h1><p className="sub">Загружаем программы…</p></>
 
@@ -142,13 +149,19 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     {builderError && <p className="error" role="alert">{builderError}</p>}
   </div>
 
-  if (!program) return <><h1>Тренировки</h1>{programsButton}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>
+  const libraryEntries = <div className="lib-entries">
+        <button className="card lib-entry" onClick={() => setLibrary('browse')}><span aria-hidden="true">📚</span><b>Упражнения</b><small>Техника и мышцы</small></button>
+        <button className="card lib-entry" onClick={() => setLibrary('build')}><span aria-hidden="true">🎯</span><b>Собрать тренировку</b><small>На нужные мышцы</small></button>
+      </div>
+
+  if (!program) return <><h1>Тренировки</h1>{programsButton}{libraryEntries}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>
 
   const next = nextDay(program, logs)
   return (
     <>
       <h1>Тренировки</h1>
       {programsButton}
+      {libraryEntries}
       {builderError && <p className="error" role="alert">{builderError}</p>}
 
       <section className="card workout-feature">

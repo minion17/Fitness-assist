@@ -4,6 +4,7 @@ import { BarChart, LineChart } from './charts'
 import Empty from './Empty'
 import Friends from './Friends'
 import League from './League'
+import MuscleWeek from './MuscleWeek'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar, Chevron } from './ui'
 
@@ -115,6 +116,8 @@ export default function Progress({ canEdit, achievements, freezes, body, top }: 
               ))}
             </details>
           )}
+
+          {canEdit && <MuscleWeek />}
 
           {exercise && (
             <details className="card achievements-disclosure fold">

@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import type { ProfileData } from './profile'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import AiMeal from './AiMeal'
 import AiSummary from './AiSummary'
@@ -751,4 +752,46 @@ test('home: hide and reorder the blocks, kept on the phone', async () => {
   render(<Home {...props} />) // next open: the same layout
   expect(order()).toEqual(['Блок заданий', 'Блок привыче'])
   localStorage.clear()
+})
+
+test('library: tap a muscle on the map, open an exercise; build a workout for chosen muscles and save it', async () => {
+  const { default: Library } = await import('./Library')
+  const ex = (id: number, name: string, primary: string[], extra = {}) => ({ id, name, equipment: [], difficulty: 'beginner', description: 'Лягте на скамью. Опустите штангу к груди. Выжмите вверх.', is_bodyweight: false,
+    primary, secondary: ['triceps'], images: [], category: 'strength', mechanic: 'compound', ...extra })
+  const list = [
+    ex(1, 'Жим штанги лёжа', ['chest'], { equipment: ['Штанга', 'Скамья'], images: ['Barbell_Bench/0.jpg', 'Barbell_Bench/1.jpg'] }),
+    ex(2, 'Отжимания', ['chest'], { is_bodyweight: true }),
+    ex(3, 'Разведения гантелей', ['chest'], { equipment: ['Гантели'], mechanic: 'isolation' }),
+    ex(4, 'Французский жим', ['triceps'], { equipment: ['Штанга'], mechanic: 'isolation' }),
+    ex(5, 'Обратные отжимания', ['triceps'], { is_bodyweight: true }),
+    ex(6, 'Приседания', ['quadriceps'], { is_bodyweight: true }),
+    ex(7, 'Растяжка груди', ['chest'], { category: 'stretching', is_bodyweight: true }),
+  ]
+  apiMock.mockImplementation(async (path: string) => (path === '/api/exercises' ? list : null))
+  const onSave = vi.fn().mockResolvedValue(undefined)
+  const profile = { sex: 'male', birth_year: 1995, height_cm: 180, weight_kg: 80, activity: 'moderate', goal: 'muscle_gain', experience: 'beginner', equipment: ['bodyweight', 'barbell', 'bench'] } as ProfileData
+  const { unmount } = render(<Library canEdit profile={profile} mode="browse" onClose={vi.fn()} onSaveWorkout={onSave} />)
+  expect(await screen.findByText('Нашлось: 6')).toBeTruthy() // strength only by default
+  fireEvent.click(screen.getAllByRole('button', { name: 'Грудь' })[0]) // a zone on the body map
+  expect(screen.getByText('Нашлось: 3')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: /Жим штанги лёжа/ }))
+  const card = screen.getByRole('dialog', { name: 'Жим штанги лёжа' })
+  expect(within(card).getAllByRole('img')[0].getAttribute('src')).toBe('/api/exercise-image/Barbell_Bench/0.webp')
+  expect(within(card).getByText('Выжмите вверх.')).toBeTruthy() // technique as steps
+  fireEvent.keyDown(window, { key: 'Escape' })
+  unmount()
+
+  render(<Library canEdit profile={profile} mode="build" onClose={vi.fn()} onSaveWorkout={onSave} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Трицепс', pressed: false }))
+  fireEvent.click(screen.getAllByRole('button', { name: 'Грудь' })[1])
+  fireEvent.click(screen.getByRole('button', { name: /Подобрать упражнения/ }))
+  // no dumbbells in the profile: flyes are left out; base exercises first
+  const names = () => [...document.querySelectorAll('.lib-row b')].map((b) => b.textContent)
+  expect(names()).toEqual(['Французский жим', 'Жим штанги лёжа', 'Обратные отжимания', 'Отжимания'])
+  fireEvent.click(screen.getByRole('button', { name: 'Убрать: Отжимания' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить и выбрать' }))
+  await waitFor(() => expect(onSave).toHaveBeenCalled())
+  const draft = onSave.mock.calls[0][0]
+  expect(draft.days[0].exercises.map((e: { exercise_id: number }) => e.exercise_id)).toEqual([4, 1, 5])
+  expect(draft.days[0].exercises[0]).toMatchObject({ sets: 3, reps: '8-12', rest_seconds: 90 }) // muscle gain
 })

@@ -167,6 +167,13 @@ class Exercise(Base):
     difficulty: Mapped[str] = mapped_column(String(20), default="beginner")
     description: Mapped[str | None] = mapped_column(Text)
     is_bodyweight: Mapped[bool] = mapped_column(Boolean, default=False)
+    # library (free-exercise-db): its id, muscle keys for the map, its two photos (start / end), kind of exercise
+    source_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    primary_muscles: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    secondary_muscles: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    images: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    category: Mapped[str | None] = mapped_column(String(24))  # strength | stretching | plyometrics | cardio ...
+    mechanic: Mapped[str | None] = mapped_column(String(16))  # compound | isolation
 
 
 class Program(Base):

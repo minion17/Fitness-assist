@@ -1899,3 +1899,59 @@ def test_my_photo(client, monkeypatch):
     client.get("/api/me/photo", headers=h)
     assert calls == [555000777]  # cached
     assert client.get("/api/me/photo", headers=new_user_headers()).status_code == 404  # hidden or no photo
+
+
+def test_exercise_library_import_renames_in_place(client, seeded):
+    """A corrected translation renames the row programs already use; nothing is duplicated; ours keep their names."""
+    from sqlalchemy import delete, func, select, update
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import Exercise
+    from backend.seed.import_data import run
+
+    async def go():
+        async with SessionLocal() as s:  # the state before: a machine-translated name, no source_id
+            row = await s.scalar(select(Exercise).where(Exercise.source_id == "3_4_Sit-Up"))
+            await s.execute(update(Exercise).where(Exercise.id == row.id).values(name="3/4 приседания", source_id=None, primary_muscles=None))
+            await s.execute(delete(Exercise).where(Exercise.name == "Подъёмы корпуса на 3/4", Exercise.id != row.id))
+            await s.commit()
+            rid = row.id
+        await run()
+        async with SessionLocal() as s:
+            row = await s.get(Exercise, rid)
+            dupes = await s.scalar(select(func.count()).select_from(
+                select(Exercise.source_id).where(Exercise.owner_user_id.is_(None), Exercise.source_id.is_not(None))
+                .group_by(Exercise.source_id).having(func.count() > 1).subquery()))
+            bench = list(await s.scalars(select(Exercise).where(Exercise.name == "Жим штанги лежа", Exercise.owner_user_id.is_(None))))
+            return row.name, row.source_id, row.primary_muscles, row.images, dupes, [(b.source_id, b.primary_muscles) for b in bench]
+    name, sid, muscles, images, dupes, bench = client.portal.call(go)
+    assert (name, sid, muscles) == ("Подъёмы корпуса на 3/4", "3_4_Sit-Up", ["abdominals"]) and len(images) == 2
+    assert dupes == 0
+    assert bench == [("Barbell_Bench_Press_-_Medium_Grip", ["chest"])]  # not taken over by "Decline ..." (its old name was the same)
+
+
+def test_library_list_photos_and_muscle_week(client, seeded):
+    from backend.api import library
+
+    h = new_user_headers()
+    ex = client.get("/api/exercises", headers=h).json()
+    sit = next(e for e in ex if e["name"] == "Подъёмы корпуса на 3/4")
+    assert sit["primary"] == ["abdominals"] and sit["images"] == ["3_4_Sit-Up/0.jpg", "3_4_Sit-Up/1.jpg"] and sit["category"] == "strength"
+    assert len(ex) > 800
+
+    # photos: only well-formed names; a cached one is served without going out
+    assert client.get("/api/exercise-image/..%2F..%2Fetc/0.webp").status_code == 404
+    assert client.get("/api/exercise-image/Abc/7.webp").status_code == 404
+    cached = library.CACHE / "Test_Cached" / "0.webp"
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    cached.write_bytes(b"RIFF....WEBP")
+    r = client.get("/api/exercise-image/Test_Cached/0.webp")
+    assert r.status_code == 200 and r.content == b"RIFF....WEBP" and "immutable" in r.headers["cache-control"]
+
+    # muscle load: bench press (chest main; shoulders, triceps helpers) x 2 sets
+    bench = next(e for e in ex if e["name"] == "Жим штанги лежа")
+    log = client.post("/api/workout-logs", headers=h, json={"title": "Т"}).json()
+    for n in (1, 2):
+        client.post(f"/api/workout-logs/{log['id']}/sets", headers=h, json={"exercise_id": bench["id"], "set_number": n, "reps": 8, "weight_kg": 60})
+    week = client.get("/api/muscles/week", headers=h).json()["sets"]
+    assert week["chest"] == 2 and all(week[m] == 1 for m in bench["secondary"])

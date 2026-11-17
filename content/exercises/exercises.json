@@ -12,7 +12,21 @@
     ],
     "difficulty": "intermediate",
     "description": "Лопатки сведены, ноги уперты в пол.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Barbell_Bench_Press_-_Medium_Grip",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Barbell_Bench_Press_-_Medium_Grip/0.jpg",
+      "Barbell_Bench_Press_-_Medium_Grip/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Приседания со штангой",
@@ -27,7 +41,23 @@
     ],
     "difficulty": "intermediate",
     "description": "Гриф на трапециях, колени смотрят в сторону носков.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Barbell_Squat",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings",
+      "lower back"
+    ],
+    "images": [
+      "Barbell_Squat/0.jpg",
+      "Barbell_Squat/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Становая тяга",
@@ -41,7 +71,27 @@
     ],
     "difficulty": "advanced",
     "description": "Спина нейтральна, движение начинается с отталкивания ногами.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Barbell_Deadlift",
+    "primary_muscles": [
+      "lower back"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "forearms",
+      "glutes",
+      "hamstrings",
+      "lats",
+      "middle back",
+      "quadriceps",
+      "traps"
+    ],
+    "images": [
+      "Barbell_Deadlift/0.jpg",
+      "Barbell_Deadlift/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Подтягивания широким хватом",
@@ -55,7 +105,15 @@
     ],
     "difficulty": "intermediate",
     "description": "Тяга грудью к перекладине.",
-    "is_bodyweight": true
+    "is_bodyweight": true,
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "shoulders"
+    ],
+    "images": []
   },
   {
     "name": "Тяга штанги в наклоне",
@@ -69,7 +127,22 @@
     ],
     "difficulty": "intermediate",
     "description": "Корпус под углом 45 градусов, спина прямая.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Bent_Over_Barbell_Row",
+    "primary_muscles": [
+      "middle back"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "shoulders"
+    ],
+    "images": [
+      "Bent_Over_Barbell_Row/0.jpg",
+      "Bent_Over_Barbell_Row/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Армейский жим",
@@ -83,7 +156,20 @@
     ],
     "difficulty": "intermediate",
     "description": "Жим штанги стоя или сидя, без прогиба в пояснице.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Standing_Military_Press",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [
+      "triceps"
+    ],
+    "images": [
+      "Standing_Military_Press/0.jpg",
+      "Standing_Military_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Отжимания от пола",
@@ -97,7 +183,21 @@
     ],
     "difficulty": "beginner",
     "description": "Тело — прямая линия, локти под углом 45°.",
-    "is_bodyweight": true
+    "is_bodyweight": true,
+    "source_id": "Pushups",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Pushups/0.jpg",
+      "Pushups/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Выпады с гантелями",
@@ -110,7 +210,22 @@
     ],
     "difficulty": "beginner",
     "description": "Шаг вперёд, колено задней ноги почти касается пола.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Dumbbell_Lunges",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Dumbbell_Lunges/0.jpg",
+      "Dumbbell_Lunges/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Румынская тяга",
@@ -125,7 +240,22 @@
     ],
     "difficulty": "intermediate",
     "description": "Отведение таза назад, гриф скользит вдоль ног.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Romanian_Deadlift",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "lower back"
+    ],
+    "images": [
+      "Romanian_Deadlift/0.jpg",
+      "Romanian_Deadlift/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Жим ногами в тренажёре",
@@ -138,7 +268,22 @@
     ],
     "difficulty": "beginner",
     "description": "Стопы на ширине плеч, колени не выпрямляются до конца.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Leg_Press",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Leg_Press/0.jpg",
+      "Leg_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Разгибание ног в тренажёре",
@@ -150,7 +295,18 @@
     ],
     "difficulty": "beginner",
     "description": "Плавное движение без рывков, задержка в верхней точке.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Leg_Extensions",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Leg_Extensions/0.jpg",
+      "Leg_Extensions/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Сгибание ног в тренажёре",
@@ -162,7 +318,18 @@
     ],
     "difficulty": "beginner",
     "description": "Плавное сгибание без отрыва таза от скамьи.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Lying_Leg_Curls",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Lying_Leg_Curls/0.jpg",
+      "Lying_Leg_Curls/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Махи гантелями в стороны",
@@ -174,7 +341,18 @@
     ],
     "difficulty": "beginner",
     "description": "Локти слегка согнуты, мизинец выше большого пальца.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Side_Lateral_Raise",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Side_Lateral_Raise/0.jpg",
+      "Side_Lateral_Raise/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Подъём штанги на бицепс",
@@ -186,7 +364,20 @@
     ],
     "difficulty": "beginner",
     "description": "Локти прижаты к корпусу, подъём без раскачки.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Barbell_Curl",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [
+      "forearms"
+    ],
+    "images": [
+      "Barbell_Curl/0.jpg",
+      "Barbell_Curl/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Французский жим",
@@ -199,7 +390,18 @@
     ],
     "difficulty": "intermediate",
     "description": "Локти зафиксированы, сгибание только в локтевом суставе.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Lying_Triceps_Press",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Lying_Triceps_Press/0.jpg",
+      "Lying_Triceps_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Разгибание рук на блоке",
@@ -211,7 +413,18 @@
     ],
     "difficulty": "beginner",
     "description": "Локти прижаты к бокам, разгибание до полного выпрямления.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Triceps_Pushdown",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Triceps_Pushdown/0.jpg",
+      "Triceps_Pushdown/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Отжимания на брусьях",
@@ -225,7 +438,21 @@
     ],
     "difficulty": "intermediate",
     "description": "Корпус слегка наклонён вперёд для акцента на грудь.",
-    "is_bodyweight": true
+    "is_bodyweight": true,
+    "source_id": "Parallel_Bar_Dip",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ],
+    "images": [
+      "Parallel_Bar_Dip/0.jpg",
+      "Parallel_Bar_Dip/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Тяга гантели в наклоне",
@@ -239,7 +466,22 @@
     ],
     "difficulty": "beginner",
     "description": "Опора коленом и рукой о скамью, спина прямая.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "One-Arm_Dumbbell_Row",
+    "primary_muscles": [
+      "middle back"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "lats",
+      "shoulders"
+    ],
+    "images": [
+      "One-Arm_Dumbbell_Row/0.jpg",
+      "One-Arm_Dumbbell_Row/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Тяга верхнего блока к груди",
@@ -252,7 +494,22 @@
     ],
     "difficulty": "beginner",
     "description": "Корпус слегка отклонён назад, тяга к верхней части груди.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Wide-Grip_Lat_Pulldown",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "middle back",
+      "shoulders"
+    ],
+    "images": [
+      "Wide-Grip_Lat_Pulldown/0.jpg",
+      "Wide-Grip_Lat_Pulldown/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Молотки с гантелями",
@@ -265,7 +522,18 @@
     ],
     "difficulty": "beginner",
     "description": "Нейтральный хват, локти прижаты к корпусу.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Hammer_Curls",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Hammer_Curls/0.jpg",
+      "Hammer_Curls/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Жим гантелей сидя",
@@ -279,7 +547,20 @@
     ],
     "difficulty": "beginner",
     "description": "Спина прижата к спинке, локти под углом 90°.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Seated_Dumbbell_Press",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [
+      "triceps"
+    ],
+    "images": [
+      "Seated_Dumbbell_Press/0.jpg",
+      "Seated_Dumbbell_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Гиперэкстензия",
@@ -292,7 +573,21 @@
     ],
     "difficulty": "beginner",
     "description": "Плавное опускание и подъём до прямой линии с ногами.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Hyperextensions_Back_Extensions",
+    "primary_muscles": [
+      "lower back"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Hyperextensions_Back_Extensions/0.jpg",
+      "Hyperextensions_Back_Extensions/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Ягодичный мост",
@@ -306,7 +601,20 @@
     ],
     "difficulty": "beginner",
     "description": "Толчок пятками, пиковое сокращение ягодиц.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Butt_Lift_Bridge",
+    "primary_muscles": [
+      "glutes"
+    ],
+    "secondary_muscles": [
+      "hamstrings"
+    ],
+    "images": [
+      "Butt_Lift_Bridge/0.jpg",
+      "Butt_Lift_Bridge/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Планка",
@@ -320,7 +628,18 @@
     ],
     "difficulty": "beginner",
     "description": "Тело образует прямую линию, не проваливать поясницу.",
-    "is_bodyweight": true
+    "is_bodyweight": true,
+    "source_id": "Plank",
+    "primary_muscles": [
+      "abdominals"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Plank/0.jpg",
+      "Plank/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Скручивания на полу",
@@ -333,7 +652,18 @@
     ],
     "difficulty": "beginner",
     "description": "Поясница прижата к полу, отрыв только лопаток.",
-    "is_bodyweight": true
+    "is_bodyweight": true,
+    "source_id": "Crunches",
+    "primary_muscles": [
+      "abdominals"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Crunches/0.jpg",
+      "Crunches/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Подъём ног в висе",
@@ -346,7 +676,18 @@
     ],
     "difficulty": "advanced",
     "description": "Подъём без раскачки, до параллели или выше.",
-    "is_bodyweight": true
+    "is_bodyweight": true,
+    "source_id": "Hanging_Leg_Raise",
+    "primary_muscles": [
+      "abdominals"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Hanging_Leg_Raise/0.jpg",
+      "Hanging_Leg_Raise/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Болгарские сплит-приседания",
@@ -360,7 +701,14 @@
     ],
     "difficulty": "intermediate",
     "description": "Задняя нога на скамье, корпус слегка наклонён вперёд.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "images": []
   },
   {
     "name": "Берпи",
@@ -373,7 +721,10 @@
     ],
     "difficulty": "advanced",
     "description": "Присед, упор лёжа, отжимание, прыжок вверх.",
-    "is_bodyweight": true
+    "is_bodyweight": true,
+    "primary_muscles": [],
+    "secondary_muscles": [],
+    "images": []
   },
   {
     "name": "Скакалка",
@@ -387,7 +738,21 @@
     ],
     "difficulty": "beginner",
     "description": "Прыжки на носках, вращение только кистями.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "source_id": "Rope_Jumping",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "hamstrings"
+    ],
+    "images": [
+      "Rope_Jumping/0.jpg",
+      "Rope_Jumping/1.jpg"
+    ],
+    "category": "cardio",
+    "mechanic": null
   },
   {
     "name": "Жим штанги на наклонной скамье",
@@ -404,7 +769,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Barbell_Incline_Bench_Press_-_Medium_Grip"
+    "source_id": "Barbell_Incline_Bench_Press_-_Medium_Grip",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Barbell_Incline_Bench_Press_-_Medium_Grip/0.jpg",
+      "Barbell_Incline_Bench_Press_-_Medium_Grip/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Жим штанги узким хватом",
@@ -420,7 +798,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Close-Grip_Barbell_Bench_Press"
+    "source_id": "Close-Grip_Barbell_Bench_Press",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ],
+    "images": [
+      "Close-Grip_Barbell_Bench_Press/0.jpg",
+      "Close-Grip_Barbell_Bench_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Жим штанги на скамье с обратным наклоном",
@@ -437,7 +828,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Decline_Barbell_Bench_Press"
+    "source_id": "Decline_Barbell_Bench_Press",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Decline_Barbell_Bench_Press/0.jpg",
+      "Decline_Barbell_Bench_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Фронтальные приседания со штангой",
@@ -454,7 +858,21 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Front_Barbell_Squat"
+    "source_id": "Front_Barbell_Squat",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Front_Barbell_Squat/0.jpg",
+      "Front_Barbell_Squat/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Выпады со штангой",
@@ -471,7 +889,21 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Barbell_Lunge"
+    "source_id": "Barbell_Lunge",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Barbell_Lunge/0.jpg",
+      "Barbell_Lunge/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Ягодичный мост со штангой",
@@ -487,7 +919,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Barbell_Hip_Thrust"
+    "source_id": "Barbell_Hip_Thrust",
+    "primary_muscles": [
+      "glutes"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "hamstrings"
+    ],
+    "images": [
+      "Barbell_Hip_Thrust/0.jpg",
+      "Barbell_Hip_Thrust/1.jpg"
+    ],
+    "category": "powerlifting",
+    "mechanic": "compound"
   },
   {
     "name": "Шраги со штангой",
@@ -501,7 +946,17 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Barbell_Shrug"
+    "source_id": "Barbell_Shrug",
+    "primary_muscles": [
+      "traps"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Barbell_Shrug/0.jpg",
+      "Barbell_Shrug/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Наклоны в сторону со штангой",
@@ -516,7 +971,19 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Barbell_Side_Bend"
+    "source_id": "Barbell_Side_Bend",
+    "primary_muscles": [
+      "abdominals"
+    ],
+    "secondary_muscles": [
+      "lower back"
+    ],
+    "images": [
+      "Barbell_Side_Bend/0.jpg",
+      "Barbell_Side_Bend/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Зашагивания на платформу со штангой",
@@ -534,7 +1001,22 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Barbell_Step_Ups"
+    "source_id": "Barbell_Step_Ups",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings",
+      "quadriceps"
+    ],
+    "images": [
+      "Barbell_Step_Ups/0.jpg",
+      "Barbell_Step_Ups/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Становая тяга сумо",
@@ -555,7 +1037,25 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Sumo_Deadlift"
+    "source_id": "Sumo_Deadlift",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "adductors",
+      "forearms",
+      "glutes",
+      "lower back",
+      "middle back",
+      "quadriceps",
+      "traps"
+    ],
+    "images": [
+      "Sumo_Deadlift/0.jpg",
+      "Sumo_Deadlift/1.jpg"
+    ],
+    "category": "powerlifting",
+    "mechanic": "compound"
   },
   {
     "name": "Становая тяга с трэп-грифом",
@@ -569,7 +1069,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Trap_Bar_Deadlift"
+    "source_id": "Trap_Bar_Deadlift",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Trap_Bar_Deadlift/0.jpg",
+      "Trap_Bar_Deadlift/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Тяга штанги на прямых ногах",
@@ -585,7 +1098,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Stiff-Legged_Barbell_Deadlift"
+    "source_id": "Stiff-Legged_Barbell_Deadlift",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "lower back"
+    ],
+    "images": [
+      "Stiff-Legged_Barbell_Deadlift/0.jpg",
+      "Stiff-Legged_Barbell_Deadlift/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Приседания с собственным весом",
@@ -599,7 +1125,20 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Bodyweight_Squat"
+    "source_id": "Bodyweight_Squat",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Bodyweight_Squat/0.jpg",
+      "Bodyweight_Squat/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Выпады шагом с собственным весом",
@@ -614,7 +1153,21 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Bodyweight_Walking_Lunge"
+    "source_id": "Bodyweight_Walking_Lunge",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Bodyweight_Walking_Lunge/0.jpg",
+      "Bodyweight_Walking_Lunge/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Обратные отжимания от скамьи",
@@ -630,7 +1183,20 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Bench_Dips"
+    "source_id": "Bench_Dips",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ],
+    "images": [
+      "Bench_Dips/0.jpg",
+      "Bench_Dips/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Отжимания от пола широким хватом",
@@ -645,7 +1211,21 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Push-Up_Wide"
+    "source_id": "Push-Up_Wide",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "abdominals",
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Push-Up_Wide/0.jpg",
+      "Push-Up_Wide/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Отжимания от пола узким хватом",
@@ -659,7 +1239,20 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Push-Ups_-_Close_Triceps_Position"
+    "source_id": "Push-Ups_-_Close_Triceps_Position",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "chest",
+      "shoulders"
+    ],
+    "images": [
+      "Push-Ups_-_Close_Triceps_Position/0.jpg",
+      "Push-Ups_-_Close_Triceps_Position/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Отжимания с ногами на возвышении",
@@ -675,7 +1268,20 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Push-Ups_With_Feet_Elevated"
+    "source_id": "Push-Ups_With_Feet_Elevated",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Push-Ups_With_Feet_Elevated/0.jpg",
+      "Push-Ups_With_Feet_Elevated/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Отжимания руками от опоры",
@@ -691,7 +1297,20 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Incline_Push-Up"
+    "source_id": "Incline_Push-Up",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Incline_Push-Up/0.jpg",
+      "Incline_Push-Up/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Подтягивания лопатками",
@@ -707,7 +1326,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Scapular_Pull-Up"
+    "source_id": "Scapular_Pull-Up",
+    "primary_muscles": [
+      "traps"
+    ],
+    "secondary_muscles": [
+      "lats",
+      "middle back"
+    ],
+    "images": [
+      "Scapular_Pull-Up/0.jpg",
+      "Scapular_Pull-Up/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Подтягивания с резиновой петлёй",
@@ -724,7 +1356,21 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Band_Assisted_Pull-Up"
+    "source_id": "Band_Assisted_Pull-Up",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "abdominals",
+      "forearms",
+      "middle back"
+    ],
+    "images": [
+      "Band_Assisted_Pull-Up/0.jpg",
+      "Band_Assisted_Pull-Up/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Отжимание с переходом в боковую планку",
@@ -739,7 +1385,21 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Push_Up_to_Side_Plank"
+    "source_id": "Push_Up_to_Side_Plank",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "abdominals",
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Push_Up_to_Side_Plank/0.jpg",
+      "Push_Up_to_Side_Plank/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Жим гантелей лёжа",
@@ -755,7 +1415,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Dumbbell_Bench_Press"
+    "source_id": "Dumbbell_Bench_Press",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Dumbbell_Bench_Press/0.jpg",
+      "Dumbbell_Bench_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Жим гантелей лёжа нейтральным хватом",
@@ -771,7 +1444,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Dumbbell_Bench_Press_with_Neutral_Grip"
+    "source_id": "Dumbbell_Bench_Press_with_Neutral_Grip",
+    "primary_muscles": [
+      "chest"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "triceps"
+    ],
+    "images": [
+      "Dumbbell_Bench_Press_with_Neutral_Grip/0.jpg",
+      "Dumbbell_Bench_Press_with_Neutral_Grip/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Приседания с гантелями",
@@ -789,7 +1475,22 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Dumbbell_Squat"
+    "source_id": "Dumbbell_Squat",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings",
+      "lower back"
+    ],
+    "images": [
+      "Dumbbell_Squat/0.jpg",
+      "Dumbbell_Squat/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Гоблет-приседания",
@@ -807,7 +1508,22 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Goblet_Squat"
+    "source_id": "Goblet_Squat",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "hamstrings",
+      "shoulders"
+    ],
+    "images": [
+      "Goblet_Squat/0.jpg",
+      "Goblet_Squat/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Сплит-приседания с гантелями",
@@ -823,7 +1539,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Split_Squat_with_Dumbbells"
+    "source_id": "Split_Squat_with_Dumbbells",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Split_Squat_with_Dumbbells/0.jpg",
+      "Split_Squat_with_Dumbbells/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Тяга гантелей на прямых ногах",
@@ -839,7 +1568,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Stiff-Legged_Dumbbell_Deadlift"
+    "source_id": "Stiff-Legged_Dumbbell_Deadlift",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "lower back"
+    ],
+    "images": [
+      "Stiff-Legged_Dumbbell_Deadlift/0.jpg",
+      "Stiff-Legged_Dumbbell_Deadlift/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Сгибание рук с гантелями на наклонной скамье",
@@ -854,7 +1596,17 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Incline_Dumbbell_Curl"
+    "source_id": "Incline_Dumbbell_Curl",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Incline_Dumbbell_Curl/0.jpg",
+      "Incline_Dumbbell_Curl/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Сгибание рук с гантелями сидя",
@@ -868,7 +1620,17 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Seated_Dumbbell_Curl"
+    "source_id": "Seated_Dumbbell_Curl",
+    "primary_muscles": [
+      "biceps"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Seated_Dumbbell_Curl/0.jpg",
+      "Seated_Dumbbell_Curl/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Попеременный жим гирь",
@@ -883,7 +1645,19 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Alternating_Kettlebell_Press"
+    "source_id": "Alternating_Kettlebell_Press",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [
+      "triceps"
+    ],
+    "images": [
+      "Alternating_Kettlebell_Press/0.jpg",
+      "Alternating_Kettlebell_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Попеременная тяга гирь в наклоне",
@@ -899,7 +1673,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Alternating_Kettlebell_Row"
+    "source_id": "Alternating_Kettlebell_Row",
+    "primary_muscles": [
+      "middle back"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ],
+    "images": [
+      "Alternating_Kettlebell_Row/0.jpg",
+      "Alternating_Kettlebell_Row/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Тяга гири одной рукой в наклоне",
@@ -915,7 +1702,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "One-Arm_Kettlebell_Row"
+    "source_id": "One-Arm_Kettlebell_Row",
+    "primary_muscles": [
+      "middle back"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ],
+    "images": [
+      "One-Arm_Kettlebell_Row/0.jpg",
+      "One-Arm_Kettlebell_Row/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Махи гирей одной рукой",
@@ -933,7 +1733,22 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "One-Arm_Kettlebell_Swings"
+    "source_id": "One-Arm_Kettlebell_Swings",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes",
+      "lower back",
+      "shoulders"
+    ],
+    "images": [
+      "One-Arm_Kettlebell_Swings/0.jpg",
+      "One-Arm_Kettlebell_Swings/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Вращение гири вокруг головы",
@@ -951,7 +1766,19 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Kettlebell_Halo"
+    "source_id": "Kettlebell_Halo",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [
+      "traps",
+      "middle back",
+      "abdominals",
+      "triceps"
+    ],
+    "images": [],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Тяга гири на одной ноге",
@@ -967,7 +1794,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Kettlebell_One-Legged_Deadlift"
+    "source_id": "Kettlebell_One-Legged_Deadlift",
+    "primary_muscles": [
+      "hamstrings"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "lower back"
+    ],
+    "images": [
+      "Kettlebell_One-Legged_Deadlift/0.jpg",
+      "Kettlebell_One-Legged_Deadlift/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Разгибание рук с гирей из-за головы",
@@ -983,7 +1823,17 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Kettlebell_Overhead_Triceps_Extension"
+    "source_id": "Kettlebell_Overhead_Triceps_Extension",
+    "primary_muscles": [
+      "triceps"
+    ],
+    "secondary_muscles": [
+      "shoulders",
+      "abdominals"
+    ],
+    "images": [],
+    "category": "strength",
+    "mechanic": "isolation"
   },
   {
     "name": "Жим гири сидя",
@@ -998,7 +1848,19 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Kettlebell_Seated_Press"
+    "source_id": "Kettlebell_Seated_Press",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [
+      "triceps"
+    ],
+    "images": [
+      "Kettlebell_Seated_Press/0.jpg",
+      "Kettlebell_Seated_Press/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Трастер с гирей",
@@ -1014,7 +1876,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Kettlebell_Thruster"
+    "source_id": "Kettlebell_Thruster",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [
+      "quadriceps",
+      "triceps"
+    ],
+    "images": [
+      "Kettlebell_Thruster/0.jpg",
+      "Kettlebell_Thruster/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Тяга двух гирь в наклоне",
@@ -1030,7 +1905,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Two-Arm_Kettlebell_Row"
+    "source_id": "Two-Arm_Kettlebell_Row",
+    "primary_muscles": [
+      "middle back"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "lats"
+    ],
+    "images": [
+      "Two-Arm_Kettlebell_Row/0.jpg",
+      "Two-Arm_Kettlebell_Row/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Турецкий подъём с гирей через выпад",
@@ -1048,7 +1936,22 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Kettlebell_Turkish_Get-Up_Lunge_style"
+    "source_id": "Kettlebell_Turkish_Get-Up_Lunge_style",
+    "primary_muscles": [
+      "shoulders"
+    ],
+    "secondary_muscles": [
+      "abdominals",
+      "hamstrings",
+      "quadriceps",
+      "triceps"
+    ],
+    "images": [
+      "Kettlebell_Turkish_Get-Up_Lunge_style/0.jpg",
+      "Kettlebell_Turkish_Get-Up_Lunge_style/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Фронтальные приседания с двумя гирями",
@@ -1064,7 +1967,20 @@
     "description": null,
     "is_bodyweight": false,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Front_Squats_With_Two_Kettlebells"
+    "source_id": "Front_Squats_With_Two_Kettlebells",
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "calves",
+      "glutes"
+    ],
+    "images": [
+      "Front_Squats_With_Two_Kettlebells/0.jpg",
+      "Front_Squats_With_Two_Kettlebells/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Подтягивания прямым хватом",
@@ -1079,7 +1995,20 @@
     "description": null,
     "is_bodyweight": true,
     "source_id": "Pullups",
-    "source": "https://github.com/yuhonas/free-exercise-db"
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "primary_muscles": [
+      "lats"
+    ],
+    "secondary_muscles": [
+      "biceps",
+      "middle back"
+    ],
+    "images": [
+      "Pullups/0.jpg",
+      "Pullups/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Австралийские подтягивания",
@@ -1095,7 +2024,19 @@
     "description": null,
     "is_bodyweight": true,
     "source_id": "Inverted_Row",
-    "source": "https://github.com/yuhonas/free-exercise-db"
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "primary_muscles": [
+      "middle back"
+    ],
+    "secondary_muscles": [
+      "lats"
+    ],
+    "images": [
+      "Inverted_Row/0.jpg",
+      "Inverted_Row/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Мёртвый жук",
@@ -1107,7 +2048,17 @@
     "description": null,
     "is_bodyweight": true,
     "source_id": "Dead_Bug",
-    "source": "https://github.com/yuhonas/free-exercise-db"
+    "source": "https://github.com/yuhonas/free-exercise-db",
+    "primary_muscles": [
+      "abdominals"
+    ],
+    "secondary_muscles": [],
+    "images": [
+      "Dead_Bug/0.jpg",
+      "Dead_Bug/1.jpg"
+    ],
+    "category": "strength",
+    "mechanic": "compound"
   },
   {
     "name": "Тяга гири с пола",
@@ -1121,7 +2072,15 @@
     ],
     "difficulty": "beginner",
     "description": null,
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "primary_muscles": [
+      "glutes"
+    ],
+    "secondary_muscles": [
+      "hamstrings",
+      "lower back"
+    ],
+    "images": []
   },
   {
     "name": "Выпады с гирей",
@@ -1134,7 +2093,14 @@
     ],
     "difficulty": "beginner",
     "description": "Держите гирю у груди или в руке, выполняйте выпад с контролем равновесия.",
-    "is_bodyweight": false
+    "is_bodyweight": false,
+    "primary_muscles": [
+      "quadriceps"
+    ],
+    "secondary_muscles": [
+      "glutes"
+    ],
+    "images": []
   },
   {
     "name": "Супермен",
@@ -1147,6 +2113,19 @@
     "description": null,
     "is_bodyweight": true,
     "source": "https://github.com/yuhonas/free-exercise-db",
-    "source_id": "Superman"
+    "source_id": "Superman",
+    "primary_muscles": [
+      "lower back"
+    ],
+    "secondary_muscles": [
+      "glutes",
+      "hamstrings"
+    ],
+    "images": [
+      "Superman/0.jpg",
+      "Superman/1.jpg"
+    ],
+    "category": "stretching",
+    "mechanic": "compound"
   }
 ]

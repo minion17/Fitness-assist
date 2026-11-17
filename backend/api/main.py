@@ -31,6 +31,7 @@ from backend.api.energy import router as energy_router
 from backend.api.leagues import router as leagues_router
 from backend.api.challenges import router as challenges_router
 from backend.api.report import router as report_router
+from backend.api.library import router as library_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
@@ -297,6 +298,8 @@ async def list_exercises(tg: dict | None = Depends(optional_telegram_user), sess
         {
             "id": e.id, "name": e.name, "muscle_groups": e.muscle_groups, "equipment": e.equipment,
             "difficulty": e.difficulty, "description": e.description, "is_bodyweight": e.is_bodyweight,
+            "primary": e.primary_muscles or [], "secondary": e.secondary_muscles or [], "images": e.images or [],
+            "category": e.category, "mechanic": e.mechanic, "mine": e.owner_user_id is not None,
         }
         for e in rows
     ]
@@ -841,6 +844,7 @@ app.include_router(energy_router)
 app.include_router(leagues_router)
 app.include_router(challenges_router)
 app.include_router(report_router)
+app.include_router(library_router)
 app.include_router(account_router)
 app.include_router(meal_preferences_router)
 app.include_router(saved_meal_plan_router)

@@ -1392,3 +1392,8 @@ html, body { overflow-x: hidden; }
 .sheet { will-change: transform; }
 .sheet-backdrop { will-change: opacity; }
 body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--card); }
+/* a sheet opened from a screen is that screen's child: it must not get the screen's staggered entrance delay
+   (it showed, vanished and faded in again — the "lag" on opening) */
+.screen > .sheet-backdrop { animation: fade-in .2s ease-out; animation-delay: 0s; }
+.screen > .sheet-backdrop.leaving { animation: fade-out .18s ease-in forwards; }
+.screen > :is(.rest-timer, .scanner) { animation-delay: 0s; }

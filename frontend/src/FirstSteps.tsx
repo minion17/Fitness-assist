@@ -5,13 +5,15 @@ export type Step = { key: string; title: string; hint: string; done: boolean; ac
 const HIDDEN = 'fa.firstStepsHidden' // "1" = collapsed to the one-line bar
 
 export default function FirstSteps({ steps }: { steps: Step[] }) {
-  const [collapsed, setCollapsed] = useState(() => { try { return localStorage.getItem(HIDDEN) === '1' } catch { return false } })
+  // not chosen yet: past half the steps it folds into the bar by itself, so the big card stops taking half the screen
+  const [chosen, setChosen] = useState<boolean | null>(() => { try { const v = localStorage.getItem(HIDDEN); return v === null ? null : v === '1' } catch { return null } })
   const done = steps.filter((s) => s.done).length
+  const collapsed = chosen ?? done * 2 >= steps.length
   if (done === steps.length) return null
   const next = steps.find((s) => !s.done)
 
   function collapse(value: boolean) {
-    setCollapsed(value)
+    setChosen(value)
     try { localStorage.setItem(HIDDEN, value ? '1' : '0') } catch { /* private mode: remembered for this session only */ }
   }
 

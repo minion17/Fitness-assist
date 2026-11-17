@@ -1336,3 +1336,29 @@ details[open] > summary .chev { transform: rotate(180deg); }
 .queued { font-size: 13px; color: var(--warn); }
 .scan-note { color: #fff; font-weight: 700; }
 body:has(.sheet) .toast-undo { display: none; } /* don't cover the sheet's buttons */
+
+/* ---- Sheets: pull down to close ---- */
+.sheet { padding-top: 6px; transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+.sheet.dragging { transition: none; }
+.sheet-grab { touch-action: none; display: flex; flex-direction: column; gap: 6px; cursor: grab; margin: 0 -16px; padding: 4px 16px 0; }
+.sheet-handle { width: 40px; height: 5px; border-radius: 99px; background: color-mix(in srgb, var(--muted) 45%, transparent); align-self: center; }
+.sheet-backdrop.leaving { animation: fade-out .18s ease-in forwards; }
+.sheet-backdrop.leaving .sheet { transform: translateY(100%) !important; transition: transform .18s ease-in; }
+@keyframes fade-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .sheet-backdrop.leaving .sheet { transition: none; } }
+.swipe.pending { opacity: .6; transition: opacity .3s; } /* shown before the server confirmed it */
+/* ---- Workout player: one big button per set, ± without the keyboard, swipe between exercises ---- */
+.session-exercise.player { touch-action: pan-y; }
+.set-nudge { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.set-nudge button { min-height: 40px; border-radius: 12px; background: var(--card-2); color: var(--text); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.set-nudge button:active { transform: scale(.95); }
+.set-go { min-height: 54px; font-size: 17px; }
+/* ---- Home layout settings ---- */
+.home-arrange { align-self: center; font-size: 13px; color: var(--muted); padding: 8px; }
+.home-settings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.home-setting { display: flex; align-items: center; gap: 4px; padding: 8px 0; border-bottom: 1px solid var(--card-border); }
+.home-setting .row-main { flex: 1; font-weight: 600; }
+.home-setting .icon-btn { width: 40px; height: 40px; color: var(--text); font-size: 18px; }
+.home-setting .icon-btn:disabled { opacity: .25; }
+.home-setting .switch { margin-left: 6px; }
+.sheet-grab, .sheet-grab * { -webkit-user-select: none; user-select: none; }

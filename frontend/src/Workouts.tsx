@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Recommendation } from './profile'
 import { api, postJson, publicGet, tg } from './telegram'
 import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
@@ -331,6 +331,14 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
   }
 
   const total = day.exercises.length
+  const swipe = useRef<{ x: number; y: number } | null>(null)
+  const timedOf = (ei: number) => day.exercises[ei].unit === 'seconds' || /сек/i.test(day.exercises[ei].reps)
+  /** ± on the current set without the keyboard: reps by 1 (seconds by 5), weight by 2.5 kg. */
+  const nudge = (ei: number, si: number, field: 'reps' | 'weight', d: number) => {
+    const v = Number(String(sets[ei][si][field]).replace(',', '.')) || 0
+    update(ei, si, { [field]: String(Math.max(0, Math.round((v + d) * 10) / 10)).replace('.', ',') })
+    tg?.HapticFeedback?.selectionChanged?.()
+  }
   const shown = list ? day.exercises.map((e, ei) => [e, ei] as const) : total ? [[day.exercises[cur], cur] as const] : []
   const doneEx = (ei: number) => sets[ei].length > 0 && sets[ei].every((x) => x.saved)
 
@@ -352,7 +360,17 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
         </div>
       )}
       {shown.map(([e, ei]) => (
-        <section className={list ? 'card session-exercise' : 'card session-exercise player'} key={ei}>
+        <section className={list ? 'card session-exercise' : 'card session-exercise player'} key={ei}
+          onPointerDown={(ev) => { swipe.current = list ? null : { x: ev.clientX, y: ev.clientY } }}
+          onPointerUp={(ev) => {
+            const s0 = swipe.current
+            swipe.current = null
+            if (!s0) return
+            const dx = ev.clientX - s0.x
+            if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(ev.clientY - s0.y)) return
+            const next = cur + (dx < 0 ? 1 : -1) // swipe left = the next exercise, as pages
+            if (next >= 0 && next < total) { tg?.HapticFeedback?.selectionChanged?.(); setCur(next) }
+          }}>
           {!list && total > 1 && <span className="sub">Упражнение {ei + 1} из {total}</span>}
           <div className="session-exercise-title">
             <div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div>
@@ -377,6 +395,26 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
                 disabled={s.saved || busy} onClick={() => saveSet(ei, si)}>✓</button>
             </div>
           ))}
+          {!list && (() => {
+            const si = sets[ei].findIndex((x) => !x.saved)
+            if (si < 0) return null
+            const s = sets[ei][si], timed = timedOf(ei)
+            return (
+              <>
+                <div className="set-nudge" role="group" aria-label={`Подход ${si + 1}: поправить`}>
+                  <button aria-label={timed ? 'Минус 5 секунд' : 'Минус повтор'} onClick={() => nudge(ei, si, 'reps', timed ? -5 : -1)}>−{timed ? '5 с' : '1'}</button>
+                  <button aria-label={timed ? 'Плюс 5 секунд' : 'Плюс повтор'} onClick={() => nudge(ei, si, 'reps', timed ? 5 : 1)}>+{timed ? '5 с' : '1'}</button>
+                  {!timed && <>
+                    <button aria-label="Минус 2,5 кг" onClick={() => nudge(ei, si, 'weight', -2.5)}>−2,5 кг</button>
+                    <button aria-label="Плюс 2,5 кг" onClick={() => nudge(ei, si, 'weight', 2.5)}>+2,5 кг</button>
+                  </>}
+                </div>
+                <button className="btn set-go" disabled={busy} onClick={() => saveSet(ei, si)}>
+                  ✓ Подход {si + 1}: {s.reps || '—'} {timed ? 'с' : 'повт'}{!timed && s.weight && s.weight !== '0' ? ` × ${s.weight} кг` : ''}
+                </button>
+              </>
+            )
+          })()}
         </section>
       ))}
       {!list && total > 1 && (

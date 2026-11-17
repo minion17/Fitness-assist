@@ -315,7 +315,7 @@ test('home water: portions, custom volume, removing any amount', async () => {
   const day: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
   render(<Home name="Егор" level={1} streak={0} day={day} logs={[]} water={{ ml: 500, goal_ml: 2500 }}
     aiEnabled={false} canEdit onFood={vi.fn()} onNutrition={vi.fn()} onWorkouts={vi.fn()} onWater={onWater} />)
-  fireEvent.click(screen.getByRole('button', { name: 'Добавить стакан воды, 250 мл' })) // one tap on Home
+  fireEvent.click(screen.getByRole('button', { name: 'Добавить воды, 250 мл' })) // one tap on Home
   expect(screen.queryByRole('button', { name: 'Добавить 330 мл' })).toBeNull() // the portions are one tap further
   fireEvent.click(screen.getByRole('button', { name: 'Вода: подробнее' }))
   fireEvent.click(screen.getByRole('button', { name: 'Добавить 330 мл' }))
@@ -334,6 +334,8 @@ test('home water: portions, custom volume, removing any amount', async () => {
   fireEvent.change(screen.getByLabelText('Убрать, мл'), { target: { value: '200' } })
   fireEvent.click(screen.getByRole('button', { name: 'Убрать' }))
   expect(onWater.mock.calls.map((c) => c[0])).toEqual([250, 330, 400, -150, -200])
+  expect(screen.getByRole('button', { name: 'Добавить воды, 400 мл' })).toBeTruthy() // the quick button pours the last portion
+  localStorage.clear()
 })
 
 test('menu photo: pick dishes, save with the restaurant, then quick portions', async () => {
@@ -429,9 +431,20 @@ test('workout player: one exercise at a time, moves on when its sets are done', 
   expect(screen.getByText('Упражнение 1 из 2')).toBeTruthy()
   expect(screen.queryByLabelText('Тяга, подход 1, вес')).toBeNull()
   fireEvent.change(screen.getByLabelText('Жим лёжа, подход 1, вес'), { target: { value: '60' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Сохранить подход 1' }))
+  // ± without the keyboard, then one big button saves the current set
+  fireEvent.click(screen.getByRole('button', { name: 'Плюс 2,5 кг' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Минус повтор' }))
+  fireEvent.click(screen.getByRole('button', { name: '✓ Подход 1: 7 повт × 62,5 кг' }))
   await waitFor(() => expect(apiMock.mock.calls.some((c) => String(c[0]).endsWith('/sets'))).toBe(true))
+  const sent = JSON.parse(String(apiMock.mock.calls.find((c) => String(c[0]).endsWith('/sets'))![1]!.body))
+  expect(sent).toMatchObject({ reps: 7, weight_kg: 62.5 })
   expect(await screen.findByText('Упражнение 2 из 2', {}, { timeout: 2000 })).toBeTruthy()
+  // a swipe right goes back to the previous exercise
+  const card = screen.getByText('Упражнение 2 из 2').closest('section')!
+  fireEvent.pointerDown(card, { clientX: 50, clientY: 100 })
+  fireEvent.pointerUp(card, { clientX: 200, clientY: 105 })
+  expect(screen.getByText('Упражнение 1 из 2')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Следующее →' }))
   fireEvent.click(screen.getByRole('button', { name: 'Все упражнения' }))
   expect(screen.getByLabelText('Жим лёжа, подход 1, вес')).toBeTruthy()
   expect(screen.getByLabelText('Тяга, подход 1, вес')).toBeTruthy()
@@ -712,4 +725,26 @@ test('home: the usual meal in one tap', async () => {
     usual={{ meal: 'Завтрак', title: 'Овсянка, Яйцо', kcal: 380, run }} />)
   fireEvent.click(screen.getByRole('button', { name: /Завтрак как обычно/ }))
   expect(run).toHaveBeenCalled()
+})
+
+test('home: hide and reorder the blocks, kept on the phone', async () => {
+  localStorage.clear()
+  const { default: Home } = await import('./Home')
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  const props = { name: 'Егор', level: 1, streak: 0, day: empty, logs: [], water: { ml: 0, goal_ml: 2000 }, aiEnabled: false, canEdit: true,
+    onFood: vi.fn(), onNutrition: vi.fn(), onWorkouts: vi.fn(), onWater: vi.fn(),
+    habits: <div>Блок привычек</div>, quests: <div>Блок заданий</div>, weight: <div>Блок веса</div> }
+  const { unmount } = render(<Home {...props} />)
+  const order = () => [...document.querySelectorAll('.home-rows > *')].map((e) => e.textContent?.slice(0, 12))
+  expect(order()).toEqual(['🏋️Выберите ', 'Блок привыче', 'Блок заданий'])
+  fireEvent.click(screen.getByRole('button', { name: '⚙ Настроить главную' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Задания недели: выше' }))
+  fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Тренировка на сегодня' }))
+  fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Вес' }))
+  expect(order()).toEqual(['Блок заданий', 'Блок привыче'])
+  expect(screen.queryByText('Блок веса')).toBeNull()
+  unmount()
+  render(<Home {...props} />) // next open: the same layout
+  expect(order()).toEqual(['Блок заданий', 'Блок привыче'])
+  localStorage.clear()
 })

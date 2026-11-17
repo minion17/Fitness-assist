@@ -1,6 +1,7 @@
 // Daily overview with compact food and workout summaries.
-import { useState } from 'react'
+import { Fragment, useRef, useState } from 'react'
 import type { Targets } from './profile'
+import { Sheet } from './ui'
 import { useCountUp } from './motion'
 import { nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
 
@@ -34,7 +35,10 @@ function Glass({ frac }: { frac: number }) {
   )
 }
 
-function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean; onWater: (delta: number) => void }) {
+const PORTION_KEY = 'setly-water-portion' // the quick button pours what the user picked last (a 330 ml can, a 500 ml bottle)
+const savedPortion = () => { try { const n = Number(localStorage.getItem(PORTION_KEY)); return n >= 50 && n <= 1000 ? n : 250 } catch { return 250 } }
+
+function WaterCard({ water, canEdit, onWater, onPortion }: { water: Water; canEdit: boolean; onWater: (delta: number) => void; onPortion: (ml: number) => void }) {
   const [remove, setRemove] = useState(false) // "Убрать": the same chips subtract (any amount, not only the last glass)
   const [custom, setCustom] = useState<string | null>(null)
   const ml = Number(custom)
@@ -42,6 +46,7 @@ function WaterCard({ water, canEdit, onWater }: { water: Water; canEdit: boolean
   const customOk = Number.isInteger(ml) && ml >= 10 && ml <= (remove ? Math.min(1000, water.ml) : 1000)
   const change = (n: number) => {
     onWater(sign * Math.min(n, remove ? water.ml : n))
+    if (!remove) onPortion(n)
     setCustom(null)
     if (remove) setRemove(false) // a correction is usually one tap; back to adding
   }
@@ -98,6 +103,52 @@ function UsualCard({ meal, title, kcal, run }: { meal: string; title: string; kc
   )
 }
 
+type Block = 'workout' | 'habits' | 'quests' | 'weight' | 'usual'
+const BLOCKS: Record<Block, string> = { workout: 'Тренировка на сегодня', habits: 'Привычки', quests: 'Задания недели', weight: 'Вес', usual: 'Подсказка «как обычно»' }
+const LAYOUT_KEY = 'setly-home-layout'
+type Layout = { order: Block[]; hidden: Block[] }
+const DEFAULT_LAYOUT: Layout = { order: ['workout', 'habits', 'quests'], hidden: [] }
+function savedLayout(): Layout {
+  try {
+    const l = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null') as Layout | null
+    if (!l) return DEFAULT_LAYOUT
+    const order = l.order.filter((b) => DEFAULT_LAYOUT.order.includes(b))
+    return { order: [...order, ...DEFAULT_LAYOUT.order.filter((b) => !order.includes(b))], hidden: l.hidden.filter((b) => b in BLOCKS) }
+  } catch { return DEFAULT_LAYOUT }
+}
+
+/** "Настроить главную": hide what one doesn't use, move the rows up and down. Kept on the phone. */
+function HomeSettings({ layout, onChange, onClose }: { layout: Layout; onChange: (l: Layout) => void; onClose: () => void }) {
+  const move = (b: Block, d: number) => {
+    const o = [...layout.order], i = o.indexOf(b), j = i + d
+    if (j < 0 || j >= o.length) return
+    ;[o[i], o[j]] = [o[j], o[i]]
+    onChange({ ...layout, order: o })
+  }
+  const toggle = (b: Block) => onChange({ ...layout, hidden: layout.hidden.includes(b) ? layout.hidden.filter((x) => x !== b) : [...layout.hidden, b] })
+  const row = (b: Block, i?: number) => (
+    <li key={b} className="home-setting">
+      <span className="row-main">{BLOCKS[b]}</span>
+      {i !== undefined && <>
+        <button className="icon-btn" aria-label={`${BLOCKS[b]}: выше`} disabled={i === 0} onClick={() => move(b, -1)}>↑</button>
+        <button className="icon-btn" aria-label={`${BLOCKS[b]}: ниже`} disabled={i === layout.order.length - 1} onClick={() => move(b, 1)}>↓</button>
+      </>}
+      <button role="switch" className="switch" aria-checked={!layout.hidden.includes(b)} aria-label={`Показывать: ${BLOCKS[b]}`} onClick={() => toggle(b)}><i /></button>
+    </li>
+  )
+  return (
+    <Sheet title="Настроить главную" onClose={onClose}>
+      <p className="sub">Питание и вода всегда наверху. Остальное — как удобно вам.</p>
+      <ul className="home-settings">
+        {layout.order.map((b, i) => row(b, i))}
+        {row('weight')}
+        {row('usual')}
+      </ul>
+      <button className="link" onClick={() => onChange(DEFAULT_LAYOUT)}>Вернуть как было</button>
+    </Sheet>
+  )
+}
+
 export default function Home(props: {
   name: string
   level: number
@@ -124,6 +175,14 @@ export default function Home(props: {
 }) {
   const { targets, day, water } = props
   const [waterOpen, setWaterOpen] = useState(false) // the glass with +/- and portions, under the day card
+  const [layout, setLayout] = useState(savedLayout)
+  const [arranging, setArranging] = useState(false)
+  const changeLayout = (l: Layout) => { setLayout(l); try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(l)) } catch { /* private mode */ } }
+  const shows = (b: Block) => !layout.hidden.includes(b)
+  const [portion, setPortion] = useState(savedPortion)
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressed = useRef(false)
+  const choosePortion = (ml: number) => { setPortion(ml); try { localStorage.setItem(PORTION_KEY, String(ml)) } catch { /* private mode */ } }
   const [today] = useState(() => {
     const s = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
     return s[0].toUpperCase() + s.slice(1)
@@ -178,7 +237,7 @@ export default function Home(props: {
         </div>
       </section>
 
-      {waterOpen && <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} />}
+      {waterOpen && <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} onPortion={choosePortion} />}
 
       {props.canEdit && (
         <div className="home-actions">
@@ -186,25 +245,33 @@ export default function Home(props: {
             {props.aiEnabled && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>}
             {props.aiEnabled ? 'Добавить еду' : '+ Добавить еду'}
           </button>
-          <button className="btn btn-ghost btn-side water-quick" aria-label="Добавить стакан воды, 250 мл" onClick={() => props.onWater(250)}>+💧 250</button>
+          <button className="btn btn-ghost btn-side water-quick" aria-label={`Добавить воды, ${portion} мл`} title="Зажмите — другие порции"
+            onPointerDown={() => { longPressed.current = false; pressTimer.current = setTimeout(() => { longPressed.current = true; navigator.vibrate?.(10); setWaterOpen(true) }, 450) }}
+            onPointerUp={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }} onPointerLeave={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }}
+            onContextMenu={(e) => e.preventDefault()}
+            onClick={() => { if (!longPressed.current) props.onWater(portion) }}>+💧 {portion}</button>
         </div>
       )}
-      {props.usual && <UsualCard {...props.usual} />}
+      {props.usual && shows('usual') && <UsualCard {...props.usual} />}
       {props.repeat && (
         <button className="link repeat-link" onClick={props.repeat.run}>↻ {props.repeat.title.toLowerCase()} · {fmt(props.repeat.kcal)} ккал</button>
       )}
 
-      <div className="card home-rows">
-        <button className="home-row" onClick={props.onWorkouts}>
-          <span className="home-row-icon" aria-hidden="true">🏋️</span>
-          <span className="step-text"><b>{next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
-            <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>
-          <span className="step-go" aria-hidden="true">›</span>
-        </button>
-        {props.habits}
-        {props.quests}
-      </div>
-      {props.weight}
+      {layout.order.some(shows) && (
+        <div className="card home-rows">
+          {layout.order.filter(shows).map((b) => b === 'workout' ? (
+            <button key={b} className="home-row" onClick={props.onWorkouts}>
+              <span className="home-row-icon" aria-hidden="true">🏋️</span>
+              <span className="step-text"><b>{next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
+                <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>
+              <span className="step-go" aria-hidden="true">›</span>
+            </button>
+          ) : <Fragment key={b}>{b === 'habits' ? props.habits : props.quests}</Fragment>)}
+        </div>
+      )}
+      {shows('weight') && props.weight}
+      {props.canEdit && <button className="link home-arrange" onClick={() => setArranging(true)}>⚙ Настроить главную</button>}
+      {arranging && <HomeSettings layout={layout} onChange={changeLayout} onClose={() => setArranging(false)} />}
     </>
   )
 }

@@ -1854,3 +1854,16 @@ def test_usual_meal(client, seeded):
     assert client.get("/api/usual?meal_type=snack2", headers=h).status_code == 422
     client.post("/api/food-logs", headers=h, json={"product_id": oats, "amount_g": 50, "meal_type": "breakfast"})
     assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # eaten today: nothing to offer
+
+
+def test_local_catalog(client, seeded):
+    h = new_user_headers()
+    pid = client.get("/api/products/search?q=Гречка", headers=h).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})
+    own = client.post("/api/products", headers=h, json={"name": "Мой суп локальный", "kcal": 50, "protein_g": 2, "fat_g": 1, "carbs_g": 6}).json()
+    items = client.get("/api/products/local", headers=h).json()
+    by_id = {i["id"]: i for i in items}
+    assert by_id[pid]["mine"] and by_id[own["id"]]["mine"] and items[0]["id"] == pid  # what I eat first
+    assert len(items) > 2 and all(i["brand"] is None or i["mine"] for i in items)  # the rest: common plain products
+    other = client.get("/api/products/local", headers=new_user_headers()).json()
+    assert own["id"] not in {i["id"] for i in other}  # private products stay private

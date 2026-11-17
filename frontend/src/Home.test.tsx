@@ -40,17 +40,25 @@ test('first steps: shows progress, runs a step, collapses to a bar and reopens',
   const steps = [
     { key: 'meal', title: 'Запишите, что съели', hint: '', done: true, action: vi.fn() },
     { key: 'water', title: 'Отметьте стакан воды', hint: 'Нажмите — добавим 250 мл', done: false, action: water },
+    { key: 'program', title: 'Выберите программу', hint: '', done: false, action: vi.fn() },
   ]
   render(<FirstSteps steps={steps} />)
-  expect(screen.getByText('1 из 2')).toBeTruthy()
+  expect(screen.getByText('1 из 3')).toBeTruthy()
   expect((screen.getByRole('button', { name: 'Запишите, что съели — сделано' }) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Отметьте стакан воды' }))
   expect(water).toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Свернуть' }))
   expect(screen.queryByLabelText('Первые шаги')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Первые шаги: 1 из 2. Открыть' })) // the bar brings it back
+  fireEvent.click(screen.getByRole('button', { name: 'Первые шаги: 1 из 3. Открыть' })) // the bar brings it back
   expect(screen.getByLabelText('Первые шаги')).toBeTruthy()
   localStorage.clear()
+})
+
+test('first steps fold into the bar by themselves past half', () => {
+  localStorage.clear()
+  render(<FirstSteps steps={[{ key: 'a', title: 'A', hint: '', done: true, action: () => {} }, { key: 'b', title: 'Б', hint: '', done: false, action: () => {} }]} />)
+  expect(screen.queryByLabelText('Первые шаги')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Первые шаги: 1 из 2. Открыть' })).toBeTruthy()
 })
 
 test('first steps disappear when everything is done', () => {

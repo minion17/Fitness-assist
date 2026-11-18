@@ -170,28 +170,21 @@ function Slider({ label, levels, value, onChange, left, right }: {
   )
 }
 
-function OptionSlider({ label, options, value, onChange, multi = false }: {
-  label: string; options: Opt; value: string | string[] | undefined; onChange: (value: string) => void; multi?: boolean
+function OptionSlider({ label, options, value, onChange }: {
+  label: string; options: Opt; value: string | undefined; onChange: (value: string) => void
 }) {
   const entries = Object.entries(options)
-  const [multiCursor, setMultiCursor] = useState(0)
-  const cursor = multi ? multiCursor : entries.findIndex(([key]) => key === value)
+  const cursor = entries.findIndex(([key]) => key === value)
   const current = entries[cursor]
   const caption = current?.[1] ?? 'Выберите ответ'
-  const selected = multi && Array.isArray(value) && value.includes(current[0])
   return <div className="card q-slider q-option-slider">
     <strong>{caption}</strong>
-    <input type="range" min={multi ? 0 : -1} max={entries.length - 1} step="1" value={cursor} aria-label={label}
+    <input type="range" min={-1} max={entries.length - 1} step="1" value={cursor} aria-label={label}
       aria-valuetext={caption} onChange={(event) => {
         const index = Number(event.target.value)
-        if (multi) setMultiCursor(index)
-        else onChange(entries[index]?.[0] ?? '')
+        onChange(entries[index]?.[0] ?? '')
       }} />
     <div className="q-slider-ends"><span>{entries[0][1]}</span><span>{entries[entries.length - 1][1]}</span></div>
-    {multi && <button type="button" className="btn btn-ghost" aria-pressed={selected} onClick={() => onChange(entries[cursor][0])}>
-      {selected ? 'Убрать' : 'Выбрать'}
-    </button>}
-    {multi && (value as string[]).length > 0 && <p className="sub">Выбрано: {(value as string[]).map((key) => options[key]).filter(Boolean).join(', ')}</p>}
   </div>
 }
 
@@ -220,6 +213,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
   }
 
   function go(step: number) {
+    if (autoNext.current) clearTimeout(autoNext.current)
     setError('')
     setAt((i) => Math.max(0, Math.min(screens.length - 1, i + step)))
     window.scrollTo(0, 0)
@@ -281,12 +275,9 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
   const photo = (file: string, alt: string) => <img className="q-photo" src={IMG + file} alt={alt} />
   const optionsSlider = (label: string, options: Opt, key: keyof Draft) =>
     <OptionSlider label={label} options={options} value={d[key] as string | undefined} onChange={set(key)} />
-  const multiSlider = (label: string, options: Opt, key: 'equipment' | 'focus' | 'allergies') =>
-    <OptionSlider label={label} options={options} value={d[key]} onChange={toggle(key)} multi />
-
   function body() {
     switch (screen.key) {
-      case 'sex': return optionsSlider('Пол', SEX, 'sex')
+      case 'sex': return <Cards label="Пол" options={SEX} value={d.sex} onChange={pick('sex')} grid />
       case 'about': return <>{numField('birth_year')}<div className="grid2">{numField('height_cm')}{numField('weight_kg', true)}</div></>
       case 'goal': return <Cards label="Основная цель" options={GOALS} value={d.goal} onChange={pick('goal', () => ({ target_weight_kg: undefined }))} />
       case 'body_now': return <>
@@ -309,23 +300,24 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       case 'squats': return <>{photo('bodyweight_squat.jpg', 'Приседания')}{optionsSlider('Приседания', SQUATS, 'squats')}</>
       case 'pushups': return <>{photo('pushup_floor.webp', 'Отжимания от пола')}{optionsSlider('Отжимания', PUSHUPS, 'pushups')}</>
       case 'pullups': return <>{photo('pullup.webp', 'Подтягивания')}{optionsSlider('Подтягивания', PULLUPS, 'pullups')}</>
-      case 'activity': return optionsSlider('Повседневная активность', ACTIVITY, 'activity')
-      case 'place': return <OptionSlider label="Место тренировок" options={PLACE} value={d.place} onChange={(v) => setD((p) => ({ ...p, place: v, equipment: p.place === v && p.equipment.length ? p.equipment : (PLACE_EQUIPMENT[v] ?? []) }))} />
-      case 'equipment': return multiSlider('Доступное оборудование', EQUIPMENT, 'equipment')
+      case 'activity': return <Cards label="Повседневная активность" options={ACTIVITY} value={d.activity} onChange={pick('activity')} />
+      case 'place': return <Cards label="Место тренировок" options={PLACE} value={d.place}
+        onChange={pick('place', (v) => (d.place === v && d.equipment.length ? {} : { equipment: PLACE_EQUIPMENT[v] }))} />
+      case 'equipment': return <Cards label="Доступное оборудование" options={EQUIPMENT} value={d.equipment} onChange={toggle('equipment')} multi grid />
       case 'schedule': return <>
         <fieldset className="field"><legend>Дней в неделю</legend>{optionsSlider('Дней в неделю', DAYS, 'sessions_per_week')}</fieldset>
         <fieldset className="field"><legend>Длительность тренировки</legend>{optionsSlider('Длительность тренировки', MINUTES, 'session_minutes')}</fieldset>
       </>
-      case 'focus': return multiSlider('Упор', FOCUS, 'focus')
+      case 'focus': return <Cards label="Упор" options={FOCUS} value={d.focus} onChange={toggle('focus')} multi grid />
       case 'meals': return optionsSlider('Приёмов пищи в день', MEALS, 'meals_per_day')
       case 'recovery': return <>
         <fieldset className="field"><legend>Сон, часов</legend><div className="card q-slider"><strong>{d.sleep_hours ?? '8'} ч</strong><input type="range" min="3" max="12" step="0.5" aria-label="Сон, часов" value={d.sleep_hours ?? 8} onChange={(e) => set('sleep_hours')(e.target.value)} onPointerUp={(e) => set('sleep_hours')(e.currentTarget.value)} /></div></fieldset>
         <fieldset className="field"><legend>Уровень стресса</legend>{optionsSlider('Уровень стресса', STRESS, 'stress')}</fieldset>
       </>
       case 'health': return <>
-        <fieldset className="field"><legend>Аллергии и непереносимость — если нет, пропустите</legend>{multiSlider('Аллергии', ALLERGIES, 'allergies')}</fieldset>
-        <fieldset className="field"><legend>Есть ли травмы или ограничения?</legend>{optionsSlider('Травмы', YES_NO, 'has_injury')}</fieldset>
-        {d.has_injury === 'yes' && <fieldset className="field"><legend>Какая зона?</legend>{optionsSlider('Зона', INJURY, 'injury')}</fieldset>}
+        <fieldset className="field"><legend>Аллергии и непереносимость — если нет, пропустите</legend><Cards label="Аллергии" options={ALLERGIES} value={d.allergies} onChange={toggle('allergies')} multi grid /></fieldset>
+        <fieldset className="field"><legend>Есть ли травмы или ограничения?</legend><Cards label="Травмы" options={YES_NO} value={d.has_injury} onChange={set('has_injury')} grid /></fieldset>
+        {d.has_injury === 'yes' && <fieldset className="field"><legend>Какая зона?</legend><Cards label="Зона" options={INJURY} value={d.injury} onChange={set('injury')} grid /></fieldset>}
       </>
       case 'plan': return <Plan d={d} />
     }

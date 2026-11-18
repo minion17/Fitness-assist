@@ -685,9 +685,14 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .first-steps-bar { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 16px; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .first-steps-ring { flex: none; width: 26px; height: 26px; border-radius: 50%; background: conic-gradient(var(--accent) var(--p), var(--ring-track) 0); -webkit-mask: radial-gradient(circle, transparent 7px, #000 8px); mask: radial-gradient(circle, transparent 7px, #000 8px); }
 
-/* Touch feedback: everything tappable gives a little under the finger */
-button:not(:disabled), .btn, .chip { transition: transform .12s ease, background-color .15s ease, opacity .15s ease; }
-button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97); }
+/* Shared feedback for tappable controls and expandable rows. */
+button:not(:disabled), summary, .btn, .chip { transition: transform .12s ease, background-color .15s ease, opacity .15s ease; }
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+  :where(button, .btn, summary):not(:disabled):not([aria-disabled="true"]):hover:not(:active) {
+    transform: scale(.985);
+  }
+}
+button:not(:disabled):active, .btn:not(:disabled):active, summary:active { transform: scale(.97); }
 @media (prefers-reduced-motion: reduce) { button, .btn, .chip { transition: none; } button:active, .btn:active { transform: none; } }
 
 /* Section tabs (Прогресс: мой / друзья): underlined, so they don't look like the period switch below */
@@ -1058,7 +1063,6 @@ button:not(:disabled):active, .btn:not(:disabled):active { transform: scale(.97)
 .meal-q-taste-action.is-dislike { color:var(--muted); }
 .meal-q-taste-progress { color:var(--muted); text-align:center; font-size:12px; font-weight:600; }
 .meal-q-counter button:focus-visible, .meal-q-meal:focus-visible, .meal-q-option:focus-visible, .meal-q-budget-range:focus-visible, .meal-q-taste-action:focus-visible { outline:2px solid var(--accent-text); outline-offset:3px; }
-@media (hover:hover) { .meal-q-meal:hover, .meal-q-option:hover, .meal-q-taste-action:hover, .meal-q-counter button:not(:disabled):hover { transform:translateY(-2px); } }
 .meal-q-meal:active, .meal-q-option:active, .meal-q-taste-action:active, .meal-q-counter button:not(:disabled):active { transform:scale(.97); }
 @keyframes meal-q-appear { from { opacity:0; transform:translateY(6px) scale(.98); } to { opacity:1; transform:none; } }
 @media (max-width:360px) { .meal-q-meal, .meal-q-option { padding:12px; } .meal-q-taste-card { min-height:195px; } .meal-q-taste-action { padding-inline:9px; } }

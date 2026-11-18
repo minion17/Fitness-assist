@@ -1,6 +1,6 @@
 // Bot reminder settings (Profile). Saved on every change; the bot reads them once a minute.
 import { useEffect, useState } from 'react'
-import { api, ApiError } from './telegram'
+import { api, ApiError, postJson } from './telegram'
 import { Chevron } from './ui'
 
 type Settings = {
@@ -25,7 +25,23 @@ export default function Reminders() {
   const [s, setS] = useState<Settings | null>(null)
   const [expanded, setExpanded] = useState(false)
   const [error, setError] = useState('')
+  const [next, setNext] = useState<{ at: string; what: string; tomorrow: boolean } | null>(null)
+  const [test, setTest] = useState<'idle' | 'wait' | 'ok' | 'fail'>('idle')
   useEffect(() => { api<Settings>('/api/reminders').then(setS).catch(() => setError('Не удалось загрузить напоминания')) }, [])
+  useEffect(() => { if (expanded) api<typeof next>('/api/reminders/next').then(setNext).catch(() => {}) }, [expanded, s])
+
+  /** A message through the bot now; if the bot doesn't pick it up in 20 s, it isn't running. */
+  async function sendTest() {
+    setTest('wait')
+    try {
+      const r = await api<{ id: number }>('/api/reminders/test', postJson({}))
+      for (let i = 0; i < 10; i++) {
+        await new Promise((ok) => setTimeout(ok, 2000))
+        if ((await api<{ sent: boolean }>(`/api/reminders/test/${r!.id}`))?.sent) return setTest('ok')
+      }
+    } catch { /* below */ }
+    setTest('fail')
+  }
   if (!s) return error ? <p className="error">{error}</p> : null
 
   async function save(patch: Partial<Settings>) {
@@ -80,6 +96,12 @@ export default function Reminders() {
           <Switch on={s.weekly} label="Присылать итоги недели" onChange={(v) => save({ weekly: v })} />
         </div>
         {s.weekly && <div className="time-row"><Time label="В воскресенье в" value={s.weekly_at} onChange={(v) => save({ weekly_at: v })} /></div>}
+      </div>
+      <div className="reminders-test">
+        {next && <p className="sub">Ближайшее: {next.what} {next.tomorrow ? 'завтра' : 'сегодня'} в {next.at} — придёт, только если это ещё не сделано.</p>}
+        <button className="btn btn-ghost" disabled={test === 'wait'} onClick={sendTest}>{test === 'wait' ? 'Отправляем…' : '🔔 Прислать пробное в чат'}</button>
+        {test === 'ok' && <p className="sub" role="status">Отправлено — проверьте чат с ботом.</p>}
+        {test === 'fail' && <p className="error" role="alert">Бот не ответил: он не запущен. Напоминания отправляет компьютер с сервером — он должен быть включён, а окно «FA бот» открыто.</p>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}
       </div></div>

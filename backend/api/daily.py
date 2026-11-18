@@ -9,7 +9,7 @@ from sqlalchemy.dialects.postgresql import insert
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FoodLog, FrozenDay, HabitCheck, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
+from backend.database.models import FoodLog, FrozenDay, HabitCheck, Outbox, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -172,6 +172,50 @@ async def get_reminders(tg: dict = Depends(telegram_user), session: AsyncSession
     user = await get_or_create_user(tg, session)
     cfg = await session.get(ReminderSettings, user.id)
     return {k: getattr(cfg, k) for k in REMINDER_FIELDS} if cfg else REMINDER_DEFAULTS
+
+
+def next_reminder(cfg: dict, now: datetime) -> dict | None:
+    """The nearest reminder time from the settings (local "HH:MM"), today or tomorrow. Whether it is sent depends on the
+    day: a meal already logged or water on track sends nothing."""
+    times = []
+    if cfg["meals"]:
+        times += [(cfg["breakfast_at"], "завтрак"), (cfg["lunch_at"], "обед"), (cfg["dinner_at"], "ужин")]
+    if cfg["water"]:
+        times += [("12:00", "вода"), ("16:00", "вода"), ("19:00", "вода")]
+    if cfg["streak"]:
+        times.append((cfg["streak_at"], "серия дней"))
+    if not times:
+        return None
+    hm = now.strftime("%H:%M")
+    later = sorted(t for t in times if t[0] > hm)
+    at, what = later[0] if later else min(times)
+    return {"at": at, "what": what, "tomorrow": not later}
+
+
+@router.get("/reminders/next")
+async def get_next_reminder(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    cfg = await session.get(ReminderSettings, user.id)
+    return next_reminder({k: getattr(cfg, k) for k in REMINDER_FIELDS} if cfg else REMINDER_DEFAULTS, clock.now())
+
+
+@router.post("/reminders/test")
+async def test_reminder(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """A message through the bot right now: shows the whole path works (the bot is running and may write to the chat)."""
+    user = await get_or_create_user(tg, session)
+    m = Outbox(telegram_id=user.telegram_id, kind="text", text="🔔 Проверка: напоминания Setly приходят в этот чат.")
+    session.add(m)
+    await session.commit()
+    return {"id": m.id}
+
+
+@router.get("/reminders/test/{mid}")
+async def test_reminder_state(mid: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    m = await session.get(Outbox, mid)
+    if m is None or m.telegram_id != user.telegram_id:
+        return {"sent": False}
+    return {"sent": m.sent_at is not None}
 
 
 @router.put("/reminders")

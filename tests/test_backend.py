@@ -1963,3 +1963,21 @@ def test_typo_match_keeps_the_first_letter():
     assert fuzzy_match(["гричка"], "гречка ядрица") > 0  # a real typo
     # "картошка жареная" must not pull in a brand "Коровка из Кореновки" by sound alone
     assert fuzzy_match(["картошка", "жареная"], "пломбир шоколадный коровка из кореновки") == 0
+
+
+def test_next_reminder_and_test_message(client):
+    from datetime import datetime
+
+    from backend.api.daily import REMINDER_DEFAULTS, next_reminder
+
+    at = lambda h, m: datetime(2026, 11, 19, h, m)  # noqa: E731
+    assert next_reminder(REMINDER_DEFAULTS, at(4, 0)) == {"at": "10:00", "what": "завтрак", "tomorrow": False}
+    assert next_reminder(REMINDER_DEFAULTS, at(12, 30)) == {"at": "14:00", "what": "обед", "tomorrow": False}
+    assert next_reminder(REMINDER_DEFAULTS, at(22, 0)) == {"at": "10:00", "what": "завтрак", "tomorrow": True}
+    assert next_reminder({**REMINDER_DEFAULTS, "meals": False, "water": False, "streak": False}, at(9, 0)) is None
+
+    h = new_user_headers()
+    mid = client.post("/api/reminders/test", headers=h).json()["id"]
+    assert client.get(f"/api/reminders/test/{mid}", headers=h).json() == {"sent": False}  # the bot hasn't run here
+    assert client.get(f"/api/reminders/test/{mid}", headers=new_user_headers()).json() == {"sent": False}  # not yours
+    assert client.get("/api/reminders/next", headers=h).json()["what"]

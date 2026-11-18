@@ -1623,3 +1623,5 @@ body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-f
 .daily-progress-ring[aria-expanded='true'] .day-why-hint .chev { transform: rotate(180deg); }
 .day-why li.day-why-title { display: flex; flex-direction: column; gap: 2px; }
 .day-why li.day-why-title b { color: var(--text); font-size: 16px; }
+.reminders-test { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.reminders-test .sub { margin: 0; }

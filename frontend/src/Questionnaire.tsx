@@ -3,6 +3,7 @@
 // often one trains. Ends with an honest plan summary. All calculations stay on the server.
 import { useEffect, useRef, useState } from 'react'
 import BodyFigure from './BodyFigure'
+import MealRange from './MealRange'
 import { NOW_LEVELS, TARGET_LEVELS, nowShape, targetShape } from './bodyShape'
 import { YEAR, type ProfileData } from './profile'
 
@@ -126,6 +127,7 @@ const SCREENS: Screen[] = [
   { key: 'body_now', title: 'Каково ваше телосложение?', hint: 'Сдвиньте ползунок, чтобы фигура была похожа на вашу.', check: (d) => (!d.body_now ? 'Сдвиньте ползунок' : null) },
   { key: 'body_target', title: 'Какое телосложение — цель?', hint: 'К чему хотите прийти.', check: (d) => (!d.body_target ? 'Сдвиньте ползунок' : null) },
   { key: 'target', title: 'Желаемый вес', hint: 'Подставили ориентир по цели — поправьте под себя.', check: (d) => checkNum(d, 'target_weight_kg') },
+  { key: 'body_summary', title: 'Ваш ориентир' },
   { key: 'experience', title: 'Как давно тренируетесь?', check: (d) => (!d.experience ? 'Выберите уровень подготовки' : null) },
   { key: 'squats', title: 'Сколько приседаний подряд вы сделаете?', hint: 'Без перерыва, в спокойном темпе.', check: (d) => (!d.squats ? 'Выберите ответ' : null) },
   { key: 'pushups', title: 'А отжиманий?', hint: 'От пола, без перерыва.', check: (d) => (!d.pushups ? 'Выберите ответ' : null) },
@@ -158,13 +160,12 @@ function Cards({ label, options, value, onChange, multi, grid }: {
 }
 
 function Slider({ label, levels, value, onChange, left, right }: {
-  label: string; levels: number; value: number | undefined; onChange: (v: number) => void; left: string; right: string
+  label: string; levels: number; value: number; onChange: (v: number) => void; left: string; right: string
 }) {
   return (
-    <div className="card q-slider">
-      <input type="range" min={1} max={levels} step={1} value={value ?? Math.ceil(levels / 2)} aria-label={label}
-        className={value ? '' : 'untouched'} onChange={(e) => onChange(Number(e.target.value))}
-        onPointerUp={(e) => onChange(Number(e.currentTarget.value))} />
+    <div className="q-slider">
+      <MealRange label={label} min={1} max={levels} step={1} value={value} onChange={onChange}
+        valueText={`${value} из ${levels}`} stops={Array.from({ length: levels }, (_, i) => i + 1)} />
       <div className="q-slider-ends"><span>{left}</span><span>{right}</span></div>
     </div>
   )
@@ -175,17 +176,42 @@ function OptionSlider({ label, options, value, onChange }: {
 }) {
   const entries = Object.entries(options)
   const cursor = entries.findIndex(([key]) => key === value)
-  const current = entries[cursor]
-  const caption = current?.[1] ?? 'Выберите ответ'
-  return <div className="card q-slider q-option-slider">
+  const caption = entries[cursor]?.[1] ?? 'Выберите ответ'
+  return <div className="q-slider">
     <strong>{caption}</strong>
-    <input type="range" min={-1} max={entries.length - 1} step="1" value={cursor} aria-label={label}
-      aria-valuetext={caption} onChange={(event) => {
-        const index = Number(event.target.value)
-        onChange(entries[index]?.[0] ?? '')
-      }} />
+    <MealRange label={label} min={0} max={entries.length - 1} step={1} value={Math.max(0, cursor)}
+      valueText={caption} stops={entries.map((_, i) => i)} onChange={index => onChange(entries[index][0])} />
     <div className="q-slider-ends"><span>{entries[0][1]}</span><span>{entries[entries.length - 1][1]}</span></div>
   </div>
+}
+
+const weightStops = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300]
+const sleepStops = [3, 4.5, 6, 7.5, 9, 10.5, 12]
+
+function BodySummary({ draft, sex }: { draft: Draft; sex: 'male' | 'female' }) {
+  const weight = num(draft.weight_kg)
+  const target = num(draft.target_weight_kg)
+  const difference = Math.round((target - weight) * 100) / 100
+  const goal = GOALS[draft.goal ?? '']?.replace(/^\S+\s/, '')
+  return <>
+    <div className="q-body-summary-intro">
+      <p className="sub">{goal}</p>
+      <h2>{difference === 0 ? 'Сохранить текущий вес' : `${difference < 0 ? 'Снизить вес' : 'Набрать вес'} на ${Math.abs(difference).toLocaleString('ru-RU')} кг`}</h2>
+    </div>
+    <div className="q-body-summary">
+      <div className="card">
+        <span>Сейчас</span>
+        <BodyFigure sex={sex} {...nowShape(draft.body_now ?? Math.ceil(NOW_LEVELS / 2))} label="Текущее телосложение" />
+        <strong>{weight.toLocaleString('ru-RU')} кг</strong>
+      </div>
+      <div className="card">
+        <span>Цель</span>
+        <BodyFigure sex={sex} {...targetShape(draft.body_target ?? 2)} label="Желаемое телосложение" />
+        <strong>{target.toLocaleString('ru-RU')} кг</strong>
+      </div>
+    </div>
+    <p className="sub">Дальше уточним вашу подготовку, чтобы подобрать тренировки под эту цель.</p>
+  </>
 }
 
 export default function Questionnaire({ initial, health = false, onSave, onCancel }: {
@@ -282,20 +308,27 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       case 'goal': return <Cards label="Основная цель" options={GOALS} value={d.goal} onChange={pick('goal', () => ({ target_weight_kg: undefined }))} />
       case 'body_now': return <>
         <BodyFigure sex={sex} {...nowShape(d.body_now ?? Math.ceil(NOW_LEVELS / 2))} label={`Телосложение: ${d.body_now ?? '—'} из ${NOW_LEVELS}`} />
-        <Slider label="Телосложение сейчас" levels={NOW_LEVELS} value={d.body_now} onChange={set('body_now')} left="Меньше жира" right="Больше жира" />
+        <Slider label="Телосложение сейчас" levels={NOW_LEVELS} value={d.body_now ?? Math.ceil(NOW_LEVELS / 2)} onChange={set('body_now')} left="Меньше жира" right="Больше жира" />
       </>
       case 'body_target': return <>
         <BodyFigure sex={sex} {...targetShape(d.body_target ?? 2)} label={`Цель: ${d.body_target ?? '—'} из ${TARGET_LEVELS}`} />
-        <Slider label="Целевое телосложение" levels={TARGET_LEVELS} value={d.body_target} onChange={set('body_target')}
+        <Slider label="Целевое телосложение" levels={TARGET_LEVELS} value={d.body_target ?? 2} onChange={set('body_target')}
           left={sex === 'female' ? 'Стройное и подтянутое' : 'Стройное и атлетичное'} right={sex === 'female' ? 'Спортивное и рельефное' : 'Сильное и массивное'} />
       </>
       case 'target': {
         const w = num(d.weight_kg), t = num(d.target_weight_kg)
         return <>
-          <div className="card q-slider"><strong>{d.target_weight_kg ?? '70'} кг</strong><input type="range" min="30" max="300" step="0.5" aria-label="Желаемый вес" value={d.target_weight_kg ?? 70} onChange={(e) => set('target_weight_kg')(e.target.value)} onPointerUp={(e) => set('target_weight_kg')(e.currentTarget.value)} /><div className="q-slider-ends"><span>30 кг</span><span>300 кг</span></div></div>
+          <div className="q-slider">
+            <strong>{(t || 70).toLocaleString('ru-RU')} кг</strong>
+            <MealRange label="Желаемый вес" min={NUM.target_weight_kg.min} max={NUM.target_weight_kg.max}
+              step={0.5} value={t || 70} valueText={`${t || 70} кг`} stops={weightStops}
+              onChange={value => set('target_weight_kg')(String(value))} />
+            <div className="q-slider-ends"><span>30 кг</span><span>300 кг</span></div>
+          </div>
           {w > 0 && t > 0 && <p className="sub">{t < w ? `Минус ${(w - t).toLocaleString('ru-RU')} кг` : t > w ? `Плюс ${(t - w).toLocaleString('ru-RU')} кг` : 'Сохранить текущий вес'} · сейчас {w.toLocaleString('ru-RU')} кг</p>}
         </>
       }
+      case 'body_summary': return <BodySummary draft={d} sex={sex} />
       case 'experience': return optionsSlider('Уровень подготовки', EXPERIENCE, 'experience')
       case 'squats': return <>{photo('bodyweight_squat.jpg', 'Приседания')}{optionsSlider('Приседания', SQUATS, 'squats')}</>
       case 'pushups': return <>{photo('pushup_floor.webp', 'Отжимания от пола')}{optionsSlider('Отжимания', PUSHUPS, 'pushups')}</>
@@ -311,7 +344,16 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       case 'focus': return <Cards label="Упор" options={FOCUS} value={d.focus} onChange={toggle('focus')} multi grid />
       case 'meals': return optionsSlider('Приёмов пищи в день', MEALS, 'meals_per_day')
       case 'recovery': return <>
-        <fieldset className="field"><legend>Сон, часов</legend><div className="card q-slider"><strong>{d.sleep_hours ?? '8'} ч</strong><input type="range" min="3" max="12" step="0.5" aria-label="Сон, часов" value={d.sleep_hours ?? 8} onChange={(e) => set('sleep_hours')(e.target.value)} onPointerUp={(e) => set('sleep_hours')(e.currentTarget.value)} /></div></fieldset>
+        <fieldset className="field">
+          <legend>Сон, часов</legend>
+          <div className="q-slider">
+            <strong>{(num(d.sleep_hours) || 8).toLocaleString('ru-RU')} ч</strong>
+            <MealRange label="Сон, часов" min={NUM.sleep_hours.min} max={NUM.sleep_hours.max}
+              step={0.5} value={num(d.sleep_hours) || 8} stops={sleepStops}
+              onChange={value => set('sleep_hours')(String(value))} />
+            <div className="q-slider-ends"><span>3 ч</span><span>12 ч</span></div>
+          </div>
+        </fieldset>
         <fieldset className="field"><legend>Уровень стресса</legend>{optionsSlider('Уровень стресса', STRESS, 'stress')}</fieldset>
       </>
       case 'health': return <>

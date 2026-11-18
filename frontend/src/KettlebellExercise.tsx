@@ -7,21 +7,21 @@ import { useBack } from './back'
 
 type Guide = { image?: string; startImage?: string; endImage?: string; endLabel?: string; muscles: string; steps: string }
 const GUIDE: Record<string, Guide> = {
-  'Жим штанги лежа': { image: 'barbell_bench', endImage: 'barbell_bench_position2.png', endLabel: 'Нижнее положение', muscles: 'Грудь, трицепсы, плечи', steps: 'Лягте на устойчивую скамью, уприте стопы в пол. Контролируемо опустите штангу к груди и выжмите вверх.' },
-  'Приседания со штангой': { image: 'barbell_squat', startImage: 'barbell_squat_position2.png', muscles: 'Квадрицепсы, ягодицы, мышцы корпуса', steps: 'Расположите гриф на верхней части спины. Присядьте в комфортную глубину и выпрямитесь, сохраняя устойчивость.' },
-  'Становая тяга': { image: 'barbell_deadlift', endImage: 'barbell_deadlift_position2.png', muscles: 'Ягодицы, задняя поверхность бедра, спина', steps: 'Подойдите к грифу, отведите таз назад, возьмитесь за штангу и поднимитесь, сохраняя её близко к ногам.' },
+  'Жим штанги лежа': { image: 'barbell_bench', endImage: 'barbell_bench_position2.webp', endLabel: 'Нижнее положение', muscles: 'Грудь, трицепсы, плечи', steps: 'Лягте на устойчивую скамью, уприте стопы в пол. Контролируемо опустите штангу к груди и выжмите вверх.' },
+  'Приседания со штангой': { image: 'barbell_squat', startImage: 'barbell_squat_position2.webp', muscles: 'Квадрицепсы, ягодицы, мышцы корпуса', steps: 'Расположите гриф на верхней части спины. Присядьте в комфортную глубину и выпрямитесь, сохраняя устойчивость.' },
+  'Становая тяга': { image: 'barbell_deadlift', endImage: 'barbell_deadlift_position2.webp', muscles: 'Ягодицы, задняя поверхность бедра, спина', steps: 'Подойдите к грифу, отведите таз назад, возьмитесь за штангу и поднимитесь, сохраняя её близко к ногам.' },
   'Становая тяга сумо': { image: 'sumo_deadlift', endImage: 'sumo_deadlift_position2.png', muscles: 'Ягодицы, бёдра, мышцы спины', steps: 'Поставьте ноги широко, разверните носки и возьмитесь за гриф между ног. Поднимитесь, удерживая спину нейтральной.' },
   'Становая тяга с трэп-грифом': { image: 'trapbar_deadlift', endImage: 'trapbar_deadlift_position2.png', muscles: 'Квадрицепсы, ягодицы, задняя поверхность бедра', steps: 'Встаньте внутрь трэп-грифа, возьмитесь за рукояти и встаньте, удерживая корпус собранным.' },
   'Жим штанги на наклонной скамье': { image: 'incline_barbell_press', startImage: 'incline_barbell_press_position2.png', endLabel: 'Нижнее положение', muscles: 'Верх груди, плечи, трицепсы', steps: 'Лягте на наклонную скамью, опустите штангу к верхней части груди и выжмите вверх.' },
   'Жим штанги узким хватом': { image: 'closegrip_bench', endImage: 'closegrip_bench_position2.png', endLabel: 'Нижнее положение', muscles: 'Трицепсы, грудь, плечи', steps: 'Лёжа на скамье возьмитесь за гриф примерно на ширине плеч. Опустите к груди и выжмите вверх.' },
   'Фронтальные приседания со штангой': { image: 'front_squat', startImage: 'front_squat_position2.png', muscles: 'Квадрицепсы, ягодицы, мышцы корпуса', steps: 'Удерживая гриф перед плечами, присядьте с ровным корпусом и поднимитесь, толкаясь стопами.' },
-  'Выпады со штангой': { image: 'barbell_lunge', startImage: 'barbell_lunge_position2.png', muscles: 'Квадрицепсы, ягодицы', steps: 'Стабильно установите гриф на верхней части спины. Сделайте шаг, опуститесь в выпад и вернитесь.' },
-  'Шраги со штангой': { image: 'barbell_shrug', startImage: 'barbell_shrug_position2.png', muscles: 'Трапециевидные мышцы', steps: 'Держа штангу перед собой, поднимите плечи вверх без кругового движения. Плавно опустите.' },
-  'Наклоны в сторону со штангой': { image: 'barbell_side_bend', startImage: 'barbell_side_bend_position2.png', muscles: 'Боковые мышцы корпуса, разгибатели спины', steps: 'Удерживая гриф устойчиво, наклонитесь в сторону в комфортной амплитуде и вернитесь в центр.' },
-  'Зашагивания на платформу со штангой': { image: 'barbell_stepup', startImage: 'barbell_stepup_position2.png', muscles: 'Квадрицепсы, ягодицы', steps: 'Поставьте всю стопу на платформу и поднимитесь, опираясь на переднюю ногу. Спуститесь подконтрольно.' },
+  'Выпады со штангой': { image: 'barbell_lunge', startImage: 'barbell_lunge_position2.webp', muscles: 'Квадрицепсы, ягодицы', steps: 'Стабильно установите гриф на верхней части спины. Сделайте шаг, опуститесь в выпад и вернитесь.' },
+  'Шраги со штангой': { image: 'barbell_shrug', startImage: 'barbell_shrug_position2.webp', muscles: 'Трапециевидные мышцы', steps: 'Держа штангу перед собой, поднимите плечи вверх без кругового движения. Плавно опустите.' },
+  'Наклоны в сторону со штангой': { image: 'barbell_side_bend', startImage: 'barbell_side_bend_position2.webp', muscles: 'Боковые мышцы корпуса, разгибатели спины', steps: 'Удерживая гриф устойчиво, наклонитесь в сторону в комфортной амплитуде и вернитесь в центр.' },
+  'Зашагивания на платформу со штангой': { image: 'barbell_stepup', startImage: 'barbell_stepup_position2.webp', muscles: 'Квадрицепсы, ягодицы', steps: 'Поставьте всю стопу на платформу и поднимитесь, опираясь на переднюю ногу. Спуститесь подконтрольно.' },
   'Подтягивания широким хватом': { image: 'pullup_wide', startImage: 'pullup_wide_position2.png', muscles: 'Широчайшие мышцы спины, бицепсы', steps: 'Возьмитесь за перекладину шире плеч. Подтянитесь без рывка и плавно опуститесь.' },
   'Подтягивания прямым хватом': { image: 'pullup', startImage: 'pullup_position2.png', muscles: 'Широчайшие мышцы спины, бицепсы', steps: 'Возьмитесь за перекладину, подтянитесь без рывков и подконтрольно опуститесь.' },
-  'Тяга штанги в наклоне': { image: 'barbell_row', startImage: 'barbell_row_position2.png', muscles: 'Мышцы спины, бицепсы', steps: 'Наклонитесь с нейтральной спиной, подтяните штангу к корпусу и плавно опустите.' },
+  'Тяга штанги в наклоне': { image: 'barbell_row', startImage: 'barbell_row_position2.webp', muscles: 'Мышцы спины, бицепсы', steps: 'Наклонитесь с нейтральной спиной, подтяните штангу к корпусу и плавно опустите.' },
   'Армейский жим': { image: 'military_press', startImage: 'military_press_start.png', muscles: 'Дельты, трицепсы', steps: 'Установите штангу у верхней части груди. Выжмите её вверх над головой и опустите подконтрольно.' },
   'Выпады с гантелями': { image: 'dumbbell_lunge', startImage: 'dumbbell_lunge_position2.png', muscles: 'Квадрицепсы, ягодицы', steps: 'С гантелями по бокам сделайте шаг вперёд и опуститесь до комфортной глубины. Оттолкнитесь передней ногой и вернитесь.' },
   'Румынская тяга': { image: 'barbell_rdl.jpg', muscles: 'Задняя поверхность бедра, ягодицы, спина', steps: 'Слегка согните колени и отведите таз назад, ведя штангу вдоль ног. Выпрямитесь за счёт движения таза.' },
@@ -30,24 +30,24 @@ const GUIDE: Record<string, Guide> = {
   'Разгибание ног в тренажёре': { image: 'leg_extension', startImage: 'leg_extension_position2.png', muscles: 'Квадрицепсы', steps: 'Сядьте так, чтобы ось тренажёра совпадала с коленями. Разогните ноги без рывка и плавно вернитесь.' },
   'Сгибание ног в тренажёре': { image: 'leg_curl', startImage: 'leg_curl_position2.png', muscles: 'Задняя поверхность бедра', steps: 'Зафиксируйте корпус на тренажёре. Согните ноги, подтягивая валик к бёдрам, затем медленно разогните.' },
   'Махи гантелями в стороны': { image: 'lateral_raise', startImage: 'lateral_raise_position2.png', muscles: 'Средняя часть дельтовидных мышц', steps: 'Поднимите гантели в стороны до уровня плеч, сохраняя мягкий сгиб локтей. Опустите плавно.' },
-  'Подъём штанги на бицепс': { image: 'barbell_curl', startImage: 'barbell_curl_position2.png', muscles: 'Бицепсы', steps: 'Держа локти у корпуса, согните руки и поднимите штангу. Опустите её контролируемо.' },
+  'Подъём штанги на бицепс': { image: 'barbell_curl', startImage: 'barbell_curl_position2.webp', muscles: 'Бицепсы', steps: 'Держа локти у корпуса, согните руки и поднимите штангу. Опустите её контролируемо.' },
   'Французский жим': { image: 'french_press', startImage: 'french_press_position2.png', muscles: 'Трицепсы', steps: 'Лёжа на скамье, согните руки и опустите гриф за линию лба. Разогните локти, удерживая плечи стабильными.' },
-  'Разгибание рук на блоке': { image: 'cable_pushdown', startImage: 'cable_pushdown_position2.png', muscles: 'Трицепсы', steps: 'Прижмите локти к корпусу. Разогните руки вниз и вернитесь в исходное положение без раскачивания.' },
+  'Разгибание рук на блоке': { image: 'cable_pushdown', startImage: 'cable_pushdown_position2.webp', muscles: 'Трицепсы', steps: 'Прижмите локти к корпусу. Разогните руки вниз и вернитесь в исходное положение без раскачивания.' },
   'Отжимания на брусьях': { image: 'parallel_dip', startImage: 'parallel_dip_position2.png', muscles: 'Трицепсы, грудь, передняя часть плеч', steps: 'На брусьях согните руки и опуститесь в комфортную глубину. Выжмите себя вверх без раскачивания.' },
   'Тяга гантели в наклоне': { image: 'dumbbell_row', startImage: 'dumbbell_row_position2.png', muscles: 'Широчайшие и ромбовидные мышцы спины', steps: 'С опорой рукой на скамью подтяните гантель к тазу, не разворачивая корпус. Плавно опустите.' },
   'Тяга верхнего блока к груди': { image: 'lat_pulldown', startImage: 'lat_pulldown_position2.png', muscles: 'Широчайшие мышцы спины, бицепсы', steps: 'Сядьте под упоры и потяните перекладину к верхней части груди. Контролируемо верните её вверх.' },
   'Молотки с гантелями': { image: 'hammer_curl', muscles: 'Бицепсы, плечевая мышца', steps: 'Держите гантели нейтральным хватом. Согните руки, не уводя локти вперёд, и плавно опустите.' },
   'Жим гантелей сидя': { image: 'seated_db_press', startImage: 'seated_db_press_position2.png', muscles: 'Дельтовидные мышцы, трицепсы', steps: 'Сидя с опорой спины, выжмите гантели вверх. Опустите до комфортного уровня плеч.' },
-  'Гиперэкстензия': { image: 'back_extension', startImage: 'back_extension_position2.png', muscles: 'Разгибатели спины, ягодицы', steps: 'На римском стуле опустите корпус и поднимитесь до прямой линии тела, не переразгибая поясницу.' },
+  'Гиперэкстензия': { image: 'back_extension', startImage: 'back_extension_position2.webp', muscles: 'Разгибатели спины, ягодицы', steps: 'На римском стуле опустите корпус и поднимитесь до прямой линии тела, не переразгибая поясницу.' },
   'Ягодичный мост со штангой': { image: 'glute_bridge_barbell', startImage: 'glute_bridge_barbell_position2.png', muscles: 'Ягодицы, задняя поверхность бедра', steps: 'Верх спины опирается на скамью, штанга лежит на тазе. Поднимите таз до прямой линии корпуса и опустите.' },
   'Скручивания на полу': { image: 'crunch.jpg', muscles: 'Прямая мышца живота', steps: 'Лёжа на спине с согнутыми коленями, слегка приподнимите плечи за счёт мышц живота и плавно опуститесь.' },
   'Подъём ног в висе': { image: 'hanging_leg_raise.jpg', muscles: 'Мышцы живота и сгибатели бедра', steps: 'Повисните на перекладине без раскачивания. Поднимите согнутые или прямые ноги перед собой и опустите подконтрольно.' },
-  'Болгарские сплит-приседания': { image: 'bulgarian_split_squat.jpg', startImage: 'bulgarian_split_squat_position2.png', muscles: 'Квадрицепсы, ягодицы', steps: 'Поставьте заднюю стопу на невысокую опору. Опуститесь на передней ноге и вернитесь, удерживая корпус устойчиво.' },
+  'Болгарские сплит-приседания': { image: 'bulgarian_split_squat.jpg', startImage: 'bulgarian_split_squat_position2.webp', muscles: 'Квадрицепсы, ягодицы', steps: 'Поставьте заднюю стопу на невысокую опору. Опуститесь на передней ноге и вернитесь, удерживая корпус устойчиво.' },
   'Берпи': { image: 'burpee.jpg', muscles: 'Всё тело, мышцы корпуса', steps: 'Присядьте и поставьте ладони на пол, перейдите в упор лёжа, верните ноги к рукам и встаньте.' },
   'Скакалка': { image: 'jump_rope.jpg', muscles: 'Икроножные мышцы, плечи, мышцы корпуса', steps: 'Прыгайте невысоко, вращая скакалку кистями. Приземляйтесь мягко на переднюю часть стоп.' },
   'Жим штанги на скамье с обратным наклоном': { image: 'decline_bench.jpg', muscles: 'Нижняя часть груди, трицепсы, плечи', steps: 'Лягте на скамью с наклоном вниз и зафиксируйте ноги. Опустите гриф к нижней части груди и выжмите вверх.' },
   'Приседания с собственным весом': { image: 'bodyweight_squat.jpg', muscles: 'Квадрицепсы, ягодицы, мышцы корпуса', steps: 'Поставьте стопы примерно на ширине плеч. Отведите таз назад, присядьте в комфортную глубину и встаньте.' },
-  'Выпады шагом с собственным весом': { image: 'bodyweight_lunge.jpg', startImage: 'bodyweight_lunge_position2.png', muscles: 'Квадрицепсы, ягодицы', steps: 'Сделайте шаг вперёд, опуститесь до комфортной глубины и оттолкнитесь передней ногой. Чередуйте стороны.' },
+  'Выпады шагом с собственным весом': { image: 'bodyweight_lunge.jpg', startImage: 'bodyweight_lunge_position2.webp', muscles: 'Квадрицепсы, ягодицы', steps: 'Сделайте шаг вперёд, опуститесь до комфортной глубины и оттолкнитесь передней ногой. Чередуйте стороны.' },
   'Обратные отжимания от скамьи': { image: 'bench_dip.jpg', muscles: 'Трицепсы, грудь, передняя часть плеч', steps: 'Упритесь ладонями в край устойчивой скамьи и согните руки, опуская корпус. Выпрямите руки и вернитесь вверх.' },
   'Отжимания от пола широким хватом': { image: 'wide_pushup.jpg', muscles: 'Грудь, трицепсы, плечи', steps: 'Поставьте ладони шире плеч и удерживайте корпус ровным. Опуститесь к полу и оттолкнитесь ладонями.' },
   'Отжимания от пола узким хватом': { image: 'close_pushup.jpg', muscles: 'Трицепсы, грудь, мышцы корпуса', steps: 'Поставьте ладони близко друг к другу под грудью. Согните руки, удерживая локти ближе к корпусу, и выпрямите их.' },
@@ -108,7 +108,9 @@ const KETTLEBELL_IMAGES: Record<string, string> = {
 }
 
 const catalogGuides = new Map<string, Guide>()
-const catalogFrames = (id: string) => ({ image: `catalog/${id}/0.jpg`, endImage: `catalog/${id}/1.jpg` })
+// library photos come through the server's cached proxy instead of 183 MB of files in the repo
+const catalogFrames = (id: string) => ({ image: `/api/exercise-image/${id}/0.webp`, endImage: `/api/exercise-image/${id}/1.webp` })
+const guideSrc = (file: string) => file.startsWith('/') ? file : `/images/workout-guide/${file}`
 for (const exercise of translatedCatalog) {
   const frames = exercise.source_id === 'Kettlebell_Halo_With_Overhead_Extension'
     ? { image: 'kb_halo.jpg', endImage: 'kb_overhead_triceps.jpg', endLabel: 'Разгибание рук' }
@@ -137,8 +139,7 @@ export function hasExerciseGuide(name: string) { return !!findGuide(name) }
 export function getExerciseGuideImage(name: string): string | null {
   const guide = findGuide(name)
   if (!guide?.image) return null
-  const file = /\.(?:png|jpe?g|webp)$/i.test(guide.image) ? guide.image : `${guide.image}.webp`
-  return `/images/workout-guide/${file}`
+  return guideSrc(/\.(?:png|jpe?g|webp)$/i.test(guide.image) ? guide.image : `${guide.image}.webp`)
 }
 
 export default function KettlebellExercise({ exercise, onClose }: { exercise: PlannedExercise; onClose: () => void }) {
@@ -162,7 +163,8 @@ export default function KettlebellExercise({ exercise, onClose }: { exercise: Pl
     <div className="plan-recipe-scroll">
       <button autoFocus className="plan-recipe-close" aria-label="Закрыть упражнение" onClick={onClose}>×</button>
       {guide.image && <button className={zoomed ? 'exercise-image-button is-zoomed' : 'exercise-image-button'} onClick={() => setZoomed(value => !value)} aria-label={zoomed ? 'Уменьшить изображение' : 'Увеличить изображение'} aria-pressed={zoomed}>
-        <img className="plan-recipe-cover exercise-guide-image" src={(position === 'start' && guide.startImage ? `/images/workout-guide/${guide.startImage}` : position === 'finish' && guide.endImage ? `/images/workout-guide/${guide.endImage}` : getExerciseGuideImage(name)) ?? undefined} alt={`Пример выполнения: ${name}`} />
+        <img className="plan-recipe-cover exercise-guide-image" src={(position === 'start' && guide.startImage ? guideSrc(guide.startImage) : position === 'finish' && guide.endImage ? guideSrc(guide.endImage) : getExerciseGuideImage(name)) ?? undefined} alt={`Пример выполнения: ${name}`}
+          onError={(e) => { const img = e.currentTarget, main = getExerciseGuideImage(name); if (main && !img.src.endsWith(main)) img.src = main; else img.hidden = true }} />
         <span>{zoomed ? 'Уменьшить' : 'Увеличить'}</span>
       </button>}
       {(guide.startImage || guide.endImage) && <div className="exercise-positions" role="group" aria-label="Положение упражнения">

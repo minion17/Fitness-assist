@@ -187,7 +187,6 @@ function OptionSlider({ label, options, value, onChange }: {
   </div>
 }
 
-const weightStops = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300]
 const sleepStops = [3, 4.5, 6, 7.5, 9, 10.5, 12]
 
 function BodySummary({ draft, sex }: { draft: Draft; sex: 'male' | 'female' }) {
@@ -320,13 +319,15 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       </>
       case 'target': {
         const w = num(d.weight_kg), t = num(d.target_weight_kg)
+        // ±40 kg around the current weight: on 30–300 kg one pixel of a phone slider was ~1 kg
+        const lo = Math.max(NUM.target_weight_kg.min, Math.round((w || 70) - 40)), hi = Math.min(NUM.target_weight_kg.max, Math.round((w || 70) + 40))
         return <>
           <div className="q-slider">
             <strong>{(t || 70).toLocaleString('ru-RU')} кг</strong>
-            <MealRange label="Желаемый вес" min={NUM.target_weight_kg.min} max={NUM.target_weight_kg.max}
-              step={0.5} value={t || 70} valueText={`${t || 70} кг`} stops={weightStops}
+            <MealRange label="Желаемый вес" min={lo} max={hi}
+              step={0.5} value={t || 70} valueText={`${t || 70} кг`} stops={[lo, Math.round((lo + hi) / 2), hi]}
               onChange={value => set('target_weight_kg')(String(value))} />
-            <div className="q-slider-ends"><span>30 кг</span><span>300 кг</span></div>
+            <div className="q-slider-ends"><span>{lo} кг</span><span>{hi} кг</span></div>
           </div>
           {w > 0 && t > 0 && <p className="sub">{t < w ? `Минус ${(w - t).toLocaleString('ru-RU')} кг` : t > w ? `Плюс ${(t - w).toLocaleString('ru-RU')} кг` : 'Сохранить текущий вес'} · сейчас {w.toLocaleString('ru-RU')} кг</p>}
         </>

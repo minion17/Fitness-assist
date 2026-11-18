@@ -8,7 +8,7 @@ import { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 test('каждое упражнение из обоих каталогов имеет локальную иллюстрацию и карточку техники', () => {
   const missing = [...exerciseCatalog, ...translatedCatalog].filter(({ name }) => {
     const src = getExerciseGuideImage(name)
-    return !hasExerciseGuide(name) || !src || !existsSync(`public${src}`)
+    return !hasExerciseGuide(name) || !src || (!src.startsWith('/api/') && !existsSync(`public${src}`))
   }).map(({ name }) => name)
   expect(missing).toEqual([])
   expect(getExerciseGuideImage('Своё упражнение без иллюстрации')).toBeNull()

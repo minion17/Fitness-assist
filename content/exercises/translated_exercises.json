@@ -13458,41 +13458,6 @@
     "mechanic": "isolation"
   },
   {
-    "name": "Взятие гири на грудь одной рукой",
-    "source_name": "One-Arm Kettlebell Clean",
-    "source_id": "One-Arm_Kettlebell_Clean",
-    "source": "https://github.com/yuhonas/free-exercise-db",
-    "translation": "automatic",
-    "muscle_groups": [
-      "Бицепс бедра",
-      "Ягодицы",
-      "Разгибатели спины",
-      "Плечи",
-      "Трапеции"
-    ],
-    "equipment": [
-      "Гиря"
-    ],
-    "difficulty": "intermediate",
-    "description": "Поместите гирю между ног. Наклоняясь, чтобы схватить гирю, отведите ягодицы назад и смотрите вперед. Поднесите гирю к плечам, протягивая ее через ноги и бедра, поднимая гирю к плечу. При этом запястье должно вращаться. Верните вес в исходное положение.",
-    "is_bodyweight": false,
-    "primary_muscles": [
-      "hamstrings"
-    ],
-    "secondary_muscles": [
-      "glutes",
-      "lower back",
-      "shoulders",
-      "traps"
-    ],
-    "images": [
-      "One-Arm_Kettlebell_Clean/0.jpg",
-      "One-Arm_Kettlebell_Clean/1.jpg"
-    ],
-    "category": "strength",
-    "mechanic": "compound"
-  },
-  {
     "name": "Толчок гири одной рукой (взятие и толчок)",
     "source_name": "One-Arm Kettlebell Clean and Jerk",
     "source_id": "One-Arm_Kettlebell_Clean_and_Jerk",
@@ -13543,39 +13508,6 @@
     "images": [
       "One-Arm_Kettlebell_Floor_Press/0.jpg",
       "One-Arm_Kettlebell_Floor_Press/1.jpg"
-    ],
-    "category": "strength",
-    "mechanic": "compound"
-  },
-  {
-    "name": "Толчок гири одной рукой",
-    "source_name": "One-Arm Kettlebell Jerk",
-    "source_id": "One-Arm_Kettlebell_Jerk",
-    "source": "https://github.com/yuhonas/free-exercise-db",
-    "translation": "automatic",
-    "muscle_groups": [
-      "Плечи",
-      "Икроножные",
-      "Квадрицепс",
-      "Трицепс"
-    ],
-    "equipment": [
-      "Гиря"
-    ],
-    "difficulty": "intermediate",
-    "description": "Держите гирю за ручку. Поднесите гирю к плечу, протягивая ее через ноги и бедра и подтягивая гирю к плечу. При этом поверните запястье так, чтобы ладонь была направлена ​​вперед. Это будет ваша исходная позиция. Опустите тело, согнув колени, удерживая туловище в вертикальном положении. Немедленно поменяйте направление, двигаясь пятками, по сути подпрыгивая, чтобы создать импульс. При этом выжмите гирю над головой, чтобы зафиксировать ее, вытягивая руки и используя инерцию своего тела для перемещения веса. Получите вес над головой, вернувшись в положение приседа под весом. Удерживая вес над головой, вернитесь в положение стоя. Опустите вес, чтобы выполнить следующее повторение.",
-    "is_bodyweight": false,
-    "primary_muscles": [
-      "shoulders"
-    ],
-    "secondary_muscles": [
-      "calves",
-      "quadriceps",
-      "triceps"
-    ],
-    "images": [
-      "One-Arm_Kettlebell_Jerk/0.jpg",
-      "One-Arm_Kettlebell_Jerk/1.jpg"
     ],
     "category": "strength",
     "mechanic": "compound"
@@ -13634,78 +13566,6 @@
     "images": [
       "One-Arm_Kettlebell_Para_Press/0.jpg",
       "One-Arm_Kettlebell_Para_Press/1.jpg"
-    ],
-    "category": "strength",
-    "mechanic": "compound"
-  },
-  {
-    "name": "Швунг гири одной рукой",
-    "source_name": "One-Arm Kettlebell Push Press",
-    "source_id": "One-Arm_Kettlebell_Push_Press",
-    "source": "https://github.com/yuhonas/free-exercise-db",
-    "translation": "automatic",
-    "muscle_groups": [
-      "Плечи",
-      "Икроножные",
-      "Квадрицепс",
-      "Трицепс"
-    ],
-    "equipment": [
-      "Гиря"
-    ],
-    "difficulty": "intermediate",
-    "description": "Держите гирю за ручку. Поднесите гирю к плечу, протягивая ее через ноги и бедра и подтягивая гирю к плечу. При этом поверните запястье так, чтобы ладонь была направлена ​​вперед. Это будет ваша исходная позиция. Опустите тело, согнув колени, удерживая туловище в вертикальном положении. Немедленно поменяйте направление, двигаясь пятками, по сути подпрыгивая, чтобы создать импульс. При этом выжмите гирю над головой, чтобы зафиксировать ее, вытягивая руки и используя инерцию своего тела для перемещения веса. Опустите вес, чтобы выполнить следующее повторение.",
-    "is_bodyweight": false,
-    "primary_muscles": [
-      "shoulders"
-    ],
-    "secondary_muscles": [
-      "calves",
-      "quadriceps",
-      "triceps"
-    ],
-    "images": [
-      "One-Arm_Kettlebell_Push_Press/0.jpg",
-      "One-Arm_Kettlebell_Push_Press/1.jpg"
-    ],
-    "category": "strength",
-    "mechanic": "compound"
-  },
-  {
-    "name": "Рывок гири одной рукой",
-    "source_name": "One-Arm Kettlebell Snatch",
-    "source_id": "One-Arm_Kettlebell_Snatch",
-    "source": "https://github.com/yuhonas/free-exercise-db",
-    "translation": "automatic",
-    "muscle_groups": [
-      "Плечи",
-      "Икроножные",
-      "Ягодицы",
-      "Бицепс бедра",
-      "Разгибатели спины",
-      "Трапеции",
-      "Трицепс"
-    ],
-    "equipment": [
-      "Гиря"
-    ],
-    "difficulty": "expert",
-    "description": "Поместите гирю между ног. Согните колени и отведите ягодицы назад, чтобы принять правильное исходное положение. Посмотрите прямо перед собой и верните гирю между ног. Немедленно измените направление и проведите бедрами и коленями, ускоряя гирю вверх. Когда гиря поднимется к плечу, поверните руку и нанесите удар прямо вверх, используя инерцию, чтобы зафиксировать вес над головой.",
-    "is_bodyweight": false,
-    "primary_muscles": [
-      "shoulders"
-    ],
-    "secondary_muscles": [
-      "calves",
-      "glutes",
-      "hamstrings",
-      "lower back",
-      "traps",
-      "triceps"
-    ],
-    "images": [
-      "One-Arm_Kettlebell_Snatch/0.jpg",
-      "One-Arm_Kettlebell_Snatch/1.jpg"
     ],
     "category": "strength",
     "mechanic": "compound"

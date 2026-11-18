@@ -181,6 +181,7 @@ export default function Home(props: {
   targets?: Targets
   day: FoodDay
   program?: Program
+  trainingDays?: number[] | null // from the questionnaire: other days are rest days
   logs: WorkoutLog[]
   water: Water
   aiEnabled: boolean
@@ -232,6 +233,10 @@ export default function Home(props: {
   const shownProgress = Math.round(useCountUp(props.loading ? 0 : progress))
   const shownKcal = useCountUp(day.totals.kcal)
   const next = props.program && nextDay(props.program, props.logs)
+  const [weekday] = useState(() => (new Date().getDay() + 6) % 7) // 0 = Mon, as in the questionnaire
+  const days = props.trainingDays ?? []
+  const restDay = !!next && days.length > 0 && !days.includes(weekday) && !trained
+  const nextTraining = restDay ? ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'][days.find((d) => d > weekday) ?? days[0]] : null
 
   return (
     <>
@@ -315,8 +320,8 @@ export default function Home(props: {
             <button key={b} className="home-row" onClick={props.onWorkouts}>
               <span className="home-row-icon" aria-hidden="true">🏋️</span>
               {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /><span className="skeleton skeleton-line" style={{ width: 90, height: 14, marginTop: 6 }} /></span> // not "choose a program" before the program has loaded
-                : <span className="step-text"><b>{next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
-                <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}
+                : <span className="step-text"><b>{restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
+                <span className="sub">{restDay ? `Следующая тренировка — ${nextTraining}: ${next!.day_name}` : next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}
               <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
             </button>
           ) : <Fragment key={b}>{b === 'habits' ? props.habits : props.quests}</Fragment>)}

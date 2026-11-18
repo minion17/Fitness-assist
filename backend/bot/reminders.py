@@ -18,7 +18,7 @@ from backend.core import alerts, clock
 from backend.core.nutrition import daily_targets
 from backend.database.db import SessionLocal
 from backend.database.models import (
-    BodyMeasurement, FoodLog, Habit, HabitCheck, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake,
+    BodyMeasurement, FoodLog, Habit, HabitCheck, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake, WorkoutLog,
 )
 
 log = logging.getLogger("reminders")
@@ -138,6 +138,14 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
             week = [today - timedelta(days=i) in days and is_active(days[today - timedelta(days=i)]) for i in range(6, -1, -1)]
             out.append((f"{today}:streak", f"🔥 Серия {n} дн. подряд сгорит сегодня — запишите хоть что-нибудь: еду, воду или тренировку.",
                         Render(cards.streak, n, week, **look), None))
+    if getattr(cfg, "workout", True) and due(cfg.workout_at or "09:00", now):
+        p = await session.get(Profile, user.id)
+        if p and p.training_days and now.weekday() in p.training_days:
+            trained = await session.scalar(select(WorkoutLog.id).where(
+                WorkoutLog.user_id == user.id, WorkoutLog.started_at >= local_start(today)).limit(1))
+            if not trained:
+                out.append((f"{today}:workout", "🏋️ Сегодня день тренировки. Откройте приложение — план уже ждёт, веса подставим с прошлого раза.",
+                            NO_CARD, None))
     out += await habit_reminders(session, user, now)
     return out
 
@@ -151,8 +159,8 @@ async def collect(session, now: datetime) -> list[tuple[int, str, Render, Button
     messages = []
     for user, cfg in rows.all():
         clock.use_tz(user.device_tz)
-        cfg = cfg or ReminderSettings(meals=True, water=True, streak=True, weekly=True, breakfast_at="10:00",
-                                      lunch_at="14:00", dinner_at="20:00", streak_at="21:00", weekly_at="19:00")
+        cfg = cfg or ReminderSettings(meals=True, water=True, streak=True, weekly=True, workout=True, breakfast_at="10:00",
+                                      lunch_at="14:00", dinner_at="20:00", streak_at="21:00", weekly_at="19:00", workout_at="09:00")
         for key, text, card, buttons in await candidates(session, user, cfg, clock.local(now)):
             fresh = await session.scalar(
                 insert(ReminderSent).values(user_id=user.id, key=key).on_conflict_do_nothing().returning(ReminderSent.key)

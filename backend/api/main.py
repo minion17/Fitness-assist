@@ -3,14 +3,14 @@ import logging
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import delete, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
@@ -208,6 +208,13 @@ class ProfileIn(BaseModel):
     place: Literal["home", "gym", "outdoor"] | None = None
     focus: list[Literal["arms", "chest", "belly", "glutes", "legs", "back"]] | None = Field(default=None, max_length=6)
     target_weight_kg: float | None = Field(default=None, ge=30, le=300)
+    training_days: list[Annotated[int, Field(ge=0, le=6)]] | None = Field(default=None, max_length=7)
+    target_date: date | None = None
+
+    @field_validator("training_days")
+    @classmethod
+    def unique_days(cls, v: list[int] | None) -> list[int] | None:
+        return sorted(set(v)) if v else None
 
 
 @app.get("/api/profile")
@@ -226,6 +233,8 @@ async def save_profile(
     data = body.model_dump()
     if data["target_weight_kg"] is None:
         data.pop("target_weight_kg")  # an older client: keep the target set elsewhere (Прогресс)
+    if data["target_date"] is not None and data["target_date"] <= clock.today():
+        raise HTTPException(422, "Дата цели должна быть в будущем")
     if user.health_consent_at is None:  # health data only with its separate consent (152-ФЗ ст. 10)
         data.update(allergies=None, injury=None)
     if existing and existing.goal != body.goal:

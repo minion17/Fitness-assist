@@ -80,8 +80,11 @@ test('questionnaire: selection waits for Continue and all answers are saved', as
   expect(title()).toBe('Желаемый вес')
   expect((screen.getByRole('slider', { name: 'Желаемый вес' }) as HTMLInputElement).value).toBe('55') // −10% for weight loss
   expect(screen.getByText(/Минус 6,5 кг/)).toBeTruthy()
+  // an optional date: 4 weeks is too soon for 6,5 kg at a safe pace
+  fireEvent.change(screen.getByLabelText('Дата цели'), { target: { value: new Date(Date.now() + 30 * 864e5).toLocaleDateString('sv-SE') } })
   click('Продолжить')
   expect(title()).toBe('Ваш ориентир')
+  expect(screen.getByText(/безопасно получится минус 3,2 кг/)).toBeTruthy()
   expect(screen.getByText('Снизить вес на 6,5 кг')).toBeTruthy()
   expect(screen.getByText('61,5 кг')).toBeTruthy()
   expect(screen.getByText('55 кг')).toBeTruthy()
@@ -109,10 +112,12 @@ test('questionnaire: selection waits for Continue and all answers are saved', as
   expect(screen.getByRole('button', { name: 'Собственный вес' }).getAttribute('aria-pressed')).toBe('true') // home preset
   click('Гантели')
   click('Продолжить')
-  expect(screen.getByText('1 день в неделю')).toBeTruthy()
+  expect(title()).toBe('Когда будете тренироваться?')
   expect(screen.getByText('20 мин')).toBeTruthy()
-  slide('Дней в неделю', 2)
-  expect(screen.getByText('3 дня в неделю')).toBeTruthy()
+  click('Продолжить')
+  expect(alert()).toBe('Отметьте хотя бы один день')
+  for (const day of ['Пн', 'Ср', 'Пт']) click(day)
+  expect(screen.getByText('Дни недели · 3')).toBeTruthy()
   slide('Длительность тренировки', 2)
   click('Продолжить')
   expect(screen.getByRole('button', { name: 'Пропустить' })).toBeTruthy() // focus is optional
@@ -122,8 +127,9 @@ test('questionnaire: selection waits for Continue and all answers are saved', as
   click('Назад')
   expect(screen.getByRole('button', { name: 'Живот', pressed: true })).toBeTruthy()
   click('Продолжить')
-  slide('Приёмов пищи в день', 1)
-  click('Продолжить')
+  // sleep and stress are optional now
+  expect(title()).toBe('Сон и стресс')
+  expect(screen.getByRole('button', { name: 'Пропустить' })).toBeTruthy()
   slide('Сон, часов', 7.5)
   slide('Уровень стресса', 2)
   click('Продолжить')

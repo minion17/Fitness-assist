@@ -150,9 +150,10 @@ async def week(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
 # ---- Reminder settings (the bot sends them, see backend/bot/reminders.py) ----
 
 HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
-REMINDER_FIELDS = ("meals", "water", "streak", "weekly", "breakfast_at", "lunch_at", "dinner_at", "streak_at", "weekly_at")
-REMINDER_DEFAULTS = {"meals": True, "water": True, "streak": True, "weekly": True,
-                     "breakfast_at": "10:00", "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00", "weekly_at": "19:00"}
+REMINDER_FIELDS = ("meals", "water", "streak", "weekly", "workout", "breakfast_at", "lunch_at", "dinner_at", "streak_at", "weekly_at",
+                   "workout_at")
+REMINDER_DEFAULTS = {"meals": True, "water": True, "streak": True, "weekly": True, "workout": True, "breakfast_at": "10:00",
+                     "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00", "weekly_at": "19:00", "workout_at": "09:00"}
 
 
 class RemindersIn(BaseModel):
@@ -161,6 +162,8 @@ class RemindersIn(BaseModel):
     streak: bool
     weekly: bool = True  # optional: older clients don't send it
     weekly_at: str = Field(default="19:00", pattern=HHMM)
+    workout: bool = True  # optional: older clients don't send it
+    workout_at: str = Field(default="09:00", pattern=HHMM)
     breakfast_at: str = Field(pattern=HHMM)
     lunch_at: str = Field(pattern=HHMM)
     dinner_at: str = Field(pattern=HHMM)
@@ -184,6 +187,8 @@ def next_reminder(cfg: dict, now: datetime) -> dict | None:
         times += [("12:00", "вода"), ("16:00", "вода"), ("19:00", "вода")]
     if cfg["streak"]:
         times.append((cfg["streak_at"], "серия дней"))
+    if cfg.get("workout", True) and now.weekday() in (cfg.get("training_days") or []):  # today is a training day
+        times.append((cfg.get("workout_at") or "09:00", "тренировка"))
     if not times:
         return None
     hm = now.strftime("%H:%M")
@@ -196,7 +201,9 @@ def next_reminder(cfg: dict, now: datetime) -> dict | None:
 async def get_next_reminder(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     cfg = await session.get(ReminderSettings, user.id)
-    return next_reminder({k: getattr(cfg, k) for k in REMINDER_FIELDS} if cfg else REMINDER_DEFAULTS, clock.now())
+    p = await session.get(Profile, user.id)
+    settings = {k: getattr(cfg, k) for k in REMINDER_FIELDS} if cfg else REMINDER_DEFAULTS
+    return next_reminder({**settings, "training_days": p.training_days if p else None}, clock.now())
 
 
 @router.post("/reminders/test")

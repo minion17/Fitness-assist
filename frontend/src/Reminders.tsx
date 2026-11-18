@@ -4,8 +4,8 @@ import { api, ApiError, postJson } from './telegram'
 import { Chevron } from './ui'
 
 type Settings = {
-  meals: boolean; water: boolean; streak: boolean; weekly: boolean
-  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string; weekly_at: string
+  meals: boolean; water: boolean; streak: boolean; weekly: boolean; workout: boolean
+  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string; weekly_at: string; workout_at: string
 }
 
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) {
@@ -73,6 +73,14 @@ export default function Reminders() {
             <Time label="Ужин" value={s.dinner_at} onChange={(v) => save({ dinner_at: v })} />
           </div>
         )}
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">Тренировки 🏋️</div>
+            <div className="row-sub">Утром в дни из анкеты, если ещё не начали</div>
+          </div>
+          <Switch on={s.workout ?? true} label="Напоминать о тренировках" onChange={(v) => save({ workout: v })} />
+        </div>
+        {(s.workout ?? true) && <div className="time-row"><Time label="В дни тренировок в" value={s.workout_at ?? '09:00'} onChange={(v) => save({ workout_at: v })} /></div>}
         <div className="row">
           <div className="row-main">
             <div className="row-title">Вода</div>

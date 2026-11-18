@@ -1994,3 +1994,21 @@ def test_next_reminder_and_test_message(client):
     assert client.get(f"/api/reminders/test/{mid}", headers=h).json() == {"sent": False}  # the bot hasn't run here
     assert client.get(f"/api/reminders/test/{mid}", headers=new_user_headers()).json() == {"sent": False}  # not yours
     assert client.get("/api/reminders/next", headers=h).json()["what"]
+
+
+def test_training_days_and_target_date(client):
+    from datetime import date, datetime, timedelta
+
+    from backend.api.daily import REMINDER_DEFAULTS, next_reminder
+
+    h = new_user_headers()
+    body = {**PROFILE, "training_days": [4, 0, 2, 2], "target_date": (date.today() + timedelta(days=90)).isoformat()}
+    saved = client.put("/api/profile", headers=h, json=body).json()
+    assert saved["training_days"] == [0, 2, 4]  # sorted, no repeats
+    assert client.put("/api/profile", headers=h, json={**body, "target_date": date.today().isoformat()}).status_code == 422
+    assert client.put("/api/profile", headers=h, json={**body, "training_days": [7]}).status_code == 422
+    # the morning reminder counts only on a training day (19.11.2026 is a Thursday = 3)
+    thu = datetime(2026, 11, 19, 8, 0)
+    assert next_reminder({**REMINDER_DEFAULTS, "training_days": [3]}, thu)["what"] == "тренировка"
+    assert next_reminder({**REMINDER_DEFAULTS, "training_days": [0]}, thu)["what"] == "завтрак"
+    assert client.get("/api/reminders", headers=h).json()["workout_at"] == "09:00"

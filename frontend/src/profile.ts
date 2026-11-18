@@ -27,6 +27,8 @@ export type ProfileData = {
   place?: 'home' | 'gym' | 'outdoor' | null
   focus?: string[] | null
   target_weight_kg?: number | null
+  training_days?: number[] | null // weekdays, 0 = Mon
+  target_date?: string | null // ISO date, optional
   targets?: Targets
 }
 

@@ -67,6 +67,8 @@ class Profile(Base):
     pullups: Mapped[str | None] = mapped_column(String(8))  # none | 1_5 | 6_10 | gt10 | unknown
     place: Mapped[str | None] = mapped_column(String(8))  # home | gym | outdoor
     focus: Mapped[list[str] | None] = mapped_column(ARRAY(String))  # arms, chest, belly, glutes, legs, back
+    training_days: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))  # weekdays 0 = Mon .. 6 = Sun
+    target_date: Mapped[date | None] = mapped_column(Date)  # "к какой дате": optional
     kcal_override: Mapped[int | None] = mapped_column(Integer)  # accepted from the real-expenditure estimate; None = formula
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -269,6 +271,8 @@ class ReminderSettings(Base):
     streak_at: Mapped[str] = mapped_column(String(5), default="21:00")
     weekly: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")  # Sunday summary
     weekly_at: Mapped[str] = mapped_column(String(5), default="19:00", server_default="19:00")
+    workout: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")  # morning of a training day
+    workout_at: Mapped[str] = mapped_column(String(5), default="09:00", server_default="09:00")
 
 
 class FrozenDay(Base):

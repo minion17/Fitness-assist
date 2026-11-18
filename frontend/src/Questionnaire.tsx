@@ -2,6 +2,7 @@
 // asks what the program needs: body now and the goal shape, a quick self-test (squats, push-ups, pull-ups), where and how
 // often one trains. Ends with an honest plan summary. All calculations stay on the server.
 import { useEffect, useState } from 'react'
+import { datePace, dateRu, isoIn, planWeeks } from './pace'
 import BodyFigure from './BodyFigure'
 import MealRange from './MealRange'
 import { NOW_LEVELS, TARGET_LEVELS, bodyAvatarSource, targetAvatar } from './bodyShape'
@@ -43,13 +44,9 @@ const SQUATS: Opt = { lt15: 'Меньше 15', '15_30': '15–30', gt30: 'Бол
 const PUSHUPS: Opt = { lt10: 'Меньше 10', '10_20': '10–20', gt20: 'Больше 20', unknown: 'Не знаю' }
 const PULLUPS: Opt = { none: 'Ни одного', '1_5': '1–5', '6_10': '6–10', gt10: 'Больше 10', unknown: 'Не знаю' }
 const FOCUS: Opt = { arms: 'Руки', chest: 'Грудь', belly: 'Живот', glutes: 'Ягодицы', legs: 'Ноги', back: 'Спина' }
-const DAYS: Opt = {
-  '1': '1 день в неделю', '2': '2 дня в неделю', '3': '3 дня в неделю', '4': '4 дня в неделю',
-  '5': '5 дней в неделю', '6': '6 дней в неделю', '7': '7 дней в неделю',
-}
+const WEEKDAYS: Opt = { '0': 'Пн', '1': 'Вт', '2': 'Ср', '3': 'Чт', '4': 'Пт', '5': 'Сб', '6': 'Вс' }
 const MINUTES: Opt = { '20': '20 мин', '30': '30 мин', '45': '45 мин', '60': '60 мин', '90': '90 мин' }
 const ALLERGIES: Opt = { dairy: 'Молочное', eggs: 'Яйца', gluten: 'Глютен', nuts: 'Орехи', fish: 'Рыба' }
-const MEALS: Opt = { '3': '3 раза', '4': '4 раза', '5': '5 раз' }
 const STRESS: Opt = { low: 'Низкий', moderate: 'Умеренный', high: 'Высокий' }
 const YES_NO: Opt = { no: 'Нет', yes: 'Да' }
 const INJURY: Opt = { knees: 'Колени', back: 'Спина', shoulders: 'Плечи', other: 'Другое' }
@@ -67,21 +64,22 @@ type NumKey = keyof typeof NUM
 type Draft = {
   sex?: string; goal?: string; experience?: string; activity?: string
   birth_year?: string; height_cm?: string; weight_kg?: string; target_weight_kg?: string; sleep_hours?: string
-  equipment: string[]; allergies: string[]; focus: string[]
-  sessions_per_week?: string; session_minutes?: string; meals_per_day?: string
+  equipment: string[]; allergies: string[]; focus: string[]; training_days: string[] // weekdays '0' = Пн
+  sessions_per_week?: string; session_minutes?: string; meals_per_day?: string; target_date?: string
   stress?: string; has_injury?: string; injury?: string
   body_now?: number; body_target?: number; squats?: string; pushups?: string; pullups?: string; place?: string
   health?: boolean // health questions are asked only with the separate consent
 }
 
 function toDraft(p: ProfileData | null): Draft {
-  if (!p) return { equipment: [], allergies: [], focus: [] }
+  if (!p) return { equipment: [], allergies: [], focus: [], training_days: [] }
   const s = (v: unknown) => (v === null || v === undefined ? undefined : String(v))
   return {
     sex: p.sex, goal: p.goal, experience: s(p.experience), activity: p.activity,
     birth_year: s(p.birth_year), height_cm: s(p.height_cm), weight_kg: s(p.weight_kg), sleep_hours: s(p.sleep_hours),
     target_weight_kg: s(p.target_weight_kg),
     equipment: p.equipment ?? [], allergies: p.allergies ?? [], focus: p.focus ?? [],
+    training_days: (p.training_days ?? []).map(String), target_date: p.target_date ?? undefined,
     sessions_per_week: s(p.sessions_per_week), session_minutes: s(p.session_minutes), meals_per_day: s(p.meals_per_day),
     stress: s(p.stress), injury: s(p.injury),
     body_now: p.body_now ?? undefined, body_target: p.body_target ?? undefined,
@@ -116,13 +114,6 @@ function goalConflict(d: Draft): string | null {
   return null
 }
 
-/** Weeks at a safe pace: losing 0.5–0.8 kg a week, gaining 0.25–0.5. */
-function planWeeks(weight: number, target: number): [number, number] | null {
-  const diff = target - weight
-  if (Math.abs(diff) < 0.5) return null
-  const [fast, slow] = diff < 0 ? [0.8, 0.5] : [0.5, 0.25]
-  return [Math.max(1, Math.round(Math.abs(diff) / fast)), Math.max(1, Math.round(Math.abs(diff) / slow))]
-}
 
 type Screen = {
   key: string
@@ -147,10 +138,10 @@ const SCREENS: Screen[] = [
   { key: 'activity', title: 'Сколько вы двигаетесь в обычные дни?', check: (d) => (!d.activity ? 'Выберите уровень активности' : null) },
   { key: 'place', title: 'Где будете тренироваться?', check: (d) => (!d.place ? 'Выберите место' : null) },
   { key: 'equipment', title: 'Что есть под рукой?', check: (d) => (!d.equipment.length ? 'Отметьте доступное оборудование' : null) },
-  { key: 'schedule', title: 'Сколько времени готовы уделять?', check: (d) => (!d.sessions_per_week ? 'Выберите количество дней' : !d.session_minutes ? 'Выберите длительность' : null) },
+  { key: 'schedule', title: 'Когда будете тренироваться?', hint: 'Отметьте дни — в эти дни утром бот напомнит о тренировке, а отдых не будет считаться пропуском.',
+    check: (d) => (!d.training_days.length ? 'Отметьте хотя бы один день' : !d.session_minutes ? 'Выберите длительность' : null) },
   { key: 'focus', title: 'На что сделать упор?', hint: 'Можно выбрать несколько или пропустить.' },
-  { key: 'meals', title: 'Сколько раз в день вы едите?', check: (d) => (!d.meals_per_day ? 'Выберите число приёмов пищи' : null) },
-  { key: 'recovery', title: 'Сон и стресс', check: (d) => checkNum(d, 'sleep_hours') ?? (!d.stress ? 'Выберите уровень стресса' : null) },
+  { key: 'recovery', title: 'Сон и стресс', hint: 'Необязательно: поможет точнее подобрать нагрузку.', check: (d) => (d.sleep_hours ? checkNum(d, 'sleep_hours') : null) },
   {
     key: 'health', title: 'Здоровье', skip: (d) => !d.health,
     check: (d) => (!d.has_injury ? 'Укажите, есть ли травмы' : d.has_injury === 'yes' && !d.injury ? 'Выберите зону ограничения' : null),
@@ -221,6 +212,7 @@ function BodySummary({ draft, sex }: { draft: Draft; sex: 'male' | 'female' }) {
       </div>
     </div>
     {goalConflict(draft) && <p className="q-warn">{goalConflict(draft)}</p>}
+    {(() => { const pace = datePace(weight, target, draft.target_date); return pace && <p className={pace.ok ? 'q-pace' : 'q-warn'}>{pace.text}</p> })()}
     <p className="sub">Дальше уточним вашу подготовку, чтобы подобрать тренировки под эту цель.</p>
   </>
 }
@@ -236,7 +228,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
   // an unfinished questionnaire comes back where it was left (closing it by mistake shouldn't cost the answers)
   const [saved] = useState(() => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as { d: Draft; at: number } | null } catch { return null } })
   const [d, setD] = useState<Draft>(() => {
-    if (saved?.d) return { ...saved.d, health }
+    if (saved?.d) return { ...saved.d, training_days: saved.d.training_days ?? [], health } // a draft from an older version lacks the days
     const draft = toDraft(initial)
     return { ...draft, sessions_per_week: draft.sessions_per_week ?? '1', session_minutes: draft.session_minutes ?? '20', health }
   })
@@ -250,7 +242,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
   const progress = (at + 1) / screens.length
 
   const set = (k: keyof Draft) => (v: string | number) => { setError(''); setD((p) => ({ ...p, [k]: v })) }
-  const toggle = (k: 'equipment' | 'allergies' | 'focus') => (v: string) => {
+  const toggle = (k: 'equipment' | 'allergies' | 'focus' | 'training_days') => (v: string) => {
     setError('')
     setD((p) => ({ ...p, [k]: p[k].includes(v) ? p[k].filter((x) => x !== v) : [...p[k], v] }))
   }
@@ -275,9 +267,10 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       sex: d.sex as ProfileData['sex'], goal: d.goal as ProfileData['goal'], activity: d.activity as ProfileData['activity'],
       birth_year: Math.round(num(d.birth_year)), height_cm: Math.round(num(d.height_cm)), weight_kg: num(d.weight_kg),
       experience: d.experience as ProfileData['experience'], equipment: d.equipment,
-      sessions_per_week: Number(d.sessions_per_week), session_minutes: Number(d.session_minutes),
-      allergies: health ? d.allergies : [], meals_per_day: Number(d.meals_per_day), sleep_hours: num(d.sleep_hours),
-      stress: d.stress as ProfileData['stress'], injury: health && d.has_injury === 'yes' ? (d.injury as ProfileData['injury']) : null,
+      sessions_per_week: d.training_days.length || Number(d.sessions_per_week), session_minutes: Number(d.session_minutes),
+      training_days: d.training_days.map(Number), target_date: d.target_date || null,
+      allergies: health ? d.allergies : [], meals_per_day: num(d.meals_per_day) || null, sleep_hours: num(d.sleep_hours) || null,
+      stress: (d.stress ?? null) as ProfileData['stress'], injury: health && d.has_injury === 'yes' ? (d.injury as ProfileData['injury']) : null,
       body_now: d.body_now ?? null, body_target: d.body_target ?? null,
       squats: (d.squats ?? null) as ProfileData['squats'], pushups: (d.pushups ?? null) as ProfileData['pushups'],
       pullups: (d.pullups ?? null) as ProfileData['pullups'], place: (d.place ?? null) as ProfileData['place'],
@@ -348,6 +341,11 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
           </div>
           {w > 0 && t > 0 && <p className="sub">{t < w ? `Минус ${(w - t).toLocaleString('ru-RU')} кг` : t > w ? `Плюс ${(t - w).toLocaleString('ru-RU')} кг` : 'Сохранить текущий вес'} · сейчас {w.toLocaleString('ru-RU')} кг</p>}
           {goalConflict(d) && <p className="q-warn">{goalConflict(d)}</p>}
+          <label className="field q-date">
+            <span>К какой дате? <small>необязательно — отпуск, событие, лето</small></span>
+            <div className="input-wrap"><input type="date" aria-label="Дата цели" min={isoIn(1)} value={d.target_date ?? ''}
+              onChange={(e) => set('target_date')(e.target.value)} /></div>
+          </label>
         </>
       }
       case 'body_summary': return <BodySummary draft={d} sex={sex} />
@@ -363,11 +361,12 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
         }} />
       case 'equipment': return <Cards label="Доступное оборудование" options={EQUIPMENT} value={d.equipment} onChange={toggle('equipment')} multi grid />
       case 'schedule': return <>
-        {optionsSlider('Дней в неделю', DAYS, 'sessions_per_week')}
-        {optionsSlider('Длительность тренировки', MINUTES, 'session_minutes')}
+        <fieldset className="field q-weekdays"><legend>Дни недели · {d.training_days.length || '—'}</legend>
+          <Cards label="Дни тренировок" options={WEEKDAYS} value={d.training_days} onChange={toggle('training_days')} multi />
+        </fieldset>
+        <fieldset className="field"><legend>Длительность тренировки</legend>{optionsSlider('Длительность тренировки', MINUTES, 'session_minutes')}</fieldset>
       </>
       case 'focus': return <Cards label="Упор" options={FOCUS} value={d.focus} onChange={toggle('focus')} multi grid />
-      case 'meals': return optionsSlider('Приёмов пищи в день', MEALS, 'meals_per_day')
       case 'recovery': return <>
         <fieldset className="field">
           <legend>Сон, часов</legend>
@@ -416,7 +415,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       {error && <p className="error" role="alert">{error}</p>}
       <div className="q-foot">
         <button type="button" className="btn" disabled={busy} onClick={next}>
-          {busy ? 'Сохраняем…' : last ? 'Сохранить и начать' : screen.key === 'focus' && !d.focus.length ? 'Пропустить' : 'Продолжить'}
+          {busy ? 'Сохраняем…' : last ? 'Сохранить и начать' : (screen.key === 'focus' && !d.focus.length) || (screen.key === 'recovery' && !d.sleep_hours && !d.stress) ? 'Пропустить' : 'Продолжить'}
         </button>
       </div>
     </div>
@@ -427,7 +426,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
 function Plan({ d }: { d: Draft }) {
   const w = num(d.weight_kg), t = num(d.target_weight_kg) || w
   const weeks = planWeeks(w, t)
-  const days = Number(d.sessions_per_week) || 0
+  const days = d.training_days.length || Number(d.sessions_per_week) || 0
   const goal = GOALS[d.goal ?? '']?.replace(/^\S+\s/, '') ?? ''
   const pathY = (x: number) => (t < w ? 18 + 64 * (1 - Math.pow(1 - x, 2)) : t > w ? 82 - 64 * (1 - Math.pow(1 - x, 2)) : 50)
   const curve = Array.from({ length: 21 }, (_, i) => `${i ? 'L' : 'M'}${(14 + i * 13.6).toFixed(1)},${pathY(i / 20).toFixed(1)}`).join(' ')
@@ -436,6 +435,7 @@ function Plan({ d }: { d: Draft }) {
       <div className="card q-plan-goal">
         <div className="q-plan-row"><span className="sub">Цель</span><b>{goal}</b></div>
         {weeks && <div className="q-plan-row"><span className="sub">Срок при безопасном темпе</span><b>{weeks[0] === weeks[1] ? weeks[0] : `${weeks[0]}–${weeks[1]}`} нед.</b></div>}
+        {d.target_date && <div className="q-plan-row"><span className="sub">Ваша дата</span><b>{dateRu(d.target_date)}</b></div>}
         <svg viewBox="0 0 300 100" className="q-plan-curve" aria-hidden="true">
           <path d={curve} />
           <circle cx="14" cy={pathY(0)} r="6" className="from" /><circle cx="286" cy={pathY(1)} r="6" className="to" />
@@ -445,7 +445,7 @@ function Plan({ d }: { d: Draft }) {
       <div className="q-plan-pair">
         <div className="card"><b className="q-big">{d.session_minutes}</b><span className="sub">минут на тренировку</span></div>
         <div className="card"><b className="q-big">{days}</b><span className="sub">{days === 1 ? 'тренировка' : days < 5 ? 'тренировки' : 'тренировок'} в неделю</span>
-          <span className="q-week" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} className={i < days ? 'on' : ''} />)}</span></div>
+          <span className="q-week" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} className={(d.training_days.length ? d.training_days.includes(String(i)) : i < days) ? 'on' : ''} />)}</span></div>
       </div>
       <div className="card q-plan-list">
         <b>Что дальше</b>

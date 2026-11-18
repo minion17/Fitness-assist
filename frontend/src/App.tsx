@@ -622,7 +622,7 @@ export default function App() {
     <div className="app">
       <main className="screen" key={tab} style={{ '--dir': dir } as React.CSSProperties}>
         {tab === 'home' && (
-          <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} logs={logs}
+          <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} trainingDays={me?.training_days} logs={logs}
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}

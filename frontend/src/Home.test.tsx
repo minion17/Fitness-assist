@@ -102,3 +102,14 @@ test('in the evening the day card opens with what is left for today', () => {
   expect(screen.getByText('ещё 500 ккал')).toBeTruthy()
   expect(screen.getByText('ещё 40 г')).toBeTruthy() // protein
 })
+
+test('on a day off from the questionnaire the workout row says rest and when the next one is', () => {
+  // 19.11.2026 is a Thursday; training on Mon, Wed, Fri
+  const program = { id: 1, name: 'П', level: 'beginner', goal: '', days_per_week: 3, description: null,
+    days: [{ id: 5, day_name: 'День 1', day_order: 1, exercises: [] }] }
+  render(<Home name="Тест" level={1} streak={0} targets={{ calories: 2000, protein: 100, fat: 70, carbs: 200 }}
+    day={{ date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }} program={program} trainingDays={[0, 2, 4]}
+    logs={[]} water={{ ml: 0, goal_ml: 2000 }} aiEnabled={false} canEdit onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} />)
+  expect(screen.getByText('Сегодня отдых 😌')).toBeTruthy()
+  expect(screen.getByText('Следующая тренировка — пт: День 1')).toBeTruthy()
+})

@@ -397,6 +397,7 @@ def test_recent_favorites_and_copy_meal(client, seeded):
            for g in (150, 200)]
     recent = client.get("/api/products/recent", headers=h).json()
     assert [(p["id"], p["last_amount_g"]) for p in recent] == [(pid, 200)]  # deduplicated, last portion
+    assert recent[0]["meals"] == {"breakfast": 2}  # the app puts a meal's usual products first
 
     # favourites: idempotent add, unknown product rejected, remove
     assert client.put(f"/api/favorites/{pid}", headers=h).status_code == 200

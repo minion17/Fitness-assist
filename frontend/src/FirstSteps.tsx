@@ -1,5 +1,6 @@
 // Home, for newcomers: four first actions, each one tap away. Gone when all are done; "Свернуть" keeps a one-line bar to reopen it.
 import { useState } from 'react'
+import { Chevron } from './ui'
 
 export type Step = { key: string; title: string; hint: string; done: boolean; action: () => void }
 const HIDDEN = 'fa.firstStepsHidden' // "1" = collapsed to the one-line bar
@@ -22,7 +23,7 @@ export default function FirstSteps({ steps }: { steps: Step[] }) {
       <button className="card first-steps-bar" onClick={() => collapse(false)} aria-label={`Первые шаги: ${done} из ${steps.length}. Открыть`}>
         <span className="first-steps-ring" style={{ '--p': `${(done / steps.length) * 100}%` } as React.CSSProperties} aria-hidden="true" />
         <span className="step-text"><b>Первые шаги · {done} из {steps.length}</b>{next && <span className="sub">Дальше: {next.title.toLowerCase()}</span>}</span>
-        <span className="step-go" aria-hidden="true">›</span>
+        <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
       </button>
     )
   }
@@ -40,7 +41,7 @@ export default function FirstSteps({ steps }: { steps: Step[] }) {
             <button disabled={s.done} onClick={s.action} aria-label={s.done ? `${s.title} — сделано` : s.title}>
               <span className="step-mark" aria-hidden="true">{s.done ? '✓' : ''}</span>
               <span className="step-text"><b>{s.title}</b>{!s.done && <span className="sub">{s.hint}</span>}</span>
-              {!s.done && <span className="step-go" aria-hidden="true">›</span>}
+              {!s.done && <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>}
             </button>
           </li>
         ))}

@@ -1,7 +1,7 @@
 // Daily overview with compact food and workout summaries.
 import { Fragment, useRef, useState } from 'react'
 import type { Targets } from './profile'
-import { Sheet } from './ui'
+import { Sheet, Chevron } from './ui'
 import { useCountUp } from './motion'
 import { nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
 
@@ -226,7 +226,9 @@ export default function Home(props: {
     ...(trained ? [{ label: 'Тренировка', value: 1, note: 'сделана' }] : []),
   ]
   const progress = Math.round((parts.reduce((n, p) => n + p.value, 0) / parts.length) * 100)
-  const [whyOpen, setWhyOpen] = useState(false)
+  // in the evening the card opens with the day's summary: what is done and what can still be made up
+  const [evening] = useState(() => new Date().getHours() >= 20)
+  const [whyOpen, setWhyOpen] = useState(evening)
   const shownProgress = Math.round(useCountUp(props.loading ? 0 : progress))
   const shownKcal = useCountUp(day.totals.kcal)
   const next = props.program && nextDay(props.program, props.logs)
@@ -257,7 +259,7 @@ export default function Home(props: {
       <section className="card day-card" aria-busy={props.loading}>
         <button className="daily-progress-ring" aria-expanded={whyOpen} aria-label={props.loading ? 'Загрузка' : `Прогресс дня: ${progress}%. Из чего он сложился`} onClick={() => setWhyOpen(!whyOpen)}>
           <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{!props.loading && shownProgress > 0 && <circle className={foodRatio > 1.1 ? 'daily-ring-value over' : 'daily-ring-value'} cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${shownProgress} 100`} />}</svg>
-          <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <><strong>{shownProgress}%</strong><span className="sub">день</span></>}</div>
+          <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <><strong>{shownProgress}%</strong><span className="sub day-why-hint">день <Chevron /></span></>}</div>
         </button>
         <div className="day-stats">
           <button className="day-stat" onClick={props.onNutrition} aria-label="Питание: открыть дневник">
@@ -272,9 +274,11 @@ export default function Home(props: {
         </div>
         {whyOpen && !props.loading && (
           <ul className="day-why">
+            {evening && <li className="day-why-title"><b>{progress >= 100 ? 'День закрыт 🎉' : 'Итог дня'}</b><span className="sub">{progress >= 100 ? 'Всё по плану — так держать' : 'Ещё можно успеть:'}</span></li>}
             {parts.map((p) => (
               <li key={p.label}><span>{p.label}</span><span className="sub">{p.note}</span><b className={p.value >= 1 ? 'full' : ''}>{Math.round(p.value * 100)}%</b></li>
             ))}
+            {targets?.protein ? <li><span>Белок</span><span className="sub">{day.totals.protein_g >= targets.protein * 0.9 ? 'в норме' : `ещё ${fmt(targets.protein - day.totals.protein_g)} г`}</span><b className={day.totals.protein_g >= targets.protein * 0.9 ? 'full' : ''}>{fmt(day.totals.protein_g)} г</b></li> : null}
             {!trained && <li className="sub">Тренировка добавится в круг, когда вы её проведёте сегодня.</li>}
           </ul>
         )}
@@ -310,9 +314,10 @@ export default function Home(props: {
           {g.map((b) => b === 'workout' ? (
             <button key={b} className="home-row" onClick={props.onWorkouts}>
               <span className="home-row-icon" aria-hidden="true">🏋️</span>
-              <span className="step-text"><b>{next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
-                <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>
-              <span className="step-go" aria-hidden="true">›</span>
+              {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /><span className="skeleton skeleton-line" style={{ width: 90, height: 14, marginTop: 6 }} /></span> // not "choose a program" before the program has loaded
+                : <span className="step-text"><b>{next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
+                <span className="sub">{next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}
+              <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
             </button>
           ) : <Fragment key={b}>{b === 'habits' ? props.habits : props.quests}</Fragment>)}
         </div>

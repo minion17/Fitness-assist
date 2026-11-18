@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { MealPlan } from './mealPrototype'
 import './MealDay.css'
 import { useBack } from './back'
+import { Chevron } from './ui'
 
 type Day = MealPlan['days'][number]
 type Meal = Day['meals'][number]
@@ -60,7 +61,7 @@ export default function MealDay({ day, batch, error, onReplace, onBack, onClearE
       <button className="plan-meal-link" key={meal.meal} aria-label={`Открыть ${labels[meal.meal]} — ${meal.name}`} onClick={() => setActive(index)}>
         <img src={`/images/recipes/${meal.id}.jpg`} alt="" />
         <span className="plan-meal-copy"><span className="plan-slot">{labels[meal.meal]}</span><strong>{meal.name}</strong><small>{meal.nutrition.kcal} ккал{meal.portions > 1 && ` · на ${meal.portions} чел.`}</small></span>
-        <span className="plan-arrow" aria-hidden="true">›</span>
+        <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
       </button>)}</div>
     {active !== null && <RecipeCard meal={day.meals[active]} batch={batch} error={error}
       onClose={() => { setActive(null); onClearError() }} onReplace={() => onReplace(active)} />}

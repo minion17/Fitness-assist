@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { shrink } from './image'
 import { api, ApiError, postJson } from './telegram'
 import type { Product } from './types'
+import { Chevron } from './ui'
 
 type Dish = { name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; portion_g: number | null; portion_name: string }
 type Menu = { venue: string; items: Dish[]; note: string }
@@ -67,7 +68,7 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
                 <div className="row-title">{p.name}</div>
                 <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}{p.portion_g ? `${p.portion_name ?? 'порция'} ${p.portion_g} г · ` : ''}{Math.round(p.kcal)} ккал на 100 г</div>
               </div>
-              <span className="row-end">›</span>
+              <span className="row-end" aria-hidden="true"><Chevron dir="right" /></span>
             </button>
           ))}
         </div>

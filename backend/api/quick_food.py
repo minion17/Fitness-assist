@@ -44,7 +44,8 @@ def product_out(p: Product) -> dict:
 
 @router.get("/products/recent")
 async def recent_products(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    """Products from the user's last entries, newest first, with the last portion size."""
+    """Products from the user's last entries, newest first, with the last portion size and how often each meal had it
+    (the app puts this meal's usual products first: porridge at breakfast, soup at lunch)."""
     user = await get_or_create_user(tg, session)
     logs = await session.scalars(
         select(FoodLog).options(selectinload(FoodLog.product))
@@ -53,8 +54,10 @@ async def recent_products(tg: dict = Depends(telegram_user), session: AsyncSessi
     seen: dict[int, dict] = {}
     for log in logs:
         if log.product_id not in seen:
-            seen[log.product_id] = {**product_out(log.product), "last_amount_g": log.amount_g}
-    return list(seen.values())[:20]
+            seen[log.product_id] = {**product_out(log.product), "last_amount_g": log.amount_g, "meals": {}}
+        meals = seen[log.product_id]["meals"]
+        meals[log.meal_type] = meals.get(log.meal_type, 0) + 1
+    return list(seen.values())[:30]
 
 
 LOCAL_CATALOG = 500  # the most eaten plain products: kept on the phone so search answers from the first letter

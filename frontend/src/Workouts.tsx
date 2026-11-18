@@ -10,6 +10,7 @@ import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './K
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 import { nextWeight } from './progression'
 import { Chevron } from './ui'
+import { plural } from './plural'
 
 const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -116,7 +117,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <Chevron /></span></summary>
         <div>{day.exercises.map((exercise, index) => {
           const canOpen = hasExerciseGuide(exercise.name)
-          const info = <><ExerciseThumbnail name={exercise.name} index={index} /><span className="ready-exercise-main"><strong>{exercise.name}</strong><small>{exercise.sets} × {exercise.reps}{exercise.unit === 'seconds' ? ' с' : ' повт.'} · отдых {exercise.rest_seconds} с</small></span>{canOpen && <span className="ready-exercise-arrow" aria-hidden="true">→</span>}</>
+          const info = <><ExerciseThumbnail name={exercise.name} index={index} /><span className="ready-exercise-main"><strong>{exercise.name}</strong><small>{exercise.sets} × {exercise.reps}{exercise.unit === 'seconds' ? ' с' : ' повт.'} · отдых {exercise.rest_seconds} с</small></span>{canOpen && <span className="ready-exercise-arrow" aria-hidden="true"><Chevron dir="right" /></span>}</>
           return canOpen
             ? <button className="ready-exercise-row" key={index} onClick={() => setGuideExercise(exercise)} aria-label={`Открыть ${exercise.name}`}>{info}</button>
             : <div className="ready-exercise-row" key={index}>{info}</div>
@@ -206,8 +207,8 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
           <div className="list">
             {program.days.filter((d) => d.id !== next.id).map((d) => (
               <button className="row row-btn" key={d.id} onClick={() => setSession(d)}>
-                <div className="row-main"><div className="row-title">{d.day_name}</div><div className="row-sub">{d.exercises.length} упражнения</div></div>
-                <div className="row-end">Начать</div>
+                <div className="row-main"><div className="row-title">{d.day_name}</div><div className="row-sub">{d.exercises.length} {plural(d.exercises.length, 'упражнение', 'упражнения', 'упражнений')}</div></div>
+                <div className="row-end row-go">Начать</div>
               </button>
             ))}
           </div>

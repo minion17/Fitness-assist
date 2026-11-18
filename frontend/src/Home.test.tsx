@@ -1,9 +1,11 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import Home from './Home'
 import FirstSteps from './FirstSteps'
 
-afterEach(cleanup)
+// midday unless a test says otherwise: from 20:00 the day card opens with the day's summary
+beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(2026, 10, 19, 13, 0)) })
+afterEach(() => { cleanup(); vi.useRealTimers() })
 test('summarizes food and training with direct actions', () => {
   const onFood = vi.fn(), onNutrition = vi.fn(), onWorkouts = vi.fn()
   render(<Home name="Тест" level={1} streak={0} targets={{ calories: 2000, protein: 100, fat: 70, carbs: 200 }}
@@ -88,4 +90,15 @@ test('offers to repeat yesterday\'s meal in one tap', () => {
     repeat={{ title: 'Повторить вчерашний завтрак', kcal: 420, run }} />)
   fireEvent.click(screen.getByRole('button', { name: /повторить вчерашний завтрак/ }))
   expect(run).toHaveBeenCalled()
+})
+
+
+test('in the evening the day card opens with what is left for today', () => {
+  vi.setSystemTime(new Date(2026, 10, 19, 21, 0))
+  render(<Home name="Тест" level={1} streak={0} targets={{ calories: 2000, protein: 100, fat: 70, carbs: 200 }}
+    day={{ date: '', items: [], totals: { kcal: 1500, protein_g: 60, fat_g: 0, carbs_g: 0 } }}
+    logs={[]} water={{ ml: 2000, goal_ml: 2000 }} aiEnabled={false} canEdit onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} />)
+  expect(screen.getByText('Итог дня')).toBeTruthy()
+  expect(screen.getByText('ещё 500 ккал')).toBeTruthy()
+  expect(screen.getByText('ещё 40 г')).toBeTruthy() // protein
 })

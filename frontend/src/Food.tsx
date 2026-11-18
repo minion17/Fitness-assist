@@ -17,6 +17,7 @@ import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Produc
 import { foodIcon } from './foodIcon'
 import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
 import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
+import { plural } from './plural'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
 const MACROS = [
@@ -26,7 +27,7 @@ const MACROS = [
 ] as const
 
 const r1 = (n: number) => Math.round(n * 10) / 10
-type RecentProduct = Product & { last_amount_g: number }
+type RecentProduct = Product & { last_amount_g: number; meals?: Partial<Record<MealType, number>> }
 type TodayPlan = { finished: boolean; day?: number; meals: (Meal & { completed: boolean })[] }
 
 const MEAL_TIME: Record<MealType, string> = { breakfast: '07:00', lunch: '13:00', dinner: '19:00', snack: '16:00' }
@@ -164,13 +165,13 @@ function DateBar({ date, onDate }: { date: string; onDate: (iso: string) => void
   const max = today(), min = shiftDay(max, -HISTORY_DAYS)
   return (
     <div className="date-bar">
-      <button className="icon-btn" aria-label="Предыдущий день" disabled={date <= min} onClick={() => onDate(shiftDay(date, -1))}>‹</button>
+      <button className="icon-btn" aria-label="Предыдущий день" disabled={date <= min} onClick={() => onDate(shiftDay(date, -1))}><Chevron dir="left" /></button>
       <button className="date-label" aria-label={`${dayLabel(date)}: открыть календарь`} onClick={() => setCalendar(true)}>
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true">
           <rect x="3.5" y="5" width="17" height="15.5" rx="3" /><path d="M3.5 10h17M8 3v4M16 3v4" /></svg>
         <span>{dayLabel(date)}</span>
       </button>
-      <button className="icon-btn" aria-label="Следующий день" disabled={date >= max} onClick={() => onDate(shiftDay(date, 1))}>›</button>
+      <button className="icon-btn" aria-label="Следующий день" disabled={date >= max} onClick={() => onDate(shiftDay(date, 1))}><Chevron dir="right" /></button>
       {calendar && <Calendar value={date} onPick={onDate} onClose={() => setCalendar(false)} />}
     </div>
   )
@@ -343,7 +344,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
               <button className="planned-recipe-link" aria-label={`Открыть ${title} — ${planned.name}`} onClick={() => setRecipe(planned)}>
                 <img src={`/images/recipes/${planned.id}.jpg`} alt="" />
                 <span className="planned-meal-info"><span className="plan-slot">{title}</span><strong>{planned.name}</strong><small>{Math.round(planned.nutrition.kcal)} ккал · Б {Math.round(planned.nutrition.protein_g)} · Ж {Math.round(planned.nutrition.fat_g)} · У {Math.round(planned.nutrition.carbs_g)}</small></span>
-                <span className="plan-arrow" aria-hidden="true">›</span>
+                <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
               </button>
               <button className={planned.completed ? 'planned-meal-check is-done' : 'planned-meal-check'} role="checkbox" aria-checked={planned.completed} aria-label={`${planned.completed ? 'Отменить' : 'Отметить'}: ${planned.name}`} disabled={planBusy !== null} onClick={() => togglePlanMeal(todayPlan.meals.indexOf(planned), !planned.completed)}>{planned.completed ? '✓' : ''}</button>
             </div>}
@@ -415,8 +416,6 @@ function groupByName(list: Product[]): [Product, Product[]][] {
   return [...groups.values()]
 }
 
-const plural = (n: number, one: string, few: string, many: string) =>
-  n % 10 === 1 && n % 100 !== 11 ? one : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? few : many
 
 type MealSetData = { id: number; name: string; items: { product_id: number; name: string; amount_g: number }[]; kcal: number }
 
@@ -467,6 +466,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
 
   /** Added: stay in the sheet, back to an empty search for the next product. */
   function done(p: Product, grams: number) {
+    tg?.HapticFeedback?.impactOccurred?.('light')
     setAdded((a) => [...a, { name: p.name, kcal: Math.round((p.kcal * grams) / 100) }])
     setJustAdded(p.id)
     setTimeout(() => setJustAdded((id) => (id === p.id ? null : id)), 1200)
@@ -520,6 +520,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     cached<Product[]>('/api/favorites', 'setly-favorites', setFavorites)
   }, [])
 
+  // what this meal usually has comes first (newest first among equals: sort is stable)
+  const recentForMeal = useMemo(() => recent && [...recent].sort((a, b) => (b.meals?.[meal] ?? 0) - (a.meals?.[meal] ?? 0)).slice(0, 20), [recent, meal])
   const isFav = picked != null && favorites?.some((f) => f.id === picked.id)
   async function toggleFav(p: Product) {
     const was = favorites?.some((f) => f.id === p.id)
@@ -707,11 +709,11 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                     </div>
                   ))}
                 </div>
-              ) : (list === 'recent' ? recent : favorites).length === 0 ? (
+              ) : (list === 'recent' ? recentForMeal! : favorites).length === 0 ? (
                 <p className="sub">{list === 'recent' ? 'Здесь появятся продукты, которые вы добавляли.' : 'Отметьте продукт звёздочкой — он появится здесь.'}</p>
               ) : (
                 <div className="list scroll-list">
-                  {(list === 'recent' ? recent : favorites).map((p) => {
+                  {(list === 'recent' ? recentForMeal! : favorites).map((p) => {
                     const d = 'last_amount_g' in p ? { unit: GRAM, qty: Number(p.last_amount_g) } : defaultAmount(p)
                     const amount = `${fmtQty(d.qty)} ${unitWord(d.unit.label, d.qty)}`
                     const kcal = Math.round((p.kcal * d.qty * d.unit.g) / 100)

@@ -1,7 +1,7 @@
 // Diary calendar: a month at a glance, each logged day coloured by how it went against the norm; a tap opens the day.
 import { useEffect, useRef, useState } from 'react'
 import { api } from './telegram'
-import { Sheet } from './ui'
+import { Sheet, Chevron } from './ui'
 
 type Month = { days: Record<string, number>; goal: number | null }
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
@@ -53,9 +53,9 @@ export default function Calendar({ value, onPick, onClose }: { value: string; on
   return (
     <Sheet title="Дневник по дням" onClose={onClose}>
       <div className="cal-head">
-        <button className="icon-btn" aria-label="Предыдущий месяц" disabled={!canPrev} onClick={() => go(-1)}>‹</button>
+        <button className="icon-btn" aria-label="Предыдущий месяц" disabled={!canPrev} onClick={() => go(-1)}><Chevron dir="left" /></button>
         <strong>{title[0].toUpperCase() + title.slice(1)}</strong>
-        <button className="icon-btn" aria-label="Следующий месяц" disabled={!canNext} onClick={() => go(1)}>›</button>
+        <button className="icon-btn" aria-label="Следующий месяц" disabled={!canNext} onClick={() => go(1)}><Chevron dir="right" /></button>
       </div>
       <div className="cal-grid" role="grid" aria-label={title} aria-busy={!m}
         onPointerDown={(e) => { swipe.current = e.clientX }}

@@ -1,6 +1,7 @@
 // Home: the user's own daily checks (sleep, steps, no sweets...). One tap ticks today; a tick keeps the streak.
 import { useState } from 'react'
 import { api, postJson, tg } from './telegram'
+import { Chevron } from './ui'
 
 export type Habit = { id: number; title: string; emoji: string; done: boolean; streak: number; remind_at?: string | null }
 
@@ -42,7 +43,7 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
       <button className="home-row" onClick={() => setEditing(true)}>
         <span className="home-row-icon" aria-hidden="true">✅</span>
         <span className="step-text"><b>Привычки</b><span className="sub">Сон, шаги, без сладкого — отметка продлевает серию</span></span>
-        <span className="step-go" aria-hidden="true">›</span>
+        <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
       </button>
     )
   }

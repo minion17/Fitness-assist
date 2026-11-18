@@ -1955,3 +1955,10 @@ def test_library_list_photos_and_muscle_week(client, seeded):
         client.post(f"/api/workout-logs/{log['id']}/sets", headers=h, json={"exercise_id": bench["id"], "set_number": n, "reps": 8, "weight_kg": 60})
     week = client.get("/api/muscles/week", headers=h).json()["sets"]
     assert week["chest"] == 2 and all(week[m] == 1 for m in bench["secondary"])
+
+
+def test_typo_match_keeps_the_first_letter():
+    from backend.core.search import fuzzy_match
+    assert fuzzy_match(["гричка"], "гречка ядрица") > 0  # a real typo
+    # "картошка жареная" must not pull in a brand "Коровка из Кореновки" by sound alone
+    assert fuzzy_match(["картошка", "жареная"], "пломбир шоколадный коровка из кореновки") == 0

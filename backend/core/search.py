@@ -118,7 +118,8 @@ def fuzzy_match(words: list[str], text: str, cutoff: float = 0.75) -> float:
     names = re.findall(rf"[{LETTER}]+", text)
     total = 0.0
     for w in words:
-        best = max((1.0 if n.startswith(stem(w)) else similar(w, n) for n in names), default=0.0)
+        # a typo keeps the first letter: else "жареная" ~ "кореновки", "картошка" ~ "коровка"
+        best = max((1.0 if n.startswith(stem(w)) else similar(w, n) if n[:1] == w[:1] else 0.0 for n in names), default=0.0)
         if best < cutoff:
             return 0.0
         total += best

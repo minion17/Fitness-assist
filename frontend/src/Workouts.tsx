@@ -149,8 +149,9 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         return groups.map(group => {
           const items = ready.filter(p => group.key === 'other' ? !['beginner', 'intermediate', 'advanced'].includes(p.level) : p.level === group.key)
             .sort((a, b) => Number(b.id === recommended?.program_id) - Number(a.id === recommended?.program_id))
+          if (!items.length) return null // an empty level is just a dead row to tap
           return <details className="program-level-group" key={group.key}>
-            <summary><strong>{group.title}</strong><span className="program-level-meta">{items.length}<span className="program-level-chevron" aria-hidden="true">⌄</span></span></summary>
+            <summary><strong>{group.title}</strong><span className="program-level-meta">{items.length}<Chevron /></span></summary>
             <div className="program-level-content">
               {items.length === 0 && <p className="sub">Программ пока нет</p>}
               {items.map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>

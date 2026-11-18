@@ -10,7 +10,8 @@ test('готовые программы сгруппированы по уров
   const select = vi.fn()
   render(<Workouts programs={[makeProgram(1, 'Дом', 'beginner'), makeProgram(2, 'Гиря', 'intermediate'), makeProgram(3, 'Неизвестная', 'other')]} logs={[]} programId={null} onSelectProgram={select} canEdit={false} onChanged={() => {}} />)
   fireEvent.click(screen.getByRole('button', { name: 'Программы' }))
-  for (const title of ['Для новичков', 'Средний уровень', 'Для опытных', 'Другие программы']) expect(screen.getByText(title)).toBeTruthy()
+  for (const title of ['Для новичков', 'Средний уровень', 'Другие программы']) expect(screen.getByText(title)).toBeTruthy()
+  expect(screen.queryByText('Для опытных')).toBeNull() // no programs of that level: no empty row
   const beginner = screen.getByText('Для новичков').closest('details')!
   const middle = screen.getByText('Средний уровень').closest('details')!
   expect(beginner.open).toBe(false)

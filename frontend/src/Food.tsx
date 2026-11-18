@@ -290,7 +290,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
         <h1>Питание</h1>
         {onDate && canEdit && <DateBar date={date} onDate={(d) => { setBefore(null); onDate(d) }} />}
       </div>
-      <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По вашим предпочтениям'}</small></span><span>Открыть →</span></button>
+      <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span className="meal-plan-icon" aria-hidden="true">🥗</span><span className="meal-plan-text"><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По вашим предпочтениям'}</small></span><span className="meal-plan-go"><Chevron /></span></button>
       <section className="card nutrition-summary"
         onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY } }}
         onPointerUp={(e) => {

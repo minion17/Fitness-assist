@@ -494,8 +494,12 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .program-level-group summary::-webkit-details-marker { display: none; }
 .program-level-group summary strong { font-size: 15px; }
 .program-level-meta { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
-.program-level-chevron { font-size: 18px; transition: transform .2s ease; }
-.program-level-group[open] .program-level-chevron { transform: rotate(180deg); }
+.program-level-meta .chev { width: 20px; height: 20px; color: var(--accent); }
+.program-level-group summary { transition: background .15s ease; }
+.program-level-group summary:hover { background: color-mix(in srgb, var(--text) 4%, transparent); }
+.meal-plan-icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 14px; font-size: 24px; background: color-mix(in srgb, var(--accent) 14%, var(--card-2)); }
+.meal-plan-text { flex: 1; min-width: 0; }
+.meal-plan-go .chev { transform: rotate(-90deg); width: 20px; height: 20px; color: var(--accent); }
 .program-level-content { display: grid; gap: 8px; padding: 0 10px 10px; }
 .program-level-content > .sub { margin: 0; padding: 4px 6px 10px; }
 .program-card { padding: 18px; gap: 8px; }
@@ -947,7 +951,7 @@ button:not(:disabled):active, .btn:not(:disabled):active, summary:active { trans
 .profile-results-calories span { color: var(--muted); font-size: 14px; font-weight: 500; }
 .profile-results-program { font-size: 18px; font-weight: 700; }
 .profile-results-close { align-self: center; min-height: 44px; padding: 8px; }
-.meal-plan-entry { width: 100%; display: flex; align-items: center; justify-content: space-between; text-align: left; gap: 12px; color: var(--accent); cursor: pointer; }
+.meal-plan-entry { width: 100%; display: flex; flex-direction: row; align-items: center; justify-content: flex-start; text-align: left; gap: 12px; color: var(--accent); cursor: pointer; }
 .meal-plan-entry strong, .meal-plan-entry small { display: block; }
 .meal-plan-entry strong { color: var(--text); font-size: 17px; }
 .meal-plan-entry small { color: var(--muted); font-size: 13px; margin-top: 4px; }

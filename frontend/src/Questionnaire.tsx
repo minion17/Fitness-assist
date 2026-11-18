@@ -1,10 +1,10 @@
 // Registration questionnaire: one question per screen with explicit navigation. Besides the numbers for the norms it
 // asks what the program needs: body now and the goal shape, a quick self-test (squats, push-ups, pull-ups), where and how
 // often one trains. Ends with an honest plan summary. All calculations stay on the server.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import BodyFigure from './BodyFigure'
 import MealRange from './MealRange'
-import { NOW_LEVELS, TARGET_LEVELS, nowShape, targetShape } from './bodyShape'
+import { NOW_LEVELS, TARGET_LEVELS, bodyAvatarSource, targetAvatar } from './bodyShape'
 import { YEAR, type ProfileData } from './profile'
 
 type Opt = Record<string, string>
@@ -203,12 +203,12 @@ function BodySummary({ draft, sex }: { draft: Draft; sex: 'male' | 'female' }) {
     <div className="q-body-summary">
       <div className="card">
         <span>Сейчас</span>
-        <BodyFigure sex={sex} {...nowShape(draft.body_now ?? Math.ceil(NOW_LEVELS / 2))} label="Текущее телосложение" />
+        <BodyFigure sex={sex} level={draft.body_now ?? Math.ceil(NOW_LEVELS / 2)} label="Текущее телосложение" />
         <strong>{weight.toLocaleString('ru-RU')} кг</strong>
       </div>
       <div className="card">
         <span>Цель</span>
-        <BodyFigure sex={sex} {...targetShape(draft.body_target ?? 2)} label="Желаемое телосложение" />
+        <BodyFigure sex={sex} level={targetAvatar(draft.body_target ?? 2)} label="Желаемое телосложение" />
         <strong>{target.toLocaleString('ru-RU')} кг</strong>
       </div>
     </div>
@@ -291,6 +291,13 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
     </label>
   )
   const sex = d.sex === 'female' ? 'female' : 'male'
+  useEffect(() => {
+    if (screen.key !== 'about') return
+    for (let level = 1; level <= NOW_LEVELS; level++) {
+      const avatar = new Image()
+      avatar.src = bodyAvatarSource(sex, level)
+    }
+  }, [screen.key, sex])
   const photo = (file: string, alt: string) => <img className="q-photo" src={IMG + file} alt={alt} />
   const optionsSlider = (label: string, options: Opt, key: keyof Draft) =>
     <OptionSlider label={label} options={options} value={d[key] as string | undefined} onChange={set(key)} />
@@ -303,11 +310,11 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
         setD(p => p.goal === goal ? p : { ...p, goal, target_weight_kg: undefined })
       }} />
       case 'body_now': return <>
-        <BodyFigure sex={sex} {...nowShape(d.body_now ?? Math.ceil(NOW_LEVELS / 2))} label={`Телосложение: ${d.body_now ?? '—'} из ${NOW_LEVELS}`} />
+        <BodyFigure sex={sex} level={d.body_now ?? Math.ceil(NOW_LEVELS / 2)} label={`Телосложение: ${d.body_now ?? '—'} из ${NOW_LEVELS}`} />
         <Slider label="Телосложение сейчас" levels={NOW_LEVELS} value={d.body_now ?? Math.ceil(NOW_LEVELS / 2)} onChange={set('body_now')} left="Меньше жира" right="Больше жира" />
       </>
       case 'body_target': return <>
-        <BodyFigure sex={sex} {...targetShape(d.body_target ?? 2)} label={`Цель: ${d.body_target ?? '—'} из ${TARGET_LEVELS}`} />
+        <BodyFigure sex={sex} level={targetAvatar(d.body_target ?? 2)} label={`Цель: ${d.body_target ?? '—'} из ${TARGET_LEVELS}`} />
         <Slider label="Целевое телосложение" levels={TARGET_LEVELS} value={d.body_target ?? 2} onChange={set('body_target')}
           left={sex === 'female' ? 'Стройное и подтянутое' : 'Стройное и атлетичное'} right={sex === 'female' ? 'Спортивное и рельефное' : 'Сильное и массивное'} />
       </>

@@ -1504,8 +1504,7 @@ body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-f
 .q-body fieldset.field { border: 0; padding: 0; margin: 0; }
 .q-photo { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 20px; background: var(--card-2); }
 .q-pullups .q-photo { object-position: 50% 15%; }
-.body-figure { width: 100%; max-height: min(46vh, 380px); }
-.body-figure path, .body-figure ellipse { transition: d .35s ease; }
+.body-figure { display: block; width: 100%; height: min(46dvh, 380px); object-fit: contain; }
 .q-slider { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 10px; }
 .q-slider .meal-range-rail {
   top: 17px;

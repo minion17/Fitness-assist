@@ -1,5 +1,4 @@
-// Our own body illustrations for the questionnaire: a front-view figure drawn from two numbers, fat and muscle (0..1),
-// so every step of the "телосложение" slider gets its picture without image files.
+// Front-view body geometry for the interactive muscle map.
 export type Sex = 'male' | 'female'
 type Pt = [number, number]
 
@@ -75,8 +74,11 @@ export function figure(sex: Sex, fat: number, muscle: number): Figure {
   return { body, arms: [arm(-1), arm(1)], legs: [leg(-1), leg(1)], shorts, head, hair, lines, shoes: [[legOut(-1), 386], [legOut(1), 386]] }
 }
 
-/** Steps of the sliders, as in the pictures: "now" from lean to obese; "target" from slim-athletic to big and strong. */
 export const NOW_LEVELS = 8
-export const TARGET_LEVELS = 5
-export const nowShape = (level: number) => ({ fat: (level - 1) / (NOW_LEVELS - 1), muscle: 0.35 })
-export const targetShape = (level: number) => ({ fat: 0.04 + 0.08 * (level - 1) / (TARGET_LEVELS - 1), muscle: 0.3 + 0.7 * (level - 1) / (TARGET_LEVELS - 1) })
+
+// The fourth reference has the strongest muscle definition in both series.
+const targetAvatars = [2, 3, 5, 6, 4]
+export const TARGET_LEVELS = targetAvatars.length
+export const targetAvatar = (level: number) => targetAvatars[level - 1] ?? targetAvatars[1]
+
+export const bodyAvatarSource = (sex: Sex, level: number) => `/images/body-avatars/${sex}-${level}.webp`

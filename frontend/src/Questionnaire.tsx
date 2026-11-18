@@ -1,7 +1,7 @@
-// Registration questionnaire: one question per screen, a tap on an answer moves on. Besides the numbers for the norms it
+// Registration questionnaire: one question per screen with explicit navigation. Besides the numbers for the norms it
 // asks what the program needs: body now and the goal shape, a quick self-test (squats, push-ups, pull-ups), where and how
 // often one trains. Ends with an honest plan summary. All calculations stay on the server.
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import BodyFigure from './BodyFigure'
 import MealRange from './MealRange'
 import { NOW_LEVELS, TARGET_LEVELS, nowShape, targetShape } from './bodyShape'
@@ -43,7 +43,10 @@ const SQUATS: Opt = { lt15: 'Меньше 15', '15_30': '15–30', gt30: 'Бол
 const PUSHUPS: Opt = { lt10: 'Меньше 10', '10_20': '10–20', gt20: 'Больше 20', unknown: 'Не знаю' }
 const PULLUPS: Opt = { none: 'Ни одного', '1_5': '1–5', '6_10': '6–10', gt10: 'Больше 10', unknown: 'Не знаю' }
 const FOCUS: Opt = { arms: 'Руки', chest: 'Грудь', belly: 'Живот', glutes: 'Ягодицы', legs: 'Ноги', back: 'Спина' }
-const DAYS: Opt = Object.fromEntries([1, 2, 3, 4, 5, 6, 7].map((n) => [String(n), String(n)]))
+const DAYS: Opt = {
+  '1': '1 день в неделю', '2': '2 дня в неделю', '3': '3 дня в неделю', '4': '4 дня в неделю',
+  '5': '5 дней в неделю', '6': '6 дней в неделю', '7': '7 дней в неделю',
+}
 const MINUTES: Opt = { '20': '20 мин', '30': '30 мин', '45': '45 мин', '60': '60 мин', '90': '90 мин' }
 const ALLERGIES: Opt = { dairy: 'Молочное', eggs: 'Яйца', gluten: 'Глютен', nuts: 'Орехи', fish: 'Рыба' }
 const MEALS: Opt = { '3': '3 раза', '4': '4 раза', '5': '5 раз' }
@@ -121,26 +124,26 @@ type Screen = {
 }
 
 const SCREENS: Screen[] = [
-  { key: 'sex', title: 'Давайте знакомиться', hint: 'Ваш пол — для расчёта нормы и картинок дальше.', check: (d) => (!d.sex ? 'Выберите пол' : null) },
-  { key: 'about', title: 'Немного о вас', hint: 'Год рождения, рост и вес — из них считаются калории.', check: (d) => checkNum(d, 'birth_year') ?? checkNum(d, 'height_cm') ?? checkNum(d, 'weight_kg') },
-  { key: 'goal', title: 'Какая у вас цель?', hint: 'От неё зависят калории, белок и программа.', check: (d) => (!d.goal ? 'Выберите цель' : null) },
+  { key: 'sex', title: 'Давайте знакомиться', check: (d) => (!d.sex ? 'Выберите пол' : null) },
+  { key: 'about', title: 'Немного о вас', check: (d) => checkNum(d, 'birth_year') ?? checkNum(d, 'height_cm') ?? checkNum(d, 'weight_kg') },
+  { key: 'goal', title: 'Какая у вас цель?', check: (d) => (!d.goal ? 'Выберите цель' : null) },
   { key: 'body_now', title: 'Каково ваше телосложение?', hint: 'Сдвиньте ползунок, чтобы фигура была похожа на вашу.', check: (d) => (!d.body_now ? 'Сдвиньте ползунок' : null) },
-  { key: 'body_target', title: 'Какое телосложение — цель?', hint: 'К чему хотите прийти.', check: (d) => (!d.body_target ? 'Сдвиньте ползунок' : null) },
-  { key: 'target', title: 'Желаемый вес', hint: 'Подставили ориентир по цели — поправьте под себя.', check: (d) => checkNum(d, 'target_weight_kg') },
+  { key: 'body_target', title: 'Какое телосложение — цель?', check: (d) => (!d.body_target ? 'Сдвиньте ползунок' : null) },
+  { key: 'target', title: 'Желаемый вес', check: (d) => checkNum(d, 'target_weight_kg') },
   { key: 'body_summary', title: 'Ваш ориентир' },
   { key: 'experience', title: 'Как давно тренируетесь?', check: (d) => (!d.experience ? 'Выберите уровень подготовки' : null) },
-  { key: 'squats', title: 'Сколько приседаний подряд вы сделаете?', hint: 'Без перерыва, в спокойном темпе.', check: (d) => (!d.squats ? 'Выберите ответ' : null) },
-  { key: 'pushups', title: 'А отжиманий?', hint: 'От пола, без перерыва.', check: (d) => (!d.pushups ? 'Выберите ответ' : null) },
-  { key: 'pullups', title: 'Сколько раз подтянетесь?', hint: 'На турнике, хватом сверху.', check: (d) => (!d.pullups ? 'Выберите ответ' : null) },
+  { key: 'squats', title: 'Сколько приседаний подряд вы сделаете?', check: (d) => (!d.squats ? 'Выберите ответ' : null) },
+  { key: 'pushups', title: 'А отжиманий?', check: (d) => (!d.pushups ? 'Выберите ответ' : null) },
+  { key: 'pullups', title: 'Сколько раз подтянетесь?', check: (d) => (!d.pullups ? 'Выберите ответ' : null) },
   { key: 'activity', title: 'Сколько вы двигаетесь в обычные дни?', check: (d) => (!d.activity ? 'Выберите уровень активности' : null) },
   { key: 'place', title: 'Где будете тренироваться?', check: (d) => (!d.place ? 'Выберите место' : null) },
-  { key: 'equipment', title: 'Что есть под рукой?', hint: 'Отметили обычное для этого места — поправьте.', check: (d) => (!d.equipment.length ? 'Отметьте доступное оборудование' : null) },
+  { key: 'equipment', title: 'Что есть под рукой?', check: (d) => (!d.equipment.length ? 'Отметьте доступное оборудование' : null) },
   { key: 'schedule', title: 'Сколько времени готовы уделять?', check: (d) => (!d.sessions_per_week ? 'Выберите количество дней' : !d.session_minutes ? 'Выберите длительность' : null) },
   { key: 'focus', title: 'На что сделать упор?', hint: 'Можно выбрать несколько или пропустить.' },
   { key: 'meals', title: 'Сколько раз в день вы едите?', check: (d) => (!d.meals_per_day ? 'Выберите число приёмов пищи' : null) },
-  { key: 'recovery', title: 'Сон и стресс', hint: 'От восстановления зависит нагрузка.', check: (d) => checkNum(d, 'sleep_hours') ?? (!d.stress ? 'Выберите уровень стресса' : null) },
+  { key: 'recovery', title: 'Сон и стресс', check: (d) => checkNum(d, 'sleep_hours') ?? (!d.stress ? 'Выберите уровень стресса' : null) },
   {
-    key: 'health', title: 'Здоровье', hint: 'Учтём в питании и упражнениях.', skip: (d) => !d.health,
+    key: 'health', title: 'Здоровье', skip: (d) => !d.health,
     check: (d) => (!d.has_injury ? 'Укажите, есть ли травмы' : d.has_injury === 'yes' && !d.injury ? 'Выберите зону ограничения' : null),
   },
   { key: 'plan', title: 'Ваш план готов' },
@@ -181,7 +184,6 @@ function OptionSlider({ label, options, value, onChange }: {
     <strong>{caption}</strong>
     <MealRange label={label} min={0} max={entries.length - 1} step={1} value={Math.max(0, cursor)}
       valueText={caption} stops={entries.map((_, i) => i)} onChange={index => onChange(entries[index][0])} />
-    <div className="q-slider-ends"><span>{entries[0][1]}</span><span>{entries[entries.length - 1][1]}</span></div>
   </div>
 }
 
@@ -220,13 +222,13 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
   onSave: (p: ProfileData) => Promise<void>
   onCancel?: () => void
 }) {
-  const [d, setD] = useState<Draft>(() => ({ ...toDraft(initial), health }))
+  const [d, setD] = useState<Draft>(() => {
+    const draft = toDraft(initial)
+    return { ...draft, sessions_per_week: draft.sessions_per_week ?? '1', session_minutes: draft.session_minutes ?? '20', health }
+  })
   const [at, setAt] = useState(0)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const autoNext = useRef<ReturnType<typeof setTimeout> | null>(null)
-  useEffect(() => () => { if (autoNext.current) clearTimeout(autoNext.current) }, [])
-
   const screens = SCREENS.filter((s) => !s.skip?.(d))
   const screen = screens[Math.min(at, screens.length - 1)]
   const last = screen.key === 'plan'
@@ -239,18 +241,9 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
   }
 
   function go(step: number) {
-    if (autoNext.current) clearTimeout(autoNext.current)
     setError('')
     setAt((i) => Math.max(0, Math.min(screens.length - 1, i + step)))
     window.scrollTo(0, 0)
-  }
-
-  /** A single-tap answer: show the choice for a moment, then the next question. */
-  const pick = (k: keyof Draft, extra?: (v: string) => Partial<Draft>) => (v: string) => {
-    setError('')
-    setD((p) => ({ ...p, [k]: v, ...extra?.(v) }))
-    if (autoNext.current) clearTimeout(autoNext.current)
-    autoNext.current = setTimeout(() => go(1), 260)
   }
 
   function next() {
@@ -303,9 +296,12 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
     <OptionSlider label={label} options={options} value={d[key] as string | undefined} onChange={set(key)} />
   function body() {
     switch (screen.key) {
-      case 'sex': return <Cards label="Пол" options={SEX} value={d.sex} onChange={pick('sex')} grid />
+      case 'sex': return <Cards label="Пол" options={SEX} value={d.sex} onChange={set('sex')} grid />
       case 'about': return <>{numField('birth_year')}<div className="grid2">{numField('height_cm')}{numField('weight_kg', true)}</div></>
-      case 'goal': return <Cards label="Основная цель" options={GOALS} value={d.goal} onChange={pick('goal', () => ({ target_weight_kg: undefined }))} />
+      case 'goal': return <Cards label="Основная цель" options={GOALS} value={d.goal} onChange={goal => {
+        setError('')
+        setD(p => p.goal === goal ? p : { ...p, goal, target_weight_kg: undefined })
+      }} />
       case 'body_now': return <>
         <BodyFigure sex={sex} {...nowShape(d.body_now ?? Math.ceil(NOW_LEVELS / 2))} label={`Телосложение: ${d.body_now ?? '—'} из ${NOW_LEVELS}`} />
         <Slider label="Телосложение сейчас" levels={NOW_LEVELS} value={d.body_now ?? Math.ceil(NOW_LEVELS / 2)} onChange={set('body_now')} left="Меньше жира" right="Больше жира" />
@@ -333,13 +329,16 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       case 'squats': return <>{photo('bodyweight_squat.jpg', 'Приседания')}{optionsSlider('Приседания', SQUATS, 'squats')}</>
       case 'pushups': return <>{photo('pushup_floor.webp', 'Отжимания от пола')}{optionsSlider('Отжимания', PUSHUPS, 'pushups')}</>
       case 'pullups': return <>{photo('pullup.webp', 'Подтягивания')}{optionsSlider('Подтягивания', PULLUPS, 'pullups')}</>
-      case 'activity': return <Cards label="Повседневная активность" options={ACTIVITY} value={d.activity} onChange={pick('activity')} />
+      case 'activity': return <Cards label="Повседневная активность" options={ACTIVITY} value={d.activity} onChange={set('activity')} />
       case 'place': return <Cards label="Место тренировок" options={PLACE} value={d.place}
-        onChange={pick('place', (v) => (d.place === v && d.equipment.length ? {} : { equipment: PLACE_EQUIPMENT[v] }))} />
+        onChange={place => {
+          setError('')
+          setD(p => ({ ...p, place, equipment: p.place === place && p.equipment.length ? p.equipment : PLACE_EQUIPMENT[place] }))
+        }} />
       case 'equipment': return <Cards label="Доступное оборудование" options={EQUIPMENT} value={d.equipment} onChange={toggle('equipment')} multi grid />
       case 'schedule': return <>
-        <fieldset className="field"><legend>Дней в неделю</legend>{optionsSlider('Дней в неделю', DAYS, 'sessions_per_week')}</fieldset>
-        <fieldset className="field"><legend>Длительность тренировки</legend>{optionsSlider('Длительность тренировки', MINUTES, 'session_minutes')}</fieldset>
+        {optionsSlider('Дней в неделю', DAYS, 'sessions_per_week')}
+        {optionsSlider('Длительность тренировки', MINUTES, 'session_minutes')}
       </>
       case 'focus': return <Cards label="Упор" options={FOCUS} value={d.focus} onChange={toggle('focus')} multi grid />
       case 'meals': return optionsSlider('Приёмов пищи в день', MEALS, 'meals_per_day')
@@ -357,7 +356,11 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
         <fieldset className="field"><legend>Уровень стресса</legend>{optionsSlider('Уровень стресса', STRESS, 'stress')}</fieldset>
       </>
       case 'health': return <>
-        <fieldset className="field"><legend>Аллергии и непереносимость — если нет, пропустите</legend><Cards label="Аллергии" options={ALLERGIES} value={d.allergies} onChange={toggle('allergies')} multi grid /></fieldset>
+        <fieldset className="field">
+          <legend>Аллергии и непереносимость</legend>
+          <p className="q-allergy-help">Если их нет, пропустите этот вопрос.</p>
+          <Cards label="Аллергии" options={ALLERGIES} value={d.allergies} onChange={toggle('allergies')} multi grid />
+        </fieldset>
         <fieldset className="field"><legend>Есть ли травмы или ограничения?</legend><Cards label="Травмы" options={YES_NO} value={d.has_injury} onChange={set('has_injury')} grid /></fieldset>
         {d.has_injury === 'yes' && <fieldset className="field"><legend>Какая зона?</legend><Cards label="Зона" options={INJURY} value={d.injury} onChange={set('injury')} grid /></fieldset>}
       </>

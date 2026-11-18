@@ -41,7 +41,7 @@ test('bottom navigation opens all five sections', async () => {
   expect(screen.getByRole('button', { name: 'Главная' }).getAttribute('aria-current')).toBe('page')
 })
 
-test('questionnaire: one question per screen, a tap moves on, ends with the plan and saves all answers', async () => {
+test('questionnaire: selection waits for Continue and all answers are saved', async () => {
   window.scrollTo = () => {}
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }))
@@ -49,12 +49,18 @@ test('questionnaire: one question per screen, a tap moves on, ends with the plan
   const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
   const title = () => screen.getByRole('heading', { level: 1 }).textContent
   const alert = () => screen.getByRole('alert').textContent
-  const tap = async (name: string | RegExp, nextTitle: string) => { click(name); await waitFor(() => expect(title()).toBe(nextTitle)) }
+  const chooseAndContinue = (name: string | RegExp, nextTitle: string) => {
+    const currentTitle = title()
+    click(name)
+    expect(title()).toBe(currentTitle)
+    click('Продолжить')
+    expect(title()).toBe(nextTitle)
+  }
 
   const slide = (name: string, value: number) => fireEvent.change(screen.getByRole('slider', { name }), { target: { value: String(value) } })
   click('Продолжить')
   expect(alert()).toBe('Выберите пол')
-  await tap(/Женский/, 'Немного о вас')
+  chooseAndContinue(/Женский/, 'Немного о вас')
   const [year, height, weight] = screen.getAllByRole('textbox')
   fireEvent.change(year, { target: { value: '1995' } })
   fireEvent.change(height, { target: { value: '400' } })
@@ -63,7 +69,7 @@ test('questionnaire: one question per screen, a tap moves on, ends with the plan
   expect(alert()).toBe('Рост: от 120 до 230')
   fireEvent.change(height, { target: { value: '168' } })
   click('Продолжить')
-  await tap(/Снизить вес/, 'Каково ваше телосложение?')
+  chooseAndContinue(/Снизить вес/, 'Каково ваше телосложение?')
   expect(screen.getByRole('img', { name: /Телосложение/ })).toBeTruthy() // our drawing
   click('Продолжить')
   expect(alert()).toBe('Сдвиньте ползунок')
@@ -97,12 +103,15 @@ test('questionnaire: one question per screen, a tap moves on, ends with the plan
   click('Продолжить')
   chooseFirst('Подтягивания')
   click('Продолжить')
-  await tap(/Умеренная/, 'Где будете тренироваться?')
-  await tap(/Дома/, 'Что есть под рукой?')
+  chooseAndContinue(/Умеренная/, 'Где будете тренироваться?')
+  chooseAndContinue(/Дома/, 'Что есть под рукой?')
   expect(screen.getByRole('button', { name: 'Собственный вес' }).getAttribute('aria-pressed')).toBe('true') // home preset
   click('Гантели')
   click('Продолжить')
+  expect(screen.getByText('1 день в неделю')).toBeTruthy()
+  expect(screen.getByText('20 мин')).toBeTruthy()
   slide('Дней в неделю', 2)
+  expect(screen.getByText('3 дня в неделю')).toBeTruthy()
   slide('Длительность тренировки', 2)
   click('Продолжить')
   expect(screen.getByRole('button', { name: 'Пропустить' })).toBeTruthy() // focus is optional

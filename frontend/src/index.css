@@ -1499,6 +1499,8 @@ body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-f
 .q-cards button:active { transform: scale(.98); }
 .q-cards button[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--card)); }
 .q-body .field legend, .q-body .field > span { color: var(--muted); font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.q-body.q-health .field legend, .q-allergy-help { color: var(--text); }
+.q-allergy-help { margin: 0 0 10px; font-size: 14px; }
 .q-body fieldset.field { border: 0; padding: 0; margin: 0; }
 .q-photo { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 20px; background: var(--card-2); }
 .q-pullups .q-photo { object-position: 50% 15%; }
@@ -1508,10 +1510,17 @@ body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-f
 .q-slider .meal-range-rail {
   top: 17px;
   height: 10px;
+  background: transparent;
+}
+.q-slider .meal-range-rail::before {
+  content: '';
+  position: absolute;
+  inset: 0 -8px;
+  border-radius: inherit;
   background: color-mix(in srgb, var(--line) 78%, var(--accent));
   box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 14%, transparent);
 }
-.q-slider .meal-range-rail i { background: color-mix(in srgb, var(--accent) 36%, var(--card-2)); }
+.q-slider .meal-range-rail i { position: relative; background: color-mix(in srgb, var(--accent) 36%, var(--card-2)); }
 .q-slider .meal-range-rail b {
   width: 28px;
   height: 28px;

@@ -41,68 +41,78 @@ test('bottom navigation opens all five sections', async () => {
   expect(screen.getByRole('button', { name: 'Главная' }).getAttribute('aria-current')).toBe('page')
 })
 
-test('step-by-step questionnaire validates each step and saves all answers', async () => {
+test('questionnaire: one question per screen, a tap moves on, ends with the plan and saves all answers', async () => {
   window.scrollTo = () => {}
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }))
   fireEvent.click(screen.getByRole('button', { name: 'Заполнить анкету' }))
   const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
+  const title = () => screen.getByRole('heading', { level: 1 }).textContent
   const alert = () => screen.getByRole('alert').textContent
+  const tap = async (name: string | RegExp, nextTitle: string) => { click(name); await waitFor(() => expect(title()).toBe(nextTitle)) }
 
-  // 1. О себе
-  click('Далее')
+  click('Продолжить')
   expect(alert()).toBe('Выберите пол')
-  click('Женский')
+  await tap(/Женский/, 'Немного о вас') // a tap answers and moves on
   const [year, height, weight] = screen.getAllByRole('textbox')
   fireEvent.change(year, { target: { value: '1995' } })
   fireEvent.change(height, { target: { value: '400' } })
   fireEvent.change(weight, { target: { value: '61,5' } })
-  click('Далее')
+  click('Продолжить')
   expect(alert()).toBe('Рост: от 120 до 230')
   fireEvent.change(height, { target: { value: '168' } })
-  click('Далее')
-
-  // 2. Цель (5 целей)
-  expect(screen.getByText('Шаг 2 из 6')).toBeTruthy()
-  click('Набор мышечной массы')
-  click('Далее')
-
-  // 3. Опыт и активность
-  click('Далее')
-  expect(alert()).toBe('Выберите уровень подготовки')
-  click(/Новичок/)
-  click(/Умеренная/)
-  click('Далее')
-
-  // 4. Тренировки: multi-select toggles
-  click('Гантели'); click('Турник / брусья'); click('Гантели')
-  expect(screen.getByRole('button', { name: 'Гантели' }).getAttribute('aria-pressed')).toBe('false')
+  click('Продолжить')
+  await tap(/Снизить вес/, 'Каково ваше телосложение?')
+  expect(screen.getByRole('img', { name: /Телосложение/ })).toBeTruthy() // our drawing
+  click('Продолжить')
+  expect(alert()).toBe('Сдвиньте ползунок')
+  fireEvent.change(screen.getByRole('slider', { name: 'Телосложение сейчас' }), { target: { value: '5' } })
+  click('Продолжить')
+  fireEvent.change(screen.getByRole('slider', { name: 'Целевое телосложение' }), { target: { value: '2' } })
+  click('Продолжить')
+  expect(title()).toBe('Желаемый вес')
+  expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('55') // −10% for weight loss
+  expect(screen.getByText(/Минус 6,5 кг/)).toBeTruthy()
+  click('Продолжить')
+  await tap(/Новичок/, 'Сколько приседаний подряд вы сделаете?')
+  expect(screen.getByRole('img', { name: 'Приседания' })).toBeTruthy()
+  await tap('15–30', 'А отжиманий?')
+  await tap('Меньше 10', 'Сколько раз подтянетесь?')
+  await tap('Ни одного', 'Сколько вы двигаетесь в обычные дни?')
+  await tap(/Умеренная/, 'Где будете тренироваться?')
+  await tap(/Дома/, 'Что есть под рукой?')
+  expect(screen.getByRole('button', { name: 'Собственный вес' }).getAttribute('aria-pressed')).toBe('true') // home preset
+  click('Гантели')
+  click('Продолжить')
   click('3'); click('45 мин')
-  click('Далее')
-
-  // 5. Питание: allergies optional; back keeps answers
+  click('Продолжить')
+  expect(screen.getByRole('button', { name: 'Пропустить' })).toBeTruthy() // focus is optional
+  click('Живот')
+  click('Продолжить')
+  // back keeps the answers
   click('Назад')
-  expect(screen.getByRole('button', { name: 'Турник / брусья' }).getAttribute('aria-pressed')).toBe('true')
-  click('Далее')
-  click('Орехи'); click('4 раза')
-  click('Далее')
-
-  // 6. Восстановление: conditional injury zone
+  expect(screen.getByRole('button', { name: 'Живот' }).getAttribute('aria-pressed')).toBe('true')
+  click('Продолжить')
+  await tap('4 раза', 'Сон и стресс')
   fireEvent.change(screen.getByRole('textbox'), { target: { value: '7,5' } })
   click('Высокий')
-  click('Да')
-  click('Готово')
+  click('Продолжить')
+  // demo mode counts as consented: the health screen
+  expect(title()).toBe('Здоровье')
+  click('Орехи'); click('Да')
+  click('Продолжить')
   expect(alert()).toBe('Выберите зону ограничения')
   click('Колени')
-  click('Готово')
+  click('Продолжить')
 
+  expect(title()).toBe('Ваш план готов')
+  expect(screen.getByText('8–13 нед.')).toBeTruthy() // 6.5 kg at 0.5–0.8 kg a week
+  click('Сохранить и начать')
   expect(await screen.findByText('Ваши первые ориентиры')).toBeTruthy()
-  expect(screen.getByText(/Это расчётные ориентиры/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Вернуться в профиль' }))
-  expect(await screen.findByText('Набор мышц')).toBeTruthy()
+  expect(await screen.findByText('Снижение веса')).toBeTruthy()
   expect(screen.getByText('168')).toBeTruthy()
   expect(screen.getByText('61.5')).toBeTruthy()
-  expect(screen.getByText(String(new Date().getFullYear() - 1995))).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Изменить анкету' })).toBeTruthy()
 })
 

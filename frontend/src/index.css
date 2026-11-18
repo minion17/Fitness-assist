@@ -1415,3 +1415,147 @@ details[open] > summary .chev { transform: rotate(180deg); }
 .queued { font-size: 13px; color: var(--warn); }
 .scan-note { color: #fff; font-weight: 700; }
 body:has(.sheet) .toast-undo { display: none; } /* don't cover the sheet's buttons */
+
+/* ---- Sheets: pull down to close ---- */
+.sheet { padding-top: 6px; transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
+.sheet.dragging { transition: none; }
+.sheet-grab { touch-action: none; display: flex; flex-direction: column; gap: 6px; cursor: grab; margin: 0 -16px; padding: 4px 16px 0; }
+.sheet-handle { width: 40px; height: 5px; border-radius: 99px; background: color-mix(in srgb, var(--muted) 45%, transparent); align-self: center; }
+.sheet-backdrop.leaving { animation: fade-out .18s ease-in forwards; }
+.sheet-backdrop.leaving .sheet { transform: translateY(100%) !important; transition: transform .18s ease-in; }
+@keyframes fade-out { to { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .sheet-backdrop.leaving .sheet { transition: none; } }
+.swipe.pending { opacity: .6; transition: opacity .3s; } /* shown before the server confirmed it */
+/* ---- Workout player: one big button per set, ± without the keyboard, swipe between exercises ---- */
+.session-exercise.player { touch-action: pan-y; }
+.set-nudge { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.set-nudge button { min-height: 40px; border-radius: 12px; background: var(--card-2); color: var(--text); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+.set-nudge button:active { transform: scale(.95); }
+.set-go { min-height: 54px; font-size: 17px; }
+/* ---- Home layout settings ---- */
+.home-arrange { align-self: center; font-size: 13px; color: var(--muted); padding: 8px; }
+.home-settings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.home-settings-h { margin: 6px 0 -2px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.home-setting { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--card-border); transition: opacity .2s; }
+.home-setting .step-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.home-setting .step-text .sub { font-size: 12px; }
+.home-setting.off .home-row-icon, .home-setting.off .step-text { opacity: .45; }
+.home-setting.fixed { background: transparent; border-style: dashed; }
+.home-setting-move { display: flex; gap: 2px; }
+.home-setting-move .icon-btn { width: 36px; height: 36px; display: grid; place-items: center; color: var(--text); background: var(--card-2); }
+.home-setting-move .icon-btn:disabled { opacity: .2; }
+.home-settings-foot { display: flex; gap: 10px; margin-top: 4px; }
+.home-settings-foot .btn { flex: 1; }
+.sheet-grab, .sheet-grab * { -webkit-user-select: none; user-select: none; }
+
+/* ---- Bottom nav: every label fits its pill ("Тренировки" is the longest), and the bar keeps still on tab changes ---- */
+.nav-inner { display: flex; gap: 2px; }
+.nav button { flex: 1 0 auto; min-width: 0; padding: 8px 6px; white-space: nowrap; letter-spacing: -.01em; }
+@media (max-width: 350px) { .nav button { font-size: 9px; padding: 8px 4px; } .nav svg { width: 22px; height: 22px; } }
+/* its own compositing layer: Android WebView otherwise repaints the blurred fixed bar with the sliding screen and it twitches */
+.nav { transform: translateZ(0); will-change: transform; }
+/* the next screen slides in from the right (translateX): without clipping, the page got 10-25 px wider for a moment and
+   Android's Telegram shifted the fixed bottom bar down and back */
+html, body { overflow-x: hidden; }
+@supports (overflow: clip) { html, body { overflow-x: visible; } .app { overflow-x: clip; } }
+/* ---- Day ring: tap to see what it's made of ---- */
+.day-card button.daily-progress-ring { padding: 0; border-radius: 50%; color: inherit; }
+.day-why { grid-column: 1 / -1; list-style: none; margin: 4px 0 0; padding: 12px 0 0; border-top: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 8px; animation: up .2s ease-out; }
+.day-why li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: baseline; font-size: 14px; }
+.day-why li.sub { display: block; font-size: 12px; }
+.day-why b { font-variant-numeric: tabular-nums; color: var(--warn); }
+.day-why b.full { color: var(--accent-text); }
+
+/* sheets open smoothly on phones: the sheet and its shade on their own layers, and the blurred bottom bar (costly to
+   repaint under a fading shade) loses its blur while a sheet is open */
+.sheet { will-change: transform; }
+.sheet-backdrop { will-change: opacity; }
+body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--card); }
+/* a sheet opened from a screen is that screen's child: it must not get the screen's staggered entrance delay
+   (it showed, vanished and faded in again — the "lag" on opening) */
+.screen > .sheet-backdrop { animation: fade-in .2s ease-out; animation-delay: 0s; }
+.screen > .sheet-backdrop.leaving { animation: fade-out .18s ease-in forwards; }
+.screen > :is(.rest-timer, .scanner) { animation-delay: 0s; }
+
+/* ---- Questionnaire: one question per screen ---- */
+.questionnaire { gap: 16px; padding-bottom: 112px; }
+.q-top { display: flex; align-items: center; justify-content: space-between; }
+.q-back { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--card-2); color: var(--text); }
+.q-ring { width: 40px; height: 40px; transform: rotate(-90deg); }
+.q-ring circle { fill: none; stroke-width: 4; stroke: var(--card-2); }
+.q-ring circle + circle { stroke: var(--accent); stroke-linecap: round; transition: stroke-dasharray .35s ease; }
+.questionnaire-heading h1 { font-size: 26px; line-height: 1.2; }
+.q-body { display: flex; flex-direction: column; gap: 16px; animation: q-in .28s cubic-bezier(.2, .8, .2, 1); }
+@keyframes q-in { from { opacity: 0; transform: translateX(18px); } }
+.q-cards { display: flex; flex-direction: column; gap: 10px; }
+.q-cards.q-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(140px, 42%), 1fr)); }
+.q-cards button { min-height: 58px; padding: 14px 16px; border-radius: 18px; text-align: left; font-size: 16px; font-weight: 600; color: var(--text);
+  background: var(--card); border: 1.5px solid var(--card-border); transition: border-color .15s, background .15s, transform .1s; }
+.q-cards.q-grid button { text-align: center; }
+.q-cards button:active { transform: scale(.98); }
+.q-cards button[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--card)); }
+.q-body .field legend, .q-body .field > span { color: var(--muted); font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.q-body fieldset.field { border: 0; padding: 0; margin: 0; }
+.q-photo { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 20px; background: var(--card-2); }
+.q-pullups .q-photo { object-position: 50% 15%; }
+.body-figure { width: 100%; max-height: min(46vh, 380px); }
+.body-figure path, .body-figure ellipse { transition: d .35s ease; }
+.q-slider { padding: 18px 18px 14px; display: flex; flex-direction: column; gap: 10px; }
+.q-slider input { width: 100%; accent-color: var(--accent); height: 28px; }
+.q-slider input.untouched { opacity: .55; }
+.q-slider-ends { display: flex; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
+.q-slider-ends span:last-child { text-align: right; }
+.q-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 12; padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--bg) 70%, transparent); }
+.q-foot .btn { width: 100%; max-width: 528px; margin: 0 auto; display: block; min-height: 54px; font-size: 17px; }
+.q-plan { display: flex; flex-direction: column; gap: 12px; }
+.q-plan-goal { display: flex; flex-direction: column; gap: 10px; }
+.q-plan-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.q-plan-row b { font-size: 17px; text-align: right; }
+.q-plan-curve { width: 100%; height: 110px; }
+.q-plan-curve path { fill: none; stroke: var(--accent); stroke-width: 5; stroke-linecap: round; }
+.q-plan-curve .from { fill: var(--warn); } .q-plan-curve .to { fill: var(--accent); }
+.q-plan-ends { display: flex; justify-content: space-between; }
+.q-plan-ends span { display: flex; flex-direction: column; } .q-plan-ends span:last-child { text-align: right; }
+.q-plan-ends small { color: var(--muted); }
+.q-plan-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.q-plan-pair .card { display: flex; flex-direction: column; gap: 4px; }
+.q-big { font-size: 34px; line-height: 1; color: var(--accent-text); font-variant-numeric: tabular-nums; }
+.q-week { display: flex; gap: 4px; margin-top: 6px; }
+.q-week i { width: 14px; height: 14px; border-radius: 50%; background: var(--card-2); }
+.q-week i.on { background: var(--accent); }
+.q-plan-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* ---- Muscle map and exercise library ---- */
+.muscle-map { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; max-width: 420px; width: 100%; margin: 0 auto; }
+.muscle-map.compact { max-width: 300px; }
+.muscle-view { width: 100%; height: auto; }
+.muscle-base { fill: var(--card-2); }
+.muscle-zone { fill: color-mix(in srgb, var(--muted) 22%, var(--card-2)); stroke: var(--bg); stroke-width: 1.2; transition: fill .2s; }
+.muscle-zone.pick { cursor: pointer; }
+.muscle-zone.pick:active { opacity: .7; }
+.muscle-side { fill: var(--muted); font-size: 12px; }
+.lib-entries { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.lib-entry { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 14px; }
+.lib-entry span { font-size: 22px; } .lib-entry small { color: var(--muted); }
+.library { display: flex; flex-direction: column; gap: 14px; }
+.lib-chips { display: flex; flex-wrap: wrap; gap: 6px; } /* wraps: no sideways scrolling (hard with a mouse) */
+.lib-chips .link { padding: 6px 8px; }
+.lib-label { font-size: 12px; color: var(--muted); margin-bottom: -8px; }
+.lib-list { display: flex; flex-direction: column; gap: 8px; }
+.lib-row { display: flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--card-border); border-radius: 16px; padding: 6px; }
+.lib-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; text-align: left; color: var(--text); }
+.lib-row-main img, .lib-noimg { width: 64px; height: 48px; flex-shrink: 0; border-radius: 10px; object-fit: cover; background: var(--card-2); display: grid; place-items: center; }
+.lib-row .step-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.lib-row .step-text b { font-size: 15px; } .lib-row .sub { font-size: 12px; }
+.lib-row-actions { display: flex; gap: 2px; }
+.lib-row-actions .icon-btn { color: var(--text); background: var(--card-2); }
+.lib-motion { position: relative; border-radius: 16px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; }
+.lib-motion img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.lib-motion img + img { opacity: 0; transition: opacity .25s; } .lib-motion img.on { opacity: 1; }
+.lib-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.lib-tags .chip { cursor: pointer; }
+.lib-h { margin: 4px 0 0; font-size: 16px; }
+.lib-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; line-height: 1.45; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .lib-motion img + img { transition: none; } }
+.sheet > * { flex-shrink: 0; } /* a tall sheet scrolls; its pictures must not be squeezed to nothing */

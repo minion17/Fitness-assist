@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useCountUp } from './motion'
 import { useBack } from './back'
 
@@ -32,14 +32,43 @@ export function Ring({ value: target, goal }: { value: number; goal: number }) {
   )
 }
 
+const CLOSE_PX = 110, CLOSE_SPEED = 0.6 // px/ms: a quick flick closes even when short
+
+/** Bottom sheet. Pull it down by the handle or the title to close (like system sheets); also "Закрыть", the backdrop, Back, Esc. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   useBack(onClose)
+  const [dy, setDy] = useState(0)
+  const [leaving, setLeaving] = useState(false)
+  const drag = useRef<{ y: number; t: number; moved: boolean } | null>(null)
+  const close = () => { setLeaving(true); setTimeout(onClose, 180) }
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}>
-        <div className="card-head">
-          <h2>{title}</h2>
-          <button className="link" onClick={onClose}>Закрыть</button>
+    <div className={leaving ? 'sheet-backdrop leaving' : 'sheet-backdrop'} onClick={close}
+      style={dy ? { background: `rgba(0, 0, 0, ${0.55 * Math.max(0, 1 - dy / 400)})` } : undefined}>
+      <div className={dy ? 'sheet dragging' : 'sheet'} role="dialog" aria-label={title} onClick={(e) => e.stopPropagation()}
+        style={dy ? { transform: `translateY(${dy}px)` } : undefined}>
+        <div className="sheet-grab"
+          onPointerDown={(e) => { drag.current = { y: e.clientY, t: e.timeStamp, moved: false } }}
+          onPointerMove={(e) => {
+            const d = drag.current
+            if (!d) return
+            const move = e.clientY - d.y
+            if (!d.moved && move > 6) { d.moved = true; e.currentTarget.setPointerCapture(e.pointerId) }
+            if (d.moved) setDy(Math.max(0, move))
+          }}
+          onPointerUp={(e) => {
+            const d = drag.current
+            drag.current = null
+            if (!d?.moved) return
+            const move = e.clientY - d.y
+            if (move > CLOSE_PX || move / Math.max(1, e.timeStamp - d.t) > CLOSE_SPEED) close()
+            else setDy(0)
+          }}
+          onPointerCancel={() => { drag.current = null; setDy(0) }}>
+          <span className="sheet-handle" aria-hidden="true" />
+          <div className="card-head">
+            <h2>{title}</h2>
+            <button className="link" onClick={onClose}>Закрыть</button>
+          </div>
         </div>
         {children}
       </div>

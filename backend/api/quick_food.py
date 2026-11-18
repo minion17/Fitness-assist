@@ -8,7 +8,7 @@ import re
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
@@ -55,6 +55,28 @@ async def recent_products(tg: dict = Depends(telegram_user), session: AsyncSessi
         if log.product_id not in seen:
             seen[log.product_id] = {**product_out(log.product), "last_amount_g": log.amount_g}
     return list(seen.values())[:20]
+
+
+LOCAL_CATALOG = 500  # the most eaten plain products: kept on the phone so search answers from the first letter
+LOCAL_MINE = 300
+
+
+@router.get("/products/local")
+async def local_catalog(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """What the app keeps on the phone for instant search: what this user eats (and their own products) + the common
+    plain products. The server search still runs after it and has the last word."""
+    user = await get_or_create_user(tg, session)
+    eaten = func.count(FoodLog.id)
+    mine_ids = [pid for pid, _ in await session.execute(
+        select(FoodLog.product_id, eaten).where(FoodLog.user_id == user.id).group_by(FoodLog.product_id).order_by(eaten.desc()).limit(LOCAL_MINE))]
+    own = list(await session.scalars(select(Product.id).where(Product.owner_user_id == user.id).limit(LOCAL_MINE)))
+    popular = (select(Product.id).outerjoin(FoodLog, FoodLog.product_id == Product.id)
+               .where(Product.owner_user_id.is_(None), Product.brand.is_(None))
+               .group_by(Product.id).order_by(eaten.desc(), func.length(Product.name)).limit(LOCAL_CATALOG))
+    ids = list(dict.fromkeys([*mine_ids, *own, *await session.scalars(popular)]))
+    rows = {p.id: p for p in await session.scalars(select(Product).where(Product.id.in_(ids or [0])))}
+    mine = set(mine_ids) | set(own)
+    return [{**product_out(rows[i]), "mine": i in mine} for i in ids if i in rows]
 
 
 @router.get("/favorites")

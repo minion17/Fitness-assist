@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
 import { enqueue, flush, pending, unreachable } from './offline'
+import { known, syncCatalog } from './catalog'
 import Body, { QuickWeight, type MeasurementInput } from './Body'
 import Food from './Food'
 import Home, { type FoodIntent, type Water, type WeekDay } from './Home'
@@ -23,7 +24,7 @@ import Reward, { AchievementUnlocked } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
-import { api, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
+import { api, apiBlob, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar, Sheet } from './ui'
 const Workouts = lazy(() => import('./Workouts'))
@@ -63,6 +64,11 @@ type Bootstrap = {
 }
 /** Today in the phone's timezone as YYYY-MM-DD (same as the server's day for this user). */
 type Usual = { meal_type: MealType; title: string; kcal: number; items: { product_id: number; amount_g: number; unit: string | null; qty: number | null }[] }
+/** The same day with another list of entries, totals recounted. */
+function withItems(d: FoodDay, items: FoodItem[]): FoodDay {
+  const sum = (k: 'kcal' | 'protein_g' | 'fat_g' | 'carbs_g') => items.reduce((n, i) => n + i[k], 0)
+  return { ...d, items, totals: { kcal: sum('kcal'), protein_g: sum('protein_g'), fat_g: sum('fat_g'), carbs_g: sum('carbs_g') } }
+}
 const localDay = () => new Date().toLocaleDateString('sv-SE')
 /** A kept answer from an earlier day still has the right profile, programs and history, but not today's food and water. */
 const fresh = (b: Bootstrap): Bootstrap => b.food_day.date === localDay() ? { ...b, quests: b.quests && { ...b.quests, xp_awarded: 0 } } : {
@@ -105,6 +111,30 @@ function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
   )
 }
 
+const AVATAR_KEY = 'setly-avatar'
+
+/** Telegram's photo, fetched by the bot through our own server (Telegram's photo_url may be missing, or blocked on the
+ * phone's network like telegram.org); photo_url is only the fallback. Kept on the phone for the next open. */
+function Avatar() {
+  const [src, setSrc] = useState<string | null>(() => { try { return localStorage.getItem(AVATAR_KEY) } catch { return null } })
+  useEffect(() => {
+    let stale = false
+    apiBlob('/api/me/photo').then((b) => {
+      if (stale) return
+      if (!b) { if (tgUser?.photo_url) setSrc((s) => s ?? tgUser!.photo_url!); return }
+      const r = new FileReader()
+      r.onload = () => {
+        const url = String(r.result)
+        if (!stale) setSrc(url)
+        try { localStorage.setItem(AVATAR_KEY, url) } catch { /* too big or private mode */ }
+      }
+      r.readAsDataURL(b)
+    }).catch(() => { if (!stale && tgUser?.photo_url) setSrc((s) => s ?? tgUser!.photo_url!) })
+    return () => { stale = true }
+  }, [])
+  return <div className="avatar">{src ? <img src={src} alt="" onError={() => setSrc(null)} /> : name[0]}</div>
+}
+
 function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
   synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void; body: React.ReactNode
   theme: ReturnType<typeof useTheme>
@@ -117,7 +147,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
     <>
       <section className="card profile-identity">
         <div className="profile-person">
-        <div className="avatar">{tgUser?.photo_url ? <img src={tgUser.photo_url} alt="" /> : name[0]}</div>
+        <Avatar />
         <div>
           <h1 style={{ fontSize: 22 }}>{name}</h1>
           <div className="sub">{tgUser?.username ? `@${tgUser.username}` : 'Открыто вне Telegram'}</div>
@@ -212,6 +242,13 @@ export default function App() {
 
   // Everything for the first screen in one request (/api/bootstrap); the last answer is kept on the phone and shown
   // instantly on the next open, so numbers don't flash from 0 while the network catches up.
+  // entries shown before the server confirmed them (tempId -> entry and its day): a refresh mid-way must not hide them
+  const optimistic = useRef(new Map<number, { item: FoodItem; date: string }>())
+  const withOptimistic = useCallback((d: FoodDay, date: string): FoodDay => {
+    const extra = [...optimistic.current.values()].filter((o) => o.date === date && !d.items.some((i) => i.id === o.item.id)).map((o) => o.item)
+    return extra.length ? withItems(d, [...d.items, ...extra]) : d
+  }, [])
+
   const apply = useCallback((b: Bootstrap) => {
     const u = b.auth
     setXp(u.progress); setMe(u.profile); setRecommended(u.recommended_program)
@@ -223,10 +260,10 @@ export default function App() {
     // calories just came into the norm (90–110%) with this refresh: worth a cheer
     const goal = u.profile?.targets?.calories, before = kcalRef.current, now = b.food_day.totals.kcal
     kcalRef.current = now
-    setFoodDay(b.food_day); setWater(b.water); setQuests(b.quests); setYesterday(b.yesterday); setHabits(b.habits ?? [])
+    setFoodDay(withOptimistic(b.food_day, localDay())); setWater(b.water); setQuests(b.quests); setYesterday(b.yesterday); setHabits(b.habits ?? [])
     if (b.quests?.xp_awarded) celebrate(`Задание недели выполнено 🏆 +${b.quests.xp_awarded} XP`)
     else if (goal && before !== null && before < goal * 0.9 && now >= goal * 0.9 && now <= goal * 1.1) celebrate('Калории в норме на сегодня 🎯')
-  }, [])
+  }, [withOptimistic])
 
   const refreshJournal = useCallback(async () => {
     const b = await api<Bootstrap>('/api/bootstrap', { method: 'POST' })
@@ -289,13 +326,13 @@ export default function App() {
   }
 
   const at = foodDate ? { day: foodDate } : {} // diary writes go to the day on screen
-  const loadPast = useCallback(async (d: string) => { const r = await api<FoodDay>(`/api/food-logs?day=${d}`); if (r) setPastDay(r) }, [])
+  const loadPast = useCallback(async (d: string) => { const r = await api<FoodDay>(`/api/food-logs?day=${d}`); if (r) setPastDay(withOptimistic(r, d)) }, [withOptimistic])
   useEffect(() => {
     if (!foodDate) return
     let stale = false
-    api<FoodDay>(`/api/food-logs?day=${foodDate}`).then((r) => { if (r && !stale) setPastDay(r) }).catch(() => {})
+    api<FoodDay>(`/api/food-logs?day=${foodDate}`).then((r) => { if (r && !stale) setPastDay(withOptimistic(r, foodDate)) }).catch(() => {})
     return () => { stale = true }
-  }, [foodDate])
+  }, [foodDate, withOptimistic])
   async function refreshFood() {
     await refreshJournal()
     if (foodDate) await loadPast(foodDate)
@@ -305,22 +342,50 @@ export default function App() {
     setFoodDate(d === localDay() ? '' : d)
   }
 
+  /** The entry shows in the diary at once (if the product is known — it always is from search, recent, favourites);
+   * the server confirms in the background. No network: it waits in the offline queue; a refusal takes it back out. */
   async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }, name = '') {
     const body = { product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}), ...(counted ?? {}), ...at }
-    let r: { xp_awarded: number } | null
-    try {
-      r = await api<{ xp_awarded: number }>('/api/food-logs', postJson(body))
-    } catch (e) {
-      if (!unreachable(e)) throw e
-      // keep the day and the snack's time as of now: it may be sent tomorrow
-      enqueue({ name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
-      setQueued(pending().length)
-      flash('Нет связи — запишем, как только она появится')
-      return
+    const date = foodDate || localDay()
+    const p = known.get(productId)
+    const tempId = -Math.round(Date.now() * 1000 + Math.random() * 1000)
+    const show = (on: boolean) => {
+      const change = (d: FoodDay) => withItems(d, on ? [...d.items, optimistic.current.get(tempId)!.item] : d.items.filter((i) => i.id !== tempId))
+      if (foodDate) setPastDay((d) => d && change(d)); else setFoodDay(change)
     }
-    tg?.HapticFeedback?.notificationOccurred?.('success')
-    await refreshFood()
-    flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
+    if (p) {
+      const k = grams / 100
+      optimistic.current.set(tempId, { date, item: {
+        id: tempId, meal_type: meal, snack_slot: meal === 'snack' ? slot ?? new Date().toTimeString().slice(0, 5) : null, amount_g: grams,
+        logged_at: new Date().toISOString(), product: p, unit: counted?.unit ?? null, qty: counted?.qty ?? null,
+        kcal: p.kcal * k, protein_g: p.protein_g * k, fat_g: p.fat_g * k, carbs_g: p.carbs_g * k,
+      } })
+      show(true)
+      tg?.HapticFeedback?.notificationOccurred?.('success')
+    }
+    const send = async () => {
+      let r: { xp_awarded: number } | null
+      try {
+        r = await api<{ xp_awarded: number }>('/api/food-logs', postJson(body))
+      } catch (e) {
+        if (!unreachable(e)) {
+          if (p) { show(false); optimistic.current.delete(tempId) }
+          throw e
+        }
+        // keep the day and the snack's time as of now: it may be sent tomorrow
+        enqueue({ name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
+        setQueued(pending().length)
+        flash('Нет связи — запишем, как только она появится')
+        return
+      }
+      optimistic.current.delete(tempId)
+      if (!p) tg?.HapticFeedback?.notificationOccurred?.('success')
+      await refreshFood()
+      if (r?.xp_awarded || !p) flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
+    }
+    if (!p) return send()
+    flash('Добавлено')
+    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не удалось добавить'))
   }
 
   /** "Повторить вчерашний завтрак": the meal of this hour is empty today and was logged yesterday. */
@@ -377,14 +442,21 @@ export default function App() {
   async function deleteFood(id: number) {
     const item = (foodDate ? pastDay : foodDay)?.items.find((i) => i.id === id)
     const where = at
-    await api(`/api/food-logs/${id}`, { method: 'DELETE' })
-    await refreshFood()
+    const drop = (d: FoodDay) => withItems(d, d.items.filter((i) => i.id !== id)) // gone at once; the server follows
+    if (foodDate) setPastDay((d) => d && drop(d)); else setFoodDay(drop)
+    try { await api(`/api/food-logs/${id}`, { method: 'DELETE' }) } finally { refreshFood().catch(() => {}) }
     if (item) flashUndo(`Удалено: ${item.product.name}`, async () => {
       await api('/api/food-logs', postJson({ product_id: item.product.id, amount_g: item.amount_g, meal_type: item.meal_type, ...where,
         ...(item.snack_slot ? { snack_slot: item.snack_slot } : {}), ...(item.unit && item.qty ? { unit: item.unit, qty: item.qty } : {}) }))
       await refreshFood()
     })
   }
+
+  useEffect(() => {
+    if (!canEdit) return
+    const t = setTimeout(() => { syncCatalog().catch(() => {}) }, 2000) // after the first screen: not competing with it
+    return () => clearTimeout(t)
+  }, [canEdit])
 
   // offline entries go out when the connection is back (and on every start)
   useEffect(() => {
@@ -439,14 +511,22 @@ export default function App() {
     if (xpAwarded) flash(`Тренировка завершена · +${xpAwarded} XP`)
   }
 
-  async function changeWater(delta: number) {
+  /** Shown at once (the glass fills on tap), the server confirms after; "Отменить" on the toast takes it back. */
+  async function changeWater(delta: number, undoable = delta > 0) {
     tg?.HapticFeedback?.impactOccurred?.('light')
-    const r = await api<Water & { xp_awarded: number }>('/api/water', postJson({ delta_ml: delta }))
-    if (!r) { // demo mode: local only
-      setWater((w) => ({ ...w, ml: Math.max(0, w.ml + delta) }))
+    const before = water
+    setWater((w) => ({ ...w, ml: Math.max(0, Math.min(10000, w.ml + delta)) }))
+    let r: (Water & { xp_awarded: number }) | null
+    try {
+      r = await api<Water & { xp_awarded: number }>('/api/water', postJson({ delta_ml: delta }))
+    } catch {
+      setWater(before)
+      flash('Не удалось отметить воду — нет связи')
       return
     }
+    if (!r) return // demo mode: local only
     setWater(r)
+    if (undoable && !(water.ml < r.goal_ml && r.ml >= r.goal_ml)) flashUndo(`+${delta} мл воды`, () => changeWater(-delta, false))
     if (water.ml < r.goal_ml && r.ml >= r.goal_ml) celebrate(r.xp_awarded ? `Норма воды выполнена 💧 +${r.xp_awarded} XP` : 'Норма воды выполнена 💧')
     if (r.xp_awarded) {
       await refreshJournal()
@@ -540,7 +620,7 @@ export default function App() {
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
-            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />}
+            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
             weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
             usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не удалось записать')) } : null}
@@ -560,7 +640,7 @@ export default function App() {
         {tab === 'workouts' && (
           <Suspense fallback={<p role="status">Открываем тренировки…</p>}>
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
-            canEdit={canEdit} onChanged={workoutChanged} onProgramsChange={setPrograms} onRecord={(t) => { celebrate(t); refreshJournal().catch(() => {}) }} />
+            canEdit={canEdit} profile={me} onChanged={workoutChanged} onProgramsChange={setPrograms} onRecord={(t) => { celebrate(t); refreshJournal().catch(() => {}) }} />
           </Suspense>
         )}
         {tab === 'progress' && (

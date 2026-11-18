@@ -31,6 +31,7 @@ from backend.api.energy import router as energy_router
 from backend.api.leagues import router as leagues_router
 from backend.api.challenges import router as challenges_router
 from backend.api.report import router as report_router
+from backend.api.library import router as library_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
@@ -198,6 +199,15 @@ class ProfileIn(BaseModel):
     sleep_hours: float | None = Field(default=None, ge=3, le=12)
     stress: Literal["low", "moderate", "high"] | None = None
     injury: Literal["knees", "back", "shoulders", "other"] | None = None
+    # body and fitness check (newer questionnaire)
+    body_now: int | None = Field(default=None, ge=1, le=8)
+    body_target: int | None = Field(default=None, ge=1, le=5)
+    squats: Literal["lt15", "15_30", "gt30", "unknown"] | None = None
+    pushups: Literal["lt10", "10_20", "gt20", "unknown"] | None = None
+    pullups: Literal["none", "1_5", "6_10", "gt10", "unknown"] | None = None
+    place: Literal["home", "gym", "outdoor"] | None = None
+    focus: list[Literal["arms", "chest", "belly", "glutes", "legs", "back"]] | None = Field(default=None, max_length=6)
+    target_weight_kg: float | None = Field(default=None, ge=30, le=300)
 
 
 @app.get("/api/profile")
@@ -214,6 +224,8 @@ async def save_profile(
     existing = await session.get(Profile, user.id)
     profile = existing or Profile(user_id=user.id)
     data = body.model_dump()
+    if data["target_weight_kg"] is None:
+        data.pop("target_weight_kg")  # an older client: keep the target set elsewhere (Прогресс)
     if user.health_consent_at is None:  # health data only with its separate consent (152-ФЗ ст. 10)
         data.update(allergies=None, injury=None)
     if existing and existing.goal != body.goal:
@@ -286,6 +298,8 @@ async def list_exercises(tg: dict | None = Depends(optional_telegram_user), sess
         {
             "id": e.id, "name": e.name, "muscle_groups": e.muscle_groups, "equipment": e.equipment,
             "difficulty": e.difficulty, "description": e.description, "is_bodyweight": e.is_bodyweight,
+            "primary": e.primary_muscles or [], "secondary": e.secondary_muscles or [], "images": e.images or [],
+            "category": e.category, "mechanic": e.mechanic, "mine": e.owner_user_id is not None,
         }
         for e in rows
         if e.owner_user_id is not None or e.name != "Удержание гири дном вверх у плеча"
@@ -831,6 +845,7 @@ app.include_router(energy_router)
 app.include_router(leagues_router)
 app.include_router(challenges_router)
 app.include_router(report_router)
+app.include_router(library_router)
 app.include_router(account_router)
 app.include_router(meal_preferences_router)
 app.include_router(saved_meal_plan_router)

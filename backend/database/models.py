@@ -59,6 +59,14 @@ class Profile(Base):
     stress: Mapped[str | None] = mapped_column(String(16))
     injury: Mapped[str | None] = mapped_column(String(16))  # None = no injuries; knees | back | shoulders | other
     target_weight_kg: Mapped[float | None] = mapped_column(Float)
+    # body and fitness check from the questionnaire: for picking the program (levels 1..8 / 1..5 match the pictures)
+    body_now: Mapped[int | None] = mapped_column(Integer)
+    body_target: Mapped[int | None] = mapped_column(Integer)
+    squats: Mapped[str | None] = mapped_column(String(8))  # lt15 | 15_30 | gt30 | unknown
+    pushups: Mapped[str | None] = mapped_column(String(8))  # lt10 | 10_20 | gt20 | unknown
+    pullups: Mapped[str | None] = mapped_column(String(8))  # none | 1_5 | 6_10 | gt10 | unknown
+    place: Mapped[str | None] = mapped_column(String(8))  # home | gym | outdoor
+    focus: Mapped[list[str] | None] = mapped_column(ARRAY(String))  # arms, chest, belly, glutes, legs, back
     kcal_override: Mapped[int | None] = mapped_column(Integer)  # accepted from the real-expenditure estimate; None = formula
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -159,6 +167,13 @@ class Exercise(Base):
     difficulty: Mapped[str] = mapped_column(String(20), default="beginner")
     description: Mapped[str | None] = mapped_column(Text)
     is_bodyweight: Mapped[bool] = mapped_column(Boolean, default=False)
+    # library (free-exercise-db): its id, muscle keys for the map, its two photos (start / end), kind of exercise
+    source_id: Mapped[str | None] = mapped_column(String(80), index=True)
+    primary_muscles: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    secondary_muscles: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    images: Mapped[list[str] | None] = mapped_column(ARRAY(String))
+    category: Mapped[str | None] = mapped_column(String(24))  # strength | stretching | plyometrics | cardio ...
+    mechanic: Mapped[str | None] = mapped_column(String(16))  # compound | isolation
 
 
 class Program(Base):

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { ProfileData, Targets } from './profile'
 import AiMeal from './AiMeal'
 import RecipeEditor, { type RecipeData } from './Recipe'
@@ -11,6 +11,7 @@ import { readBarcode } from './barcode'
 import MenuImport from './MenuImport'
 import Scanner from './Scanner'
 import Calendar from './Calendar'
+import { eaten, localSearch, remember } from './catalog'
 import { api, ApiError, postJson, putJson, publicGet, tg } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
@@ -85,7 +86,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
 
   const offset = drag ?? (open ? -ACTIONS_W : 0)
   return (
-    <div className="swipe" onContextMenu={(e) => { if (canEdit) e.preventDefault() }}>
+    <div className={i.id < 0 ? 'swipe pending' : 'swipe'} onContextMenu={(e) => { if (canEdit) e.preventDefault() }}>
       {canEdit && (
         <div className="swipe-actions" aria-hidden={!open}>
           <button tabIndex={open ? 0 : -1} onClick={() => { setGrams(String(i.amount_g)); setMode('grams') }}>Граммы</button>
@@ -359,7 +360,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
             {items.length > 0 && !shut && (
               <div className="list">
                 {items.map((i) => (
-                  <FoodRow key={i.id} item={i} canEdit={editable} onDelete={onDelete} onGrams={onGrams} onMove={onMove} onCopyToday={isToday ? undefined : onCopyToday} />
+                  <FoodRow key={i.id} item={i} canEdit={editable && i.id > 0} onDelete={onDelete} onGrams={onGrams} onMove={onMove} onCopyToday={isToday ? undefined : onCopyToday} />
                 ))}
               </div>
             )}
@@ -433,7 +434,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
 }) {
   const [meal, setMeal] = useState(initialMeal)
   const [q, setQ] = useState('')
-  const [results, setResults] = useState<Product[] | null>(null)
+  const [found, setFound] = useState<{ q: string; items: Product[] } | null>(null) // the server's answer, for the query it answered
   const [picked, setPicked] = useState<Product | null>(null)
   const [grams, setGrams] = useState('100') // the amount in `unit`
   const [unit, setUnit] = useState<Unit>(GRAM)
@@ -469,7 +470,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setAdded((a) => [...a, { name: p.name, kcal: Math.round((p.kcal * grams) / 100) }])
     setJustAdded(p.id)
     setTimeout(() => setJustAdded((id) => (id === p.id ? null : id)), 1200)
-    setPicked(null); setQ(''); setResults(null); setWanted(null); setThanks(false)
+    setPicked(null); setQ(''); setFound(null); setWanted(null); setThanks(false)
     if (fromScan) setTimeout(() => setScanner(true), 250)
     else setTimeout(() => search.current?.focus(), 0)
   }
@@ -483,6 +484,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setError('')
     try {
       const s = meal === 'snack' ? slot : null
+      eaten(p)
       await (shown.unit.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: shown.unit.label, qty: shown.qty }))
       done(p, grams)
     } catch { setError('Не удалось добавить. Попробуйте ещё раз.') }
@@ -577,11 +579,15 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
         const { text, wanted: w } = parseQuery(q)
         let r = w && w.unit ? null : await find(q.trim(), Boolean(w))
         if (w && !r?.length && text.length >= 2) { r = await find(text); if (!stale) setWanted(w) } else if (!stale) setWanted(null)
-        if (!stale) setResults(r ?? [])
+        if (!stale) { setFound({ q, items: r ?? [] }); (r ?? []).forEach(remember) }
       } catch { if (!stale) setError('Поиск недоступен — проверьте соединение') }
     }, 300) // wait for the user to stop typing
     return () => { stale = true; clearTimeout(timer) }
   }, [q])
+
+  // the phone's own catalog answers at once; the server's results replace it when they arrive
+  const local = useMemo(() => (q.trim().length >= 2 ? localSearch(parseQuery(q).text || q) : []), [q])
+  const results = found?.q === q ? found.items : local.length ? local : found?.items ?? null
 
   function resultRow(p: Product) {
     // calories for what the user would add: the amount typed ("яйцо 2"), else one piece / portion / 100 g
@@ -618,6 +624,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setError('')
     try {
       const s = meal === 'snack' ? slot : null
+      eaten(picked)
       await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
       done(picked, g)
     } catch {
@@ -645,7 +652,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
         <>
           <div className="input-wrap">
             <input autoFocus ref={search} placeholder="Поиск: творог, гречка…" value={q}
-              onChange={(e) => { setQ(e.target.value); setError(''); setFromScan(false); if (e.target.value.trim().length < 2) setResults(null) }} />
+              onChange={(e) => { setQ(e.target.value); setError(''); setFromScan(false); if (e.target.value.trim().length < 2) setFound(null) }} />
           </div>
           {recent && (
             <div className="meal-actions">

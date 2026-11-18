@@ -1,6 +1,6 @@
 """Import reference data from content/ into the database.
 
-Safe to re-run: rows that already exist (by name) are skipped, so nothing is duplicated.
+Safe to re-run: existing rows are updated in place (exercises by source_id or name), nothing is duplicated.
     python -m backend.seed.import_data
 """
 import asyncio
@@ -73,17 +73,40 @@ async def import_products(s) -> int:
     return added
 
 
+LIBRARY_FIELDS = ("muscle_groups", "equipment", "difficulty", "description", "is_bodyweight", "source_id",
+                  "primary_muscles", "secondary_muscles", "images", "category", "mechanic")
+
+
 async def import_exercises(s) -> int:
+    """New exercises are added; library ones are kept up to date in place (by source_id), so a corrected translation
+    renames the row that programs and workout history already point to instead of adding a twin."""
+    old_names = {e["source_id"]: e["name_ru"] for e in load("exercises/sources/free-exercise-db-ru.json", required=("source_id",))}
     added = 0
-    for e in [*load("exercises/exercises.json"), *load("exercises/translated_exercises.json")]:
-        if await s.scalar(select(Exercise.id).where(Exercise.name == e["name"], Exercise.owner_user_id.is_(None))):
-            continue
-        s.add(Exercise(
-            name=e["name"], muscle_groups=e.get("muscle_groups", []), equipment=e.get("equipment", []),
-            difficulty=e.get("difficulty", "beginner"), description=e.get("description"),
-            is_bodyweight=e.get("is_bodyweight", False),
-        ))
-        added += 1
+    items = [*load("exercises/exercises.json"), *load("exercises/translated_exercises.json")]
+    current = {e["name"] for e in items}
+    for e in items:  # ours first: they claim their rows before a library item could by an old name
+        shared = Exercise.owner_user_id.is_(None)
+        sid = e.get("source_id")
+        free = Exercise.source_id.is_(None) if not sid else (Exercise.source_id.is_(None) | (Exercise.source_id == sid))
+        row = await s.scalar(select(Exercise).where(shared, Exercise.source_id == sid).limit(1)) if sid else None
+        if row is None:  # rows from before source_id: by the current name
+            row = await s.scalar(select(Exercise).where(shared, free, Exercise.name == e["name"]).order_by(Exercise.id).limit(1))
+        old = old_names.get(sid)
+        if row is None and old and old not in current:  # or by the old machine-translated name, unless that's a name in use now
+            row = await s.scalar(select(Exercise).where(shared, Exercise.source_id.is_(None), Exercise.name == old).order_by(Exercise.id).limit(1))
+        if row is None:
+            row = Exercise(name=e["name"])
+            s.add(row)
+            added += 1
+        row.name = e["name"]
+        for k in LIBRARY_FIELDS:
+            v = e.get(k)
+            if v is not None or k in ("description",):
+                setattr(row, k, v if v is not None else getattr(row, k))
+        row.muscle_groups = e.get("muscle_groups", []) or []
+        row.equipment = e.get("equipment", []) or []
+        row.difficulty = e.get("difficulty", "beginner")
+        row.is_bodyweight = e.get("is_bodyweight", False)
     await s.flush()  # programs below look exercises up by name
     return added
 

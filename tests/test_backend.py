@@ -282,8 +282,22 @@ def test_extended_questionnaire_and_program_recommendation(client, seeded):
     rec = client.post("/api/auth", headers=h).json()["recommended_program"]
     assert programs[rec["program_id"]] == "Тяни-Толкай-Ноги (PPL)" and "всё оборудование у вас есть" in rec["reasons"]
 
-    # old-style profile (no extended answers) is still valid
-    assert client.put("/api/profile", headers=h, json=PROFILE).json()["experience"] is None
+    # the self-test caps a stated level: "advanced" who can't do 10 push-ups gets a program for today's form
+    weak = {**gym, "experience": "advanced", "squats": "lt15", "pushups": "lt10", "pullups": "none", "body_now": 6,
+            "body_target": 2, "place": "gym", "focus": ["belly", "arms"], "target_weight_kg": 76}
+    saved = client.put("/api/profile", headers=h, json={**PROFILE, **weak}).json()
+    assert {k: saved[k] for k in ("squats", "pushups", "pullups", "body_now", "body_target", "place", "focus", "target_weight_kg")} == \
+        {"squats": "lt15", "pushups": "lt10", "pullups": "none", "body_now": 6, "body_target": 2, "place": "gym", "focus": ["belly", "arms"], "target_weight_kg": 76}
+    from backend.core.programs import tested_level, training_level
+    from types import SimpleNamespace as P
+    assert training_level(P(experience="advanced", squats="lt15", pushups="lt10", pullups="none")) == ("beginner", True)
+    assert training_level(P(experience="beginner", squats="gt30", pushups="gt20", pullups="gt10")) == ("beginner", False)  # not raised
+    assert tested_level(P(squats="unknown", pushups=None, pullups=None)) is None
+    assert client.put("/api/profile", headers=h, json={**PROFILE, **weak, "body_now": 9}).status_code == 422
+
+    # old-style profile (no extended answers) is still valid; the target weight set before is kept
+    old = client.put("/api/profile", headers=h, json=PROFILE).json()
+    assert old["experience"] is None and old["target_weight_kg"] == 76
 
 
 @pytest.mark.parametrize("bad", [
@@ -1854,3 +1868,90 @@ def test_usual_meal(client, seeded):
     assert client.get("/api/usual?meal_type=snack2", headers=h).status_code == 422
     client.post("/api/food-logs", headers=h, json={"product_id": oats, "amount_g": 50, "meal_type": "breakfast"})
     assert client.get("/api/usual?meal_type=breakfast", headers=h).json() is None  # eaten today: nothing to offer
+
+
+def test_local_catalog(client, seeded):
+    h = new_user_headers()
+    pid = client.get("/api/products/search?q=Гречка", headers=h).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 100, "meal_type": "lunch"})
+    own = client.post("/api/products", headers=h, json={"name": "Мой суп локальный", "kcal": 50, "protein_g": 2, "fat_g": 1, "carbs_g": 6}).json()
+    items = client.get("/api/products/local", headers=h).json()
+    by_id = {i["id"]: i for i in items}
+    assert by_id[pid]["mine"] and by_id[own["id"]]["mine"] and items[0]["id"] == pid  # what I eat first
+    assert len(items) > 2 and all(i["brand"] is None or i["mine"] for i in items)  # the rest: common plain products
+    other = client.get("/api/products/local", headers=new_user_headers()).json()
+    assert own["id"] not in {i["id"] for i in other}  # private products stay private
+
+
+def test_my_photo(client, monkeypatch):
+    from backend.api import account
+
+    calls = []
+
+    async def fake(uid):
+        calls.append(uid)
+        return b"\xff\xd8jpeg" if uid == 555000777 else None
+    monkeypatch.setattr(account, "fetch_photo", fake)
+    account._photos.clear()
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': 555000777})}"}
+    r = client.get("/api/me/photo", headers=h)
+    assert r.status_code == 200 and r.content == b"\xff\xd8jpeg" and r.headers["content-type"] == "image/jpeg"
+    client.get("/api/me/photo", headers=h)
+    assert calls == [555000777]  # cached
+    assert client.get("/api/me/photo", headers=new_user_headers()).status_code == 404  # hidden or no photo
+
+
+def test_exercise_library_import_renames_in_place(client, seeded):
+    """A corrected translation renames the row programs already use; nothing is duplicated; ours keep their names."""
+    from sqlalchemy import delete, func, select, update
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import Exercise
+    from backend.seed.import_data import run
+
+    async def go():
+        async with SessionLocal() as s:  # the state before: a machine-translated name, no source_id
+            row = await s.scalar(select(Exercise).where(Exercise.source_id == "3_4_Sit-Up"))
+            await s.execute(update(Exercise).where(Exercise.id == row.id).values(name="3/4 приседания", source_id=None, primary_muscles=None))
+            await s.execute(delete(Exercise).where(Exercise.name == "Подъёмы корпуса на 3/4", Exercise.id != row.id))
+            await s.commit()
+            rid = row.id
+        await run()
+        async with SessionLocal() as s:
+            row = await s.get(Exercise, rid)
+            dupes = await s.scalar(select(func.count()).select_from(
+                select(Exercise.source_id).where(Exercise.owner_user_id.is_(None), Exercise.source_id.is_not(None))
+                .group_by(Exercise.source_id).having(func.count() > 1).subquery()))
+            bench = list(await s.scalars(select(Exercise).where(Exercise.name == "Жим штанги лежа", Exercise.owner_user_id.is_(None))))
+            return row.name, row.source_id, row.primary_muscles, row.images, dupes, [(b.source_id, b.primary_muscles) for b in bench]
+    name, sid, muscles, images, dupes, bench = client.portal.call(go)
+    assert (name, sid, muscles) == ("Подъёмы корпуса на 3/4", "3_4_Sit-Up", ["abdominals"]) and len(images) == 2
+    assert dupes == 0
+    assert bench == [("Barbell_Bench_Press_-_Medium_Grip", ["chest"])]  # not taken over by "Decline ..." (its old name was the same)
+
+
+def test_library_list_photos_and_muscle_week(client, seeded):
+    from backend.api import library
+
+    h = new_user_headers()
+    ex = client.get("/api/exercises", headers=h).json()
+    sit = next(e for e in ex if e["name"] == "Подъёмы корпуса на 3/4")
+    assert sit["primary"] == ["abdominals"] and sit["images"] == ["3_4_Sit-Up/0.jpg", "3_4_Sit-Up/1.jpg"] and sit["category"] == "strength"
+    assert len(ex) > 800
+
+    # photos: only well-formed names; a cached one is served without going out
+    assert client.get("/api/exercise-image/..%2F..%2Fetc/0.webp").status_code == 404
+    assert client.get("/api/exercise-image/Abc/7.webp").status_code == 404
+    cached = library.CACHE / "Test_Cached" / "0.webp"
+    cached.parent.mkdir(parents=True, exist_ok=True)
+    cached.write_bytes(b"RIFF....WEBP")
+    r = client.get("/api/exercise-image/Test_Cached/0.webp")
+    assert r.status_code == 200 and r.content == b"RIFF....WEBP" and "immutable" in r.headers["cache-control"]
+
+    # muscle load: bench press (chest main; shoulders, triceps helpers) x 2 sets
+    bench = next(e for e in ex if e["name"] == "Жим штанги лежа")
+    log = client.post("/api/workout-logs", headers=h, json={"title": "Т"}).json()
+    for n in (1, 2):
+        client.post(f"/api/workout-logs/{log['id']}/sets", headers=h, json={"exercise_id": bench["id"], "set_number": n, "reps": 8, "weight_kg": 60})
+    week = client.get("/api/muscles/week", headers=h).json()["sets"]
+    assert week["chest"] == 2 and all(week[m] == 1 for m in bench["secondary"])

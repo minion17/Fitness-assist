@@ -24,7 +24,21 @@ test('summarizes food and training with direct actions', () => {
 
 test('shows the average of nutrition and water progress', () => {
   render(<Home name="Тест" level={1} streak={0} targets={{ calories: 2000, protein: 100, fat: 70, carbs: 200 }} day={{date:'2026-11-05', meals: [], totals:{kcal:1000, protein_g:0, fat_g:0, carbs_g:0}} as never} logs={[]} water={{ml:500,goal_ml:1000}} aiEnabled={false} canEdit onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} />)
-  expect(screen.getByLabelText('Прогресс дня: 50%')).toBeTruthy()
+  expect(screen.getByLabelText('Прогресс дня: 50%. Из чего он сложился')).toBeTruthy()
+})
+
+test('the day ring counts habits and a workout done today, and shows its parts on tap', () => {
+  const now = new Date().toISOString()
+  render(<Home name="Тест" level={1} streak={0} targets={{ calories: 2000, protein: 100, fat: 70, carbs: 200 }}
+    day={{ date: '', items: [], totals: { kcal: 2700, protein_g: 0, fat_g: 0, carbs_g: 0 } }} habitsDone={[4, 4]}
+    logs={[{ id: 1, title: 'Т', program_day_id: null, started_at: now, completed_at: now, sets: 9 }]}
+    water={{ ml: 2600, goal_ml: 2500 }} aiEnabled={false} canEdit onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} />)
+  // food 135% of the norm → 75%; water, habits, workout 100% → (75 + 300) / 4 = 94%
+  const ring = screen.getByRole('button', { name: 'Прогресс дня: 94%. Из чего он сложился' })
+  fireEvent.click(ring)
+  expect(screen.getByText('на 700 ккал больше нормы')).toBeTruthy()
+  expect(screen.getByText('4 из 4')).toBeTruthy()
+  expect(screen.getByText('сделана')).toBeTruthy()
 })
 
 test('shows the x2 XP booster after a duel win', () => {
@@ -40,17 +54,25 @@ test('first steps: shows progress, runs a step, collapses to a bar and reopens',
   const steps = [
     { key: 'meal', title: 'Запишите, что съели', hint: '', done: true, action: vi.fn() },
     { key: 'water', title: 'Отметьте стакан воды', hint: 'Нажмите — добавим 250 мл', done: false, action: water },
+    { key: 'program', title: 'Выберите программу', hint: '', done: false, action: vi.fn() },
   ]
   render(<FirstSteps steps={steps} />)
-  expect(screen.getByText('1 из 2')).toBeTruthy()
+  expect(screen.getByText('1 из 3')).toBeTruthy()
   expect((screen.getByRole('button', { name: 'Запишите, что съели — сделано' }) as HTMLButtonElement).disabled).toBe(true)
   fireEvent.click(screen.getByRole('button', { name: 'Отметьте стакан воды' }))
   expect(water).toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Свернуть' }))
   expect(screen.queryByLabelText('Первые шаги')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'Первые шаги: 1 из 2. Открыть' })) // the bar brings it back
+  fireEvent.click(screen.getByRole('button', { name: 'Первые шаги: 1 из 3. Открыть' })) // the bar brings it back
   expect(screen.getByLabelText('Первые шаги')).toBeTruthy()
   localStorage.clear()
+})
+
+test('first steps fold into the bar by themselves past half', () => {
+  localStorage.clear()
+  render(<FirstSteps steps={[{ key: 'a', title: 'A', hint: '', done: true, action: () => {} }, { key: 'b', title: 'Б', hint: '', done: false, action: () => {} }]} />)
+  expect(screen.queryByLabelText('Первые шаги')).toBeNull()
+  expect(screen.getByRole('button', { name: 'Первые шаги: 1 из 2. Открыть' })).toBeTruthy()
 })
 
 test('first steps disappear when everything is done', () => {

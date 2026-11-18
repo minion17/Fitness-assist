@@ -16,6 +16,7 @@ type WebApp = {
   isVersionAtLeast?(version: string): boolean
   close?(): void
   shareToStory?(mediaUrl: string, params?: { text?: string; widget_link?: { url: string; name?: string } }): void
+  disableVerticalSwipes?: () => void
   BackButton?: { show(): void; hide(): void; onClick(cb: () => void): void; offClick(cb: () => void): void }
   HapticFeedback?: {
     selectionChanged(): void
@@ -37,6 +38,8 @@ export function initTelegram() {
   if (!tg) return
   tg.ready()
   tg.expand()
+  // a quick vertical move inside the app must not pull Telegram's sheet down (the whole app jumped on tab changes)
+  tg.disableVerticalSwipes?.()
 }
 
 /** Public reference data (products, programs) — works outside Telegram too. */
@@ -62,6 +65,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T | 
   const res = await fetch(path, { ...init, headers: { ...init.headers, Authorization: `tma ${tg.initData}`, 'X-Timezone': deviceTz() } })
   if (!res.ok) throw new ApiError(res.status, await res.text())
   return res.json()
+}
+
+/** A signed GET for a binary answer (an image): null outside Telegram or on 404. */
+export async function apiBlob(path: string): Promise<Blob | null> {
+  if (!tg?.initData) return null
+  const res = await fetch(path, { headers: { Authorization: `tma ${tg.initData}` } })
+  return res.ok ? res.blob() : null
 }
 
 /** Error with the backend's human-readable `detail` as the message. */

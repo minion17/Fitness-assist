@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import type { Recommendation } from './profile'
+import { useEffect, useRef, useState } from 'react'
+import type { ProfileData, Recommendation } from './profile'
+import Library from './Library'
 import { api, postJson, publicGet, tg } from './telegram'
 import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
 import Empty from './Empty'
@@ -10,6 +11,7 @@ import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './Progra
 import { nextWeight } from './progression'
 import { Chevron } from './ui'
 
+const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
 const firstNumber = (s: string) => s.match(/\d+/)?.[0] ?? ''
 const dateRu = (iso: string) => new Date(iso).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
@@ -22,8 +24,9 @@ function ExerciseThumbnail({ name, index }: { name: string; index: number }) {
   </span>
 }
 
-export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord }: {
+export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord, profile = null }: {
   onRecord?: (text: string) => void // a personal record: confetti in the app
+  profile?: ProfileData | null // equipment and level for "Собрать тренировку"
   recommended?: Recommendation | null
   programs: Program[] | null
   logs: WorkoutLog[]
@@ -40,6 +43,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   const [editing, setEditing] = useState<Program | 'new' | null>(null)
   const [exercises, setExercises] = useState<ExerciseOption[]>([])
   const [builderError, setBuilderError] = useState('')
+  const [library, setLibrary] = useState<'browse' | 'build' | null>(null)
   const program = programs?.find((p) => p.id === programId)
   const programsButton = <button className="programs-entry" aria-label="Программы" onClick={() => setPersonalList(true)}><span className="programs-entry-text"><strong>Программы</strong><span>{program ? `Выбрана: ${program.name}` : 'Программа не выбрана'}</span></span><span className="programs-entry-action">Открыть <span aria-hidden="true">→</span></span></button>
 
@@ -58,14 +62,14 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       setEditing(p)
     } catch { setBuilderError('Не удалось загрузить упражнения. Попробуйте ещё раз.') }
   }
-  async function saveProgram(draft: ProgramDraft) {
+  async function saveProgram(draft: ProgramDraft, target: Program | 'new' | null = editing) {
     if (!canEdit) {
-      const id = editing === 'new' ? -Date.now() : (editing as Program).id
+      const id = target === 'new' ? -Date.now() : (target as Program).id
       const result: Program = {
         id, name: draft.name, goal: 'custom', level: 'beginner', days_per_week: draft.days.length, description: null, is_personal: true,
         days: draft.days.map((day, index) => ({
           id: day.id ?? -(index + 1), day_name: day.name, day_order: index,
-          exercises: day.exercises.map(exercise => ({ ...exercise, name: exercises.find(item => item.id === exercise.exercise_id)?.name ?? 'Упражнение', notes: null }))
+          exercises: day.exercises.map(exercise => ({ ...exercise, name: exercises.find(item => item.id === exercise.exercise_id)?.name ?? draftNames.get(exercise.exercise_id) ?? 'Упражнение', notes: null }))
         }))
       }
       onProgramsChange?.([...(programs ?? []).filter(program => program.id !== id), result])
@@ -73,8 +77,8 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       setEditing(null)
       return
     }
-    const path = editing === 'new' ? '/api/programs' : `/api/programs/${(editing as Program).id}`
-    const result = await api<Program>(path, { ...postJson(draft), method: editing === 'new' ? 'POST' : 'PUT' })
+    const path = target === 'new' ? '/api/programs' : `/api/programs/${(target as Program).id}`
+    const result = await api<Program>(path, { ...postJson(draft), method: target === 'new' ? 'POST' : 'PUT' })
     if (!result) throw new Error('No account')
     onProgramsChange?.([...(programs ?? []).filter(p => p.id !== result.id), result])
     onSelectProgram(result.id)
@@ -92,6 +96,9 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     setExercises(prev => [...prev.filter(e => e.id !== created.id), created])
     return created
   }} />
+
+  if (library) return <Library canEdit={canEdit} profile={profile} mode={library} onClose={() => setLibrary(null)}
+    onSaveWorkout={async (draft, names) => { names?.forEach((n, id) => draftNames.set(id, n)); await saveProgram(draft, 'new'); setLibrary(null) }} />
 
   if (programs === null) return <><h1>Тренировки</h1><p className="sub">Загружаем программы…</p></>
 
@@ -161,13 +168,19 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     {builderError && <p className="error" role="alert">{builderError}</p>}
   </div>
 
-  if (!program) return <><h1>Тренировки</h1>{programsButton}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>
+  const libraryEntries = <div className="lib-entries">
+        <button className="card lib-entry" onClick={() => setLibrary('browse')}><span aria-hidden="true">📚</span><b>Упражнения</b><small>Техника и мышцы</small></button>
+        <button className="card lib-entry" onClick={() => setLibrary('build')}><span aria-hidden="true">🎯</span><b>Собрать тренировку</b><small>На нужные мышцы</small></button>
+      </div>
+
+  if (!program) return <><h1>Тренировки</h1>{programsButton}{libraryEntries}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>
 
   const next = nextDay(program, logs)
   return (
     <>
       <h1>Тренировки</h1>
       {programsButton}
+      {libraryEntries}
       {builderError && <p className="error" role="alert">{builderError}</p>}
 
       <section className="card workout-feature">
@@ -385,6 +398,14 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
   }
 
   const total = day.exercises.length
+  const swipe = useRef<{ x: number; y: number } | null>(null)
+  const timedOf = (ei: number) => day.exercises[ei].unit === 'seconds' || /сек/i.test(day.exercises[ei].reps)
+  /** ± on the current set without the keyboard: reps by 1 (seconds by 5), weight by 2.5 kg. */
+  const nudge = (ei: number, si: number, field: 'reps' | 'weight', d: number) => {
+    const v = Number(String(sets[ei][si][field]).replace(',', '.')) || 0
+    update(ei, si, { [field]: String(Math.max(0, Math.round((v + d) * 10) / 10)).replace('.', ',') })
+    tg?.HapticFeedback?.selectionChanged?.()
+  }
   const shown = list ? day.exercises.map((e, ei) => [e, ei] as const) : total ? [[day.exercises[cur], cur] as const] : []
   const doneEx = (ei: number) => sets[ei].length > 0 && sets[ei].every((x) => x.saved)
 
@@ -435,7 +456,17 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
           ))}
           </>
         )
-        return <section className={list ? 'session-exercise compact-session' : 'session-exercise compact-session player'} key={ei}>
+        return <section className={list ? 'session-exercise compact-session' : 'session-exercise compact-session player'} key={ei}
+          onPointerDown={(ev) => { swipe.current = list ? null : { x: ev.clientX, y: ev.clientY } }}
+          onPointerUp={(ev) => {
+            const start = swipe.current
+            swipe.current = null
+            if (!start) return
+            const dx = ev.clientX - start.x
+            if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(ev.clientY - start.y)) return
+            const next = cur + (dx < 0 ? 1 : -1)
+            if (next >= 0 && next < total) { tg?.HapticFeedback?.selectionChanged?.(); setCur(next) }
+          }}>
           {!list && total > 1 && <span className="sub">Упражнение {ei + 1} из {total}</span>}
           <div className="session-exercise-title">
             {hasExerciseGuide(e.name)
@@ -465,6 +496,26 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
               <span key={i}>✓ {i + 1} · {clockLabel(Number(s.reps))}</span>)}</div>}
             <details className="session-manual"><summary>Вес и подходы</summary>{setTable}</details>
           </> : setTable}
+          {!timed && !list && (() => {
+            const si = sets[ei].findIndex((x) => !x.saved)
+            if (si < 0) return null
+            const s = sets[ei][si], timed = timedOf(ei)
+            return (
+              <>
+                <div className="set-nudge" role="group" aria-label={`Подход ${si + 1}: поправить`}>
+                  <button aria-label={timed ? 'Минус 5 секунд' : 'Минус повтор'} onClick={() => nudge(ei, si, 'reps', timed ? -5 : -1)}>−{timed ? '5 с' : '1'}</button>
+                  <button aria-label={timed ? 'Плюс 5 секунд' : 'Плюс повтор'} onClick={() => nudge(ei, si, 'reps', timed ? 5 : 1)}>+{timed ? '5 с' : '1'}</button>
+                  {!timed && <>
+                    <button aria-label="Минус 2,5 кг" onClick={() => nudge(ei, si, 'weight', -2.5)}>−2,5 кг</button>
+                    <button aria-label="Плюс 2,5 кг" onClick={() => nudge(ei, si, 'weight', 2.5)}>+2,5 кг</button>
+                  </>}
+                </div>
+                <button className="btn set-go" disabled={busy} onClick={() => saveSet(ei, si)}>
+                  ✓ Подход {si + 1}: {s.reps || '—'} {timed ? 'с' : 'повт'}{!timed && s.weight && s.weight !== '0' ? ` × ${s.weight} кг` : ''}
+                </button>
+              </>
+            )
+          })()}
         </section>
       })}
       {!list && total > 1 && (

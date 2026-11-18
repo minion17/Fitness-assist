@@ -193,7 +193,7 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
         ['batch', '🥡', 'На несколько дней', 'Повторяем блюда, чтобы приготовить порции заранее'],
         ['varied', '🥗', 'Разные блюда', 'Больше разнообразия в течение дня']
       ] as const).map(([id, icon, title, hint]) => <button key={id} className="meal-q-option" aria-pressed={cookingMode === id} onClick={() => setCookingMode(id)}><span className="meal-q-emoji">{icon}</span><span><strong>{title}</strong><small>{hint}</small></span></button>)}</div>{cookingMode === 'batch' && <><div className="meal-q-options">{([2, 7] as const).map(n => <button key={n} className="meal-plan-option" aria-pressed={batchDays === n} onClick={() => setBatchDays(n)}>На {n} {n === 2 ? 'дня' : 'дней'}</button>)}</div><p className="sub">Одинаковое основное блюдо повторяется на обед и ужин. Для недели часть порций может потребовать заморозки; проверяйте сроки хранения каждого продукта.</p></>}</>}
-      {step === 5 && <><h2>Бюджет на неделю</h2><p className="sub">Для всех выбранных людей. Можно пропустить.</p><div className="meal-q-budget"><div className="meal-q-budget-value">{budget ? `${Number(budget).toLocaleString('ru-RU')} ₽` : 'Не указан'}</div><MealRange label="Желаемый бюджет" min={0} max={budgetLimits[0]} step={100} value={Number(budget)} valueText={budget ? `${budget} рублей` : 'Не указан'} onChange={n => setBudget(n ? String(n) : '')} /><p className="meal-q-budget-feedback">{budget ? `Примерно ${Math.round(Number(budget) / persons).toLocaleString('ru-RU')} ₽ на человека. Стоимость корзины пока не рассчитана.` : 'Передвиньте ползунок, чтобы указать ориентир.'}</p></div><div className="meal-q-budget"><strong>Сколько тратите сейчас?</strong><div className="meal-q-budget-value">{currentSpend ? `${Number(currentSpend).toLocaleString('ru-RU')} ₽` : 'Не указано'}</div><MealRange label="Сколько тратите сейчас" min={0} max={budgetLimits[1]} step={100} value={Number(currentSpend)} valueText={currentSpend ? `${currentSpend} рублей` : 'Не указано'} onChange={n => setCurrentSpend(n ? String(n) : '')} /><p className="sub">₽ в неделю · можно пропустить</p></div></>}
+      {step === 5 && <BudgetStep persons={persons} budget={budget} currentSpend={currentSpend} limits={budgetLimits} onBudget={setBudget} onCurrent={setCurrentSpend} />}
       {step === 6 && <><h2>Ваш пол</h2><p className="sub">{profile ? 'Данные взяты из профиля и используются для расчёта.' : 'Укажите пол. Остальные данные для расчёта можно заполнить в профиле.'}</p><div className="meal-q-options">{([{id:'female',icon:'👩',label:'Женский'},{id:'male',icon:'👨',label:'Мужской'}] as const).map(v => <button className="meal-q-option" aria-pressed={sex === v.id} key={v.id} onClick={() => setSex(v.id)}><span className="meal-q-emoji">{v.icon}</span><strong>{v.label}</strong></button>)}</div></>}
       {step === 7 && <><h2>Какой у вас тип питания?</h2><p className="sub">Подберём подходящие варианты.</p><div className="meal-q-options">{DIETS.map(v => <button className="meal-q-option" aria-pressed={diet === v.id} key={v.id} onClick={() => setDiet(v.id)}><img className="meal-q-diet-photo" src={`/images/diets/${v.id}.jpg`} alt="" /><span><strong>{v.label}</strong><small>{v.description}</small></span></button>)}</div></>}
       {step === 8 && <><h2>Что вам нравится?</h2><p className="sub">Отмечайте блюда. Можно пропустить этот шаг.</p>{tasteIndex < RECIPES.length ? <div className="meal-q-taste"><div className="meal-q-taste-card" key={RECIPES[tasteIndex].id}><img className="meal-q-taste-photo" src={recipeImage(RECIPES[tasteIndex].id)} alt={`Пример блюда: ${RECIPES[tasteIndex].name}`} /><strong>{RECIPES[tasteIndex].name}</strong><span className="meal-q-taste-progress">{tasteIndex + 1} из {RECIPES.length}</span></div><div className="meal-q-taste-actions"><button className="meal-q-taste-action is-dislike" onClick={() => rateTaste(false)}>Не моё</button><button className="meal-q-taste-action is-like" onClick={() => rateTaste(true)}>Нравится</button></div></div> : <p className="sub">Вы оценили все блюда.</p>}</>}
@@ -245,4 +245,41 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
     {step === 12 && !canEdit && <p className="sub">В деморежиме рацион доступен до закрытия страницы. Для сохранения откройте SETLY в своём аккаунте.</p>}
     {step < 11 ? <button className="btn meal-plan-next" disabled={loading} onClick={next}>{step === 10 ? 'Посмотреть ответы' : 'Продолжить'}</button> : step === 11 ? <><button className="btn meal-plan-next" onClick={generate}>Составить рацион</button>{canEdit && <button className="btn btn-ghost meal-plan-next" disabled={loadFailed} onClick={save}>Сохранить ответы</button>}<button className="btn btn-ghost meal-plan-next" onClick={() => { setSaved(false); setStep(0) }}>Изменить ответы</button></> : <button className="btn btn-ghost meal-plan-next" onClick={() => setStep(11)}>К ответам</button>}
   </div>
+}
+
+/** Per person per week: quick picks, the slider fine-tunes. */
+const BUDGET_PRESETS = [{ label: 'Экономно', per: 2000 }, { label: 'Средне', per: 3500 }, { label: 'Свободно', per: 5500 }]
+
+function BudgetStep({ persons, budget, currentSpend, limits, onBudget, onCurrent }: {
+  persons: number; budget: string; currentSpend: string; limits: number[]
+  onBudget: (v: string) => void; onCurrent: (v: string) => void
+}) {
+  // the scale follows the household: 10 000 ₽ a week per person, more if a saved answer was bigger
+  const max = (i: number) => Math.max(persons * 10000, Math.min(limits[i], Math.ceil(Number(i ? currentSpend : budget) / 1000) * 1000))
+  const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`
+  const b = Number(budget)
+  return <>
+    <h2>Бюджет на неделю</h2>
+    <p className="sub">{persons > 1 ? `На всех, ${persons} чел.: подберём` : 'Подберём'} блюда под эту сумму. Можно пропустить.</p>
+    <div className="budget-presets" role="group" aria-label="Готовые варианты">
+      {BUDGET_PRESETS.map((p) => {
+        const sum = p.per * persons
+        return <button type="button" key={p.label} aria-pressed={b === sum} onClick={() => onBudget(String(sum))}><b>{p.label}</b><small>{rub(sum)}</small></button>
+      })}
+      <button type="button" aria-pressed={!budget} onClick={() => onBudget('')}><b>Без лимита</b><small>не важно</small></button>
+    </div>
+    <div className="meal-q-budget">
+      <div className="budget-head">
+        <b className="meal-q-budget-value">{budget ? rub(b) : 'Без лимита'}</b>
+        {budget && <span className="sub">≈ {rub(Math.round(b / persons / 7 / 10) * 10)} в день{persons > 1 ? ' на человека' : ''}</span>}
+      </div>
+      <MealRange label="Желаемый бюджет" min={0} max={max(0)} step={100} value={b} valueText={budget ? `${budget} рублей` : 'Без лимита'} onChange={(n) => onBudget(n ? String(n) : '')} />
+      <div className="q-slider-ends"><span>0 ₽</span><span>{rub(max(0))}</span></div>
+    </div>
+    <details className="budget-current" open={!!currentSpend || undefined}>
+      <summary>Сколько тратите сейчас? <small>необязательно — покажем, сколько сэкономите</small></summary>
+      <div className="budget-head"><b>{currentSpend ? rub(Number(currentSpend)) : 'Не указано'}</b></div>
+      <MealRange label="Сколько тратите сейчас" min={0} max={max(1)} step={100} value={Number(currentSpend)} valueText={currentSpend ? `${currentSpend} рублей` : 'Не указано'} onChange={(n) => onCurrent(n ? String(n) : '')} />
+    </details>
+  </>
 }

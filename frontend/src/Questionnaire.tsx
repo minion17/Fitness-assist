@@ -107,6 +107,15 @@ function suggestTarget(d: Draft): string | undefined {
   return String(Math.round(w * k))
 }
 
+/** The goal says one direction, the target weight the other ("снизить вес" with a heavier target). */
+function goalConflict(d: Draft): string | null {
+  const w = num(d.weight_kg), t = num(d.target_weight_kg)
+  if (!w || !t) return null
+  if ((d.goal === 'weight_loss' || d.goal === 'fat_loss') && t > w) return 'Цель — снизить вес, а желаемый вес больше текущего. Проверьте.'
+  if ((d.goal === 'muscle_gain' || d.goal === 'mass_gain') && t < w) return 'Цель — набрать, а желаемый вес меньше текущего. Проверьте.'
+  return null
+}
+
 /** Weeks at a safe pace: losing 0.5–0.8 kg a week, gaining 0.25–0.5. */
 function planWeeks(weight: number, target: number): [number, number] | null {
   const diff = target - weight
@@ -179,7 +188,7 @@ function OptionSlider({ label, options, value, onChange }: {
 }) {
   const entries = Object.entries(options)
   const cursor = entries.findIndex(([key]) => key === value)
-  const caption = entries[cursor]?.[1] ?? 'Выберите ответ'
+  const caption = entries[cursor]?.[1] ?? 'Сдвиньте ползунок'
   return <div className="q-slider">
     <strong>{caption}</strong>
     <MealRange label={label} min={0} max={entries.length - 1} step={1} value={Math.max(0, cursor)}
@@ -211,6 +220,7 @@ function BodySummary({ draft, sex }: { draft: Draft; sex: 'male' | 'female' }) {
         <strong>{target.toLocaleString('ru-RU')} кг</strong>
       </div>
     </div>
+    {goalConflict(draft) && <p className="q-warn">{goalConflict(draft)}</p>}
     <p className="sub">Дальше уточним вашу подготовку, чтобы подобрать тренировки под эту цель.</p>
   </>
 }
@@ -330,13 +340,14 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
             <div className="q-slider-ends"><span>{lo} кг</span><span>{hi} кг</span></div>
           </div>
           {w > 0 && t > 0 && <p className="sub">{t < w ? `Минус ${(w - t).toLocaleString('ru-RU')} кг` : t > w ? `Плюс ${(t - w).toLocaleString('ru-RU')} кг` : 'Сохранить текущий вес'} · сейчас {w.toLocaleString('ru-RU')} кг</p>}
+          {goalConflict(d) && <p className="q-warn">{goalConflict(d)}</p>}
         </>
       }
       case 'body_summary': return <BodySummary draft={d} sex={sex} />
       case 'experience': return optionsSlider('Уровень подготовки', EXPERIENCE, 'experience')
-      case 'squats': return <>{photo('bodyweight_squat.jpg', 'Приседания')}{optionsSlider('Приседания', SQUATS, 'squats')}</>
-      case 'pushups': return <>{photo('pushup_floor.webp', 'Отжимания от пола')}{optionsSlider('Отжимания', PUSHUPS, 'pushups')}</>
-      case 'pullups': return <>{photo('pullup.webp', 'Подтягивания')}{optionsSlider('Подтягивания', PULLUPS, 'pullups')}</>
+      case 'squats': return <>{photo('bodyweight_squat.jpg', 'Приседания')}<Cards label="Приседания" options={SQUATS} value={d.squats} onChange={set('squats')} grid /></>
+      case 'pushups': return <>{photo('pushup_floor.webp', 'Отжимания от пола')}<Cards label="Отжимания" options={PUSHUPS} value={d.pushups} onChange={set('pushups')} grid /></>
+      case 'pullups': return <>{photo('pullup.webp', 'Подтягивания')}<Cards label="Подтягивания" options={PULLUPS} value={d.pullups} onChange={set('pullups')} grid /></>
       case 'activity': return <Cards label="Повседневная активность" options={ACTIVITY} value={d.activity} onChange={set('activity')} />
       case 'place': return <Cards label="Место тренировок" options={PLACE} value={d.place}
         onChange={place => {

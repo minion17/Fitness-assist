@@ -4,7 +4,7 @@ from datetime import date
 ACTIVITY = {"low": 1.2, "light": 1.375, "moderate": 1.55, "high": 1.725, "very_high": 1.9}
 # 5 goals and their calorie adjustments come from the colleague's Logos engine (config.ts)
 GOAL_FACTOR = {"weight_loss": 0.80, "fat_loss": 0.85, "maintenance": 1.0, "muscle_gain": 1.15, "mass_gain": 1.20}
-PROTEIN_G_PER_KG = {"weight_loss": 2.0, "fat_loss": 2.0, "maintenance": 1.6, "muscle_gain": 1.8, "mass_gain": 1.6}
+PROTEIN_G_PER_KG = {"weight_loss": 2.0, "fat_loss": 2.0, "maintenance": 1.6, "muscle_gain": 2.0, "mass_gain": 2.0}
 FAT_G_PER_KG = 0.9
 MIN_CALORIES = {"male": 1500, "female": 1200}  # safety floor for deficit goals
 GOAL_RU = {

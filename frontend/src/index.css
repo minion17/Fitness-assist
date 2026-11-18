@@ -1625,3 +1625,39 @@ body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-f
 .day-why li.day-why-title b { color: var(--text); font-size: 16px; }
 .reminders-test { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 .reminders-test .sub { margin: 0; }
+.macro-p { color: var(--protein); }
+.amount-sum { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 16px; background: var(--card-2); }
+.amount-kcal { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: var(--muted); }
+.amount-kcal strong { font-family: var(--font-display); font-size: 34px; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+.amount-kcal small { margin-left: auto; font-size: 13px; }
+.amount-macros { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.macro-chip { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 12px; font-size: 12px; color: var(--muted); background: var(--card); box-shadow: inset 3px 0 0 var(--chip-line, var(--line)); }
+.macro-chip b { font-size: 16px; color: var(--text); font-variant-numeric: tabular-nums; }
+.macro-chip.p { --chip-line: var(--protein); } .macro-chip.f { --chip-line: var(--fat); } .macro-chip.c { --chip-line: var(--carbs); }
+/* workout in progress: no tab bar, the set button docks at the bottom */
+body.in-session .nav { display: none; }
+body.in-session .screen { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+.session-dock { position: sticky; bottom: 0; z-index: 5; display: flex; flex-direction: column; gap: 8px; margin: 0 -16px -16px; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--bg) 22%); }
+.session-progress { display: flex; flex-direction: column; gap: 6px; }
+.session-progress .sub { font-variant-numeric: tabular-nums; }
+.inline-undo { padding: 0; font-size: inherit; min-height: 0; }
+.workout-summary { align-items: center; text-align: center; gap: 10px; padding: 28px 18px; animation: up .3s ease-out; }
+.workout-summary-icon { font-size: 44px; }
+.workout-summary h1 { font-size: 24px; margin: 0; }
+.workout-summary-grid { width: 100%; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+.workout-summary-grid div { display: flex; flex-direction: column; gap: 2px; padding: 12px 6px; border-radius: 14px; background: var(--card-2); }
+.workout-summary-grid b { font-family: var(--font-display); font-size: 24px; font-variant-numeric: tabular-nums; }
+.workout-summary-grid span { color: var(--muted); font-size: 12px; }
+.workout-records { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.workout-summary .btn { width: 100%; margin-top: 6px; }
+/* small text links keep their look but get a finger-sized hit area (about 44 px tall) */
+.link { position: relative; }
+.link::after { content: ''; position: absolute; inset: -12px 0; }
+.icon-btn { position: relative; }
+.icon-btn::after { content: ''; position: absolute; inset: -4px; }
+/* opened sections ease in instead of popping */
+details[open] > :not(summary) { animation: fade .22s ease-out; }
+/* one switch for everyone who asked the phone for less motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

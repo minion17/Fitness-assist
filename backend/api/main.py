@@ -687,6 +687,21 @@ async def log_set(
     return {"id": ws.id, "record": record, "xp_awarded": xp}
 
 
+@app.delete("/api/workout-logs/{log_id}/sets/{set_id}")
+async def delete_set(log_id: int, set_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """Undo a set saved by mistake, while the workout is still going."""
+    user = await get_or_create_user(tg, session)
+    w = await own_workout(log_id, user, session)
+    if w.completed_at is not None:
+        raise HTTPException(409, "Тренировка уже завершена")
+    ws = await session.get(WorkoutSet, set_id)
+    if ws is None or ws.workout_log_id != w.id:
+        raise HTTPException(404, "Подход не найден")
+    await session.delete(ws)
+    await session.commit()
+    return {"ok": True}
+
+
 def e1rm(weight: float, reps: int) -> float:
     """Estimated one-rep max (Epley): compares 60 kg × 10 with 70 kg × 5."""
     return weight * (1 + reps / 30)

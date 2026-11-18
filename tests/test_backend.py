@@ -205,6 +205,13 @@ def test_workout_flow(client, seeded):
     assert [x["weight_kg"] for x in last[str(ex_id)]["sets"]] == [62.5, 60] and "999999" not in last
     assert client.get(f"/api/exercises/last?ids={ex_id}", headers=other).json() == {}
 
+    # undo a set saved by mistake: only yours, only while the workout goes on
+    extra = client.post(f"/api/workout-logs/{w2['id']}/sets", headers=h, json={**s, "set_number": 3, "weight_kg": 100}).json()["id"]
+    assert client.delete(f"/api/workout-logs/{w2['id']}/sets/{extra}", headers=other).status_code == 404
+    assert client.delete(f"/api/workout-logs/{w2['id']}/sets/{extra}", headers=h).json() == {"ok": True}
+    assert client.delete(f"/api/workout-logs/{w2['id']}/sets/{extra}", headers=h).status_code == 404
+    assert [x["weight_kg"] for x in client.get(f"/api/exercises/last?ids={ex_id}", headers=h).json()[str(ex_id)]["sets"]] == [62.5, 60]
+
 
 def test_import_reports_bad_product_rows(tmp_path, monkeypatch):
     import backend.seed.import_data as imp
@@ -1319,6 +1326,12 @@ def test_habits_tick_and_keep_the_streak(client):
     assert client.post("/api/habits", headers=h, json={"title": "Девятая"}).status_code == 409
     assert len(client.delete(f"/api/habits/{hid}", headers=h).json()) == 7
     assert len(client.post("/api/bootstrap", headers=h).json()["habits"]) == 7
+    # «Вернуть» right after removing; not someone else's, not over the limit
+    assert client.post(f"/api/habits/{hid}/restore", headers=new_user_headers()).status_code == 404
+    assert len(client.post(f"/api/habits/{hid}/restore", headers=h).json()) == 8
+    client.delete(f"/api/habits/{hid}", headers=h)
+    client.post("/api/habits", headers=h, json={"title": "Новая"})
+    assert client.post(f"/api/habits/{hid}/restore", headers=h).status_code == 409
 
 
 def test_consent_and_health_data(client):

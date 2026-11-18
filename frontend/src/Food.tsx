@@ -597,9 +597,10 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     const kcal = Math.round((p.kcal * shown.qty * shown.unit.g) / 100)
     return (
       <div className="row quick-row" key={p.id}>
+        <span className="food-icon" aria-hidden="true">{foodIcon(p.name, p.category)}</span>
         <button className="row-main row-btn-plain" onClick={() => pick(p)}>
           <div className="row-title">{p.name}</div>
-          <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}на 100 г: {Math.round(p.kcal)} ккал · Б {p.protein_g} · Ж {p.fat_g} · У {p.carbs_g}</div>
+          <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}<span className="macro-p">Б {r1(p.protein_g)}</span> на 100 г</div>
         </button>
         <div className="row-end result-kcal">{kcal} ккал<small>{fmtQty(shown.qty)} {unitWord(shown.unit.label, shown.qty)}</small>{leftAfter(kcal)}</div>
         {plusButton(p, `${fmtQty(shown.qty)} ${unitWord(shown.unit.label, shown.qty)}`)}
@@ -719,6 +720,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                     const kcal = Math.round((p.kcal * d.qty * d.unit.g) / 100)
                     return (
                       <div className="row quick-row" key={p.id}>
+                        <span className="food-icon" aria-hidden="true">{foodIcon(p.name, p.category)}</span>
                         <button className="row-main row-btn-plain" onClick={() => pick(p)}>
                           <div className="row-title">{p.name}</div>
                           <div className="row-sub">{amount} · {kcal} ккал{kcalLeft !== undefined && <> · {leftAfter(kcal)}</>}</div>
@@ -762,6 +764,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       ) : (
         <>
           <div className="row">
+            <span className="food-icon" aria-hidden="true">{foodIcon(picked.name, picked.category)}</span>
             <div className="row-main">
               <div className="row-title">{picked.name}</div>
               <div className="row-sub">{picked.brand ?? ''}</div>
@@ -797,11 +800,15 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
               </button>
             ))}
           </div>
-          {valid && (
-            <p className="sub">
-              {Math.round((picked.kcal * g) / 100)} ккал · Б {r1((picked.protein_g * g) / 100)} · Ж {r1((picked.fat_g * g) / 100)} · У {r1((picked.carbs_g * g) / 100)}
-              {kcalLeft !== undefined && <> · {leftAfter((picked.kcal * g) / 100)}</>}
-            </p>
+          {valid && ( // what this amount is, big: it changes as the amount does
+            <div className="amount-sum" aria-live="polite">
+              <div className="amount-kcal"><strong>{Math.round((picked.kcal * g) / 100)}</strong> ккал{kcalLeft !== undefined && <small>{leftAfter((picked.kcal * g) / 100)}</small>}</div>
+              <div className="amount-macros">
+                <span className="macro-chip p"><b>{r1((picked.protein_g * g) / 100)}</b> белки</span>
+                <span className="macro-chip f"><b>{r1((picked.fat_g * g) / 100)}</b> жиры</span>
+                <span className="macro-chip c"><b>{r1((picked.carbs_g * g) / 100)}</b> углев.</span>
+              </div>
+            </div>
           )}
           <button className="btn" disabled={!valid || busy} onClick={add}>{busy ? 'Добавляем…' : `Добавить в «${MEALS[meal]}»`}</button>
         </>

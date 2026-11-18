@@ -234,13 +234,13 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
 type SessionTimer =
   | { phase: 'work'; exercise: number; set: number; start: number; stoppedSeconds?: number }
-  | { phase: 'rest'; end: number; result: string }
+  | { phase: 'rest'; end: number; result: string; ei: number; si: number }
 
 const clockLabel = (seconds: number) =>
   `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`
 const timedExercise = (exercise: PlannedExercise) => exercise.unit === 'seconds' || /сек/i.test(exercise.reps)
 
-type SetState = { reps: string; weight: string; saved: boolean }
+type SetState = { reps: string; weight: string; saved: boolean; id?: number }
 
 type Rest = { until: number; total: number; next: string }
 
@@ -253,6 +253,17 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
 }) {
   const [rest, setRest] = useState<Rest | null>(null)
   const [now, setNow] = useState(() => Date.now())
+  const [startedAt] = useState(() => Date.now())
+  const [records, setRecords] = useState<string[]>([])
+  const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number } | null>(null)
+  useEffect(() => { // the clock in the header ticks every second
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  useEffect(() => { // the tab bar hides for the workout: more room, no stray taps
+    document.body.classList.add('in-session')
+    return () => document.body.classList.remove('in-session')
+  }, [])
   useEffect(() => {
     if (!rest) return
     const t = setInterval(() => {
@@ -345,14 +356,14 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
     setBusy(true)
     try {
       const id = await ensureLog()
-      const r = await api<{ record: { kind: string } | null }>(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
-      update(ei, si, { saved: true, reps: String(reps) })
+      const r = await api<{ id: number; record: { kind: string } | null }>(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
+      update(ei, si, { saved: true, reps: String(reps), id: r?.id })
       const rest = day.exercises[ei].rest_seconds
       const time = Date.now()
       setNow(time)
-      setTimer(rest > 0 ? { phase: 'rest', end: time + rest * 1000, result: `Подход ${si + 1} · ${reps} ${timed ? 'с' : 'повт.'}` } : null)
+      setTimer({ phase: 'rest', end: time + rest * 1000, result: `Подход ${si + 1} · ${reps} ${timed ? 'с' : 'повт.'}`, ei, si })
       if (weight) setSets(prev => prev.map((row, i) => i !== ei ? row : row.map((x, j) => j > si && !x.saved && x.weight === '' ? { ...x, weight: s.weight } : x)))
-      if (r?.record) onRecord?.(`🏆 Личный рекорд: ${day.exercises[ei].name}`)
+      if (r?.record) { onRecord?.(`🏆 Личный рекорд: ${day.exercises[ei].name}`); setRecords((x) => x.includes(day.exercises[ei].name) ? x : [...x, day.exercises[ei].name]) }
       const nextName = day.exercises[ei + 1]?.name ?? day.exercises[ei].name
       if (rest >= 10) startRest(rest, nextName)
       tg?.HapticFeedback?.impactOccurred?.('medium')
@@ -373,6 +384,21 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
     }
   }
 
+  /** A set saved by mistake: off the server, back to the inputs. */
+  async function undoSet(ei: number, si: number) {
+    const id = sets[ei][si].id
+    if (!logId || !id || busy) return
+    setBusy(true)
+    try {
+      await api(`/api/workout-logs/${logId}/sets/${id}`, { method: 'DELETE' })
+      update(ei, si, { saved: false, id: undefined })
+      if (rest) skipRest()
+      setTimer(null)
+      setCur(ei)
+    } catch { setError('Не удалось отменить подход') }
+    setBusy(false)
+  }
+
   function stopWork() {
     if (timer?.phase !== 'work' || busy) return
     const seconds = timer.stoppedSeconds ?? Math.max(1, Math.floor((Date.now() - timer.start) / 1000))
@@ -386,7 +412,11 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
     try {
       const r = await api<{ xp_awarded: number }>(`/api/workout-logs/${logId}/complete`, { method: 'POST' })
       onChanged(r?.xp_awarded ?? 0)
-      onExit()
+      const done = sets.flat().filter((x) => x.saved)
+      const tonnage = sets.reduce((n, row, ei) => n + (timedExercise(day.exercises[ei]) ? 0
+        : row.filter((x) => x.saved).reduce((m, x) => m + Number(x.reps) * (Number(x.weight.replace(',', '.')) || 0), 0)), 0)
+      setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0 })
+      setBusy(false)
     } catch {
       setError('Не удалось завершить тренировку. Попробуйте ещё раз.')
       setBusy(false)
@@ -411,11 +441,32 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
   const shown = list ? day.exercises.map((e, ei) => [e, ei] as const) : total ? [[day.exercises[cur], cur] as const] : []
   const doneEx = (ei: number) => sets[ei].length > 0 && sets[ei].every((x) => x.saved)
 
+  const totalSets = sets.flat().length
+  if (summary) return (
+    <section className="card workout-summary" aria-live="polite">
+      <div className="workout-summary-icon" aria-hidden="true">🏁</div>
+      <h1>Тренировка завершена</h1>
+      <p className="sub">{day.day_name}</p>
+      <div className="workout-summary-grid">
+        <div><b>{summary.minutes}</b><span>мин</span></div>
+        <div><b>{summary.sets}</b><span>{plural(summary.sets, 'подход', 'подхода', 'подходов')}</span></div>
+        <div><b>{summary.tonnage.toLocaleString('ru-RU')}</b><span>кг поднято</span></div>
+      </div>
+      {records.length > 0 && <ul className="workout-records">{records.map((r) => <li key={r}>🏆 Личный рекорд: {r}</li>)}</ul>}
+      {summary.xp > 0 && <p className="pos">+{summary.xp} XP</p>}
+      <button className="btn" onClick={onExit}>Готово</button>
+    </section>
+  )
+
   return (
     <>
       <div className="card-head">
         <h1 style={{ fontSize: 22 }}>{day.day_name}</h1>
         <button className="link" onClick={exit}>Назад</button>
+      </div>
+      <div className="session-progress" aria-label={`Сделано ${savedCount} из ${totalSets} подходов`}>
+        <div className="bar thin"><i style={{ width: `${totalSets ? (savedCount / totalSets) * 100 : 0}%`, background: 'var(--accent)' }} /></div>
+        <span className="sub"><span>{clockLabel(Math.floor((now - startedAt) / 1000))}</span> · {savedCount} из {totalSets} {plural(totalSets, 'подхода', 'подходов', 'подходов')}</span>
       </div>
       {total > 1 && (
         <div className="player-top">
@@ -436,7 +487,7 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
         {timer.stoppedSeconds !== undefined && !busy && <button className="link" onClick={() => setTimer(null)}>Сбросить</button>}
       </div>}
       {timer?.phase === 'rest' && <div className="session-clock rest-clock">
-        <div><small>{timer.result}</small><strong>{now < timer.end ? 'Отдых' : 'Отдых завершён'} <span role="timer">{clockLabel(Math.max(0, Math.ceil((timer.end - now) / 1000)))}</span></strong></div>
+        <div><small><span>{timer.result}</span>{sets[timer.ei]?.[timer.si]?.id && <> · <button className="link inline-undo" disabled={busy} onClick={() => undoSet(timer.ei, timer.si)}>Отменить</button></>}</small><strong>{now < timer.end ? 'Отдых' : 'Отдых завершён'} <span role="timer">{clockLabel(Math.max(0, Math.ceil((timer.end - now) / 1000)))}</span></strong></div>
         <button className="link" onClick={() => { skipRest(); setTimer(null) }}>{now < timer.end ? 'Пропустить' : 'Готово'}</button>
       </div>}
       {shown.map(([e, ei]) => {
@@ -497,13 +548,17 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
             {sets[ei].some(s => s.saved) && <div className="session-splits">{sets[ei].map((s, i) => s.saved &&
               <span key={i}>✓ {i + 1} · {clockLabel(Number(s.reps))}</span>)}</div>}
             <details className="session-manual"><summary>Вес и подходы</summary>{setTable}</details>
-          </> : setTable}
+          </> : list ? setTable : <>
+            {sets[ei].some(s => s.saved) && <div className="session-splits">{sets[ei].map((s, i) => s.saved &&
+              <span key={i}>✓ {i + 1} · {s.reps}{s.weight && s.weight !== '0' ? ` × ${s.weight}` : ''}</span>)}</div>}
+            <details className="session-manual"><summary>Все подходы — поправить</summary>{setTable}</details>
+          </>}
           {!timed && !list && (() => {
             const si = sets[ei].findIndex((x) => !x.saved)
             if (si < 0) return null
             const s = sets[ei][si], timed = timedOf(ei)
             return (
-              <>
+              <div className="session-dock">
                 <div className="set-nudge" role="group" aria-label={`Подход ${si + 1}: поправить`}>
                   <button aria-label={timed ? 'Минус 5 секунд' : 'Минус повтор'} onClick={() => nudge(ei, si, 'reps', timed ? -5 : -1)}>−{timed ? '5 с' : '1'}</button>
                   <button aria-label={timed ? 'Плюс 5 секунд' : 'Плюс повтор'} onClick={() => nudge(ei, si, 'reps', timed ? 5 : 1)}>+{timed ? '5 с' : '1'}</button>
@@ -515,7 +570,7 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
                 <button className="btn set-go" disabled={busy} onClick={() => saveSet(ei, si)}>
                   ✓ Подход {si + 1}: {s.reps || '—'} {timed ? 'с' : 'повт'}{!timed && s.weight && s.weight !== '0' ? ` × ${s.weight} кг` : ''}
                 </button>
-              </>
+              </div>
             )
           })()}
         </section>

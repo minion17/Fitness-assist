@@ -86,6 +86,21 @@ async def remove_habit(habit_id: int, tg: dict = Depends(telegram_user), session
     return await habit_list(session, user)
 
 
+@router.post("/habits/{habit_id}/restore")
+async def restore_habit(habit_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """"Вернуть" right after removing: the habit comes back with its checks and streak."""
+    user = await get_or_create_user(tg, session)
+    h = await session.get(Habit, habit_id)
+    if h is None or h.user_id != user.id:
+        raise HTTPException(404, "Привычка не найдена")
+    active = await session.scalar(select(func.count()).where(Habit.user_id == user.id, Habit.archived.is_(False)))
+    if h.archived and active >= MAX_HABITS:
+        raise HTTPException(409, f"Не больше {MAX_HABITS} привычек")
+    h.archived = False
+    await session.commit()
+    return await habit_list(session, user)
+
+
 class HabitPatch(BaseModel):
     remind_at: str | None = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # None turns the reminder off
 

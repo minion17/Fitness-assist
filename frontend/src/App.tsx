@@ -502,8 +502,14 @@ export default function App() {
   }
 
   async function deleteMeasurement(id: number) {
+    const m = measurements.find((x) => x.id === id)
     await api(`/api/measurements/${id}`, { method: 'DELETE' })
     await refreshJournal()
+    if (m) flashUndo('Замер удалён', async () => { // the same values on the same day
+      const { id: _, ...back } = m
+      await api('/api/measurements', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(back) })
+      await refreshJournal()
+    })
   }
 
   async function workoutChanged(xpAwarded: number) {

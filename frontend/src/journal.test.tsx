@@ -61,9 +61,19 @@ test('workout session: logs sets, then completes', async () => {
   expect(apiMock.mock.calls[1][0]).toBe('/api/workout-logs')
   expect(JSON.parse(apiMock.mock.calls[2][1]!.body as string)).toEqual({ exercise_id: 7, set_number: 1, reps: 6, weight_kg: 62.5 })
 
+  // a set saved by mistake comes back to the inputs
+  fireEvent.click(screen.getByRole('button', { name: 'Отменить' }))
+  await waitFor(() => expect(screen.queryByRole('button', { name: /Завершить тренировку/ })).toBeNull())
+  expect(apiMock.mock.calls.map((c) => c[0])).toContain('/api/workout-logs/99/sets/1')
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить подход 1' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: /Завершить тренировку · 1/ })).toBeTruthy())
+
   fireEvent.click(screen.getByRole('button', { name: /Завершить тренировку/ }))
   await waitFor(() => expect(onChanged).toHaveBeenCalledWith(50))
   expect(apiMock.mock.calls.map((c) => c[0])).toContain('/api/workout-logs/99/complete')
+  // the summary: sets and kilograms lifted (6 × 62,5)
+  expect(await screen.findByText('Тренировка завершена')).toBeTruthy()
+  expect(screen.getByText('375')).toBeTruthy()
 })
 
 test('workout session shows last time and prefills its weights', async () => {
@@ -100,7 +110,7 @@ test('food: search a product and add grams to a meal', async () => {
   expect(publicGetMock).toHaveBeenCalledWith('/api/products/search?q=%D1%82%D0%B2')
 
   fireEvent.change(screen.getByDisplayValue('100'), { target: { value: '200' } })
-  expect(screen.getByText(/242 ккал/)).toBeTruthy()
+  expect(document.querySelector('.amount-kcal strong')?.textContent).toBe('242') // big, for the typed amount
   fireEvent.click(screen.getByRole('button', { name: 'Добавить в «Ужин»' }))
   await waitFor(() => expect(onAdd).toHaveBeenCalledWith(5, 200, 'dinner', null))
   // the sheet stays open for the next product: empty search, a running total

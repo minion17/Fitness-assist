@@ -1,5 +1,5 @@
 // Home: the user's own daily checks (sleep, steps, no sweets...). One tap ticks today; a tick keeps the streak.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { api, postJson, tg } from './telegram'
 import { Chevron } from './ui'
 
@@ -15,6 +15,12 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState('')
   const [error, setError] = useState('')
+  const [removed, setRemoved] = useState<Habit | null>(null) // just removed: «Вернуть» for a few seconds
+  useEffect(() => {
+    if (!removed) return
+    const t = setTimeout(() => setRemoved(null), 6000)
+    return () => clearTimeout(t)
+  }, [removed])
 
   async function send(path: string, init: RequestInit) {
     setError('')
@@ -71,12 +77,13 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
       {editing && (
         <div className="habit-edit">
           {habits.length > 0 && <p className="sub">Время — бот напомнит, если привычка ещё не отмечена. Отметить можно прямо в чате.</p>}
+          {removed && <p className="sub habit-removed" role="status">Убрали «{removed.title}» · <button className="link" onClick={async () => { if (await send(`/api/habits/${removed.id}/restore`, { method: 'POST' })) setRemoved(null) }}>Вернуть</button></p>}
           {habits.map((h) => (
             <div key={h.id} className="habit-line">
               <span aria-hidden="true">{h.emoji}</span><span className="habit-line-title">{h.title}</span>
               <input type="time" className="habit-time" aria-label={`Напоминание: ${h.title}`} value={h.remind_at ?? ''}
                 onChange={(e) => send(`/api/habits/${h.id}`, { ...postJson({ remind_at: e.target.value || null }), method: 'PATCH' })} />
-              <button className="link" aria-label={`Убрать «${h.title}»`} onClick={() => send(`/api/habits/${h.id}`, { method: 'DELETE' })}>✕</button>
+              <button className="link" aria-label={`Убрать «${h.title}»`} onClick={async () => { if (await send(`/api/habits/${h.id}`, { method: 'DELETE' })) setRemoved(h) }}>✕</button>
             </div>
           ))}
           {habits.length < MAX && (

@@ -1502,8 +1502,8 @@ body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-f
 .q-body.q-health .field legend, .q-allergy-help { color: var(--text); }
 .q-allergy-help { margin: 0 0 10px; font-size: 14px; }
 .q-body fieldset.field { border: 0; padding: 0; margin: 0; }
-.q-photo { width: 100%; aspect-ratio: 16 / 10; max-height: 26vh; object-fit: cover; border-radius: 20px; background: var(--card-2); }
-.q-pullups .q-photo { object-position: 50% 15%; }
+.q-photo { display: block; width: min(100%, 52vh); margin: 0 auto; aspect-ratio: 16 / 10; object-fit: cover; border-radius: 20px; background: var(--card-2); }
+.q-photo.top { object-position: 50% 0; }
 .body-figure { display: block; width: 100%; height: min(46dvh, 380px); object-fit: contain; }
 .q-slider { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 10px; }
 .q-slider .meal-range-rail {

@@ -225,17 +225,23 @@ function BodySummary({ draft, sex }: { draft: Draft; sex: 'male' | 'female' }) {
   </>
 }
 
+const DRAFT_KEY = 'setly-q-draft'
+
 export default function Questionnaire({ initial, health = false, onSave, onCancel }: {
   initial: ProfileData | null
   health?: boolean
   onSave: (p: ProfileData) => Promise<void>
   onCancel?: () => void
 }) {
+  // an unfinished questionnaire comes back where it was left (closing it by mistake shouldn't cost the answers)
+  const [saved] = useState(() => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as { d: Draft; at: number } | null } catch { return null } })
   const [d, setD] = useState<Draft>(() => {
+    if (saved?.d) return { ...saved.d, health }
     const draft = toDraft(initial)
     return { ...draft, sessions_per_week: draft.sessions_per_week ?? '1', session_minutes: draft.session_minutes ?? '20', health }
   })
-  const [at, setAt] = useState(0)
+  const [at, setAt] = useState(saved?.at ?? 0)
+  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ d, at })) } catch { /* private mode */ } }, [d, at])
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const screens = SCREENS.filter((s) => !s.skip?.(d))
@@ -283,6 +289,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
     setBusy(true)
     try {
       await onSave(build())
+      try { localStorage.removeItem(DRAFT_KEY) } catch { /* private mode */ }
     } catch {
       setError('Не удалось сохранить. Проверьте соединение и попробуйте ещё раз.')
       setBusy(false)
@@ -307,7 +314,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       avatar.src = bodyAvatarSource(sex, level)
     }
   }, [screen.key, sex])
-  const photo = (file: string, alt: string) => <img className="q-photo" src={IMG + file} alt={alt} />
+  const photo = (file: string, alt: string, top = false) => <img className={top ? 'q-photo top' : 'q-photo'} src={IMG + file} alt={alt} />
   const optionsSlider = (label: string, options: Opt, key: keyof Draft) =>
     <OptionSlider label={label} options={options} value={d[key] as string | undefined} onChange={set(key)} />
   function body() {
@@ -347,7 +354,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       case 'experience': return optionsSlider('Уровень подготовки', EXPERIENCE, 'experience')
       case 'squats': return <>{photo('bodyweight_squat.jpg', 'Приседания')}<Cards label="Приседания" options={SQUATS} value={d.squats} onChange={set('squats')} grid /></>
       case 'pushups': return <>{photo('pushup_floor.webp', 'Отжимания от пола')}<Cards label="Отжимания" options={PUSHUPS} value={d.pushups} onChange={set('pushups')} grid /></>
-      case 'pullups': return <>{photo('pullup.webp', 'Подтягивания')}<Cards label="Подтягивания" options={PULLUPS} value={d.pullups} onChange={set('pullups')} grid /></>
+      case 'pullups': return <>{photo('pullup.webp', 'Подтягивания', true)}<Cards label="Подтягивания" options={PULLUPS} value={d.pullups} onChange={set('pullups')} grid /></>
       case 'activity': return <Cards label="Повседневная активность" options={ACTIVITY} value={d.activity} onChange={set('activity')} />
       case 'place': return <Cards label="Место тренировок" options={PLACE} value={d.place}
         onChange={place => {

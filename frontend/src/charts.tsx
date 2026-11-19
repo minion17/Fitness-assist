@@ -48,13 +48,14 @@ function roundedTop(x: number, y: number, w: number, h: number, r: number) {
   return `M${x},${y + h} V${y + r} Q${x},${y} ${x + r},${y} H${x + w - r} Q${x + w},${y} ${x + w},${y + r} V${y + h} Z`
 }
 
-export function LineChart({ points, color, unit, height = 140, digits = 1 }: {
+export function LineChart({ points, color, unit, height = 140, digits = 1, goal }: {
   points: { date: string; value: number }[]; color: string; unit: string; height?: number; digits?: number
+  goal?: number | null // a dashed target line («цель»), kept inside the scale
 }) {
   const [sel, setSel] = useState<number | null>(null)
   if (points.length === 0) return null
   const vals = points.map((p) => p.value)
-  let lo = Math.min(...vals), hi = Math.max(...vals)
+  let lo = Math.min(...vals, goal ?? Infinity), hi = Math.max(...vals, goal ?? -Infinity)
   const pad = Math.max((hi - lo) * 0.15, 1)
   lo -= pad
   hi += pad
@@ -71,6 +72,12 @@ export function LineChart({ points, color, unit, height = 140, digits = 1 }: {
       </figcaption>
       <svg viewBox={`0 0 ${W} ${height + 18}`} role="img" aria-label={`График, ${unit}`} onMouseLeave={() => setSel(null)}>
         {[0.25, 0.5, 0.75].map((f) => <line key={f} x1={0} x2={W} y1={height * f} y2={height * f} stroke="var(--line)" strokeWidth={1} />)}
+        {goal ? (
+          <g>
+            <line x1={0} x2={W} y1={y(goal)} y2={y(goal)} stroke="var(--muted)" strokeDasharray="4 4" strokeWidth={1} />
+            <text x={W} y={y(goal) - 4} textAnchor="end" fontSize="10" fill="var(--muted)">цель {fmt(goal)}</text>
+          </g>
+        ) : null}
         <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
         {points.map((p, i) => (
           <g key={p.date} onClick={() => setSel(i)} onMouseEnter={() => setSel(i)}>

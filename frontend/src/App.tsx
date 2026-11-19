@@ -177,8 +177,10 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
           </div>
         </section>
       )}
+      <h3 className="profile-group">Уведомления и вид</h3>
       {canEdit && <Reminders />}
       <ThemeCard t={theme} />
+      {body && <h3 className="profile-group">Данные и помощь</h3>}
       {body}
       <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Setly.</p>
     </>
@@ -652,12 +654,13 @@ export default function App() {
         )}
         {tab === 'progress' && (
           <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
+            weightGoal={me?.target_weight_kg}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
               norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}
-              {canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
-                api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
-              }} />}
               {aiEnabled && <AiSummary />}</>}
+            bodyTop={canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
+              api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
+            }} />}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
         )}
         {tab === 'profile' && (

@@ -64,7 +64,7 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
       </div>
 
       {!editing && (
-        <div className="habit-chips" role="group" aria-label="Привычки на сегодня">
+        <div className="habit-chips habit-today" role="group" aria-label="Привычки на сегодня">
           {habits.map((h) => (
             <button key={h.id} className="habit-chip" aria-pressed={h.done} onClick={() => tick(h)}>
               <span aria-hidden="true">{h.done ? '✓' : h.emoji}</span> {h.title}

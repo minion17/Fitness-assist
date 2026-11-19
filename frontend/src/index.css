@@ -1688,3 +1688,17 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .feedback-form { display: flex; flex-direction: column; gap: 10px; }
 .feedback-form textarea { width: 100%; min-height: 80px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--card-border); background: var(--card-2); color: var(--text); font: inherit; resize: vertical; }
 .product-report { align-self: center; color: var(--muted); font-weight: 500; }
+.profile-group { margin: 14px 4px 0; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+/* habits on Home: one swipeable row instead of a wrapping block */
+.habits .habit-today { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; }
+.habits .habit-today::-webkit-scrollbar { display: none; }
+.habits .habit-today .habit-chip { flex: none; }
+.session-title { font-size: 20px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.taste-tile span { -webkit-line-clamp: 3; }
+/* exercise photos come through the server: a soft shimmer until they arrive */
+.lib-row-main img { background-image: linear-gradient(90deg, var(--card-2) 0%, color-mix(in srgb, var(--text) 8%, var(--card-2)) 50%, var(--card-2) 100%); background-size: 200% 100%; animation: shimmer 1.2s ease-in-out infinite; }
+/* Progress: the parts are the main switch (accent pills); the period under them is a small secondary control */
+.progress-parts button { padding: 10px 2px; border-radius: 14px; font-weight: 600; font-size: 14px; }
+.progress-parts button[aria-selected='true'] { background: var(--accent); color: #111; border-color: var(--accent); }
+.progress-period { align-self: flex-start; padding: 3px; border-radius: 12px; }
+.progress-period button { min-height: 30px; padding: 4px 12px; font-size: 13px; flex: none; }

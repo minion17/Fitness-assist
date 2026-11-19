@@ -461,7 +461,7 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
   return (
     <>
       <div className="card-head">
-        <h1 style={{ fontSize: 22 }}>{day.day_name}</h1>
+        <h1 className="session-title" title={day.day_name}>{day.day_name}</h1>
         <button className="link" onClick={exit}>Назад</button>
       </div>
       <div className="session-progress" aria-label={`Сделано ${savedCount} из ${totalSets} подходов`}>
@@ -520,7 +520,7 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
             const next = cur + (dx < 0 ? 1 : -1)
             if (next >= 0 && next < total) { tg?.HapticFeedback?.selectionChanged?.(); setCur(next) }
           }}>
-          {!list && total > 1 && <span className="sub">Упражнение {ei + 1} из {total}</span>}
+          {!list && total > 1 && <span className="sr-only">Упражнение {ei + 1} из {total}</span> /* the dots above show it */}
           <div className="session-exercise-title">
             {hasExerciseGuide(e.name)
               ? <button className="session-guide-trigger" onClick={() => setGuideExercise(e)} aria-label={`Как выполнять ${e.name}`}>

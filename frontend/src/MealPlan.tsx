@@ -198,7 +198,7 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
           <section className="taste-group" key={title}><h3>{title}</h3>
             <div className="taste-grid">{list.map((r) => {
               const on = likedRecipes.includes(r.id)
-              return <button type="button" key={r.id} className="taste-tile" aria-pressed={on} onClick={() => toggleLike(r.id)}>
+              return <button type="button" key={r.id} className="taste-tile" title={r.name} aria-pressed={on} onClick={() => toggleLike(r.id)}>
                 <img src={recipeImage(r.id)} alt={`Пример блюда: ${r.name}`} loading="lazy" />
                 <span>{r.name}</span>{on && <i aria-hidden="true">✓</i>}
               </button>

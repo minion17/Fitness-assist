@@ -6,6 +6,7 @@ import { useCountUp } from './motion'
 import { nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
 import { Icon, type IconName } from './icons'
 import { haptic } from './feedback'
+import { hello, insight } from './greeting'
 
 export type Water = { ml: number; goal_ml: number }
 export type WeekDay = { date: string; kcal: number; water_ml: number; workouts: number }
@@ -184,6 +185,7 @@ export default function Home(props: {
   day: FoodDay
   program?: Program
   trainingDays?: number[] | null // from the questionnaire: other days are rest days
+  yesterday?: { kcal: number } | null // for the line under the greeting
   logs: WorkoutLog[]
   water: Water
   aiEnabled: boolean
@@ -236,6 +238,13 @@ export default function Home(props: {
   const shownKcal = useCountUp(day.totals.kcal)
   const shownWater = useCountUp(water.ml)
   const next = props.program && nextDay(props.program, props.logs)
+  const [hour] = useState(() => new Date().getHours())
+  const weekStart = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime() })()
+  const line = insight({
+    hour, streak: props.streak, kcalToday: day.totals.kcal, goal: props.targets?.calories,
+    workoutsThisWeek: props.logs.filter((l) => l.completed_at && Date.parse(l.started_at) >= weekStart).length,
+    yesterday: props.yesterday, trainingDay: (props.trainingDays ?? []).includes((new Date().getDay() + 6) % 7),
+  })
   const [weekday] = useState(() => (new Date().getDay() + 6) % 7) // 0 = Mon, as in the questionnaire
   const days = props.trainingDays ?? []
   const restDay = !!next && days.length > 0 && !days.includes(weekday) && !trained
@@ -246,7 +255,8 @@ export default function Home(props: {
       <header className="home-head">
         <div>
           <p className="hello">{today}</p>
-          <h1 className="home-title">Привет, {props.name}</h1>
+          <h1 className="home-title">{hello(hour, props.name)}</h1>
+          {!props.loading && line && <p className="home-insight">{line}</p>}
         </div>
         <div className="home-chips" style={props.loading ? { visibility: 'hidden' } : undefined}>
           {props.boostUntil && ( // the server sends it only while the boost lasts

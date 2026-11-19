@@ -7,7 +7,7 @@ afterEach(cleanup)
 test('bottom navigation opens all five sections', async () => {
   window.scrollTo = () => {}
   render(<App />)
-  expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Привет, Гость')
+  expect(screen.getByRole('heading', { level: 1 }).textContent).toMatch(/^(Доброе утро|Добрый день|Добрый вечер|Доброй ночи), Гость$/)
 
   const nav = (label: string) => fireEvent.click(screen.getByRole('button', { name: label }))
 

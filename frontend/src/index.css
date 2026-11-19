@@ -1781,3 +1781,19 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 /* a product added lands in its meal */
 .meal-group .list > * { animation: land .32s cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes land { from { opacity: 0; transform: translateY(-8px) scale(.98); background: color-mix(in srgb, var(--accent) 14%, transparent); } }
+.home-insight { margin: 4px 0 0; color: var(--accent-text); font-size: 14px; font-weight: 500; animation: fade-in .4s ease-out .2s backwards; }
+/* medals: unlocked badges on the profile card */
+.medals { display: flex; align-items: center; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--line); color: var(--muted); text-align: left; }
+.medal { width: 38px; height: 42px; display: grid; place-items: center; font-size: 19px; flex: none;
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 55%, #fff 10%), color-mix(in srgb, var(--accent) 30%, var(--card-2))); }
+.medals-more { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: 13px; white-space: nowrap; }
+/* the unlock ceremony: the badge lands, a light sweeps across it, rings spread */
+.reward .badge { position: relative; overflow: hidden; }
+.reward .badge::after { content: ''; position: absolute; inset: -40%; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, .55) 50%, transparent 60%);
+  transform: translateX(-120%); animation: shine 1.4s ease-out .55s 1 forwards; }
+@keyframes shine { to { transform: translateX(120%); } }
+.reward-body::before { content: ''; position: absolute; width: 160px; height: 160px; border-radius: 50%; border: 2px solid var(--accent);
+  animation: ripple 1.6s ease-out .3s 2 backwards; pointer-events: none; }
+@keyframes ripple { from { transform: scale(.6); opacity: .7; } to { transform: scale(2.2); opacity: 0; } }
+.reward-body { position: relative; }

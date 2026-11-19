@@ -27,7 +27,7 @@ import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
 import { api, apiBlob, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
-import { Bar, Sheet } from './ui'
+import { Bar, Chevron, Sheet } from './ui'
 import { ACTIVE_EVENT, loadActive } from './activeWorkout'
 import { markRecapSeen, recapDue } from './recap'
 import { haptic, hapticsOn, setHaptics, setSounds, sound, soundsOn } from './feedback'
@@ -155,8 +155,9 @@ function Avatar() {
   return <div className="avatar">{src ? <img src={src} alt="" onError={() => setSrc(null)} /> : name[0]}</div>
 }
 
-function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
+function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards = [], onAwards }: {
   synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void; body: React.ReactNode
+  awards?: Achievement[]; onAwards?: () => void // unlocked badges as medals; the full list is in Прогресс → Награды
   theme: ReturnType<typeof useTheme>
   canEdit: boolean
 }) {
@@ -175,6 +176,14 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit }: {
         </div>
         </div>
         <LevelCard p={progress} />
+        {awards.some((a) => a.unlocked_at) && (
+          <button className="medals" onClick={onAwards} aria-label="Все награды">
+            {awards.filter((a) => a.unlocked_at).sort((a, b) => b.unlocked_at!.localeCompare(a.unlocked_at!)).slice(0, 6).map((a) => (
+              <span key={a.code} className="medal" title={a.title}><span aria-hidden="true">{a.icon}</span></span>
+            ))}
+            <span className="medals-more">{awards.filter((a) => a.unlocked_at).length} из {awards.length} <Chevron dir="right" /></span>
+          </button>
+        )}
       </section>
       <section className="card profile-overview">
         <div className="card-head"><h2>Мои данные</h2><button className="link" aria-label={data ? 'Изменить анкету' : 'Заполнить анкету'} onClick={onEdit}>{data ? 'Моя анкета →' : 'Заполнить →'}</button></div>
@@ -648,7 +657,7 @@ export default function App() {
     <div className="app">
       <main className="screen" key={tab} style={{ '--dir': dir } as React.CSSProperties}>
         {tab === 'home' && (
-          <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} trainingDays={me?.training_days} logs={logs}
+          <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} trainingDays={me?.training_days} yesterday={week.days.length > 1 ? week.days[week.days.length - 2] : null} logs={logs}
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
@@ -690,6 +699,7 @@ export default function App() {
         )}
         {tab === 'profile' && (
           <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
+            awards={ach.items} onAwards={() => { try { sessionStorage.setItem('setly-progress-part', 'awards') } catch { /* private mode */ } go('progress') }}
             body={canEdit && consent && <><ReportCard /><FeedbackCard /><PrivacyCard consent={consent} onHealth={(health) => {
               setConsent({ ...consent, health })
               if (!health && me) setMe({ ...me, allergies: [], injury: null })

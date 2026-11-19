@@ -8,7 +8,7 @@
   --nav-bg: rgba(23,25,29,.92); --nav-active-bg: transparent; --nav-active-border: transparent; --nav-active-fg: var(--accent);
   --protein: #7cc4ff; --fat: #ffc56b; --carbs: #b79cff; --water: #7cc4ff; --water-soft: rgba(124,196,255,.16);
   --streak: #ffb35c;
-  --font: 'Manrope Variable', 'Manrope', -apple-system, 'Segoe UI', Roboto, sans-serif; --font-display: 'Unbounded Variable', 'Unbounded', var(--font);
+  --font: 'Onest Variable', 'Onest', -apple-system, 'Segoe UI', Roboto, sans-serif; --font-display: var(--font);
   --radius: 20px; --ring-w: 18px;
   color-scheme: dark;
 }
@@ -777,11 +777,11 @@ button:not(:disabled):active, .btn:not(:disabled):active, summary:active { trans
 .player-nav .link:disabled { opacity: .4; }
 
 /* ---- Theme character: not only colours ----
-   Тёмная — собранная, спортивная: строгие скругления, заголовки шрифтом Unbounded.
+   Тёмная — собранная, спортивная: строгие скругления, шрифт Onest.
    Светлая — воздушная: крупные скругления, больше воздуха внутри карточек.
    Салатовая — мягкая и тёплая: всё округлое, кнопки-таблетки, шрифт Nunito. */
 :root:not([data-theme]), [data-theme='dark'] { --radius: 18px; }
-:root:not([data-theme]) h1, [data-theme='dark'] h1 { font-family: var(--font-display); font-weight: 700; letter-spacing: -.01em; font-size: 24px; }
+:root:not([data-theme]) h1, [data-theme='dark'] h1 { font-family: var(--font-display); font-weight: 750; letter-spacing: -.025em; font-size: 24px; }
 :root:not([data-theme]) .btn, [data-theme='dark'] .btn { border-radius: 14px; }
 :root:not([data-theme]) .card:not(.card .card), [data-theme='dark'] .card:not(.card .card) {
   background-image: linear-gradient(180deg, rgba(255,255,255,.035), transparent 40%);
@@ -1273,7 +1273,7 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 
 .energy { display: flex; flex-direction: column; gap: 10px; }
 .energy-main { display: flex; align-items: baseline; gap: 8px; }
-.energy-main b { font-family: 'Unbounded Variable', sans-serif; font-size: 34px; color: var(--accent-text, var(--accent)); }
+.energy-main b { font-family: var(--font-display); font-size: 34px; color: var(--accent-text, var(--accent)); }
 .energy-main span { color: var(--muted); font-weight: 600; }
 .energy-forecast { margin: 0; font-size: 15px; }
 .energy-note { padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--streak, #ff9f43) 16%, transparent); font-size: 14px; line-height: 1.45; }
@@ -1797,3 +1797,6 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
   animation: ripple 1.6s ease-out .3s 2 backwards; pointer-events: none; }
 @keyframes ripple { from { transform: scale(.6); opacity: .7; } to { transform: scale(2.2); opacity: 0; } }
 .reward-body { position: relative; }
+
+/* Onest: tabular digits run wide, tighten big numbers */
+.stat, .daily-progress-center strong, .overview-value, .hero-num, .amount-kcal strong, .workout-summary-grid b, .recap-tile b, .day-stat-value, .session-prescription dd, .session-clock strong, .chart-read b, .session-progress .sub, .set-go { letter-spacing: -.03em; }

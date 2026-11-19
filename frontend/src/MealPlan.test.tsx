@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { existsSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import MealPlan from './MealPlan'
@@ -190,9 +192,15 @@ it('каждая карточка вкуса показывает изображ
   for (const recipe of RECIPES) {
     const image = screen.getByRole('img', { name: `Пример блюда: ${recipe.name}` })
     expect(image.getAttribute('src')).toBe(`/images/recipes/${recipe.id}.jpg`)
-    fireEvent.click(screen.getByRole('button', { name: 'Нравится' }))
+    expect(existsSync(`public/images/recipes/${recipe.id}.jpg`)).toBe(true) // the picture is really there
   }
-  expect(screen.getByText('Вы оценили все блюда.')).toBeTruthy()
+  // all dishes on one screen: a tap marks, a second tap unmarks
+  const tile = screen.getByRole('button', { name: new RegExp(RECIPES[0].name) })
+  fireEvent.click(tile)
+  expect(tile.getAttribute('aria-pressed')).toBe('true')
+  expect(screen.getByText('Отмечено: 1')).toBeTruthy()
+  fireEvent.click(tile)
+  expect(tile.getAttribute('aria-pressed')).toBe('false')
 })
 
 it('открывает отдельный день и карточку блюда, затем возвращается к списку дней', () => {

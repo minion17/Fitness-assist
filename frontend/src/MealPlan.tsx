@@ -45,7 +45,6 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
   const [sharedMeals, setSharedMeals] = useState<Slot[]>([])
   const [sex, setSex] = useState<'male' | 'female' | null>(profile?.sex ?? null)
   const [diet, setDiet] = useState<Diet>('omnivore')
-  const [tasteIndex, setTasteIndex] = useState(0)
   const [likedRecipes, setLikedRecipes] = useState<string[]>([])
   const [dislikedRecipes, setDislikedRecipes] = useState<string[]>([])
   const [loading, setLoading] = useState(canEdit)
@@ -138,12 +137,10 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
     setSharedMeals(prev => prev.filter(m => m !== id))
   }
   const toggleShared = (id: Slot) => setSharedMeals(prev => prev.includes(id) ? prev.filter(m => m !== id) : [...prev, id])
-  const rateTaste = (positive: boolean) => {
-    const id = RECIPES[tasteIndex]?.id
-    if (!id) return
-    setLikedRecipes(prev => positive ? [...prev.filter(v => v !== id), id] : prev.filter(v => v !== id))
-    setDislikedRecipes(prev => positive ? prev.filter(v => v !== id) : [...prev.filter(v => v !== id), id])
-    setTasteIndex(i => Math.min(i + 1, RECIPES.length))
+  /** A tap marks a dish as liked (and takes it off the old "не моё" list); a second tap unmarks it. */
+  const toggleLike = (id: string) => {
+    setLikedRecipes(prev => prev.includes(id) ? prev.filter(v => v !== id) : [...prev, id])
+    setDislikedRecipes(prev => prev.filter(v => v !== id))
   }
   const generate = () => {
     if (!allergies.trim() && !noAllergies) { setError('Укажите аллергию или подтвердите её отсутствие.'); return }
@@ -196,7 +193,20 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
       {step === 5 && <BudgetStep persons={persons} budget={budget} currentSpend={currentSpend} limits={budgetLimits} onBudget={setBudget} onCurrent={setCurrentSpend} />}
       {step === 6 && <><h2>Ваш пол</h2><p className="sub">{profile ? 'Данные взяты из профиля и используются для расчёта.' : 'Укажите пол. Остальные данные для расчёта можно заполнить в профиле.'}</p><div className="meal-q-options">{([{id:'female',icon:'👩',label:'Женский'},{id:'male',icon:'👨',label:'Мужской'}] as const).map(v => <button className="meal-q-option" aria-pressed={sex === v.id} key={v.id} onClick={() => setSex(v.id)}><span className="meal-q-emoji">{v.icon}</span><strong>{v.label}</strong></button>)}</div></>}
       {step === 7 && <><h2>Какой у вас тип питания?</h2><p className="sub">Подберём подходящие варианты.</p><div className="meal-q-options">{DIETS.map(v => <button className="meal-q-option" aria-pressed={diet === v.id} key={v.id} onClick={() => setDiet(v.id)}><img className="meal-q-diet-photo" src={`/images/diets/${v.id}.jpg`} alt="" /><span><strong>{v.label}</strong><small>{v.description}</small></span></button>)}</div></>}
-      {step === 8 && <><h2>Что вам нравится?</h2><p className="sub">Отмечайте блюда. Можно пропустить этот шаг.</p>{tasteIndex < RECIPES.length ? <div className="meal-q-taste"><div className="meal-q-taste-card" key={RECIPES[tasteIndex].id}><img className="meal-q-taste-photo" src={recipeImage(RECIPES[tasteIndex].id)} alt={`Пример блюда: ${RECIPES[tasteIndex].name}`} /><strong>{RECIPES[tasteIndex].name}</strong><span className="meal-q-taste-progress">{tasteIndex + 1} из {RECIPES.length}</span></div><div className="meal-q-taste-actions"><button className="meal-q-taste-action is-dislike" onClick={() => rateTaste(false)}>Не моё</button><button className="meal-q-taste-action is-like" onClick={() => rateTaste(true)}>Нравится</button></div></div> : <p className="sub">Вы оценили все блюда.</p>}</>}
+      {step === 8 && <><h2>Что вам нравится?</h2><p className="sub">Отметьте блюда, которые хотели бы есть, — чаще поставим их в рацион. Можно пропустить.</p>
+        {([['Завтраки', RECIPES.filter((r) => r.meal === 'breakfast')], ['Обеды и ужины', RECIPES.filter((r) => r.meal !== 'breakfast')]] as const).map(([title, list]) => (
+          <section className="taste-group" key={title}><h3>{title}</h3>
+            <div className="taste-grid">{list.map((r) => {
+              const on = likedRecipes.includes(r.id)
+              return <button type="button" key={r.id} className="taste-tile" aria-pressed={on} onClick={() => toggleLike(r.id)}>
+                <img src={recipeImage(r.id)} alt={`Пример блюда: ${r.name}`} loading="lazy" />
+                <span>{r.name}</span>{on && <i aria-hidden="true">✓</i>}
+              </button>
+            })}</div>
+          </section>
+        ))}
+        {likedRecipes.length > 0 && <p className="sub taste-count" role="status">Отмечено: {likedRecipes.length}</p>}
+      </>}
       {step === 11 && <>
         <section className="calorie-choice">
           <h2>Дневной ориентир</h2>

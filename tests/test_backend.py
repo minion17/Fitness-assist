@@ -2016,6 +2016,7 @@ def test_training_days_and_target_date(client):
 
 def test_export_and_feedback(client, seeded):
     import io
+    import uuid
     import zipfile
 
     from sqlalchemy import select
@@ -2041,11 +2042,12 @@ def test_export_and_feedback(client, seeded):
     assert "Тестовый творог 5%" in out["питание.csv"] and ";завтрак;" in out["питание.csv"]
     assert "80" in out["вес_и_замеры.csv"].splitlines()[1]
 
-    assert client.post("/api/feedback", headers=h, json={"kind": "product", "text": "белка меньше", "product_id": pid}).json() == {"ok": True}
+    note = f"белка меньше {uuid.uuid4().hex[:6]}"  # the test database keeps rows between runs
+    assert client.post("/api/feedback", headers=h, json={"kind": "product", "text": note, "product_id": pid}).json() == {"ok": True}
     assert client.post("/api/feedback", headers=h, json={"kind": "spam", "text": "xxx"}).status_code == 422
     assert client.post("/api/feedback", headers=h, json={"kind": "idea", "text": "a"}).status_code == 422
 
     async def saved():
         async with SessionLocal() as s:
-            return [(f.kind, f.product_id) for f in await s.scalars(select(Feedback).where(Feedback.text == "белка меньше"))]
+            return [(f.kind, f.product_id) for f in await s.scalars(select(Feedback).where(Feedback.text == note))]
     assert client.portal.call(saved) == [("product", pid)]

@@ -146,7 +146,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
   const [plan, setPlan] = useState<LibExercise[] | null>(null)
   useEffect(() => {
     if (all) return
-    loadLibrary(canEdit).then(setAll).catch(() => setError('Не удалось загрузить упражнения'))
+    loadLibrary(canEdit).then(setAll).catch(() => setError('Нет связи — упражнения загрузим, как только вернётся интернет'))
   }, [all, canEdit])
 
   const toggleMuscle = (m: Muscle) => { setMuscles((ms) => (ms.includes(m) ? ms.filter((x) => x !== m) : [...ms, m])); setShown(PAGE) }
@@ -256,7 +256,7 @@ function WorkoutPlan({ plan: initial, all, profile, muscles, onBack, onSave }: {
     try {
       await onSave({ name: name.trim() || 'Моя тренировка', days: [{ name: name.trim() || 'Моя тренировка', exercises: plan.map((e) => ({ exercise_id: e.id, sets: 3, reps, rest_seconds: rest, unit: 'reps' as const })) }] }, new Map(plan.map((e) => [e.id, e.name])))
     } catch {
-      setError('Не удалось сохранить. Проверьте соединение.')
+      setError('Не сохранилось: нет связи. Попробуйте ещё раз')
       setBusy(false)
     }
   }

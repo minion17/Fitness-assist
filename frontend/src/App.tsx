@@ -171,8 +171,8 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <Avatar />
         <div>
           <h1 style={{ fontSize: 22 }}>{name}</h1>
-          <div className="sub">{tgUser?.username ? `@${tgUser.username}` : 'Открыто вне Telegram'}</div>
-          <div className="sub">{synced}</div>
+          {tgUser?.username && <div className="sub">@{tgUser.username}</div>}
+          {synced && <div className="sub">{synced}</div>}
         </div>
         </div>
         <LevelCard p={progress} />
@@ -190,7 +190,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
       <div className="grid2 profile-metrics">
         <section className="card"><span className="sub">Возраст</span><div className="stat">{shown.age}<small>лет</small></div></section>
         <section className="card"><span className="sub">Рост</span><div className="stat">{shown.height}<small>см</small></div></section>
-        <section className="card"><span className="sub">Вес</span><div className="stat">{shown.weight}<small>кг</small></div></section>
+        <section className="card"><span className="sub">Вес</span><div className="stat">{Number(shown.weight).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}<small>кг</small></div></section>
         <section className="card"><span className="sub">Цель</span><div className="row-title" style={{ marginTop: 6 }}>{shown.goal}</div></section>
       </div>
       </section>
@@ -324,7 +324,7 @@ export default function App() {
       .then((b) => {
         if (!b) return
         const u = b.auth
-        setSynced('Аккаунт подключён')
+        setSynced('')
         setCanEdit(true)
         if (knownLevel.current === null) { knownLevel.current = u.progress.level; knownXp.current = u.progress.xp }
         startup.current.theme.load(u.settings)
@@ -336,7 +336,7 @@ export default function App() {
         saveSnapshot(b)
         prefetchStats()
       })
-      .catch(() => { setSynced('Сервер недоступен'); if (!snap) setPrograms(demoPrograms) })
+      .catch(() => { setSynced('Нет связи — показываем сохранённое'); if (!snap) setPrograms(demoPrograms) })
       .finally(() => setLoading(false))
   }, [apply])
 
@@ -420,7 +420,7 @@ export default function App() {
     }
     if (!p) return send()
     flash('Добавлено')
-    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не удалось добавить'))
+    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось — попробуйте ещё раз'))
   }
 
   /** "Повторить вчерашний завтрак": the meal of this hour is empty today and was logged yesterday. */
@@ -562,7 +562,7 @@ export default function App() {
       r = await api<Water & { xp_awarded: number }>('/api/water', postJson({ delta_ml: delta }))
     } catch {
       setWater(before)
-      flash('Не удалось отметить воду — нет связи')
+      flash('Вода не отметилась: нет связи')
       return
     }
     if (!r) return // demo mode: local only
@@ -664,7 +664,7 @@ export default function App() {
             habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
             weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
-            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не удалось записать')) } : null}
+            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуйте ещё раз')) } : null}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
@@ -726,7 +726,7 @@ export default function App() {
       {toast && (
         <div className={toast.undo ? 'toast toast-undo' : 'toast'} role="status" key={toast.id}>
           <span>{toast.text}</span>
-          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не удалось отменить')) }}>Отменить</button>}
+          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не получилось отменить — попробуйте ещё раз')) }}>Отменить</button>}
         </div>
       )}
       {xpFloat && <div className="xp-float" key={xpFloat.id} aria-hidden="true" onAnimationEnd={() => setXpFloat(null)}>+{xpFloat.n} XP</div>}

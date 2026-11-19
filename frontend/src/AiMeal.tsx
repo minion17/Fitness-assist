@@ -10,7 +10,7 @@ type DraftItem = {
 }
 type Draft = { meal_type: MealType | null; items: DraftItem[]; note: string }
 
-const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Не удалось связаться с сервером')
+const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуйте через минуту')
 
 export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
   mode: 'text' | 'photo'

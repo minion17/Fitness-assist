@@ -27,7 +27,7 @@ export default function Reminders() {
   const [error, setError] = useState('')
   const [next, setNext] = useState<{ at: string; what: string; tomorrow: boolean } | null>(null)
   const [test, setTest] = useState<'idle' | 'wait' | 'ok' | 'fail'>('idle')
-  useEffect(() => { api<Settings>('/api/reminders').then(setS).catch(() => setError('Не удалось загрузить напоминания')) }, [])
+  useEffect(() => { api<Settings>('/api/reminders').then(setS).catch(() => setError('Нет связи — напоминания откроются, как только вернётся интернет')) }, [])
   useEffect(() => { if (expanded) api<typeof next>('/api/reminders/next').then(setNext).catch(() => {}) }, [expanded, s])
 
   /** A message through the bot now; if the bot doesn't pick it up in 20 s, it isn't running. */

@@ -37,7 +37,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
     let stale = false
     loadStats(days)
       .then((r) => { if (!stale && r) { setS(r); setError('') } })
-      .catch(() => !stale && setError('Не удалось загрузить статистику'))
+      .catch(() => !stale && setError('Нет связи — графики появятся, как только вернётся интернет'))
     return () => { stale = true }
   }, [canEdit, days])
 

@@ -73,7 +73,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       const previousExercises = (programs ?? []).flatMap(program => program.days.flatMap(day => day.exercises.map(exercise => ({ id: exercise.exercise_id, name: exercise.name }))))
       setExercises([...new Map([...previousExercises, ...(list ?? []), ...localExercises.filter(exercise => !existingNames.has(exercise.name.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е')))].map(exercise => [exercise.id, exercise])).values()])
       setEditing(p)
-    } catch { setBuilderError('Не удалось загрузить упражнения. Попробуйте ещё раз.') }
+    } catch { setBuilderError('Нет связи — упражнения загрузим, как только вернётся интернет') }
   }
   async function saveProgram(draft: ProgramDraft, target: Program | 'new' | null = editing) {
     if (!canEdit) {
@@ -393,7 +393,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
         setCur(ei + 1)
       }
     } catch {
-      setError('Не удалось сохранить подход. Проверьте соединение.')
+      setError('Подход не сохранился: нет связи. Нажмите ещё раз')
     } finally {
       setBusy(false)
     }
@@ -410,7 +410,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       if (rest) skipRest()
       setTimer(null)
       setCur(ei)
-    } catch { setError('Не удалось отменить подход') }
+    } catch { setError('Не получилось отменить подход — попробуйте ещё раз') }
     setBusy(false)
   }
 
@@ -434,7 +434,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0 })
       setBusy(false)
     } catch {
-      setError('Не удалось завершить тренировку. Попробуйте ещё раз.')
+      setError('Тренировка не завершилась: нет связи. Нажмите ещё раз')
       setBusy(false)
     }
   }
@@ -523,7 +523,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
             <div className={si === nextSet ? 'set-row current' : 'set-row'} key={si}>
               <span className="sub">{si + 1}</span>
               <div className="input-wrap"><input inputMode="numeric" aria-label={`${e.name}, подход ${si + 1}, ${timed ? 'секунды' : 'повторы'}`} value={s.reps}
-                disabled={s.saved} onChange={(ev) => update(ei, si, { reps: ev.target.value })} /><i>{timed ? 'сек' : 'повт'}</i></div>
+                disabled={s.saved} onChange={(ev) => update(ei, si, { reps: ev.target.value })} /><i>{timed ? 'сек' : 'повт.'}</i></div>
               <div className="input-wrap"><input inputMode="decimal" aria-label={`${e.name}, подход ${si + 1}, вес`} value={s.weight}
                 disabled={s.saved} placeholder="0" onChange={(ev) => update(ei, si, { weight: ev.target.value })} /><i>кг</i></div>
               <button className="check" aria-label={`Сохранить подход ${si + 1}`} aria-pressed={s.saved}
@@ -591,7 +591,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
                   </>}
                 </div>
                 <button className="btn set-go" disabled={busy} onClick={() => saveSet(ei, si)}>
-                  ✓ Подход {si + 1}: {s.reps || '—'} {timed ? 'с' : 'повт'}{!timed && s.weight && s.weight !== '0' ? ` × ${s.weight} кг` : ''}
+                  ✓ Подход {si + 1}: {s.reps || '—'} {timed ? 'с' : 'повт.'}{!timed && s.weight && s.weight !== '0' ? ` × ${s.weight} кг` : ''}
                 </button>
               </div>
             )

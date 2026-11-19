@@ -17,7 +17,7 @@ function left(iso: string): string {
 export default function League() {
   const [b, setB] = useState<Board | null>(null)
   const [error, setError] = useState('')
-  useEffect(() => { api<Board>('/api/league').then(setB).catch(() => setError('Не удалось загрузить лигу')) }, [])
+  useEffect(() => { api<Board>('/api/league').then(setB).catch(() => setError('Нет связи — лигу покажем, как только вернётся интернет')) }, [])
   if (error) return <p className="error">{error}</p>
   if (!b) return <p className="sub">Загружаем лигу…</p>
   const n = b.members.length

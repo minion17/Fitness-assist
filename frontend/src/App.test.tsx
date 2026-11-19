@@ -150,7 +150,7 @@ test('questionnaire: selection waits for Continue and all answers are saved', as
   fireEvent.click(screen.getByRole('button', { name: 'Вернуться в профиль' }))
   expect(await screen.findByText('Снижение веса')).toBeTruthy()
   expect(screen.getByText('168')).toBeTruthy()
-  expect(screen.getByText('61.5')).toBeTruthy()
+  expect(screen.getByText('61,5')).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Изменить анкету' })).toBeTruthy()
 })
 

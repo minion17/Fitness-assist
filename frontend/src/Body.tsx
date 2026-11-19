@@ -3,6 +3,8 @@ import { latestValues, MEASURES, weightTrend, type MeasureKey, type Measurement 
 import { Sheet } from './ui'
 import { Icon } from './icons'
 
+const ru = (n: number) => n.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) // 70,2, not 70.2
+
 const dateRu = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 const LIMITS: Record<MeasureKey, [number, number]> = {
   weight_kg: [30, 300], waist_cm: [30, 250], chest_cm: [40, 250], hips_cm: [40, 250], body_fat_pct: [2, 70],
@@ -52,7 +54,7 @@ export default function Body({ measurements, canEdit, onSave, onDelete, hideWeig
           {MEASURES.filter((m) => m.key !== 'weight_kg').map((m) => (
             <div className="row" key={m.key}>
               <div className="row-main row-title">{m.label}</div>
-              <div className="row-end">{latest[m.key] ? `${latest[m.key]!.value} ${m.unit}` : '—'}</div>
+              <div className="row-end">{latest[m.key] ? `${ru(latest[m.key]!.value)} ${m.unit}` : <span className="sub">нет записи</span>}</div>
             </div>
           ))}
         </div>
@@ -120,7 +122,7 @@ function AddMeasurement({ measurements, onClose, onSave }: {
       await onSave(out)
       onClose()
     } catch {
-      setError('Не удалось сохранить. Проверьте соединение.')
+      setError('Не сохранилось: нет связи. Попробуйте ещё раз')
       setBusy(false)
     }
   }
@@ -165,15 +167,15 @@ export function QuickWeight({ measurements, onSave }: { measurements: Measuremen
       const keep = Object.fromEntries(MEASURES.map(({ key }) => [key, todays?.[key] ?? null])) as MeasurementInput
       await onSave({ ...keep, weight_kg: kg })
       setOpen(false)
-    } catch { setError('Не удалось сохранить. Проверьте соединение.') }
+    } catch { setError('Не сохранилось: нет связи. Попробуйте ещё раз') }
     setBusy(false)
   }
 
   if (!open) return (
     <button className="card quick-weight" onClick={() => { setValue(String(todays?.weight_kg ?? last?.value ?? '')); setOpen(true) }}>
       <span className="home-row-icon" aria-hidden="true"><Icon name="scale" /></span>
-      <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${todays.weight_kg} кг` : 'Взвеситься'}</b>
-        <span className="sub">{last ? `Последний: ${last.value} кг · ${dateRu(last.on)}` : 'Запишите вес — увидите динамику'}</span></span>
+      <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${ru(todays.weight_kg)} кг` : 'Взвеситься'}</b>
+        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запишите вес — увидите динамику'}</span></span>
       <span className="link">{todays?.weight_kg ? 'Изменить' : 'Записать'}</span>
     </button>
   )

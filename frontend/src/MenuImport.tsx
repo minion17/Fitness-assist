@@ -50,7 +50,7 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
       }
       setSaved(out)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуйте ещё раз')
     } finally {
       setBusy('')
     }

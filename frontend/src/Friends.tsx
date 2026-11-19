@@ -25,7 +25,7 @@ export default function Friends() {
   const load = useCallback(() => Promise.all([
     api<{ invite_link: string | null; board: Row[] }>('/api/friends').then((r) => { if (r) { setBoard(r.board); setLink(r.invite_link) } }),
     api<Duel[]>('/api/duels').then((r) => r && setDuels(r)),
-  ]).catch(() => setError('Не удалось загрузить друзей. Проверьте соединение.')), [])
+  ]).catch(() => setError('Нет связи — друзей покажем, как только вернётся интернет')), [])
   useEffect(() => { load() }, [load])
 
   async function act(run: () => Promise<unknown>, done = '') {

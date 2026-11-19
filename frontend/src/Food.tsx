@@ -262,7 +262,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       await api(`/api/meal-plan/today/${index}`, putJson({ completed }))
       await onPlanLogged()
       setTodayPlan(await api<TodayPlan>('/api/meal-plan/today'))
-    } catch { setPlanError('Не удалось обновить приём пищи. Проверьте соединение и попробуйте ещё раз.') }
+    } catch { setPlanError('Приём пищи не обновился: нет связи. Попробуйте ещё раз') }
     finally { setPlanBusy(null) }
   }
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
@@ -283,7 +283,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   useEffect(() => {
     if (!canEdit || planning) return
     let active = true
-    api<TodayPlan>('/api/meal-plan/today').then(result => { if (active) { setTodayPlan(result && Array.isArray(result.meals) ? result : null); setPlanError('') } }).catch(() => { if (active) setPlanError('Не удалось загрузить рацион. Попробуйте позже.') })
+    api<TodayPlan>('/api/meal-plan/today').then(result => { if (active) { setTodayPlan(result && Array.isArray(result.meals) ? result : null); setPlanError('') } }).catch(() => { if (active) setPlanError('Нет связи — рацион покажем, как только вернётся интернет') })
     return () => { active = false }
   }, [canEdit, planning, day])
 
@@ -505,7 +505,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       eaten(p)
       await (shown.unit.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: shown.unit.label, qty: shown.qty }))
       done(p, grams)
-    } catch { setError('Не удалось добавить. Попробуйте ещё раз.') }
+    } catch { setError('Не добавилось — попробуйте ещё раз') }
     setBusy(false)
   }
 
@@ -522,7 +522,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     try {
       await onLogSet(id, meal, meal === 'snack' ? slot : null)
       if (set) setAdded((a) => [...a, { name: set.name, kcal: Math.round(set.kcal) }])
-    } catch { setError('Не удалось добавить набор') }
+    } catch { setError('Набор не добавился — попробуйте ещё раз') }
     setBusy(false)
   }
   const [thanks, setThanks] = useState(false)
@@ -544,7 +544,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   async function toggleFav(p: Product) {
     const was = favorites?.some((f) => f.id === p.id)
     setFavorites((fs) => (was ? (fs ?? []).filter((f) => f.id !== p.id) : [p, ...(fs ?? [])])) // optimistic
-    try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Не удалось обновить избранное') }
+    try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Избранное не обновилось — попробуйте ещё раз') }
   }
   async function lookup(c: string) {
     setScan('busy')
@@ -554,7 +554,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       if (p) { pick(p); setScan('idle'); return }
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) { setScan('idle'); setLastCode(c); setCustom('notFound'); return }
-      setError(e instanceof ApiError ? e.message : 'Не удалось связаться с сервером')
+      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуйте через минуту')
     }
     setScan('manual')
   }
@@ -649,7 +649,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
       done(picked, g)
     } catch {
-      setError('Не удалось добавить. Попробуйте ещё раз.')
+      setError('Не добавилось — попробуйте ещё раз')
     }
     setBusy(false)
   }
@@ -913,7 +913,7 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       }))
       if (p) onCreated(p)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не удалось сохранить')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуйте ещё раз')
       setBusy(false)
     }
   }

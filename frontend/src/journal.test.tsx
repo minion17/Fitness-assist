@@ -103,7 +103,7 @@ test('workout session shows last time and prefills its weights', async () => {
   expect((await screen.findByText(/В прошлый раз/)).textContent).toMatch(/3 нояб.*60 кг × 8, 62,5 кг × 6/)
   expect((screen.getByLabelText('Жим лёжа, подход 2, вес') as HTMLInputElement).value).toBe('62.5')
   expect(lastLabel([{ reps: 8, duration_seconds: null, weight_kg: 60 }, { reps: 8, duration_seconds: null, weight_kg: 60 }])).toBe('2 подх. по 60 кг × 8')
-  expect(lastLabel([{ reps: 12, duration_seconds: null, weight_kg: 0 }])).toBe('12 повт')
+  expect(lastLabel([{ reps: 12, duration_seconds: null, weight_kg: 0 }])).toBe('12 повт.')
   expect(lastLabel([{ reps: null, duration_seconds: 45, weight_kg: 0 }])).toBe('45 с')
 })
 
@@ -463,7 +463,7 @@ test('workout player: one exercise at a time, moves on when its sets are done', 
   // ± without the keyboard, then one big button saves the current set
   fireEvent.click(screen.getByRole('button', { name: 'Плюс 2,5 кг' }))
   fireEvent.click(screen.getByRole('button', { name: 'Минус повтор' }))
-  fireEvent.click(screen.getByRole('button', { name: '✓ Подход 1: 7 повт × 62,5 кг' }))
+  fireEvent.click(screen.getByRole('button', { name: '✓ Подход 1: 7 повт. × 62,5 кг' }))
   await waitFor(() => expect(apiMock.mock.calls.some((c) => String(c[0]).endsWith('/sets'))).toBe(true))
   const sent = JSON.parse(String(apiMock.mock.calls.find((c) => String(c[0]).endsWith('/sets'))![1]!.body))
   expect(sent).toMatchObject({ reps: 7, weight_kg: 62.5 })

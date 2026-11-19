@@ -284,7 +284,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       await onSave(build())
       try { localStorage.removeItem(DRAFT_KEY) } catch { /* private mode */ }
     } catch {
-      setError('Не удалось сохранить. Проверьте соединение и попробуйте ещё раз.')
+      setError('Не сохранилось: нет связи. Попробуйте ещё раз')
       setBusy(false)
     }
   }

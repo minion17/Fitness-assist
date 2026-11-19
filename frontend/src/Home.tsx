@@ -5,6 +5,7 @@ import { Sheet, Chevron } from './ui'
 import { useCountUp } from './motion'
 import { nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
 import { Icon, type IconName } from './icons'
+import { haptic } from './feedback'
 
 export type Water = { ml: number; goal_ml: number }
 export type WeekDay = { date: string; kcal: number; water_ml: number; workouts: number }
@@ -263,7 +264,7 @@ export default function Home(props: {
       {props.intro}
 
       {/* the day in one card: ring + calories + water */}
-      <section className="card day-card" aria-busy={props.loading}>
+      <section className={!props.loading && progress >= 100 ? 'card day-card closed' : 'card day-card'} aria-busy={props.loading}>
         <button className="daily-progress-ring" aria-expanded={whyOpen} aria-label={props.loading ? 'Загрузка' : `Прогресс дня: ${progress}%. Из чего он сложился`} onClick={() => setWhyOpen(!whyOpen)}>
           <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{!props.loading && shownProgress > 0 && <circle className={foodRatio > 1.1 ? 'daily-ring-value over' : 'daily-ring-value'} cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${shownProgress} 100`} />}</svg>
           <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <><strong>{shownProgress}%</strong><span className="sub day-why-hint">день <Chevron /></span></>}</div>
@@ -300,7 +301,7 @@ export default function Home(props: {
             {props.aiEnabled ? 'Добавить еду' : '+ Добавить еду'}
           </button>
           <button className="btn btn-ghost btn-side water-quick" aria-label={`Добавить воды, ${portion} мл`} title="Зажмите — другие порции"
-            onPointerDown={() => { longPressed.current = false; pressTimer.current = setTimeout(() => { longPressed.current = true; navigator.vibrate?.(10); setWaterOpen(true) }, 450) }}
+            onPointerDown={() => { longPressed.current = false; pressTimer.current = setTimeout(() => { longPressed.current = true; haptic('light'); setWaterOpen(true) }, 450) }}
             onPointerUp={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }} onPointerLeave={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }}
             onContextMenu={(e) => e.preventDefault()}
             onClick={() => { if (!longPressed.current) props.onWater(portion) }}>+💧 {portion}</button>

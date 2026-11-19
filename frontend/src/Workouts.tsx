@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ProfileData, Recommendation } from './profile'
 import Library from './Library'
-import { api, postJson, publicGet, tg } from './telegram'
+import { api, postJson, publicGet } from './telegram'
 import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
 import Empty from './Empty'
 import translatedCatalog from '../../content/exercises/translated_exercises.json'
@@ -16,6 +16,8 @@ import { workoutMinutes } from './workoutTime'
 import { loadActive, saveActive } from './activeWorkout'
 import MuscleMap from './MuscleMap'
 import { MUSCLES, type Muscle } from './muscles'
+import { haptic, sound } from './feedback'
+import { morph } from './motion'
 
 const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -114,7 +116,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   if (programs === null) return <><h1>Тренировки</h1><p className="sub">Загружаем программы…</p></>
 
   if (session && program) {
-    return <Session program={program} day={session} onExit={() => { saveActive(null); setSession(null) }} onChanged={onChanged} onRecord={onRecord} onMinimize={onMinimize} />
+    return <Session program={program} day={session} onExit={() => morph(() => { saveActive(null); setSession(null) })} onChanged={onChanged} onRecord={onRecord} onMinimize={onMinimize} />
   }
 
   if (personalList && previewProgramId !== null) {
@@ -208,7 +210,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
           ))}
         </div>
         {canEdit
-          ? <button className="btn" onClick={() => setSession(next)}>Начать тренировку</button>
+          ? <button className="btn" onClick={() => morph(() => setSession(next))}>Начать тренировку</button>
           : <p className="sub">Демо-режим: чтобы записывать тренировки, откройте приложение из Telegram.</p>}
       </section>
 
@@ -217,7 +219,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
           <h2>Другие дни программы</h2>
           <div className="list">
             {program.days.filter((d) => d.id !== next.id).map((d) => (
-              <button className="row row-btn" key={d.id} onClick={() => setSession(d)}>
+              <button className="row row-btn" key={d.id} onClick={() => morph(() => setSession(d))}>
                 <div className="row-main"><div className="row-title">{d.day_name}</div><div className="row-sub">{d.exercises.length} {plural(d.exercises.length, 'упражнение', 'упражнения', 'упражнений')}</div></div>
                 <div className="row-end row-go">Начать</div>
               </button>
@@ -283,8 +285,8 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       setNow(Date.now())
       if (Date.now() < rest.until) return
       // over while the app is open: buzz here and drop the Telegram message queued for the background case
-      tg?.HapticFeedback?.notificationOccurred?.('success')
-      try { navigator.vibrate?.([200, 100, 200]) } catch { /* not supported */ }
+      haptic('success')
+      sound('chime')
       if (document.visibilityState === 'visible') api('/api/rest-timer', { method: 'DELETE' }).catch(() => {})
       setRest(null)
     }, 250)
@@ -379,7 +381,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       if (r?.record) { onRecord?.(`🏆 Личный рекорд: ${day.exercises[ei].name}`); setRecords((x) => x.includes(day.exercises[ei].name) ? x : [...x, day.exercises[ei].name]) }
       const nextName = day.exercises[ei + 1]?.name ?? day.exercises[ei].name
       if (rest >= 10) startRest(rest, nextName)
-      tg?.HapticFeedback?.impactOccurred?.('medium')
+      haptic('save'); sound('click')
       const group = day.exercises[ei].superset
       if (group && !list && ei === cur) {
         const members = day.exercises.map((exercise, index) => exercise.superset === group ? index : -1).filter(index => index >= 0)
@@ -456,7 +458,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
   const nudge = (ei: number, si: number, field: 'reps' | 'weight', d: number) => {
     const v = Number(String(sets[ei][si][field]).replace(',', '.')) || 0
     update(ei, si, { [field]: String(Math.max(0, Math.round((v + d) * 10) / 10)).replace('.', ',') })
-    tg?.HapticFeedback?.selectionChanged?.()
+    haptic('select')
   }
   const shown = list ? day.exercises.map((e, ei) => [e, ei] as const) : total ? [[day.exercises[cur], cur] as const] : []
   const doneEx = (ei: number) => sets[ei].length > 0 && sets[ei].every((x) => x.saved)
@@ -539,7 +541,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
             const dx = ev.clientX - start.x
             if (Math.abs(dx) < 60 || Math.abs(dx) < 2 * Math.abs(ev.clientY - start.y)) return
             const next = cur + (dx < 0 ? 1 : -1)
-            if (next >= 0 && next < total) { tg?.HapticFeedback?.selectionChanged?.(); setCur(next) }
+            if (next >= 0 && next < total) { haptic('select'); setCur(next) }
           }}>
           {!list && total > 1 && <span className="sr-only">Упражнение {ei + 1} из {total}</span> /* the dots above show it */}
           <div className="session-exercise-title">

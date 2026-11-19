@@ -1,8 +1,9 @@
 // Home: the user's own daily checks (sleep, steps, no sweets...). One tap ticks today; a tick keeps the streak.
 import { useEffect, useState } from 'react'
-import { api, postJson, tg } from './telegram'
+import { api, postJson } from './telegram'
 import { Chevron } from './ui'
 import { Icon } from './icons'
+import { haptic } from './feedback'
 
 export type Habit = { id: number; title: string; emoji: string; done: boolean; streak: number; remind_at?: string | null }
 
@@ -36,7 +37,7 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
   }
 
   function tick(h: Habit) {
-    tg?.HapticFeedback?.impactOccurred?.('light')
+    haptic('light')
     onChange(habits.map((x) => (x.id === h.id ? { ...x, done: !h.done } : x))) // instant; the server answer replaces it
     send(`/api/habits/${h.id}/check`, postJson({ done: !h.done })).then((ok) => { if (!ok) onChange(habits) })
   }

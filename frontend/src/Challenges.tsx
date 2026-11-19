@@ -1,7 +1,8 @@
 // Group challenges among friends: tick a day, see everyone's progress, XP at the end for 80%+.
 import { useCallback, useEffect, useState } from 'react'
-import { api, postJson, tg } from './telegram'
+import { api, postJson } from './telegram'
 import { Bar } from './ui'
+import { haptic } from './feedback'
 
 type Member = { name: string; me: boolean; joined: boolean; done: number; today: boolean }
 type Ch = { id: number; title: string; emoji: string; days: number; day: number; end_day: string; finished: boolean; mine: boolean; invited: boolean; members: Member[] }
@@ -22,7 +23,7 @@ export default function Challenges({ friends }: { friends: { id: number; name: s
     try { await run(); await load() } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось') }
   }
   function tick(c: Ch, done: boolean) {
-    tg?.HapticFeedback?.impactOccurred?.('light')
+    haptic('light')
     setList((l) => l?.map((x) => (x.id === c.id ? { ...x, members: x.members.map((m) => (m.me ? { ...m, today: done, done: m.done + (done ? 1 : -1) } : m)) } : x)) ?? l)
     act(() => api(`/api/challenges/${c.id}/check`, postJson({ done })))
   }

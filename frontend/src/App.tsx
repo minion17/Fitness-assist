@@ -30,6 +30,7 @@ import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measur
 import { Bar, Sheet } from './ui'
 import { ACTIVE_EVENT, loadActive } from './activeWorkout'
 import { markRecapSeen, recapDue } from './recap'
+import { haptic, hapticsOn, setHaptics, setSounds, sound, soundsOn } from './feedback'
 const WeekRecap = lazy(() => import('./WeekRecap'))
 const Workouts = lazy(() => import('./Workouts'))
 
@@ -111,7 +112,22 @@ function ThemeCard({ t }: { t: ReturnType<typeof useTheme> }) {
           ))}
         </div>
       )}
+      <FeelSwitches />
     </section>
+  )
+}
+
+/** Vibration (on by default) and sounds (off): a saved set, the end of a rest, a record. */
+function FeelSwitches() {
+  const [vib, setVib] = useState(hapticsOn)
+  const [snd, setSnd] = useState(soundsOn)
+  return (
+    <div className="feel">
+      <div className="row"><div className="row-main"><div className="row-title">Вибрация</div><div className="row-sub">Сохранение, рекорд, конец отдыха</div></div>
+        <button role="switch" className="switch" aria-checked={vib} aria-label="Вибрация" onClick={() => { setHaptics(!vib); setVib(!vib); if (!vib) haptic('save') }}><i /></button></div>
+      <div className="row"><div className="row-main"><div className="row-title">Звуки</div><div className="row-sub">Щелчок подхода и сигнал отдыха</div></div>
+        <button role="switch" className="switch" aria-checked={snd} aria-label="Звуки" onClick={() => { setSounds(!snd); setSnd(!snd); if (!snd) sound('chime') }}><i /></button></div>
+    </div>
   )
 }
 
@@ -329,7 +345,7 @@ export default function App() {
   /** A small win: toast + confetti + a success buzz. */
   function celebrate(text: string) {
     flash(text)
-    tg?.HapticFeedback?.notificationOccurred?.('success')
+    haptic('success')
     const id = Date.now()
     setParty(id)
     setTimeout(() => setParty((p) => (p === id ? 0 : p)), 2200)
@@ -371,7 +387,7 @@ export default function App() {
         kcal: p.kcal * k, protein_g: p.protein_g * k, fat_g: p.fat_g * k, carbs_g: p.carbs_g * k,
       } })
       show(true)
-      tg?.HapticFeedback?.notificationOccurred?.('success')
+      haptic('success')
     }
     const send = async () => {
       let r: { xp_awarded: number } | null
@@ -389,7 +405,7 @@ export default function App() {
         return
       }
       optimistic.current.delete(tempId)
-      if (!p) tg?.HapticFeedback?.notificationOccurred?.('success')
+      if (!p) haptic('success')
       await refreshFood()
       if (r?.xp_awarded || !p) flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
     }
@@ -494,7 +510,7 @@ export default function App() {
 
   async function logUsual(u: Usual) {
     const r = await api<{ ids: number[]; xp_awarded: number }>('/api/food-logs/batch', postJson({ meal_type: u.meal_type, items: u.items }))
-    tg?.HapticFeedback?.notificationOccurred?.('success')
+    haptic('success')
     setUsual(null)
     await refreshJournal()
     flashUndo(r?.xp_awarded ? `Записано · +${r.xp_awarded} XP` : 'Записано', async () => {
@@ -529,7 +545,7 @@ export default function App() {
 
   /** Shown at once (the glass fills on tap), the server confirms after; "Отменить" on the toast takes it back. */
   async function changeWater(delta: number, undoable = delta > 0) {
-    tg?.HapticFeedback?.impactOccurred?.('light')
+    haptic('light')
     const before = water
     setWater((w) => ({ ...w, ml: Math.max(0, Math.min(10000, w.ml + delta)) }))
     let r: (Water & { xp_awarded: number }) | null
@@ -567,7 +583,7 @@ export default function App() {
   const unlocked = (code: string) => ach.items.some((a) => a.code === code && a.unlocked_at)
 
   const go = (t: Tab) => {
-    tg?.HapticFeedback?.selectionChanged()
+    haptic('select')
     setDir(Math.sign(TAB_ORDER.indexOf(t) - TAB_ORDER.indexOf(tab)))
     setFoodIntent(null)
     setFoodDate('')

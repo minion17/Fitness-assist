@@ -2,8 +2,8 @@
 // when the camera isn't available (permission denied, old WebView).
 import { useEffect, useRef, useState } from 'react'
 import { readBarcode } from './barcode'
-import { tg } from './telegram'
 import { useBack } from './back'
+import { haptic } from './feedback'
 
 export default function Scanner({ onCode, onPhoto, onManual, onClose, note }: {
   note?: string // scanning in a row: what's been added so far
@@ -36,7 +36,7 @@ export default function Scanner({ onCode, onPhoto, onManual, onClose, note }: {
         const code = await readBarcode(ctx.getImageData(0, 0, w, h)).catch(() => null)
         if (code && !stopped) {
           stopped = true
-          tg?.HapticFeedback?.notificationOccurred?.('success')
+          haptic('success')
           onCodeRef.current(code)
           return
         }

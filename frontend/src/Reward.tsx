@@ -1,13 +1,13 @@
 // Full-screen level-up celebration (Duolingo-style), shown when the level grows during the session.
 import { useEffect } from 'react'
-import { tg } from './telegram'
+import { haptic } from './feedback'
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => i)
 
 export default function Reward({ level, levelXp, needed, streak, onClose }: {
   level: number; levelXp: number; needed: number; streak: number; onClose: () => void
 }) {
-  useEffect(() => { tg?.HapticFeedback?.notificationOccurred?.('success') }, [])
+  useEffect(() => { haptic('success') }, [])
   return (
     <div className="reward" role="dialog" aria-modal="true" aria-label={`Новый уровень ${level}`}>
       <div className="confetti" aria-hidden="true">
@@ -32,7 +32,7 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
 export function AchievementUnlocked({ icon, title, more, onClose }: {
   icon: string; title: string; more: number; onClose: () => void
 }) {
-  useEffect(() => { tg?.HapticFeedback?.notificationOccurred?.('success') }, [])
+  useEffect(() => { haptic('success') }, [])
   return (
     <div className="reward" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`}>
       <div className="confetti" aria-hidden="true">

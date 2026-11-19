@@ -1756,3 +1756,28 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .recap-best { margin: 0; color: var(--muted); }
 .recap-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
 .food-photo { object-fit: cover; padding: 0; }
+.feel { margin-top: 12px; border-top: 1px solid var(--line); }
+/* depth: a hairline of light on the top edge (glass), a soft shadow under; the main cards get a faint accent glow */
+:root { --card-edge: rgba(255, 255, 255, .055); --card-shadow: 0 1px 2px rgba(0, 0, 0, .25), 0 10px 28px -12px rgba(0, 0, 0, .55); }
+[data-theme='light'] { --card-edge: rgba(255, 255, 255, .9); --card-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 10px 26px -14px rgba(16, 24, 40, .18); }
+.card { box-shadow: inset 0 1px 0 var(--card-edge), var(--card-shadow); }
+.screen .card .card { box-shadow: inset 0 1px 0 var(--card-edge); } /* nested tiles: no stacked shadows */
+.day-card, .workout-feature, .nutrition-summary, .progress-weight {
+  background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--accent) 11%, var(--card)) 0%, var(--card) 58%),
+    var(--card);
+  border-color: color-mix(in srgb, var(--accent) 16%, var(--card-border));
+  box-shadow: inset 0 1px 0 var(--card-edge), var(--card-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 4%, transparent);
+}
+.btn:not(.btn-ghost) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); } /* a lit top edge, no glow under (it read as a smudge) */
+/* the next workout's title glides into the workout screen's header (motion.ts → morph) */
+.workout-next-title { view-transition-name: workout-title; }
+.session-title { view-transition-name: workout-title; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .28s; }
+::view-transition-group(workout-title) { animation-duration: .38s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+/* a closed day: the ring breathes once with a glow */
+.day-card.closed .daily-progress-ring { animation: day-closed 1.6s ease-out 1; }
+@keyframes day-closed { 0% { filter: drop-shadow(0 0 0 transparent); } 35% { filter: drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 70%, transparent)); transform: scale(1.04); } 100% { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 30%, transparent)); } }
+.day-card.closed .daily-progress-ring { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 30%, transparent)); }
+/* a product added lands in its meal */
+.meal-group .list > * { animation: land .32s cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes land { from { opacity: 0; transform: translateY(-8px) scale(.98); background: color-mix(in srgb, var(--accent) 14%, transparent); } }

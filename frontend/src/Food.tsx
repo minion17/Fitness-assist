@@ -12,7 +12,7 @@ import MenuImport from './MenuImport'
 import Scanner from './Scanner'
 import Calendar from './Calendar'
 import { eaten, localSearch, remember } from './catalog'
-import { api, ApiError, postJson, putJson, publicGet, tg } from './telegram'
+import { api, ApiError, postJson, putJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
 import { FeedbackForm } from './Feedback'
@@ -21,6 +21,7 @@ import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
 import { RECIPES } from './mealCatalog'
+import { haptic } from './feedback'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
 // a rough split of the day for an empty meal's hint («≈ 550 ккал»)
@@ -108,7 +109,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
           if (!canEdit || mode !== null) return
           start.current = { x: e.clientX, y: e.clientY, base: open ? -ACTIONS_W : 0 }
           stopPress()
-          press.current = setTimeout(() => { start.current = null; setDrag(null); setOpen(false); tg?.HapticFeedback?.impactOccurred?.('medium'); setMenu(true) }, LONG_PRESS_MS)
+          press.current = setTimeout(() => { start.current = null; setDrag(null); setOpen(false); haptic('light'); setMenu(true) }, LONG_PRESS_MS)
         }}
         onPointerMove={(e) => {
           const s0 = start.current
@@ -291,7 +292,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   const go = (n: number) => {
     const next = shiftDay(date, n)
     if (!onDate || next > today() || next < shiftDay(today(), -HISTORY_DAYS)) return
-    tg?.HapticFeedback?.selectionChanged()
+    haptic('select')
     setBefore(null)
     onDate(next)
   }
@@ -483,7 +484,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
 
   /** Added: stay in the sheet, back to an empty search for the next product. */
   function done(p: Product, grams: number) {
-    tg?.HapticFeedback?.impactOccurred?.('light')
+    haptic('light')
     setAdded((a) => [...a, { name: p.name, kcal: Math.round((p.kcal * grams) / 100) }])
     setJustAdded(p.id)
     setTimeout(() => setJustAdded((id) => (id === p.id ? null : id)), 1200)

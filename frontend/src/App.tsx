@@ -13,6 +13,7 @@ import Quests, { type QuestWeek } from './Quests'
 import Habits, { type Habit } from './Habits'
 import { animate } from './motion'
 import Consent, { PrivacyCard, type ConsentState } from './Consent'
+import FeedbackCard from './Feedback'
 import EnergyCard from './Energy'
 import ReportCard from './Report'
 import { canStory, shareStory } from './story'
@@ -661,7 +662,7 @@ export default function App() {
         )}
         {tab === 'profile' && (
           <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
-            body={canEdit && consent && <><ReportCard /><PrivacyCard consent={consent} onHealth={(health) => {
+            body={canEdit && consent && <><ReportCard /><FeedbackCard /><PrivacyCard consent={consent} onHealth={(health) => {
               setConsent({ ...consent, health })
               if (!health && me) setMe({ ...me, allergies: [], injury: null })
             }} /></>} />

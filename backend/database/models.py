@@ -549,3 +549,16 @@ class Outbox(Base):
     send_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # a delayed message (rest timer)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
 
+
+
+class Feedback(Base):
+    """What users write to the team: ideas, bugs, a product with wrong numbers. Also sent to ADMIN_IDS in the chat."""
+
+    __tablename__ = "feedback"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))  # idea | bug | product
+    text: Mapped[str] = mapped_column(Text)
+    product_id: Mapped[int | None] = mapped_column(ForeignKey("products.id", ondelete="SET NULL"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

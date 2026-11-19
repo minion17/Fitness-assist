@@ -136,7 +136,7 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
         n, days = await streak_state(session, user, today)
         if n > 0 and not (today in days and is_active(days[today])):
             week = [today - timedelta(days=i) in days and is_active(days[today - timedelta(days=i)]) for i in range(6, -1, -1)]
-            out.append((f"{today}:streak", f"🔥 Серия {n} дн. подряд сгорит сегодня — запишите хоть что-нибудь: еду, воду или тренировку.",
+            out.append((f"{today}:streak", f"🔥 Вы {n} дн. подряд с Setly. Одна запись — еда, вода или тренировка — и серия продолжится. Пропустить день тоже нормально.",
                         Render(cards.streak, n, week, **look), None))
     if getattr(cfg, "workout", True) and due(cfg.workout_at or "09:00", now):
         p = await session.get(Profile, user.id)

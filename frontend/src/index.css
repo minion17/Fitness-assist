@@ -1685,3 +1685,6 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .taste-tile i { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent); color: #111; font-style: normal; font-weight: 800; font-size: 14px; }
 .taste-tile:active { transform: scale(.97); }
 .taste-count { position: sticky; bottom: 8px; margin-top: 12px; text-align: center; }
+.feedback-form { display: flex; flex-direction: column; gap: 10px; }
+.feedback-form textarea { width: 100%; min-height: 80px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--card-border); background: var(--card-2); color: var(--text); font: inherit; resize: vertical; }
+.product-report { align-self: center; color: var(--muted); font-weight: 500; }

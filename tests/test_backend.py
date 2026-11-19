@@ -2012,3 +2012,40 @@ def test_training_days_and_target_date(client):
     assert next_reminder({**REMINDER_DEFAULTS, "training_days": [3]}, thu)["what"] == "тренировка"
     assert next_reminder({**REMINDER_DEFAULTS, "training_days": [0]}, thu)["what"] == "завтрак"
     assert client.get("/api/reminders", headers=h).json()["workout_at"] == "09:00"
+
+
+def test_export_and_feedback(client, seeded):
+    import io
+    import zipfile
+
+    from sqlalchemy import select
+
+    from backend.api.feedback import build_export
+    from backend.database.db import SessionLocal
+    from backend.database.models import Feedback, Outbox, User
+
+    h = new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 150, "meal_type": "breakfast"})
+    client.put("/api/measurements", headers=h, json={"weight_kg": 80})
+    assert client.post("/api/export", headers=h).json() == {"ok": True}
+    assert client.post("/api/export", headers=h).status_code == 429  # one at a time
+
+    async def files():
+        async with SessionLocal() as s:
+            m = await s.scalar(select(Outbox).where(Outbox.kind == "export").order_by(Outbox.id.desc()).limit(1))
+            data = await build_export(s, await s.get(User, m.user_id))
+            return {n: zipfile.ZipFile(io.BytesIO(data)).read(n).decode("utf-8-sig") for n in zipfile.ZipFile(io.BytesIO(data)).namelist()}
+    out = client.portal.call(files)
+    assert set(out) == {"питание.csv", "вес_и_замеры.csv", "вода.csv", "тренировки.csv"}
+    assert "Тестовый творог 5%" in out["питание.csv"] and ";завтрак;" in out["питание.csv"]
+    assert "80" in out["вес_и_замеры.csv"].splitlines()[1]
+
+    assert client.post("/api/feedback", headers=h, json={"kind": "product", "text": "белка меньше", "product_id": pid}).json() == {"ok": True}
+    assert client.post("/api/feedback", headers=h, json={"kind": "spam", "text": "xxx"}).status_code == 422
+    assert client.post("/api/feedback", headers=h, json={"kind": "idea", "text": "a"}).status_code == 422
+
+    async def saved():
+        async with SessionLocal() as s:
+            return [(f.kind, f.product_id) for f in await s.scalars(select(Feedback).where(Feedback.text == "белка меньше"))]
+    assert client.portal.call(saved) == [("product", pid)]

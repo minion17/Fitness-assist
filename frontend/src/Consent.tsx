@@ -53,6 +53,13 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
   const [ask, setAsk] = useState(false)
   const [state, setState] = useState<'idle' | 'busy' | 'done' | 'error'>('idle')
 
+  const [exported, setExported] = useState<'idle' | 'busy' | 'sent'>('idle')
+  async function exportData() { // the bot sends a zip of CSV files: the data is yours, take it anywhere
+    setExported('busy')
+    try { await api('/api/export', postJson({})) } catch { /* 429: already on its way */ }
+    setExported('sent')
+  }
+
   async function toggleHealth() {
     const next = !consent.health
     try { await api('/api/consent', postJson({ health: next })); onHealth(next) } catch { /* the switch stays as it was */ }
@@ -75,6 +82,10 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
         <input type="checkbox" checked={consent.health} onChange={toggleHealth} />
         <span><b>Учитывать аллергии и травмы</b><span className="sub">{consent.health ? 'Если выключить, эти ответы сотрутся из анкеты.' : 'Включите, чтобы указать их в анкете.'}</span></span>
       </label>
+      <div className="row">
+        <div className="row-main"><div className="row-title">Мои данные</div><div className="row-sub">{exported === 'sent' ? 'Файл придёт в чат с ботом через минуту' : 'Питание, вес, вода и тренировки — таблицами для Excel'}</div></div>
+        <button className="link" disabled={exported !== 'idle'} onClick={exportData}>{exported === 'busy' ? '…' : exported === 'sent' ? '✓' : 'Скачать'}</button>
+      </div>
       {consent.url && <a className="link" href={consent.url} target="_blank" rel="noreferrer">Политика конфиденциальности</a>}
       <button className="link danger" onClick={() => setAsk(true)}>Удалить аккаунт и все данные</button>
       {ask && (

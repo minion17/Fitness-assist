@@ -15,6 +15,7 @@ import { eaten, localSearch, remember } from './catalog'
 import { api, ApiError, postJson, putJson, publicGet, tg } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { foodIcon } from './foodIcon'
+import { FeedbackForm } from './Feedback'
 import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
 import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
 import { plural } from './plural'
@@ -456,6 +457,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   const search = useRef<HTMLInputElement>(null)
   const addedKcal = added.reduce((n, a) => n + a.kcal, 0)
   const [fromScan, setFromScan] = useState(false) // scanning in a row: after adding, the camera opens again
+  const [reporting, setReporting] = useState<number | null>(null) // product id: the «wrong numbers» form is open
 
   /** "останется 1 650" / "сверх нормы на 120" for a portion of `kcal`. */
   function leftAfter(kcal: number) {
@@ -811,6 +813,9 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
             </div>
           )}
           <button className="btn" disabled={!valid || busy} onClick={add}>{busy ? 'Добавляем…' : `Добавить в «${MEALS[meal]}»`}</button>
+          {reporting === picked.id
+            ? <FeedbackForm kind="product" productId={picked.id} placeholder="Что не так: калории, белки, вес упаковки? Можно написать, как на этикетке" />
+            : <button type="button" className="link product-report" onClick={() => setReporting(picked.id)}>Неверные КБЖУ? Сообщить</button>}
         </>
       )}
       {error && <p className="error" role="alert">{error}</p>}

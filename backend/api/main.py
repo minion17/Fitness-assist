@@ -32,6 +32,7 @@ from backend.api.leagues import router as leagues_router
 from backend.api.challenges import router as challenges_router
 from backend.api.report import router as report_router
 from backend.api.library import router as library_router
+from backend.api.feedback import router as feedback_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
@@ -858,6 +859,7 @@ async def yesterday_meals(tg: dict, session: AsyncSession) -> dict:
 
 
 app.include_router(ai_router)
+app.include_router(feedback_router)
 app.include_router(daily_router)
 app.include_router(quick_food_router)
 app.include_router(stats_router)

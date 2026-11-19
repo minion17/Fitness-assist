@@ -39,6 +39,21 @@ async def send_report(bot, session, m) -> None:
                             caption=f"📄 Отчёт за {m.text} дней: питание, вес и замеры, тренировки. Можно переслать тренеру или врачу.")
 
 
+async def send_export(bot, session, m) -> None:
+    from aiogram.types import BufferedInputFile
+
+    from backend.api.feedback import build_export
+
+    user = await session.get(User, m.user_id)
+    clock.use_tz(user.device_tz)
+    try:
+        data = await build_export(session, user)
+    finally:
+        clock.use_tz(None)
+    await bot.send_document(m.telegram_id, BufferedInputFile(data, f"setly-{clock.today():%Y-%m-%d}.zip"),
+                            caption="📦 Все ваши записи: питание, вес и замеры, вода, тренировки — в таблицах CSV (открываются в Excel и Google Таблицах).")
+
+
 async def send_pending(bot, keyboard) -> None:
     from aiogram.exceptions import TelegramForbiddenError
     from aiogram.types import BufferedInputFile
@@ -54,6 +69,8 @@ async def send_pending(bot, keyboard) -> None:
                     await bot.send_message(m.telegram_id, "☝️ Перешлите карточку другу — по ссылке в подписи он сразу попадёт к вам в друзья.")
                 elif m.kind == "report" and m.user_id:
                     await send_report(bot, session, m)
+                elif m.kind == "export" and m.user_id:
+                    await send_export(bot, session, m)
                 elif m.kind == "alert":  # for the owner: plain text, no "open the app" button
                     await bot.send_message(m.telegram_id, m.text)
                 else:

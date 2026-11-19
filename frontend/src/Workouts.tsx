@@ -12,6 +12,10 @@ import { nextWeight } from './progression'
 import { Chevron } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
+import { workoutMinutes } from './workoutTime'
+import { loadActive, saveActive } from './activeWorkout'
+import MuscleMap from './MuscleMap'
+import { MUSCLES, type Muscle } from './muscles'
 
 const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -26,7 +30,8 @@ function ExerciseThumbnail({ name, index }: { name: string; index: number }) {
   </span>
 }
 
-export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord, profile = null }: {
+export default function Workouts({ programs, logs, programId, onSelectProgram, canEdit, onChanged, recommended = null, onProgramsChange, onRecord, profile = null, onMinimize }: {
+  onMinimize?: () => void // leave a workout open and go to Home
   onRecord?: (text: string) => void // a personal record: confetti in the app
   profile?: ProfileData | null // equipment and level for "Собрать тренировку"
   recommended?: Recommendation | null
@@ -41,7 +46,11 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   const [personalList, setPersonalList] = useState(false)
   const [guideExercise, setGuideExercise] = useState<PlannedExercise | null>(null)
   const [previewProgramId, setPreviewProgramId] = useState<number | null>(null)
-  const [session, setSession] = useState<ProgramDay | null>(null)
+  // a workout left to log food comes back where it was (activeWorkout.ts)
+  const [session, setSession] = useState<ProgramDay | null>(() => {
+    const a = loadActive()
+    return a ? programs?.find((p) => p.id === a.programId)?.days.find((d) => d.id === a.dayId) ?? null : null
+  })
   const [editing, setEditing] = useState<Program | 'new' | null>(null)
   const [exercises, setExercises] = useState<ExerciseOption[]>([])
   const [builderError, setBuilderError] = useState('')
@@ -105,7 +114,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   if (programs === null) return <><h1>Тренировки</h1><p className="sub">Загружаем программы…</p></>
 
   if (session && program) {
-    return <Session program={program} day={session} onExit={() => setSession(null)} onChanged={onChanged} onRecord={onRecord} />
+    return <Session program={program} day={session} onExit={() => { saveActive(null); setSession(null) }} onChanged={onChanged} onRecord={onRecord} onMinimize={onMinimize} />
   }
 
   if (personalList && previewProgramId !== null) {
@@ -189,6 +198,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       <section className="card workout-feature">
         <div className="card-head"><h2>Следующая тренировка</h2></div>
         <div className="workout-next-title">{next.day_name}</div>
+        <WorkoutPreview day={next} />
         <div className="list">
           {next.exercises.map((e, i) => (
             <div className="row" key={i}>
@@ -245,17 +255,19 @@ type SetState = { reps: string; weight: string; saved: boolean; id?: number }
 
 type Rest = { until: number; total: number; next: string }
 
-function Session({ program, day, onExit, onChanged, onRecord }: {
+function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
   program: Program
   day: ProgramDay
   onExit: () => void
+  onMinimize?: () => void // to another tab; the workout stays open (activeWorkout.ts)
   onChanged: (xp: number) => void
   onRecord?: (text: string) => void
 }) {
-  const [rest, setRest] = useState<Rest | null>(null)
+  const [kept] = useState(() => { const a = loadActive(); return a && a.programId === program.id && a.dayId === day.id ? a : null })
+  const [rest, setRest] = useState<Rest | null>(() => kept?.rest && kept.rest.until > Date.now() ? kept.rest : null)
   const [now, setNow] = useState(() => Date.now())
-  const [startedAt] = useState(() => Date.now())
-  const [records, setRecords] = useState<string[]>([])
+  const [startedAt] = useState(() => kept?.startedAt ?? Date.now())
+  const [records, setRecords] = useState<string[]>(kept?.records ?? [])
   const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number } | null>(null)
   useEffect(() => { // the clock in the header ticks every second
     const t = setInterval(() => setNow(Date.now()), 1000)
@@ -289,17 +301,17 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
     api('/api/rest-timer', { method: 'DELETE' }).catch(() => {})
   }
   // shortcut: unsaved inputs live in component state and are lost on tab switch; saved sets are on the server
-  const [logId, setLogId] = useState<number | null>(null)
-  const [sets, setSets] = useState<SetState[][]>(() =>
+  const [logId, setLogId] = useState<number | null>(kept?.logId ?? null)
+  const [sets, setSets] = useState<SetState[][]>(() => kept?.sets ?? 
     day.exercises.map((e) => Array.from({ length: e.sets }, (_, i) => ({ reps: firstNumber(e.reps), weight: e.planned_weights?.[i] == null ? '' : String(e.planned_weights[i]), saved: false }))),
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [last, setLast] = useState<Last>({})
-  const [cur, setCur] = useState(0)        // the exercise on screen ("player": one at a time)
+  const [cur, setCur] = useState(kept?.cur ?? 0) // the exercise on screen ("player": one at a time)
   const [list, setList] = useState(false)  // or all of them as a list
   const [guideExercise, setGuideExercise] = useState<PlannedExercise | null>(null)
-  const [timer, setTimer] = useState<SessionTimer | null>(null)
+  const [timer, setTimer] = useState<SessionTimer | null>(() => kept?.restClock && kept.restClock.end > Date.now() ? { phase: 'rest', ...kept.restClock } : null)
   useEffect(() => {
     if (!timer || (timer.phase === 'work' && timer.stoppedSeconds !== undefined)) return
     const id = window.setInterval(() => {
@@ -416,6 +428,7 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
       const done = sets.flat().filter((x) => x.saved)
       const tonnage = sets.reduce((n, row, ei) => n + (timedExercise(day.exercises[ei]) ? 0
         : row.filter((x) => x.saved).reduce((m, x) => m + Number(x.reps) * (Number(x.weight.replace(',', '.')) || 0), 0)), 0)
+      saveActive(null)
       setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0 })
       setBusy(false)
     } catch {
@@ -423,6 +436,12 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
       setBusy(false)
     }
   }
+
+  useEffect(() => { // kept on the phone as it goes; cleared on «Назад» and at the summary
+    if (summary) return
+    const restClock = timer?.phase === 'rest' ? { end: timer.end, result: timer.result, ei: timer.ei, si: timer.si } : null
+    saveActive({ programId: program.id, dayId: day.id, title: day.day_name, logId, startedAt, cur, sets, records, rest, restClock })
+  }, [program.id, day.id, day.day_name, logId, startedAt, cur, sets, records, rest, timer, summary])
 
   function exit() {
     if (rest) skipRest()
@@ -463,7 +482,8 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
     <>
       <div className="card-head">
         <h1 className="session-title" title={day.day_name}>{day.day_name}</h1>
-        <button className="link" onClick={exit}>Назад</button>
+        {onMinimize && <button className="link" onClick={onMinimize} aria-label="Свернуть тренировку и открыть Главную">Свернуть</button>}
+        <button className="link" onClick={exit}>Выйти</button>
       </div>
       <div className="session-progress" aria-label={`Сделано ${savedCount} из ${totalSets} подходов`}>
         <div className="bar thin"><i style={{ width: `${totalSets ? (savedCount / totalSets) * 100 : 0}%`, background: 'var(--accent)' }} /></div>
@@ -588,5 +608,25 @@ function Session({ program, day, onExit, onChanged, onRecord }: {
         Завершить тренировку · {savedCount} подх.
       </button>}
     </>
+  )
+}
+
+// main muscles by exercise name, from the bundled catalogs (the same names the programs use)
+const MUSCLES_BY_NAME = new Map<string, string[]>(
+  [...exerciseCatalog, ...translatedCatalog].map((e) => [e.name.toLocaleLowerCase('ru-RU'), (e as { primary_muscles?: string[] }).primary_muscles ?? []]))
+
+/** Before the start: about how long, how many sets, and which muscles work. */
+function WorkoutPreview({ day }: { day: ProgramDay }) {
+  const primary = [...new Set(day.exercises.flatMap((e) => MUSCLES_BY_NAME.get(e.name.toLocaleLowerCase('ru-RU')) ?? []))]
+  const sets = day.exercises.reduce((n, e) => n + e.sets, 0)
+  return (
+    <div className="workout-preview">
+      <div className="workout-preview-facts">
+        <span><Icon name="clock" size={16} /> ≈ {workoutMinutes(day)} мин</span>
+        <span>{sets} {plural(sets, 'подход', 'подхода', 'подходов')}</span>
+        {primary.length > 0 && <span>{primary.slice(0, 3).map((m) => MUSCLES[m as Muscle] ?? m).join(', ')}{primary.length > 3 ? '…' : ''}</span>}
+      </div>
+      {primary.length > 0 && <MuscleMap primary={primary} compact />}
+    </div>
   )
 }

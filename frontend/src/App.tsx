@@ -28,6 +28,9 @@ import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } 
 import { api, apiBlob, initTelegram, postJson, publicGet, putJson, tg, tgUser } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measurement, type Program, type WorkoutLog } from './types'
 import { Bar, Sheet } from './ui'
+import { ACTIVE_EVENT, loadActive } from './activeWorkout'
+import { markRecapSeen, recapDue } from './recap'
+const WeekRecap = lazy(() => import('./WeekRecap'))
 const Workouts = lazy(() => import('./Workouts'))
 
 type Tab = 'home' | 'food' | 'workouts' | 'progress' | 'profile'
@@ -218,6 +221,10 @@ export default function App() {
   const [recommended, setRecommended] = useState<Recommendation | null>(boot?.auth.recommended_program ?? null)
   const [water, setWater] = useState<Water>(boot?.water ?? { ml: 0, goal_ml: 2000 })
   const [week, setWeek] = useState<{ streak: number; days: WeekDay[] }>(boot?.week ?? { streak: 0, days: [] })
+  const [recapAsked, setRecapAsked] = useState(false)
+  const [recapClosed, setRecapClosed] = useState(false)
+  // opens by itself once a week; not in unit tests, whose clock may be any day
+  const recap = recapAsked || (!recapClosed && canEdit && import.meta.env.MODE !== 'test' && recapDue(week.days))
   const [ach, setAch] = useState<{ items: Achievement[]; new: Achievement[]; freezes: number }>(boot ? { ...boot.achievements, new: [] } : { items: [], new: [], freezes: 0 })
   const [foodIntent, setFoodIntent] = useState<FoodIntent | null>(null)
   const [foodDate, setFoodDate] = useState('') // a past day open in the diary; '' = today
@@ -649,7 +656,8 @@ export default function App() {
         {tab === 'workouts' && (
           <Suspense fallback={<p role="status">Открываем тренировки…</p>}>
           <Workouts programs={programs} logs={logs} programId={programId} onSelectProgram={selectProgram} recommended={recommended}
-            canEdit={canEdit} profile={me} onChanged={workoutChanged} onProgramsChange={setPrograms} onRecord={(t) => { celebrate(t); refreshJournal().catch(() => {}) }} />
+            canEdit={canEdit} profile={me} onChanged={workoutChanged} onProgramsChange={setPrograms} onRecord={(t) => { celebrate(t); refreshJournal().catch(() => {}) }}
+            onMinimize={() => go('home')} />
           </Suspense>
         )}
         {tab === 'progress' && (
@@ -657,6 +665,7 @@ export default function App() {
             weightGoal={me?.target_weight_kg}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
               norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}
+              {canEdit && week.days.length === 7 && <button className="btn btn-ghost recap-open" onClick={() => setRecapAsked(true)}>Итоги недели — открыть карточку</button>}
               {aiEnabled && <AiSummary />}</>}
             bodyTop={canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
               api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
@@ -671,6 +680,13 @@ export default function App() {
             }} /></>} />
         )}
       </main>
+      {tab !== 'workouts' && <ActiveWorkoutBar onOpen={() => go('workouts')} />}
+      {recap && week.days.length > 0 && (
+        <Suspense fallback={null}>
+          <WeekRecap days={week.days} goal={me?.targets?.calories ?? 2000} streak={week.streak} weightDelta={weekWeightDelta(measurements)}
+            onClose={() => { markRecapSeen(); setRecapClosed(true); setRecapAsked(false) }} />
+        </Suspense>
+      )}
       <nav className="nav">
         <div className="nav-inner">
           {TABS.map((t) => (
@@ -705,4 +721,34 @@ export default function App() {
       {reward && <Reward level={xp.level} levelXp={xp.level_xp} needed={xp.level_xp_needed} streak={week.streak} onClose={() => setReward(false)} />}
     </div>
   )
+}
+
+/** Above the tab bar while a workout is left open: its name, the time since the start (or the rest left), back in one tap. */
+function ActiveWorkoutBar({ onOpen }: { onOpen: () => void }) {
+  const [a, setA] = useState(loadActive)
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const sync = () => setA(loadActive())
+    window.addEventListener(ACTIVE_EVENT, sync)
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => { window.removeEventListener(ACTIVE_EVENT, sync); clearInterval(t) }
+  }, [])
+  if (!a) return null
+  const clock = (ms: number) => { const sec = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}` }
+  const restEnd = Math.max(a.rest?.until ?? 0, a.restClock?.end ?? 0)
+  const resting = restEnd > now
+  return (
+    <button className="active-workout" onClick={onOpen} aria-label={`Вернуться к тренировке «${a.title}»`}>
+      <span className="active-workout-dot" aria-hidden="true" />
+      <span className="step-text"><b>{a.title}</b><span className="sub">{resting ? `Отдых ${clock(restEnd - now)}` : `Идёт ${clock(now - a.startedAt)}`}</span></span>
+      <span className="active-workout-go">Вернуться</span>
+    </button>
+  )
+}
+
+/** Weight change over the last 7 days of measurements (null with fewer than two). */
+function weekWeightDelta(ms: Measurement[]): number | null {
+  const since = new Date(Date.now() - 7 * 864e5).toLocaleDateString('sv-SE')
+  const w = ms.filter((m) => m.weight_kg != null && m.measured_on >= since).sort((a, b) => a.measured_on.localeCompare(b.measured_on))
+  return w.length > 1 ? Math.round((w[w.length - 1].weight_kg! - w[0].weight_kg!) * 10) / 10 : null
 }

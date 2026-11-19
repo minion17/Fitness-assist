@@ -1721,3 +1721,38 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .food-search-meal { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 14%, var(--card-2)); }
 .food-search:active { transform: scale(.99); }
 .meal-hint { margin-left: 8px; font-size: 13px; color: var(--muted); font-weight: 500; }
+/* a workout left open: a bar above the tab bar */
+.active-workout { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 30;
+  width: min(528px, calc(100% - 24px)); display: flex; align-items: center; gap: 12px; padding: 10px 12px 10px 16px; border-radius: 18px;
+  background: color-mix(in srgb, var(--accent) 16%, var(--card)); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .3); color: var(--text); text-align: left; animation: fade-in .25s ease-out; }
+.active-workout .step-text { flex: 1; min-width: 0; }
+.active-workout .step-text b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.active-workout .sub { font-variant-numeric: tabular-nums; }
+.active-workout-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex: none; animation: splash-dot 1.4s ease-in-out infinite; }
+@keyframes splash-dot { 50% { opacity: .35; } }
+.active-workout-go { padding: 8px 12px; border-radius: 12px; background: var(--accent); color: #111; font-weight: 700; font-size: 14px; flex: none; }
+.app:has(.active-workout) .screen { padding-bottom: calc(190px + env(safe-area-inset-bottom)); }
+.workout-preview { display: flex; align-items: center; gap: 12px; margin: 4px 0 6px; }
+.workout-preview-facts { flex: 1; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--muted); }
+.workout-preview-facts span { display: inline-flex; align-items: center; gap: 6px; }
+.workout-preview-facts .icon { color: var(--accent-text); }
+.workout-preview .muscle-map.compact { width: 120px; flex: none; }
+/* weekly recap: a full-screen card, stories-like */
+.recap { position: fixed; inset: 0; z-index: 60; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+  padding: calc(28px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
+  background: radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--accent) 22%, var(--bg)) 0%, var(--bg) 65%); animation: fade-in .3s ease-out; }
+.recap-close { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; width: 40px; height: 40px; border-radius: 12px; color: var(--muted); background: var(--card); }
+.recap-kicker { margin: 0; color: var(--accent-text); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: 13px; }
+.recap-title { margin: 0; font-size: 32px; line-height: 1.1; }
+.recap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.recap-tile { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-border); animation: up .4s ease-out backwards; }
+.recap-tile:nth-child(2) { animation-delay: .06s; } .recap-tile:nth-child(3) { animation-delay: .12s; } .recap-tile:nth-child(4) { animation-delay: .18s; } .recap-tile:nth-child(5) { animation-delay: .24s; }
+.recap-tile.big { grid-column: 1 / -1; background: color-mix(in srgb, var(--accent) 16%, var(--card)); }
+.recap-tile b { font-family: var(--font-display); font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.recap-tile.big b { font-size: 56px; }
+.recap-tile b small { font-size: .45em; color: var(--muted); }
+.recap-tile span { color: var(--muted); font-size: 14px; }
+.recap-best { margin: 0; color: var(--muted); }
+.recap-actions { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.food-photo { object-fit: cover; padding: 0; }

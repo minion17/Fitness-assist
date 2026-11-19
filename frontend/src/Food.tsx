@@ -20,9 +20,13 @@ import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, typ
 import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
+import { RECIPES } from './mealCatalog'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
 // a rough split of the day for an empty meal's hint («≈ 550 ккал»)
+// dishes from the meal plan are logged under the recipe's name: the diary shows their photo
+const RECIPE_PHOTO = new Map(RECIPES.map((r) => [r.name, `/images/recipes/${r.id}.jpg`]))
+
 const MEAL_SHARE: Record<MealType, number> = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snack: 0.1 }
 
 const MACROS = [
@@ -117,7 +121,9 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
         }}
         onPointerUp={() => { stopPress(); if (drag !== null) setOpen(drag < -ACTIONS_W / 2); setDrag(null); start.current = null }}
         onPointerCancel={() => { stopPress(); setDrag(null); start.current = null }}>
-        <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>
+        {RECIPE_PHOTO.has(i.product.name)
+          ? <img className="food-icon food-photo" src={RECIPE_PHOTO.get(i.product.name)} alt="" loading="lazy" />
+          : <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>}
         <div className="row-main">
           <div className="row-title">{i.product.name}</div>
           <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${unitWord(i.unit, i.qty)} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>

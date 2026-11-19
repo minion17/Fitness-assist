@@ -20,7 +20,7 @@ vi.mock('./telegram', () => {
 const apiMock = vi.mocked(api)
 const publicGetMock = vi.mocked(publicGet)
 
-beforeEach(() => { apiMock.mockReset(); apiMock.mockResolvedValue(null); publicGetMock.mockReset() })
+beforeEach(() => { apiMock.mockReset(); apiMock.mockResolvedValue(null); publicGetMock.mockReset(); localStorage.removeItem('setly-active-workout') }) // a workout from the previous test isn't resumed
 afterEach(cleanup)
 
 const program: Program = {
@@ -74,6 +74,25 @@ test('workout session: logs sets, then completes', async () => {
   // the summary: sets and kilograms lifted (6 × 62,5)
   expect(await screen.findByText('Тренировка завершена')).toBeTruthy()
   expect(screen.getByText('375')).toBeTruthy()
+})
+
+test('a workout left to log food comes back with its saved set', async () => {
+  apiMock.mockImplementation(async (url: string) =>
+    url.startsWith('/api/exercises/last') ? {} : url === '/api/workout-logs' ? { id: 99 } : url.endsWith('/sets') ? { id: 1, record: null } : { ok: true })
+  const onMinimize = vi.fn()
+  const { unmount } = render(<Workouts programs={[program]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={() => {}} onMinimize={onMinimize} />)
+  fireEvent.click(screen.getByRole('button', { name: 'Начать тренировку' }))
+  fireEvent.change(screen.getByLabelText('Жим лёжа, подход 1, вес'), { target: { value: '60' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить подход 1' }))
+  await waitFor(() => expect(screen.getByRole('button', { name: /Завершить тренировку · 1/ })).toBeTruthy())
+  fireEvent.click(screen.getByRole('button', { name: /Свернуть тренировку/ }))
+  expect(onMinimize).toHaveBeenCalled()
+  unmount() // the tab changes
+
+  render(<Workouts programs={[program]} logs={[]} programId={1} onSelectProgram={() => {}} canEdit onChanged={() => {}} />)
+  expect(screen.getByRole('button', { name: /Завершить тренировку · 1/ })).toBeTruthy() // the same workout, the set kept
+  fireEvent.click(screen.getByRole('button', { name: 'Выйти' }))
+  expect(localStorage.getItem('setly-active-workout')).toBeNull()
 })
 
 test('workout session shows last time and prefills its weights', async () => {

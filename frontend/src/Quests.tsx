@@ -1,6 +1,7 @@
 import { useState } from 'react'
 // Home: this week's three tasks (data from /api/bootstrap). Progress comes from the diary; the server pays the XP.
 import { Bar, Chevron } from './ui'
+import { Icon } from './icons'
 
 type Quest = { code: string; title: string; progress: number; target: number; xp: number; done: boolean }
 export type QuestWeek = { days_left: number; items: Quest[]; bonus: number; xp_awarded: number }
@@ -17,7 +18,7 @@ export default function Quests({ week }: { week: QuestWeek }) {
   return (
     <>
       <button className="home-row" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span className="home-row-icon" aria-hidden="true">🏆</span>
+        <span className="home-row-icon" aria-hidden="true"><Icon name="trophy" /></span>
         <span className="step-text"><b>Задания недели · {done} из {week.items.length}</b>
           <span className="sub">{done === week.items.length ? `Все выполнены, бонус +${week.bonus} XP получен` : `${left(week.days_left)} · все три — ещё +${week.bonus} XP`}</span></span>
         <span className={open ? 'step-go open' : 'step-go'} aria-hidden="true"><Chevron dir="right" /></span>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { latestValues, MEASURES, weightTrend, type MeasureKey, type Measurement } from './types'
 import { Sheet } from './ui'
+import { Icon } from './icons'
 
 const dateRu = (iso: string) => new Date(iso + 'T00:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })
 const LIMITS: Record<MeasureKey, [number, number]> = {
@@ -170,7 +171,7 @@ export function QuickWeight({ measurements, onSave }: { measurements: Measuremen
 
   if (!open) return (
     <button className="card quick-weight" onClick={() => { setValue(String(todays?.weight_kg ?? last?.value ?? '')); setOpen(true) }}>
-      <span className="home-row-icon" aria-hidden="true">⚖️</span>
+      <span className="home-row-icon" aria-hidden="true"><Icon name="scale" /></span>
       <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${todays.weight_kg} кг` : 'Взвеситься'}</b>
         <span className="sub">{last ? `Последний: ${last.value} кг · ${dateRu(last.on)}` : 'Запишите вес — увидите динамику'}</span></span>
       <span className="link">{todays?.weight_kg ? 'Изменить' : 'Записать'}</span>

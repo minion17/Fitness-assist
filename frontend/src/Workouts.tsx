@@ -11,6 +11,7 @@ import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './Progra
 import { nextWeight } from './progression'
 import { Chevron } from './ui'
 import { plural } from './plural'
+import { Icon } from './icons'
 
 const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -171,8 +172,8 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   </div>
 
   const libraryEntries = <div className="lib-entries">
-        <button className="card lib-entry" onClick={() => setLibrary('browse')}><span aria-hidden="true">📚</span><b>Упражнения</b><small>Техника и мышцы</small></button>
-        <button className="card lib-entry" onClick={() => setLibrary('build')}><span aria-hidden="true">🎯</span><b>Собрать тренировку</b><small>На нужные мышцы</small></button>
+        <button className="card lib-entry" onClick={() => setLibrary('browse')}><span className="lib-entry-icon" aria-hidden="true"><Icon name="book" size={22} /></span><b>Упражнения</b><small>Техника и мышцы</small></button>
+        <button className="card lib-entry" onClick={() => setLibrary('build')}><span className="lib-entry-icon" aria-hidden="true"><Icon name="target" size={22} /></span><b>Собрать тренировку</b><small>На нужные мышцы</small></button>
       </div>
 
   if (!program) return <><h1>Тренировки</h1>{programsButton}{libraryEntries}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>

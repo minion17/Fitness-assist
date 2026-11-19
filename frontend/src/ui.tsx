@@ -93,9 +93,9 @@ export function Tip({ id, after, children }: { id: string; after?: string; child
   if (!shown) return null
   return (
     <div className="tip" role="note">
-      <span className="tip-icon" aria-hidden="true">💡</span>
+      <svg className="tip-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z" /></svg>
       <span className="tip-text">{children}</span>
-      <button className="link" onClick={() => { try { localStorage.setItem(tipKey(id), '1') } catch { /* private mode */ } setShown(false) }}>Понятно</button>
+      <button className="tip-close" aria-label="Понятно, скрыть подсказку" onClick={() => { try { localStorage.setItem(tipKey(id), '1') } catch { /* private mode */ } setShown(false) }}>✕</button>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import type { Targets } from './profile'
 import { Sheet, Chevron } from './ui'
 import { useCountUp } from './motion'
 import { nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
+import { Icon, type IconName } from './icons'
 
 export type Water = { ml: number; goal_ml: number }
 export type WeekDay = { date: string; kcal: number; water_ml: number; workouts: number }
@@ -96,7 +97,7 @@ function UsualCard({ meal, title, kcal, run }: { meal: string; title: string; kc
   const [busy, setBusy] = useState(false)
   return (
     <button className="card usual-card" disabled={busy} onClick={() => { setBusy(true); run() }}>
-      <span className="usual-icon" aria-hidden="true">↻</span>
+      <span className="usual-icon" aria-hidden="true"><Icon name="repeat" /></span>
       <span className="step-text"><b>{meal} как обычно</b><span className="sub">{title} · {fmt(kcal)} ккал</span></span>
       <span className="usual-go">{busy ? '…' : 'Записать'}</span>
     </button>
@@ -104,12 +105,12 @@ function UsualCard({ meal, title, kcal, run }: { meal: string; title: string; kc
 }
 
 type Block = 'workout' | 'habits' | 'quests' | 'weight' | 'usual'
-const BLOCKS: Record<Block, { icon: string; name: string; hint: string }> = {
-  workout: { icon: '🏋️', name: 'Тренировка на сегодня', hint: 'Следующий день вашей программы' },
-  habits: { icon: '✅', name: 'Привычки', hint: 'Отметки за день: сон, шаги, витамины' },
-  quests: { icon: '🏆', name: 'Задания недели', hint: 'Три задания и XP за них' },
-  weight: { icon: '⚖️', name: 'Вес', hint: 'Записать вес в два нажатия' },
-  usual: { icon: '↻', name: 'Подсказка «как обычно»', hint: 'Ваш обычный завтрак, обед или ужин — одной кнопкой' },
+const BLOCKS: Record<Block, { icon: IconName; name: string; hint: string }> = {
+  workout: { icon: 'dumbbell', name: 'Тренировка на сегодня', hint: 'Следующий день вашей программы' },
+  habits: { icon: 'check', name: 'Привычки', hint: 'Отметки за день: сон, шаги, витамины' },
+  quests: { icon: 'trophy', name: 'Задания недели', hint: 'Три задания и XP за них' },
+  weight: { icon: 'scale', name: 'Вес', hint: 'Записать вес в два нажатия' },
+  usual: { icon: 'repeat', name: 'Подсказка «как обычно»', hint: 'Ваш обычный завтрак, обед или ужин — одной кнопкой' },
 }
 const LAYOUT_KEY = 'setly-home-layout'
 type Layout = { order: Block[]; hidden: Block[] }
@@ -136,7 +137,7 @@ function HomeSettings({ layout, onChange, onClose }: { layout: Layout; onChange:
     const on = !layout.hidden.includes(b), { icon, name, hint } = BLOCKS[b]
     return (
       <li key={b} className={on ? 'home-setting' : 'home-setting off'}>
-        <span className="home-row-icon" aria-hidden="true">{icon}</span>
+        <span className="home-row-icon" aria-hidden="true"><Icon name={icon} /></span>
         <span className="step-text"><b>{name}</b><span className="sub">{on ? hint : 'Скрыто'}</span></span>
         {i !== undefined && (
           <span className="home-setting-move">
@@ -157,7 +158,7 @@ function HomeSettings({ layout, onChange, onClose }: { layout: Layout; onChange:
     <Sheet title="Главный экран" onClose={onClose}>
       <p className="sub">Включите то, что хотите видеть, и расставьте стрелками в удобном порядке. Главная за окном меняется сразу.</p>
       <div className="home-setting fixed">
-        <span className="home-row-icon" aria-hidden="true">🍽</span>
+        <span className="home-row-icon" aria-hidden="true"><Icon name="utensils" /></span>
         <span className="step-text"><b>Питание и вода</b><span className="sub">Всегда наверху</span></span>
       </div>
       <h3 className="home-settings-h">Блоки — сверху вниз</h3>
@@ -232,6 +233,7 @@ export default function Home(props: {
   const [whyOpen, setWhyOpen] = useState(evening)
   const shownProgress = Math.round(useCountUp(props.loading ? 0 : progress))
   const shownKcal = useCountUp(day.totals.kcal)
+  const shownWater = useCountUp(water.ml)
   const next = props.program && nextDay(props.program, props.logs)
   const [weekday] = useState(() => (new Date().getDay() + 6) % 7) // 0 = Mon, as in the questionnaire
   const days = props.trainingDays ?? []
@@ -274,7 +276,7 @@ export default function Home(props: {
           </button>
           <button className="day-stat" aria-expanded={waterOpen} onClick={() => setWaterOpen(!waterOpen)} aria-label="Вода: подробнее">
             <span className="sub">Вода</span>
-            <span className="day-stat-value water-value">{liters(water.ml)} <small>/ {liters(water.goal_ml)} л</small></span>
+            <span className="day-stat-value water-value">{liters(Math.round(shownWater / 10) * 10)} <small>/ {liters(water.goal_ml)} л</small></span>
           </button>
         </div>
         {whyOpen && !props.loading && (
@@ -318,7 +320,7 @@ export default function Home(props: {
         <div className="card home-rows" key={g.join()}>
           {g.map((b) => b === 'workout' ? (
             <button key={b} className="home-row" onClick={props.onWorkouts}>
-              <span className="home-row-icon" aria-hidden="true">🏋️</span>
+              <span className="home-row-icon" aria-hidden="true"><Icon name="dumbbell" /></span>
               {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /><span className="skeleton skeleton-line" style={{ width: 90, height: 14, marginTop: 6 }} /></span> // not "choose a program" before the program has loaded
                 : <span className="step-text"><b>{restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
                 <span className="sub">{restDay ? `Следующая тренировка — ${nextTraining}: ${next!.day_name}` : next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}

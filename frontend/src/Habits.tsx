@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { api, postJson, tg } from './telegram'
 import { Chevron } from './ui'
+import { Icon } from './icons'
 
 export type Habit = { id: number; title: string; emoji: string; done: boolean; streak: number; remind_at?: string | null }
 
@@ -47,7 +48,7 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
   if (!habits.length && !editing) {
     return (
       <button className="home-row" onClick={() => setEditing(true)}>
-        <span className="home-row-icon" aria-hidden="true">✅</span>
+        <span className="home-row-icon" aria-hidden="true"><Icon name="check" /></span>
         <span className="step-text"><b>Привычки</b><span className="sub">Сон, шаги, без сладкого — отметка продлевает серию</span></span>
         <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
       </button>
@@ -57,7 +58,7 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
   return (
     <div className="habits">
       <div className="home-row habits-head">
-        <span className="home-row-icon" aria-hidden="true">✅</span>
+        <span className="home-row-icon" aria-hidden="true"><Icon name="check" /></span>
         <span className="step-text"><b>Привычки{habits.length ? ` · ${done} из ${habits.length}` : ''}</b>
           <span className="sub">{habits.length && done === habits.length ? 'Все отмечены сегодня' : 'Отметка за сегодня продлевает серию'}</span></span>
         <button className="link" onClick={() => { setEditing(!editing); setError('') }}>{editing ? 'Готово' : 'Изменить'}</button>

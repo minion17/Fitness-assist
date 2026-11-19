@@ -9,7 +9,19 @@
     <script src="/telegram-web-app.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div id="splash" aria-label="Setly загружается">
+      <svg width="72" height="72" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#16171a"/><path d="M9 12v8M6 14v4M23 12v8M26 14v4M9 16h14" stroke="#c8f169" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
+      <b>Setly</b>
+    </div></div>
+    <style>
+      /* shown until React draws the first screen: the logo instead of a blank page */
+      #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        background: #0e0f12; color: #f2f3f5; font: 700 22px/1 system-ui, sans-serif; letter-spacing: .02em; }
+      #splash svg { animation: splash-pulse 1.4s ease-in-out infinite; border-radius: 20px; box-shadow: 0 0 40px rgba(200, 241, 105, .18); }
+      @keyframes splash-pulse { 50% { transform: scale(.94); opacity: .8; } }
+      @media (prefers-color-scheme: light) { #splash { background: #f3f4f6; color: #121316; } }
+      @media (prefers-reduced-motion: reduce) { #splash svg { animation: none; } }
+    </style>
     <script>
       // if the app can't start on a phone (old WebView, a file that didn't load), say so instead of a blank screen
       (function () {
@@ -20,7 +32,7 @@
         }, true)
         setTimeout(function () {
           var r = document.getElementById('root')
-          if (!r || r.childElementCount) return
+          if (!r || !document.getElementById('splash')) return // React has drawn the app
           r.innerHTML = '<div style="padding:32px 20px;font:16px/1.45 system-ui,sans-serif;color:#e8e8ea;background:#0e0f12;min-height:100vh">' +
             '<h2 style="margin:0 0 12px">Setly не загрузился</h2><p>Проверьте интернет и обновите Telegram, затем откройте приложение снова.</p>' +
             '<button onclick="location.reload()" style="margin:12px 0;padding:12px 20px;border:0;border-radius:12px;background:#c6f36b;font-weight:700">Обновить</button>' +

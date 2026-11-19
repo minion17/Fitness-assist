@@ -19,8 +19,12 @@ import { FeedbackForm } from './Feedback'
 import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
 import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
 import { plural } from './plural'
+import { Icon } from './icons'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
+// a rough split of the day for an empty meal's hint («≈ 550 ккал»)
+const MEAL_SHARE: Record<MealType, number> = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snack: 0.1 }
+
 const MACROS = [
   { label: 'Белки', key: 'protein_g', goal: 'protein', color: 'var(--protein)' },
   { label: 'Жиры', key: 'fat_g', goal: 'fat', color: 'var(--fat)' },
@@ -292,7 +296,6 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
         <h1>Питание</h1>
         {onDate && canEdit && <DateBar date={date} onDate={(d) => { setBefore(null); onDate(d) }} />}
       </div>
-      <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span className="meal-plan-icon" aria-hidden="true">🥗</span><span className="meal-plan-text"><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По вашим предпочтениям'}</small></span><span className="meal-plan-go"><Chevron /></span></button>
       <section className="card nutrition-summary"
         onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY } }}
         onPointerUp={(e) => {
@@ -316,9 +319,13 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
         </div>
         {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
       </section>
-      {editable && onDate && <Tip id="days">Смахните карточку КБЖУ вбок — откроется соседний день. Нажмите на дату — календарь.</Tip>}
+      {editable && onDate && <Tip id="days">Смахните КБЖУ вбок — соседний день. Дата сверху — календарь.</Tip>}
       {canEdit && !editable && <p className="sub">Дописать можно только последние {BACKFILL_DAYS} дней — этот день только для просмотра.</p>}
-      {editable && <button className="btn nutrition-add" onClick={() => setAdding({ meal: isToday ? mealNow() : 'dinner' })}>{isToday ? '+ Добавить продукт' : `+ Дописать за ${dayLabel(date).toLowerCase()}`}</button>}
+      {editable && (isToday
+        ? <button className="food-search" onClick={() => setAdding({ meal: mealNow() })} aria-label={`Добавить продукт в «${MEALS[mealNow()]}»: поиск`}>
+            <Icon name="search" /><span>Найти продукт или блюдо</span><span className="food-search-meal">{MEALS[mealNow()]}</span>
+          </button>
+        : <button className="btn nutrition-add" onClick={() => setAdding({ meal: 'dinner' })}>{`+ Дописать за ${dayLabel(date).toLowerCase()}`}</button>)}
       {canEdit && isToday && aiEnabled && (
         <div className="ai-row">
           <button className="btn btn-ghost" onClick={() => setAiMode('text')}>✨ Текстом</button>
@@ -328,7 +335,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
 
       <section className="meal-diary">
       <h2>Приёмы пищи</h2>
-      {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажмите продукт — изменить количество, перенести в другой приём или удалить. Смахните влево — быстрые действия.</Tip>}
+      {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажмите продукт — изменить или перенести. Влево — быстрые действия.</Tip>}
       {queued > 0 && <p className="queued" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
       {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отметьте, что съели.</p>}
       {isToday && todayPlan?.finished && <p className="sub">Рацион завершён.</p>}
@@ -355,6 +362,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
                 <h2>{title}</h2>
                 {items.length > 0 && <span className="meal-kcal">{Math.round(kcal)} ккал</span>}
                 {items.length > 0 && <span className="meal-chevron" aria-hidden="true"><Chevron /></span>}
+                {!items.length && main && editable && targets && <span className="meal-hint">≈ {Math.round(goals.calories * MEAL_SHARE[meal] / 50) * 50} ккал</span>}
               </button>
               {editable && <button className="link meal-add" onClick={() => setAdding({ meal, slot })}>+ Добавить</button>}
             </div>
@@ -382,6 +390,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       })}
       {editable && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: isToday ? nowSlot() : null })}>+ Перекус</button>}
       </section>
+      <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span className="meal-plan-icon" aria-hidden="true"><Icon name="leaf" size={22} /></span><span className="meal-plan-text"><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По вашим предпочтениям'}</small></span><span className="meal-plan-go"><Chevron /></span></button>
       {canEdit && isToday && targets && onLogBatch && <WhatToEat eaten={Math.round(day.totals.kcal)} onLog={onLogBatch} />}
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
       {recipe && <RecipeCard meal={recipe} onClose={() => setRecipe(null)} />}
@@ -680,7 +689,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
           )}
           {q.trim().length < 2 && recent && favorites && (
             <>
-              {recent.length > 0 && <Tip id="quick-add">«+» справа добавляет сразу, без экрана количества. Окно не закрывается — добавляйте следующий продукт.</Tip>}
+              {recent.length > 0 && <Tip id="quick-add">«+» добавляет сразу, окно не закрывается — можно следующий.</Tip>}
               <div className="seg seg-inline">
                 <button type="button" aria-pressed={list === 'recent'} onClick={() => setList('recent')}>Недавние</button>
                 <button type="button" aria-pressed={list === 'favorites'} onClick={() => setList('favorites')}>Избранное</button>

@@ -781,7 +781,7 @@ test('home: hide and reorder the blocks, kept on the phone', async () => {
     habits: <div>Блок привычек</div>, quests: <div>Блок заданий</div>, weight: <div>Блок веса</div> }
   const { unmount } = render(<Home {...props} />)
   const order = () => [...document.querySelectorAll('.home-rows > *')].map((e) => e.textContent?.slice(0, 12))
-  expect(order()).toEqual(['🏋️Выберите ', 'Блок привыче', 'Блок заданий'])
+  expect(order()).toEqual(['Выберите про', 'Блок привыче', 'Блок заданий'])
   fireEvent.click(screen.getByRole('button', { name: '⚙ Настроить главный экран' }))
   fireEvent.click(screen.getByRole('button', { name: 'Задания недели: выше' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Тренировка на сегодня' }))

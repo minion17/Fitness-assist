@@ -1702,3 +1702,22 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .progress-parts button[aria-selected='true'] { background: var(--accent); color: #111; border-color: var(--accent); }
 .progress-period { align-self: flex-start; padding: 3px; border-radius: 12px; }
 .progress-period button { min-height: 30px; padding: 4px 12px; font-size: 13px; flex: none; }
+/* line icons on a soft accent tile, like the tab bar */
+.home-row-icon, .meal-plan-icon, .lib-entry-icon, .usual-icon { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 13%, var(--card-2)); }
+.lib-entry-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; margin-bottom: 6px; }
+.icon { display: block; flex-shrink: 0; }
+/* tips: a small one-time note, not a dashed card */
+.tip { align-items: center; gap: 8px; padding: 7px 6px 7px 12px; border: 0; border-radius: 12px; font-size: 13px; line-height: 1.35;
+  color: var(--muted); background: color-mix(in srgb, var(--accent) 8%, var(--card)); animation: fade .25s ease-out; }
+.tip-icon { color: var(--accent-text); flex-shrink: 0; }
+.tip-close { flex-shrink: 0; width: 32px; height: 32px; border-radius: 9px; color: var(--muted); font-size: 13px; }
+.tip-close:active { background: var(--card-2); }
+.app { animation: fade-in .35s ease-out; } /* opacity only: a transform would unpin the fixed tab bar */
+/* Питание: search first — the field opens the add sheet with the keyboard up */
+.food-search { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 0 16px; border-radius: 18px; color: var(--muted);
+  background: var(--card); border: 1.5px solid color-mix(in srgb, var(--accent) 55%, var(--card-border)); font-size: 16px; text-align: left; }
+.food-search .icon { color: var(--accent-text); }
+.food-search span:first-of-type { flex: 1; }
+.food-search-meal { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; color: var(--accent-text); background: color-mix(in srgb, var(--accent) 14%, var(--card-2)); }
+.food-search:active { transform: scale(.99); }
+.meal-hint { margin-left: 8px; font-size: 13px; color: var(--muted); font-weight: 500; }

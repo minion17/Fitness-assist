@@ -10,3 +10,5 @@ httpx==0.28.*
 anthropic==2.*
 python-multipart==0.0.*
 pillow==12.*
+# time zone names (Asia/Yekaterinburg…): Windows has no system database, without it every user gets the server's zone
+tzdata

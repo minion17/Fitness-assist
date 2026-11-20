@@ -410,7 +410,7 @@ def check(c: Card, cx: int, cy: int, r: int, color: str = "accent") -> None:
 
 
 @lru_cache(maxsize=16)
-def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool = True) -> bytes:
+def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool = True, text: bool = True) -> bytes:
     title, accent_line, sub = TOUR[i]
     c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "streak")[i]), size=(TW, TH))
     c.brand()
@@ -470,6 +470,8 @@ def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool
         c.d.line([(x * K, y * K) for x, y in pts], fill=c.p["accent"], width=7 * K, joint="curve")
         x, y = pts[-1]
         c.d.ellipse([(x - 12) * K, (y - 12) * K, (x + 12) * K, (y + 12) * K], fill=c.p["accent"])
+    if not text:
+        return c.png()
     c.text((90, 940), title, 72, "text", 700, "Unbounded")
     c.text((90, 1028), accent_line, 72, "accent_text", 700, "Unbounded")
     for j, line in enumerate(wrap(c, sub, 34, TW - 180)):
@@ -479,3 +481,31 @@ def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool
         x = TW / 2 - (len(TOUR) * 14 + 30 + (len(TOUR) - 1) * 12) / 2 + sum((44 if j == i else 14) + 12 for j in range(k))
         c.rect((x, 1296, x + w, 1310), 7, "accent" if k == i else "track")
     return c.png()
+
+
+@lru_cache(maxsize=16)
+def tour_square(i: int, theme: str | None = None, accent: str | None = None) -> bytes:
+    """1:1 version for the channel carousel (Telegram shows a carousel about square and crops taller pictures):
+    the tall slide's picture, scaled down, above the same title and text."""
+    title, accent_line, sub = TOUR[i]
+    tall = Image.open(io.BytesIO(_tour_art(i, theme, accent)))
+    band = tall.crop((0, 150, TW, 850)).resize((round(TW * .8), round(700 * .8)), Image.LANCZOS)
+    c = Card(theme, accent, glow=None, size=(TW, TW))
+    mask = Image.new("L", band.size, 255)  # fade the band's top and bottom edges into the background
+    fade = 24
+    for y in range(fade):
+        ImageDraw.Draw(mask).line([(0, y), (band.width, y)], fill=round(255 * y / fade))
+        ImageDraw.Draw(mask).line([(0, band.height - 1 - y), (band.width, band.height - 1 - y)], fill=round(255 * y / fade))
+    c.img.paste(band.resize((band.width * K, band.height * K), Image.LANCZOS), (round(TW * .1) * K, 100 * K),
+                mask.resize((band.width * K, band.height * K)))
+    c.d = ImageDraw.Draw(c.img)
+    c.brand()
+    c.text((90, 700), title, 64, "text", 700, "Unbounded")
+    c.text((90, 778), accent_line, 64, "accent_text", 700, "Unbounded")
+    for j, line in enumerate(wrap(c, sub, 32, TW - 180)):
+        c.text((90, 900 + j * 44), line, 32, "muted", 500)
+    return c.png()
+
+
+def _tour_art(i: int, theme, accent) -> bytes:
+    return tour(i, theme, accent, dots=False, text=False)

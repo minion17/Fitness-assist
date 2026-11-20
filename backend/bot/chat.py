@@ -571,6 +571,7 @@ _tour_parts: dict[str, list[int]] = {}  # media_group_id -> channel message ids,
 async def save_tour_post(message: Message, bot: Bot) -> None:
     """The owner forwards the carousel post from the channel to the bot: it becomes the tour."""
     origin = message.forward_origin
+    log.info("owner forwarded channel post %s/%s (group %s)", origin.chat.id, origin.message_id, message.media_group_id)
     group = message.media_group_id or str(origin.message_id)
     first = group not in _tour_parts
     _tour_parts.setdefault(group, []).append(origin.message_id)
@@ -657,3 +658,13 @@ async def me_for_test(tg_id: int) -> None:
 
     async with SessionLocal() as session:
         await me(session, SimpleNamespace(id=tg_id, first_name="Тест", username=None, language_code="ru"))
+
+
+@router.message()
+async def anything_else(message: Message) -> None:
+    """Stickers, files, a forwarded post, a kind of message the bot doesn't know yet: never silence."""
+    if message.forward_origin and message.forward_origin.type == "channel":
+        await message.answer("Пост из канала сохраняет как карусель только владелец бота. Если это вы — отправьте /stats: "
+                             "я пришлю ваш Telegram ID и подскажу, что вписать в .env (ADMIN_IDS), затем перезапустите бота.")
+    else:
+        await message.answer(HELP, parse_mode="HTML", reply_markup=KEYBOARD)

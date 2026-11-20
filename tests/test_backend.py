@@ -2069,7 +2069,7 @@ class FakeMsg:
         self.log.append((text, reply_markup))
         return FakeMsg(self.from_user.id, text, self.log)
 
-    async def edit_text(self, text, reply_markup=None, parse_mode=None):
+    async def edit_text(self, text, reply_markup=None, parse_mode=None):  # noqa
         self.log.append((text, reply_markup))
 
     async def delete(self):
@@ -2112,15 +2112,17 @@ def test_bot_chat_food_water_weight_today(client, seeded):
 
     client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 200 г", log))
     text, markup = log[-1]
-    assert "Записал в" in text and "Тестовый творог 5%" in text and "242 ккал" in text and "осталось" in text
+    assert "записал ✓" in text and "Тестовый творог 5%" in text and "242 ккал" in text and "осталось" in text and "▰" in text
     datas = [b.callback_data for b in buttons_of(markup)]
-    assert len([d for d in datas if d.startswith("fm:")]) == 3 and any(d.startswith("fu:") for d in datas)
+    assert len([d for d in datas if d.startswith("fm:") and d != "fm:same"]) == 3 and "fm:same" in datas
+    assert any(d.startswith("fu:") for d in datas)
+    assert [b.style for b in buttons_of(markup) if b.callback_data == "fm:same"] == ["success"]  # the current meal
     items = client.get("/api/food-logs", headers=h).json()["items"]
     assert [(i["amount_g"], i["product"]["name"]) for i in items] == [(200, "Тестовый творог 5%")]
 
     to_snack = next(d for d in datas if d.startswith("fm:s:"))
     client.portal.call(chat.move_food, FakeCall(tg_id, to_snack, log))
-    assert "перекус" in log[-1][0]
+    assert "Перекус" in log[-1][0]
     assert client.get("/api/food-logs", headers=h).json()["items"][0]["meal_type"] == "snack"
     client.portal.call(chat.undo_food, FakeCall(tg_id, next(d for d in datas if d.startswith("fu:")), log))
     assert client.get("/api/food-logs", headers=h).json()["items"] == []

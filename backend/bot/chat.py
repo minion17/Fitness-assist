@@ -225,26 +225,40 @@ async def day_kcal(session, user: User) -> float:
     return sum(a * k / 100 for a, k in rows.all())
 
 
-def logged_text(meal: str, items: list[DraftItem], eaten: float, goal: dict | None, note: str = "") -> str:
-    tot = {k: sum(getattr(i, f"{k}_100g") * i.grams / 100 for i in items) for k in ("kcal", "protein", "fat", "carbs")}
-    lines = [f"✅ Записал в {MEALS[meal]}:"]
-    lines += [f"• {html.escape(i.name)} — {dec(i.grams)} г, {n(i.kcal_100g * i.grams / 100)} ккал" for i in items]
-    lines.append(f"\nИтого {n(tot['kcal'])} ккал · Б {n(tot['protein'])} · Ж {n(tot['fat'])} · У {n(tot['carbs'])}")
+MEAL_ICON = {"breakfast": "🍳", "lunch": "🥗", "dinner": "🍝", "snack": "🍎"}
+Row = tuple[str, float, float, float, float, float]  # name, grams, kcal / protein / fat / carbs per 100 g
+
+
+def day_bar(eaten: float, goal: float) -> str:
+    """▰▰▰▰▰▰▱▱▱▱ — the day's calories at a glance (Telegram text can't draw anything nicer)."""
+    filled = max(0, min(10, round(10 * eaten / goal))) if goal else 0
+    return "▰" * filled + "▱" * (10 - filled)
+
+
+def logged_text(meal: str, rows: list[Row], eaten: float, goal: dict | None, note: str = "") -> str:
+    tot = [sum(r[i] * r[1] / 100 for r in rows) for i in (2, 3, 4, 5)]
+    lines = [f"{MEAL_ICON[meal]} <b>{MEALS[meal].capitalize()}</b> · записал ✓\n"]
+    lines += [f"{html.escape(name)} · {dec(g)} г — <b>{n(k * g / 100)} ккал</b>" for name, g, k, *_ in rows]
+    lines.append(("\nВсего <b>" + n(tot[0]) + " ккал</b> · " if len(rows) > 1 else "\n") +
+                 f"Б {n(tot[1])} · Ж {n(tot[2])} · У {n(tot[3])} г")
     if goal:
-        left = goal["calories"] - eaten
-        lines.append(f"Сегодня {n(eaten)} из {n(goal['calories'])} ккал" + (f", осталось {n(left)}" if left > 0 else ""))
+        norm, left = goal["calories"], goal["calories"] - eaten
+        lines.append(f"\n{day_bar(eaten, norm)}  {n(eaten)} из {n(norm)} ккал")
+        lines.append(f"<i>осталось {n(left)} ккал</i>" if left > 0 else f"<i>норма набрана{f', +{n(-left)} сверх' if left < -50 else ''}</i>")
     if note:
         lines.append(f"\nⓘ {html.escape(note)}")
     return "\n".join(lines)
 
 
 def logged_keyboard(meal: str, ids: list[int]) -> InlineKeyboardMarkup | None:
+    """The four meals as a 2×2 switch (the current one green with a check) and "Отменить" under them."""
     packed = pack(ids)
     if len(f"fm:x:{packed}") > 64:
         return kb([app_button("Открыть дневник", "open=food")])
-    move = [InlineKeyboardButton(text=f"→ {MEALS[m].capitalize()}", callback_data=f"fm:{SHORT[m]}:{packed}")
-            for m in MEALS if m != meal]
-    return kb(move[:2], move[2:] + [InlineKeyboardButton(text="↩ Отменить", callback_data=f"fu:{packed}")])
+    chips = [InlineKeyboardButton(text=f"✓ {MEALS[m].capitalize()}", callback_data="fm:same", style="success") if m == meal else
+             InlineKeyboardButton(text=f"{MEAL_ICON[m]} {MEALS[m].capitalize()}", callback_data=f"fm:{SHORT[m]}:{packed}")
+             for m in MEALS]
+    return kb(chips[:2], chips[2:], [InlineKeyboardButton(text="↩ Отменить запись", callback_data=f"fu:{packed}")])
 
 
 async def log_food(message: Message, text: str = "", image: dict | None = None) -> None:
@@ -278,8 +292,14 @@ async def log_food(message: Message, text: str = "", image: dict | None = None) 
         logs = await save_draft(session, user, meal, items)
         await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{meal}")
         eaten = await day_kcal(session, user)
-        await message.answer(logged_text(meal, items, eaten, targets(profile), note), parse_mode="HTML",
+        rows = [(i.name, i.grams, i.kcal_100g, i.protein_100g, i.fat_100g, i.carbs_100g) for i in items]
+        await message.answer(logged_text(meal, rows, eaten, targets(profile), note), parse_mode="HTML",
                              reply_markup=logged_keyboard(meal, [l.id for l in logs]))
+
+
+@router.callback_query(F.data == "fm:same")
+async def same_meal(call: CallbackQuery) -> None:
+    await call.answer("Запись уже здесь")
 
 
 @router.callback_query(F.data.startswith("fm:"))
@@ -287,8 +307,9 @@ async def move_food(call: CallbackQuery) -> None:
     _, code, packed = call.data.split(":", 2)
     meal = CODE.get(code)
     async with SessionLocal() as session:
-        user, _ = await me(session, call.from_user)
-        logs = list(await session.scalars(select(FoodLog).where(FoodLog.id.in_(unpack(packed)), FoodLog.user_id == user.id)))
+        user, profile = await me(session, call.from_user)
+        logs = list(await session.scalars(select(FoodLog).options(selectinload(FoodLog.product))
+                                          .where(FoodLog.id.in_(unpack(packed)), FoodLog.user_id == user.id).order_by(FoodLog.id)))
         if not meal or not logs:
             await call.answer("Этих записей уже нет")
             return
@@ -296,9 +317,9 @@ async def move_food(call: CallbackQuery) -> None:
             log.meal_type, log.snack_slot = meal, clock.local(log.logged_at).strftime("%H:%M") if meal == "snack" else None
         await session.commit()
         await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{meal}")
-    text = (call.message.text or "").split("\n", 1)
-    await call.message.edit_text(f"✅ Записал в {MEALS[meal]}:\n{text[1] if len(text) > 1 else ''}",
-                                 reply_markup=logged_keyboard(meal, [l.id for l in logs]))
+        rows = [(l.product.name, l.amount_g, l.product.kcal, l.product.protein_g, l.product.fat_g, l.product.carbs_g) for l in logs]
+        text = logged_text(meal, rows, await day_kcal(session, user), profile and targets(profile))
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=logged_keyboard(meal, [l.id for l in logs]))
     await call.answer(f"Перенёс в {MEALS[meal]}")
 
 

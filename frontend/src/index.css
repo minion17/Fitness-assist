@@ -1804,3 +1804,9 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .achievement-art-fallback { display: grid; place-items: center; background: none; line-height: 1; }
 .achievement-art-large { width: min(200px, 45vw); }
 .medal .achievement-art { width: 28px; }
+
+.achievement-art-additional {
+  background-image: url('/images/achievements/additional-badges.png');
+  background-size: 355.55555556% 213.33333333%;
+  clip-path: polygon(50% 1%, 99% 27%, 99% 73%, 50% 99%, 1% 73%, 1% 27%);
+}

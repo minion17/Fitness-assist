@@ -88,6 +88,19 @@ def open_app_keyboard(url: str, text: str = "Открыть приложение
 
 @router.message(CommandStart())
 async def start(message: Message, command: CommandObject | None = None) -> None:
+    await welcome(message, command)
+
+
+@router.message(Command("welcome"))
+async def welcome_preview(message: Message) -> None:
+    """For the owner: the greeting a new user gets, without deleting their own data."""
+    if not message.from_user or message.from_user.id not in alerts.admin_ids():
+        await message.answer("Эта команда только для владельца бота.")
+        return
+    await welcome(message, None, as_new=True)
+
+
+async def welcome(message: Message, command: CommandObject | None, as_new: bool = False) -> None:
     url = current_webapp_url()
     friend = None
     if message.from_user and command and command.args and command.args.startswith("f"):  # invite link t.me/<bot>?start=f<code>
@@ -95,7 +108,7 @@ async def start(message: Message, command: CommandObject | None = None) -> None:
             friend = await befriend(s, command.args[1:64], message.from_user.id, message.from_user.first_name)
     async with SessionLocal() as s:  # the account exists from the first /start: the onboarding messages need it
         user, prof = await chat.me(s, message.from_user)
-    back = prof is not None
+    back = prof is not None and not as_new
     variant = pick_back(message.from_user.id) if back else 0
     caption = greeting(message.from_user and message.from_user.first_name, back, variant)
     keyboard = open_app_keyboard(url, "Открыть" if back else "Поехали →")

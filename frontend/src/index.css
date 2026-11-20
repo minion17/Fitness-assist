@@ -1690,8 +1690,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .product-report { align-self: center; color: var(--muted); font-weight: 500; }
 .profile-group { margin: 14px 4px 0; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 /* habits on Home: one swipeable row instead of a wrapping block */
-.habits .habit-today { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 2px; }
-.habits .habit-today::-webkit-scrollbar { display: none; }
+/* wrapped, not a sideways scroll: on a computer a hidden horizontal scroll can't be reached with the mouse */
 .habits .habit-today .habit-chip { flex: none; }
 .session-title { font-size: 20px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .taste-tile span { -webkit-line-clamp: 3; }

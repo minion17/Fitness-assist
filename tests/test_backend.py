@@ -2120,10 +2120,11 @@ def test_bot_chat_food_water_weight_today(client, seeded):
     items = client.get("/api/food-logs", headers=h).json()["items"]
     assert [(i["amount_g"], i["product"]["name"]) for i in items] == [(200, "Тестовый творог 5%")]
 
-    to_snack = next(d for d in datas if d.startswith("fm:s:"))
-    client.portal.call(chat.move_food, FakeCall(tg_id, to_snack, log))
-    assert "Перекус" in log[-1][0]
-    assert client.get("/api/food-logs", headers=h).json()["items"][0]["meal_type"] == "snack"
+    move = next(d for d in datas if d.startswith("fm:") and d != "fm:same")  # whichever meal isn't the current one
+    client.portal.call(chat.move_food, FakeCall(tg_id, move, log))
+    meal = chat.CODE[move.split(":")[1]]
+    assert chat.MEALS[meal].capitalize() in log[-1][0]
+    assert client.get("/api/food-logs", headers=h).json()["items"][0]["meal_type"] == meal
     client.portal.call(chat.undo_food, FakeCall(tg_id, next(d for d in datas if d.startswith("fu:")), log))
     assert client.get("/api/food-logs", headers=h).json()["items"] == []
 

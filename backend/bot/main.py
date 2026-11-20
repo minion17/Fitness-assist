@@ -93,10 +93,8 @@ async def start(message: Message, command: CommandObject | None = None) -> None:
 
 @router.message(Command("welcome"))
 async def welcome_preview(message: Message) -> None:
-    """For the owner: the greeting a new user gets, without deleting their own data."""
-    if not message.from_user or message.from_user.id not in alerts.admin_ids():
-        await message.answer("Эта команда только для владельца бота.")
-        return
+    """The greeting a new user gets, for anyone who already has an account (the team, curious users):
+    it only shows messages, changes and reveals nothing."""
     await welcome(message, None, as_new=True)
 
 

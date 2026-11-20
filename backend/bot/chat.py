@@ -55,7 +55,7 @@ EXAMPLE = "«овсянка 60 г, банан» или «гречка 150 г и 
 HELP = (
     "Что можно делать прямо здесь:\n\n"
     f"🍽 <b>Записать еду</b> — напишите, что съели: {EXAMPLE}. Или пришлите фото тарелки.\n"
-    "💧 <b>Вода</b> — кнопка «+250 мл» или сообщение «+300».\n"
+    "💧 <b>Вода</b> — кнопка «+250 мл» или любое количество: «500 мл», «вода 0,5 л», «2 стакана воды».\n"
     "⚖️ <b>Вес</b> — «вес 76,4».\n"
     "📊 /today — сколько съедено и сколько осталось.\n"
     "💪 /workout — тренировка на сегодня.\n\n"
@@ -424,18 +424,66 @@ async def voice(message: Message) -> None:
 
 # ---- Water and weight ----
 
-WATER = re.compile(r"^(?:вода\s*)?\+\s*(\d{2,4})\s*(?:мл|ml)?$|^вода\s+(\d{2,4})\s*(?:мл|ml)?$", re.I)
+VOLUME = re.compile(r"([+−-]?)\s*(\d+(?:[.,]\d+)?)\s*(мл|ml|миллилитр\w*|л|l|литр\w*)?(?![а-яa-z])", re.I)
+VESSEL = re.compile(r"(?:(\d+|пол)\s*)?(стакан|бутылк|кружк)\w*", re.I)
+VESSEL_ML = {"стакан": 250, "бутылк": 500, "кружк": 300}
+
+
+def water_amount(text: str) -> int | None:
+    """Millilitres of water in a message, or None if it's about something else (then it's food).
+    "+300", "500 мл", "вода 0,5 л", "выпил 2 стакана воды", "бутылка воды", "-250"."""
+    t = norm(text).strip().rstrip(".!")
+    t = re.sub(r"^(?:я\s+)?(?:вы|по)пил[аи]?\s+", "", t)
+    water_word = r"\bвод(?:а|ы|у|е|ой|ичк[аиу]|ички)\b"  # not "водка"
+    about_water = re.search(water_word, t) is not None
+    rest = re.sub(water_word, "", t).strip()
+    if about_water and not rest:
+        return GLASS_ML  # just "вода": a glass
+    if m := VESSEL.fullmatch(rest):
+        if not about_water:
+            return None  # "стакан кефира" is food
+        count = 0.5 if m[1] == "пол" else float(m[1] or 1)
+        return round(count * VESSEL_ML[m[2].lower()])
+    m = VOLUME.fullmatch(rest)
+    if not m or not (about_water or m[1] or m[3]):
+        return None  # a bare "300" isn't water; "300 мл", "+300" or "вода 300" are
+    amount = float(m[2].replace(",", "."))
+    unit = (m[3] or "").lower()
+    if unit.startswith(("л", "l")) or (not unit and amount <= 5):  # "вода 1,5" means litres
+        amount *= 1000
+    ml = round(amount) * (-1 if m[1] in "−-" and m[1] else 1)
+    return ml if 10 <= abs(ml) <= 5000 else None
 WEIGHT = re.compile(r"^(?:вес|weight)\s*:?\s*(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:кг|kg)?$|^(\d{2,3}(?:[.,]\d{1,2})?)\s*(?:кг|kg)$", re.I)
+
+
+def water_keyboard(ml: int) -> InlineKeyboardMarkup | None:
+    """Other usual amounts in one tap, and undo of the last one."""
+    more = [InlineKeyboardButton(text=f"+{v} мл", callback_data=f"w:{v}") for v in (150, 330, 500) if v != ml]
+    undo = [InlineKeyboardButton(text=f"↩ Убрать {ml} мл", callback_data=f"w:-{ml}")] if ml > 0 else []
+    return kb(more, undo)
+
+
+async def add_ml(session, tg_user, ml: int) -> dict:
+    """The API takes up to 1 l per call: "1,5 л" goes in parts."""
+    res, left = None, ml
+    while left:
+        part = max(-1000, min(1000, left))
+        res = await add_water(WaterIn(delta_ml=part), tg=tgd(tg_user), session=session)
+        left -= part
+    return res
+
+
+def water_line(ml: int, res: dict) -> str:
+    sign = f"+{ml}" if ml > 0 else f"−{-ml}"
+    done = " Норма на сегодня выполнена 🎉" if ml > 0 and res["ml"] >= res["goal_ml"] and res["ml"] - ml < res["goal_ml"] else ""
+    return f"💧 {sign} мл · {liters(res['ml'])} из {liters(res['goal_ml'])} л.{done}"
 
 
 async def water(message: Message, ml: int) -> None:
     async with SessionLocal() as session:
-        user, profile = await me(session, message.from_user)
-        res = await add_water(WaterIn(delta_ml=max(-1000, min(1000, ml))),
-                              tg=tgd(message.from_user), session=session)
-    done = " Норма на сегодня выполнена 🎉" if res["ml"] >= res["goal_ml"] and res["ml"] - ml < res["goal_ml"] else ""
-    await message.answer(f"💧 +{ml} мл · {liters(res['ml'])} из {liters(res['goal_ml'])} л.{done}",
-                         reply_markup=kb([InlineKeyboardButton(text=f"↩ −{ml} мл", callback_data=f"w:-{ml}")]))
+        await me(session, message.from_user)
+        res = await add_ml(session, message.from_user, ml)
+    await message.answer(water_line(ml, res), reply_markup=water_keyboard(ml))
 
 
 @router.callback_query(F.data.startswith("w:"))
@@ -443,13 +491,11 @@ async def water_button(call: CallbackQuery) -> None:
     delta = int(call.data[2:])
     async with SessionLocal() as session:
         await me(session, call.from_user)
-        res = await add_water(WaterIn(delta_ml=max(-1000, min(1000, delta))),
-                              tg=tgd(call.from_user), session=session)
-    text = f"💧 {liters(res['ml'])} из {liters(res['goal_ml'])} л."
+        res = await add_ml(session, call.from_user, delta)
     if delta < 0:
-        await call.message.edit_text(f"↩ Убрал {-delta} мл. {text}")
+        await call.message.edit_text(f"↩ Убрал {-delta} мл. 💧 {liters(res['ml'])} из {liters(res['goal_ml'])} л.")
     else:
-        await call.message.answer(f"💧 +{delta} мл · {text[2:]}", reply_markup=kb([InlineKeyboardButton(text=f"↩ −{delta} мл", callback_data=f"w:-{delta}")]))
+        await call.message.answer(water_line(delta, res), reply_markup=water_keyboard(delta))
     await call.answer()
 
 
@@ -485,7 +531,8 @@ async def weight(message: Message, kg: float) -> None:
 @router.message(Command("water"))
 async def water_cmd(message: Message, command: CommandObject) -> None:
     arg = (command.args or "").strip()
-    await water(message, int(arg) if arg.isdigit() and 50 <= int(arg) <= 1000 else GLASS_ML)
+    ml = water_amount(f"вода {arg}") if arg else GLASS_ML
+    await water(message, ml) if ml else await message.answer("Напишите количество, например /water 500 или «вода 0,5 л».")
 
 
 @router.message(Command("weight"))
@@ -708,8 +755,8 @@ async def any_text(message: Message) -> None:
     if text.startswith("/"):
         await message.answer(HELP, parse_mode="HTML", reply_markup=KEYBOARD)
         return
-    if m := WATER.match(text):
-        await water(message, min(1000, int(m[1] or m[2])))
+    if (ml := water_amount(text)) is not None:
+        await water(message, ml)
     elif m := WEIGHT.match(text):
         await weight(message, float((m[1] or m[2]).replace(",", ".")))
     elif len(text) > 300:

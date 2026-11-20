@@ -2309,3 +2309,24 @@ def test_bot_products_in_a_row_join_one_card(client, seeded):
     assert client.get("/api/food-logs", headers=h).json()["items"] == [] and tg_id not in chat._cards
     client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 100 г", log))
     assert "Всего" not in log[-1][0]  # after undo: a fresh card
+
+
+def test_bot_understands_any_amount_of_water(client):
+    import random
+
+    from backend.bot import chat
+
+    cases = {"+300": 300, "500 мл": 500, "вода 0,5 л": 500, "Выпил 2 стакана воды": 500, "бутылка воды": 500,
+             "1,5 л воды": 1500, "-250": -250, "вода": 250, "водички 300 мл": 300}
+    assert {t: chat.water_amount(t) for t in cases} == cases
+    for food in ("300", "кефир 250 мл", "стакан кефира", "водка 50 мл", "гречка 150 г"):
+        assert chat.water_amount(food) is None, food
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    log: list = []
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "1,5 л воды", log))  # more than the API's 1 l per call
+    assert log[-1][0].startswith("💧 +1500 мл · 1,5 из")
+    assert client.get("/api/water", headers=h).json()["ml"] == 1500
+    datas = [b.callback_data for row in log[-1][1].inline_keyboard for b in row]
+    assert "w:500" in datas and "w:-1500" in datas

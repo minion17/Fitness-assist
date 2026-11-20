@@ -2231,3 +2231,13 @@ def test_tour_cards_are_vertical_pngs():
     for i in range(len(cards.TOUR)):
         img = Image.open(io.BytesIO(cards.tour(i)))
         assert img.size == (1080, 1350)
+
+
+def test_tour_flips_with_arrows():
+    from backend.bot.chat import tour_keyboard
+
+    def arrows(i):
+        return [b.callback_data for b in tour_keyboard(i).inline_keyboard[0]]
+
+    assert arrows(0) == ["tour:3", "tour:1"] and arrows(3) == ["tour:2", "tour:0"]  # wraps around
+    assert tour_keyboard(0).inline_keyboard[1][0].web_app  # the questionnaire button on every slide

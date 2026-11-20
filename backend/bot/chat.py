@@ -511,18 +511,41 @@ async def workout_cmd(message: Message) -> None:
 
 # ---- Tour ----
 
+TOUR_CAPTIONS = ("Листайте стрелками →", "", "", "Ответьте на пару вопросов — и я соберу ваш план: норму КБЖУ, воду и "
+                 "программу тренировок. Это 2 минуты.")
+
+
+def tour_keyboard(i: int) -> InlineKeyboardMarkup:
+    last = len(cards.TOUR) - 1
+    arrows = [InlineKeyboardButton(text="←", callback_data=f"tour:{(i - 1) % (last + 1)}"),
+              InlineKeyboardButton(text="→", callback_data=f"tour:{(i + 1) % (last + 1)}")]
+    return kb(arrows, [app_button("Заполнить анкету →")])
+
+
+async def tour_card(tg_id: int, i: int) -> BufferedInputFile:
+    async with SessionLocal() as session:
+        user = await session.scalar(select(User).where(User.telegram_id == tg_id))
+    theme = user.theme if user and user.theme in cards.THEMES else None
+    png = await asyncio.to_thread(cards.tour, i, theme, user and user.accent)
+    return BufferedInputFile(png, f"setly-{i + 1}.png")
+
+
 @router.callback_query(F.data == "tour")
 async def tour(call: CallbackQuery) -> None:
+    """One message flipped with ← →: bots can't send Telegram's own swipe carousel (no Bot API option for it yet)."""
     await call.answer()
-    async with SessionLocal() as session:
-        user = await session.scalar(select(User).where(User.telegram_id == call.from_user.id))
-    look = (user and user.theme if user and user.theme in cards.THEMES else None, user and user.accent)
-    pngs = [await asyncio.to_thread(cards.tour, i, *look) for i in range(len(cards.TOUR))]
-    await call.message.answer_media_group([InputMediaPhoto(media=BufferedInputFile(p, f"setly-{i + 1}.png"))
-                                           for i, p in enumerate(pngs)])
-    await call.message.answer("Это всё — в одном боте и приложении. Ответьте на пару вопросов, и я соберу ваш план: "
-                              "норму КБЖУ, воду и программу тренировок. Это 2 минуты.",
-                              reply_markup=kb([app_button("Заполнить анкету →")]))
+    await call.message.answer_photo(await tour_card(call.from_user.id, 0), caption=TOUR_CAPTIONS[0], reply_markup=tour_keyboard(0))
+
+
+@router.callback_query(F.data.startswith("tour:"))
+async def tour_flip(call: CallbackQuery) -> None:
+    i = int(call.data[5:]) % len(cards.TOUR) if call.data[5:].isdigit() else 0
+    await call.answer()
+    try:
+        await call.message.edit_media(InputMediaPhoto(media=await tour_card(call.from_user.id, i), caption=TOUR_CAPTIONS[i] or None),
+                                      reply_markup=tour_keyboard(i))
+    except Exception:
+        pass  # a double tap: "message is not modified"
 
 
 # ---- Commands and buttons; any other text is food ----

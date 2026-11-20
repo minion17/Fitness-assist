@@ -380,7 +380,7 @@ def story_duel(name: str, rival: str, me: int, them: int, metric: str, days: int
     return c.png()
 
 
-# ---- Tour: the album a new user gets on "Сначала покажи, что умеешь" (4 cards, 4:5, swiped in full screen) ----
+# ---- Tour: the slides a new user flips with ← → on "Сначала покажи, что умеешь" (one message, 4:5) ----
 
 TOUR = (
     ("Еда —", "за 5 секунд", "Напиши «гречка 150 г» или пришли фото тарелки — посчитаю и запишу"),
@@ -413,7 +413,7 @@ def check(c: Card, cx: int, cy: int, r: int, color: str = "accent") -> None:
 def tour(i: int, theme: str | None = None, accent: str | None = None) -> bytes:
     title, accent_line, sub = TOUR[i]
     c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "streak")[i]), size=(TW, TH))
-    c.brand(f"{i + 1} / {len(TOUR)}")
+    c.brand()
     cx, cy = 540, 480
     if i == 0:  # a message and the bot's answer
         msg = "гречка 150 г, курица 120 г"
@@ -474,4 +474,8 @@ def tour(i: int, theme: str | None = None, accent: str | None = None) -> bytes:
     c.text((90, 1028), accent_line, 72, "accent_text", 700, "Unbounded")
     for j, line in enumerate(wrap(c, sub, 34, TW - 180)):
         c.text((90, 1166 + j * 48), line, 34, "muted", 500)
+    for k in range(len(TOUR)):  # page dots, as in a carousel: the current one is a wide pill
+        w = 44 if k == i else 14
+        x = TW / 2 - (len(TOUR) * 14 + 30 + (len(TOUR) - 1) * 12) / 2 + sum((44 if j == i else 14) + 12 for j in range(k))
+        c.rect((x, 1296, x + w, 1310), 7, "accent" if k == i else "track")
     return c.png()

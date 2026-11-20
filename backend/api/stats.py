@@ -122,6 +122,7 @@ async def stats(
 
 # code -> (icon, title, what to do, metric, target)
 ACHIEVEMENTS = [
+    ("first_water", "💧", "Первая вода", "Запишите первый приём воды", "water_first", 1),
     ("first_meal", "🥄", "Первый шаг", "Запишите первый приём пищи", "meals", 1),
     ("first_workout", "💪", "Первая тренировка", "Завершите тренировку", "workouts", 1),
     ("streak_3", "🔥", "Разогрев", "3 дня подряд", "best_streak", 3),
@@ -157,6 +158,7 @@ async def metrics(session: AsyncSession, user: User) -> dict[str, int]:
         "best_streak": best,
         "water_days": sum(ml >= w_goal for ml in water),
         "water_glasses": sum(water) // 250,
+        "water_first": int(any(ml > 0 for ml in water)),
         "norm_days": sum(1 for v in days.values() if t and abs(v["kcal"] - t["calories"]) <= 0.1 * t["calories"]),
         "weighings": await session.scalar(
             select(func.count(BodyMeasurement.id)).where(BodyMeasurement.user_id == user.id, BodyMeasurement.weight_kg.is_not(None))

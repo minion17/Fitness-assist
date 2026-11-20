@@ -1,3 +1,4 @@
+import AchievementBadge from './AchievementBadge'
 // Full-screen level-up celebration (Duolingo-style), shown when the level grows during the session.
 import { useEffect } from 'react'
 import { haptic } from './haptics'
@@ -29,8 +30,8 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
 }
 
 /** Same celebration for a newly unlocked achievement. */
-export function AchievementUnlocked({ icon, title, more, onClose }: {
-  icon: string; title: string; more: number; onClose: () => void
+export function AchievementUnlocked({ code, icon, title, more, onClose }: {
+  code: string; icon: string; title: string; more: number; onClose: () => void
 }) {
   useEffect(() => { haptic('success') }, [])
   return (
@@ -39,7 +40,7 @@ export function AchievementUnlocked({ icon, title, more, onClose }: {
         {CONFETTI.map((i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${(i % 6) * 0.15}s` }} />)}
       </div>
       <div className="reward-body">
-        <div className="badge badge-emoji" aria-hidden="true"><span>{icon}</span></div>
+        <AchievementBadge code={code} fallback={icon} large />
         <p className="sub">Новое достижение!</p>
         <h1 className="reward-title">{title}</h1>
         <p className="sub">+25 XP</p>

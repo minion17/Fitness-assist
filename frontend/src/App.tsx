@@ -1,3 +1,4 @@
+import AchievementBadge from './AchievementBadge'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
@@ -179,7 +180,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         {awards.some((a) => a.unlocked_at) && (
           <button className="medals" onClick={onAwards} aria-label="Все награды">
             {awards.filter((a) => a.unlocked_at).sort((a, b) => b.unlocked_at!.localeCompare(a.unlocked_at!)).slice(0, 6).map((a) => (
-              <span key={a.code} className="medal" title={a.title}><span aria-hidden="true">{a.icon}</span></span>
+              <span key={a.code} className="medal" title={a.title}><AchievementBadge code={a.code} fallback={a.icon} /></span>
             ))}
             <span className="medals-more">{awards.filter((a) => a.unlocked_at).length} из {awards.length} <Chevron dir="right" /></span>
           </button>

@@ -1799,3 +1799,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 
 /* Onest: tabular digits run wide, tighten big numbers */
 .stat, .daily-progress-center strong, .overview-value, .hero-num, .amount-kcal strong, .workout-summary-grid b, .recap-tile b, .day-stat-value, .session-prescription dd, .session-clock strong, .chart-read b, .session-progress .sub, .set-go { letter-spacing: -.03em; }
+
+.achievement-art { display: inline-block; width: 76px; aspect-ratio: .803; background-image: url('/images/achievements/badges.png'); background-size: 500% 200%; background-repeat: no-repeat; }
+.achievement-art-large { width: min(200px, 45vw); }
+.medal .achievement-art { width: 28px; }

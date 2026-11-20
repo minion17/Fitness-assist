@@ -1,3 +1,4 @@
+import AchievementBadge from './AchievementBadge'
 // "Прогресс": period summary, charts (calories, weight, water, macros, exercise records) and achievements.
 import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
@@ -168,7 +169,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           <div className="badges">
             {achievements.map((a) => (
               <div key={a.code} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>
-                <span className="badge-icon" aria-hidden="true">{a.icon}</span>
+                <span className="badge-icon" aria-hidden="true"><AchievementBadge code={a.code} fallback={a.icon} /></span>
                 <b>{a.title}</b>
                 {a.unlocked_at
                   ? <span className="sub">{new Date(a.unlocked_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>

@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, postJson } from './telegram'
 import { Bar } from './ui'
-import { haptic } from './feedback'
+import { haptic } from './haptics'
 
 type Member = { name: string; me: boolean; joined: boolean; done: number; today: boolean }
 type Ch = { id: number; title: string; emoji: string; days: number; day: number; end_day: string; finished: boolean; mine: boolean; invited: boolean; members: Member[] }

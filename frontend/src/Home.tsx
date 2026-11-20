@@ -5,7 +5,7 @@ import { Sheet, Chevron } from './ui'
 import { useCountUp } from './motion'
 import { nextDay, type FoodDay, type Program, type WorkoutLog } from './types'
 import { Icon, type IconName } from './icons'
-import { haptic } from './feedback'
+import { haptic } from './haptics'
 import { hello, insight } from './greeting'
 
 export type Water = { ml: number; goal_ml: number }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { readBarcode } from './barcode'
 import { useBack } from './back'
-import { haptic } from './feedback'
+import { haptic } from './haptics'
 
 export default function Scanner({ onCode, onPhoto, onManual, onClose, note }: {
   note?: string // scanning in a row: what's been added so far

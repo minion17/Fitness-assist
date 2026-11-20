@@ -16,7 +16,7 @@ import { workoutMinutes } from './workoutTime'
 import { loadActive, saveActive } from './activeWorkout'
 import MuscleMap from './MuscleMap'
 import { MUSCLES, type Muscle } from './muscles'
-import { haptic, sound } from './feedback'
+import { haptic, sound } from './haptics'
 import { morph } from './motion'
 
 const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program

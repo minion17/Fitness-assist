@@ -1,6 +1,6 @@
 // Full-screen level-up celebration (Duolingo-style), shown when the level grows during the session.
 import { useEffect } from 'react'
-import { haptic } from './feedback'
+import { haptic } from './haptics'
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => i)
 

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { api, postJson } from './telegram'
 import { Chevron } from './ui'
 import { Icon } from './icons'
-import { haptic } from './feedback'
+import { haptic } from './haptics'
 
 export type Habit = { id: number; title: string; emoji: string; done: boolean; streak: number; remind_at?: string | null }
 

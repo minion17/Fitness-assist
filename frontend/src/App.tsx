@@ -30,7 +30,7 @@ import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Measur
 import { Bar, Chevron, Sheet } from './ui'
 import { ACTIVE_EVENT, loadActive } from './activeWorkout'
 import { markRecapSeen, recapDue } from './recap'
-import { haptic, hapticsOn, setHaptics, setSounds, sound, soundsOn } from './feedback'
+import { haptic, hapticsOn, setHaptics, setSounds, sound, soundsOn } from './haptics'
 const WeekRecap = lazy(() => import('./WeekRecap'))
 const Workouts = lazy(() => import('./Workouts'))
 

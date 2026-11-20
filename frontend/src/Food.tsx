@@ -21,7 +21,7 @@ import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
 import { RECIPES } from './mealCatalog'
-import { haptic } from './feedback'
+import { haptic } from './haptics'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
 // a rough split of the day for an empty meal's hint («≈ 550 ккал»)

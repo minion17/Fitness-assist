@@ -230,9 +230,12 @@ Row = tuple[str, float, float, float, float, float]  # name, grams, kcal / prote
 
 
 def day_bar(eaten: float, goal: float) -> str:
-    """▰▰▰▰▰▰▱▱▱▱ — the day's calories at a glance (Telegram text can't draw anything nicer)."""
-    filled = max(0, min(10, round(10 * eaten / goal))) if goal else 0
-    return "▰" * filled + "▱" * (10 - filled)
+    """🟩🟩🟩⬜⬜⬜⬜⬜ — the day's calories at a glance; emoji squares look the same in every Telegram app
+    (▰▱ turned into a thin dash on the desktop). Over the norm the last cell turns orange."""
+    cells = 8
+    filled = max(0, min(cells, round(cells * eaten / goal))) if goal else 0
+    bar = "🟩" * filled + "⬜" * (cells - filled)
+    return bar[:-1] + "🟧" if goal and eaten > goal * 1.1 else bar
 
 
 def logged_text(meal: str, rows: list[Row], eaten: float, goal: dict | None, note: str = "") -> str:
@@ -261,13 +264,37 @@ def logged_keyboard(meal: str, ids: list[int]) -> InlineKeyboardMarkup | None:
     return kb(chips[:2], chips[2:], [InlineKeyboardButton(text="↩ Отменить запись", callback_data=f"fu:{packed}")])
 
 
+# The meal card a chat is filling: products sent one after another join it (one card, one total) instead of a card
+# each. chat id -> (message id, meal, log ids, open until).
+# shortcut: in memory, a restart starts a new card; that's all it costs
+_cards: dict[int, tuple[int, str, list[int], float]] = {}
+CARD_WINDOW = 20 * 60
+
+
+def open_card(chat_id: int) -> tuple[int, str, list[int], float] | None:
+    card = _cards.get(chat_id)
+    return card if card and card[3] > time.time() else None
+
+
+async def card_text(session, user: User, profile: Profile | None, meal: str, ids: list[int], note: str = "") -> tuple[str, list[int]]:
+    """The card for these entries as they are in the diary now (moved or deleted elsewhere is taken into account)."""
+    logs = list(await session.scalars(select(FoodLog).options(selectinload(FoodLog.product))
+                                      .where(FoodLog.id.in_(ids or [0]), FoodLog.user_id == user.id).order_by(FoodLog.id)))
+    rows = [(l.product.name, l.amount_g, l.product.kcal, l.product.protein_g, l.product.fat_g, l.product.carbs_g) for l in logs]
+    return logged_text(meal, rows, await day_kcal(session, user), profile and targets(profile), note), [l.id for l in logs]
+
+
 async def log_food(message: Message, text: str = "", image: dict | None = None) -> None:
     async with SessionLocal() as session:
         user, profile = await me(session, message.from_user)
         if profile is None:
             await need_profile(message)
             return
-        meal = asked_meal(message.chat.id) or guess_meal(clock.now().hour)
+        card = open_card(message.chat.id)
+        asked = asked_meal(message.chat.id)
+        meal = asked or (card[1] if card else guess_meal(clock.now().hour))
+        if card and card[1] != meal:
+            card = None  # "Записать ужин" while a lunch card is open: a new card
         items, sure = (None, False) if image else await find_local(session, tgd(message.from_user), text)
         note = ""
         if not sure and (image or items is None or Settings().anthropic_api_key):
@@ -290,11 +317,24 @@ async def log_food(message: Message, text: str = "", image: dict | None = None) 
                                      f"Не понял, что записать. Напишите, например, {EXAMPLE}.", parse_mode="HTML")
                 return
         logs = await save_draft(session, user, meal, items)
+        ids = [l.id for l in logs]
+        if card:
+            if meal == "snack":  # one snack group in the diary, not one per message
+                first = await session.get(FoodLog, card[2][0]) if card[2] else None
+                if first and first.user_id == user.id:
+                    for l in logs:
+                        l.snack_slot = first.snack_slot
+                    await session.commit()
+            ids = card[2] + ids
         await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{meal}")
-        eaten = await day_kcal(session, user)
-        rows = [(i.name, i.grams, i.kcal_100g, i.protein_100g, i.fat_100g, i.carbs_100g) for i in items]
-        await message.answer(logged_text(meal, rows, eaten, targets(profile), note), parse_mode="HTML",
-                             reply_markup=logged_keyboard(meal, [l.id for l in logs]))
+        text, ids = await card_text(session, user, profile, meal, ids, note)
+    if card:
+        try:
+            await message.bot.delete_message(message.chat.id, card[0])  # the card moves down to the newest message
+        except Exception:
+            pass
+    sent = await message.answer(text, parse_mode="HTML", reply_markup=logged_keyboard(meal, ids))
+    _cards[message.chat.id] = (sent.message_id, meal, ids, time.time() + CARD_WINDOW)
 
 
 @router.callback_query(F.data == "fm:same")
@@ -308,18 +348,20 @@ async def move_food(call: CallbackQuery) -> None:
     meal = CODE.get(code)
     async with SessionLocal() as session:
         user, profile = await me(session, call.from_user)
-        logs = list(await session.scalars(select(FoodLog).options(selectinload(FoodLog.product))
-                                          .where(FoodLog.id.in_(unpack(packed)), FoodLog.user_id == user.id).order_by(FoodLog.id)))
+        logs = list(await session.scalars(select(FoodLog).where(FoodLog.id.in_(unpack(packed)), FoodLog.user_id == user.id)))
         if not meal or not logs:
             await call.answer("Этих записей уже нет")
             return
+        slot = clock.local(min(l.logged_at for l in logs)).strftime("%H:%M") if meal == "snack" else None
         for log in logs:
-            log.meal_type, log.snack_slot = meal, clock.local(log.logged_at).strftime("%H:%M") if meal == "snack" else None
+            log.meal_type, log.snack_slot = meal, slot
         await session.commit()
         await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{meal}")
-        rows = [(l.product.name, l.amount_g, l.product.kcal, l.product.protein_g, l.product.fat_g, l.product.carbs_g) for l in logs]
-        text = logged_text(meal, rows, await day_kcal(session, user), profile and targets(profile))
-    await call.message.edit_text(text, parse_mode="HTML", reply_markup=logged_keyboard(meal, [l.id for l in logs]))
+        text, ids = await card_text(session, user, profile, meal, [l.id for l in logs])
+    await call.message.edit_text(text, parse_mode="HTML", reply_markup=logged_keyboard(meal, ids))
+    card = open_card(call.message.chat.id)
+    if card and card[0] == call.message.message_id:  # the next product joins the meal it was moved to
+        _cards[call.message.chat.id] = (card[0], meal, ids, card[3])
     await call.answer(f"Перенёс в {MEALS[meal]}")
 
 
@@ -329,6 +371,9 @@ async def undo_food(call: CallbackQuery) -> None:
         user, _ = await me(session, call.from_user)
         await session.execute(delete(FoodLog).where(FoodLog.id.in_(unpack(call.data[3:])), FoodLog.user_id == user.id))
         await session.commit()
+    card = open_card(call.message.chat.id)
+    if card and card[0] == call.message.message_id:
+        _cards.pop(call.message.chat.id, None)
     await call.message.edit_text("↩ Отменено — из дневника убрал.")
     await call.answer()
 

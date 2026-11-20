@@ -2064,6 +2064,15 @@ class FakeMsg:
         self.from_user = SimpleNamespace(id=tg_id, first_name="Егор", username=None, language_code="ru")
         self.chat = SimpleNamespace(id=tg_id)
         self.text, self.log = text, log if log is not None else []
+        FakeMsg.seq += 1
+        self.message_id = FakeMsg.seq
+        self.bot = SimpleNamespace(delete_message=self._deleted)
+
+    seq = 0
+    deleted: list = []
+
+    async def _deleted(self, chat_id, message_id):
+        FakeMsg.deleted.append(message_id)
 
     async def answer(self, text, parse_mode=None, reply_markup=None):
         self.log.append((text, reply_markup))
@@ -2112,7 +2121,7 @@ def test_bot_chat_food_water_weight_today(client, seeded):
 
     client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 200 г", log))
     text, markup = log[-1]
-    assert "записал ✓" in text and "Тестовый творог 5%" in text and "242 ккал" in text and "осталось" in text and "▰" in text
+    assert "записал ✓" in text and "Тестовый творог 5%" in text and "242 ккал" in text and "осталось" in text and "🟩" in text
     datas = [b.callback_data for b in buttons_of(markup)]
     assert len([d for d in datas if d.startswith("fm:") and d != "fm:same"]) == 3 and "fm:same" in datas
     assert any(d.startswith("fu:") for d in datas)
@@ -2274,3 +2283,29 @@ def test_tour_copies_the_channel_post_and_falls_back_to_slides(client, tmp_path,
     (tmp_path / ".tour_post").write_text(json.dumps({"chat_id": -1, "ids": [5]}))
     client.portal.call(chat.tour, call, Bot())  # copying failed: still the slides
     assert log[-1][0] == "photo"
+
+
+def test_bot_products_in_a_row_join_one_card(client, seeded):
+    import random
+
+    from backend.bot import chat
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    log: list = []
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 200 г", log))
+    first = chat._cards[tg_id][0]
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 100 г", log))
+    text, markup = log[-1]
+    assert text.count("Тестовый творог 5%") == 2 and "Всего <b>363 ккал</b>" in text  # one card, one total
+    assert first in FakeMsg.deleted  # the old card is gone, the new one is at the bottom
+    items = client.get("/api/food-logs", headers=h).json()["items"]
+    assert len(items) == 2 and len({i["meal_type"] for i in items}) == 1 and len({i["snack_slot"] for i in items}) == 1
+    undo = next(b.callback_data for row in markup.inline_keyboard for b in row if b.callback_data.startswith("fu:"))
+    call = FakeCall(tg_id, undo, log)
+    call.message.message_id = chat._cards[tg_id][0]
+    client.portal.call(chat.undo_food, call)
+    assert client.get("/api/food-logs", headers=h).json()["items"] == [] and tg_id not in chat._cards
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 100 г", log))
+    assert "Всего" not in log[-1][0]  # after undo: a fresh card

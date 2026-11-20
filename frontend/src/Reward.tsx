@@ -30,20 +30,29 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
 }
 
 /** Same celebration for a newly unlocked achievement. */
-export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично' }: {
-  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string
+export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично', viewing = false, hint }: {
+  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string; viewing?: boolean; hint?: string
 }) {
-  useEffect(() => { haptic('success') }, [])
+  const [replay, setReplay] = useState(0)
+  useEffect(() => { if (!viewing) haptic('success') }, [viewing])
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('keydown', escape); previous?.focus() }
+  }, [onClose])
   return (
     <div className="reward" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`}>
-      <div className="confetti" aria-hidden="true">
+      <div className="confetti" key={replay} aria-hidden="true">
         {CONFETTI.map((i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${(i % 6) * 0.15}s` }} />)}
       </div>
       <div className="reward-body">
-        <div className="achievement-reveal" key={code}><AchievementBadge code={code} fallback={icon} large /></div>
-        <p className="sub">Новое достижение!</p>
+        <button className="achievement-replay" aria-label="Повторить анимацию награды" onClick={() => setReplay((n) => n + 1)}>
+          <span className="achievement-reveal" key={`${code}-${replay}`}><AchievementBadge code={code} fallback={icon} large /></span>
+        </button>
+        <p className="sub">{viewing ? 'Достижение' : 'Новое достижение!'}</p>
         <h1 className="reward-title">{title}</h1>
-        <p className="sub">+25 XP</p>
+        {viewing ? <><p className="sub">{hint}</p><p className="sub">Нажми на значок, чтобы повторить анимацию</p></> : <p className="sub">+25 XP</p>}
         {more > 0 && <p className="sub">И ещё {more} — посмотрите в «Прогрессе»</p>}
       </div>
       <button className="btn" onClick={onClose} autoFocus>{actionLabel}</button>

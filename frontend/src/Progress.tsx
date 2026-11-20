@@ -1,4 +1,5 @@
 import AchievementBadge from './AchievementBadge'
+import { AchievementUnlocked } from './Reward'
 // "Прогресс": period summary, charts (calories, weight, water, macros, exercise records) and achievements.
 import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
@@ -26,6 +27,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
   // one part at a time: the screen had grown to ten blocks in a row
   const [part, setPart] = useState<Part>(() => { try { return (sessionStorage.getItem('setly-progress-part') as Part) || 'food' } catch { return 'food' } })
   const choosePart = (p: Part) => { setPart(p); try { sessionStorage.setItem('setly-progress-part', p) } catch { /* private mode */ } }
+  const [selectedAward, setSelectedAward] = useState<Achievement | null>(null)
   const [days, setDays] = useState<number>(30)
   const [s, setS] = useState<Stats | null>(() => cachedStats(30))
   const [error, setError] = useState('')
@@ -168,7 +170,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           <p className="sub">❄ Заморозок серии: {freezes} из 2 — даются за каждые 7 дней подряд и спасают серию, если день пропущен.</p>
           <div className="badges">
             {achievements.map((a) => (
-              <div key={a.code} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>
+              <button type="button" key={a.code} onClick={() => setSelectedAward(a)} aria-label={`Открыть достижение: ${a.title}`} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>
                 <span className="badge-icon" aria-hidden="true"><AchievementBadge code={a.code} fallback={a.icon} /></span>
                 <b>{a.title}</b>
                 {a.unlocked_at
@@ -177,12 +179,13 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
                     <span className="sub">{a.hint}</span>
                     {a.target > 1 && <Bar value={a.progress} goal={a.target} />}
                   </>}
-              </div>
+              </button>
             ))}
           </div>
         </section>
       )}
       </>}
+      {selectedAward && <AchievementUnlocked {...selectedAward} more={0} viewing hint={selectedAward.unlocked_at ? selectedAward.hint : `Пока не получено. ${selectedAward.hint}`} actionLabel="Закрыть" onClose={() => setSelectedAward(null)} />}
     </>
   )
 }

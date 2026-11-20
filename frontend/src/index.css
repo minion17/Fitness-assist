@@ -1840,3 +1840,8 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 
 .achievement-preview-exit { position: fixed; z-index: 41; right: 20px; top: calc(20px + env(safe-area-inset-top)); color: var(--accent-text); font-size: 14px; text-decoration: none; padding: 10px; }
 .achievement-preview-label { position: fixed; z-index: 41; top: calc(70px + env(safe-area-inset-top)); left: 16px; right: 16px; text-align: center; font-size: 12px; color: var(--muted); pointer-events: none; }
+
+button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; cursor: pointer; }
+.achievement-replay { display: grid; place-items: center; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; cursor: pointer; }
+.achievement-replay .achievement-reveal { width: min(200px, 45vw); }
+.achievement-replay:focus-visible { outline: 2px solid var(--accent); outline-offset: 8px; border-radius: 24px; }

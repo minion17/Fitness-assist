@@ -22,7 +22,7 @@ import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
 import { prefetchStats } from './stats'
 import Progress, { type Achievement } from './Progress'
-import Reward, { AchievementUnlocked } from './Reward'
+import Reward, { AchievementUnlocked, AchievementPreview } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
@@ -217,6 +217,10 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
 }
 
 export default function App() {
+  return new URLSearchParams(window.location.search).get('preview') === 'achievement' ? <AchievementPreview /> : <SetlyApp />
+}
+
+function SetlyApp() {
   // the last server answer kept on this phone: the screen starts from it instead of zeros (see snapshot.ts)
   const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
   const kcalRef = useRef<number | null>(null) // last known kcal, to notice the moment the norm is reached

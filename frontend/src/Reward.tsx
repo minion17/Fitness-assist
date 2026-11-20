@@ -1,6 +1,6 @@
 import AchievementBadge from './AchievementBadge'
 // Full-screen level-up celebration (Duolingo-style), shown when the level grows during the session.
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { haptic } from './haptics'
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => i)
@@ -30,8 +30,8 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
 }
 
 /** Same celebration for a newly unlocked achievement. */
-export function AchievementUnlocked({ code, icon, title, more, onClose }: {
-  code: string; icon: string; title: string; more: number; onClose: () => void
+export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично' }: {
+  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string
 }) {
   useEffect(() => { haptic('success') }, [])
   return (
@@ -46,7 +46,18 @@ export function AchievementUnlocked({ code, icon, title, more, onClose }: {
         <p className="sub">+25 XP</p>
         {more > 0 && <p className="sub">И ещё {more} — посмотрите в «Прогрессе»</p>}
       </div>
-      <button className="btn" onClick={onClose} autoFocus>Отлично</button>
+      <button className="btn" onClick={onClose} autoFocus>{actionLabel}</button>
     </div>
   )
+}
+
+/** Isolated visual preview: never awards XP or changes achievement state. */
+export function AchievementPreview() {
+  const [replay, setReplay] = useState(0)
+  return <>
+    <AchievementUnlocked key={replay} code="norm_7" icon="🎯" title="Точно в цель" more={0}
+      actionLabel="Повторить анимацию" onClose={() => setReplay((n) => n + 1)} />
+    <a className="achievement-preview-exit" href="/">Закрыть просмотр ×</a>
+    <span className="achievement-preview-label">Предпросмотр награды · прогресс не меняется</span>
+  </>
 }

@@ -3,9 +3,12 @@
 import asyncio
 import base64
 import html
+import json
+import logging
 import re
 import time
 from datetime import timedelta
+from pathlib import Path
 
 from aiogram import Bot, F, Router
 from aiogram.filters import Command, CommandObject
@@ -22,7 +25,7 @@ from backend.api.daily import GLASS_ML, WaterIn, add_water, local_start, water_g
 from backend.api.deps import get_or_create_user
 from backend.api.stats import targets
 from backend.bot import cards
-from backend.core import clock
+from backend.core import alerts, clock
 from backend.core.config import Settings
 from backend.core.search import norm, stem
 from backend.database.db import SessionLocal
@@ -33,6 +36,9 @@ from backend.database.rewards import award_xp
 
 router = Router()
 router.message.filter(F.chat.type == "private")
+owner = Router()  # the owner's own actions; included before `router`, which takes any photo or text as food
+owner.message.filter(F.chat.type == "private")
+log = logging.getLogger("bot.chat")
 
 MEALS = {"breakfast": "завтрак", "lunch": "обед", "dinner": "ужин", "snack": "перекус"}
 CODE = {"b": "breakfast", "l": "lunch", "d": "dinner", "s": "snack"}  # short forms: callback data is limited to 64 bytes
@@ -530,11 +536,54 @@ async def tour_card(tg_id: int, i: int) -> BufferedInputFile:
     return BufferedInputFile(png, f"setly-{i + 1}.png")
 
 
+TOUR_POST = Path(__file__).resolve().parents[2] / ".tour_post"  # project root, git-ignored: {"chat_id", "ids"}
+TOUR_INVITE = "Ответьте на пару вопросов — и я соберу ваш план: норму КБЖУ, воду и программу тренировок. Это 2 минуты."
+
+
+def tour_post() -> dict | None:
+    try:
+        post = json.loads(TOUR_POST.read_text(encoding="utf-8"))
+        return post if post.get("chat_id") and post.get("ids") else None
+    except (OSError, ValueError):
+        return None
+
+
 @router.callback_query(F.data == "tour")
-async def tour(call: CallbackQuery) -> None:
-    """One message flipped with ← →: bots can't send Telegram's own swipe carousel (no Bot API option for it yet)."""
+async def tour(call: CallbackQuery, bot: Bot) -> None:
+    """The owner's carousel post from the Setly channel, copied (no "forwarded from"); bots can't send a carousel
+    themselves. Without that post, or if copying fails: one slide flipped with arrows."""
     await call.answer()
+    post = tour_post()
+    if post:
+        try:
+            await bot.copy_messages(call.from_user.id, post["chat_id"], post["ids"])
+            await call.message.answer(TOUR_INVITE, reply_markup=kb([app_button("Заполнить анкету →")]))
+            return
+        except Exception:
+            log.warning("tour post copy failed, sending slides", exc_info=True)
     await call.message.answer_photo(await tour_card(call.from_user.id, 0), caption=TOUR_CAPTIONS[0], reply_markup=tour_keyboard(0))
+
+
+_tour_parts: dict[str, list[int]] = {}  # media_group_id -> channel message ids, while an album arrives in parts
+
+
+@owner.message(F.forward_origin.type == "channel", F.func(lambda m: m.from_user and m.from_user.id in alerts.admin_ids()))
+async def save_tour_post(message: Message, bot: Bot) -> None:
+    """The owner forwards the carousel post from the channel to the bot: it becomes the tour."""
+    origin = message.forward_origin
+    group = message.media_group_id or str(origin.message_id)
+    first = group not in _tour_parts
+    _tour_parts.setdefault(group, []).append(origin.message_id)
+    if not first:
+        return
+    await asyncio.sleep(2)  # the rest of the album arrives as separate messages
+    ids = sorted(set(_tour_parts.pop(group)))
+    TOUR_POST.write_text(json.dumps({"chat_id": origin.chat.id, "ids": ids}), encoding="utf-8")
+    await message.answer(f"Сохранил пост из канала ({len(ids)} фото) как карусель для новичков. Вот как его увидят:")
+    try:
+        await bot.copy_messages(message.chat.id, origin.chat.id, ids)
+    except Exception as e:
+        await message.answer(f"Не получилось скопировать: {e}. Проверьте, что бот — админ канала.")
 
 
 @router.callback_query(F.data.startswith("tour:"))

@@ -274,6 +274,7 @@ async def main() -> None:
         log.warning("WEBAPP_URL не HTTPS — Telegram не откроет Mini App")
     dp = Dispatcher()
     dp.include_router(router)
+    dp.include_router(chat.owner)
     dp.include_router(chat.router)  # last: it takes any other text as food
     # Optional proxy for networks where api.telegram.org is blocked (http:// or socks5://).
     session = AiohttpSession(proxy=settings.bot_proxy) if settings.bot_proxy else None

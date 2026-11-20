@@ -2241,3 +2241,33 @@ def test_tour_flips_with_arrows():
 
     assert arrows(0) == ["tour:3", "tour:1"] and arrows(3) == ["tour:2", "tour:0"]  # wraps around
     assert tour_keyboard(0).inline_keyboard[1][0].web_app  # the questionnaire button on every slide
+
+
+def test_tour_copies_the_channel_post_and_falls_back_to_slides(client, tmp_path, monkeypatch):
+    import json
+
+    from backend.bot import chat
+
+    log, copied = [], []
+
+    class Bot:
+        async def copy_messages(self, chat_id, from_chat_id, ids):
+            if from_chat_id == -1:
+                raise RuntimeError("bot is not a member")
+            copied.append((chat_id, from_chat_id, ids))
+
+    class Msg(FakeMsg):
+        async def answer_photo(self, photo, caption=None, reply_markup=None):
+            self.log.append(("photo", reply_markup))
+
+    call = FakeCall(42, "tour", log)
+    call.message = Msg(42, "", log)
+    monkeypatch.setattr(chat, "TOUR_POST", tmp_path / ".tour_post")
+    client.portal.call(chat.tour, call, Bot())  # no post saved: the slides with arrows
+    assert log[-1][0] == "photo"
+    (tmp_path / ".tour_post").write_text(json.dumps({"chat_id": -100123, "ids": [5, 6, 7, 8]}))
+    client.portal.call(chat.tour, call, Bot())
+    assert copied == [(42, -100123, [5, 6, 7, 8])] and log[-1][0] == chat.TOUR_INVITE
+    (tmp_path / ".tour_post").write_text(json.dumps({"chat_id": -1, "ids": [5]}))
+    client.portal.call(chat.tour, call, Bot())  # copying failed: still the slides
+    assert log[-1][0] == "photo"

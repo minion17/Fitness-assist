@@ -410,7 +410,7 @@ def check(c: Card, cx: int, cy: int, r: int, color: str = "accent") -> None:
 
 
 @lru_cache(maxsize=16)
-def tour(i: int, theme: str | None = None, accent: str | None = None) -> bytes:
+def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool = True) -> bytes:
     title, accent_line, sub = TOUR[i]
     c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "streak")[i]), size=(TW, TH))
     c.brand()
@@ -474,7 +474,7 @@ def tour(i: int, theme: str | None = None, accent: str | None = None) -> bytes:
     c.text((90, 1028), accent_line, 72, "accent_text", 700, "Unbounded")
     for j, line in enumerate(wrap(c, sub, 34, TW - 180)):
         c.text((90, 1166 + j * 48), line, 34, "muted", 500)
-    for k in range(len(TOUR)):  # page dots, as in a carousel: the current one is a wide pill
+    for k in range(len(TOUR) if dots else 0):  # page dots, as in a carousel: the current one is a wide pill
         w = 44 if k == i else 14
         x = TW / 2 - (len(TOUR) * 14 + 30 + (len(TOUR) - 1) * 12) / 2 + sum((44 if j == i else 14) + 12 for j in range(k))
         c.rect((x, 1296, x + w, 1310), 7, "accent" if k == i else "track")

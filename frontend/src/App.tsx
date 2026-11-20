@@ -219,7 +219,8 @@ export default function App() {
   // the last server answer kept on this phone: the screen starts from it instead of zeros (see snapshot.ts)
   const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
   const kcalRef = useRef<number | null>(null) // last known kcal, to notice the moment the norm is reached
-  const [tab, setTab] = useState<Tab>('home')
+  // the bot's buttons open the app on a tab: ?open=workout (today's workout), ?open=food (the diary)
+  const [tab, setTab] = useState<Tab>(() => ({ workout: 'workouts', food: 'food' } as Record<string, Tab>)[new URLSearchParams(window.location.search).get('open') ?? ''] ?? 'home')
   const [synced, setSynced] = useState('Демо-режим')
   const [xp, setXp] = useState<Progress>(boot?.auth.progress ?? NEW_USER)
   const [boostUntil, setBoostUntil] = useState<string | null>(boot?.auth.settings.boost_until ?? null) // x2 XP after a duel win

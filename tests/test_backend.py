@@ -2051,3 +2051,183 @@ def test_export_and_feedback(client, seeded):
         async with SessionLocal() as s:
             return [(f.kind, f.product_id) for f in await s.scalars(select(Feedback).where(Feedback.text == note))]
     assert client.portal.call(saved) == [("product", pid)]
+
+
+# ---- The bot's chat: food, water, weight, today, workout, onboarding ----
+
+class FakeMsg:
+    """Just enough of aiogram's Message for the chat handlers: records what the bot answered."""
+
+    def __init__(self, tg_id: int, text: str = "", log: list | None = None):
+        from types import SimpleNamespace
+
+        self.from_user = SimpleNamespace(id=tg_id, first_name="Егор", username=None, language_code="ru")
+        self.chat = SimpleNamespace(id=tg_id)
+        self.text, self.log = text, log if log is not None else []
+
+    async def answer(self, text, parse_mode=None, reply_markup=None):
+        self.log.append((text, reply_markup))
+        return FakeMsg(self.from_user.id, text, self.log)
+
+    async def edit_text(self, text, reply_markup=None, parse_mode=None):
+        self.log.append((text, reply_markup))
+
+    async def delete(self):
+        pass
+
+
+class FakeCall:
+    def __init__(self, tg_id: int, data: str, log: list):
+        self.data, self.message, self.from_user = data, FakeMsg(tg_id, "✅ Записал в обед:\n• x", log), FakeMsg(tg_id).from_user
+
+    async def answer(self, *a, **kw):
+        pass
+
+
+def buttons_of(markup) -> list:
+    return [b for row in (markup.inline_keyboard if markup else []) for b in row]
+
+
+def test_bot_splits_food_text():
+    from backend.bot.chat import guess_meal, pack, split_food, unpack
+
+    assert split_food("гречка 150 г, 2 яйца и кофе с молоком 200 мл") == [
+        ("гречка", 150, "g", None), ("яйца", None, None, 2), ("кофе", None, None, None), ("молоком", 200, "ml", None)]
+    assert split_food("сок 0,5 л; хлеб 1 кг") == [("сок", 500, "ml", None), ("хлеб", 1000, "g", None)]
+    assert unpack(pack([1, 35, 36, 123456789])) == [1, 35, 36, 123456789]
+    assert [guess_meal(h) for h in (8, 13, 17, 20, 2)] == ["breakfast", "lunch", "snack", "dinner", "snack"]
+
+
+def test_bot_chat_food_water_weight_today(client, seeded):
+    import random
+
+    from backend.bot import chat
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    log: list = []
+    client.portal.call(chat.log_food, FakeMsg(tg_id, log=log), "творог 200 г")
+    assert "анкета" in log[-1][0]  # no questionnaire yet: no norm to count against
+    client.put("/api/profile", headers=h, json=PROFILE)
+
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 200 г", log))
+    text, markup = log[-1]
+    assert "Записал в" in text and "Тестовый творог 5%" in text and "242 ккал" in text and "осталось" in text
+    datas = [b.callback_data for b in buttons_of(markup)]
+    assert len([d for d in datas if d.startswith("fm:")]) == 3 and any(d.startswith("fu:") for d in datas)
+    items = client.get("/api/food-logs", headers=h).json()["items"]
+    assert [(i["amount_g"], i["product"]["name"]) for i in items] == [(200, "Тестовый творог 5%")]
+
+    to_snack = next(d for d in datas if d.startswith("fm:s:"))
+    client.portal.call(chat.move_food, FakeCall(tg_id, to_snack, log))
+    assert "перекус" in log[-1][0]
+    assert client.get("/api/food-logs", headers=h).json()["items"][0]["meal_type"] == "snack"
+    client.portal.call(chat.undo_food, FakeCall(tg_id, next(d for d in datas if d.startswith("fu:")), log))
+    assert client.get("/api/food-logs", headers=h).json()["items"] == []
+
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "+300", log))
+    assert log[-1][0].startswith("💧 +300 мл · 0,3 из")
+    client.portal.call(chat.water_button, FakeCall(tg_id, "w:-300", log))
+    assert client.get("/api/water", headers=h).json()["ml"] == 0
+
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "вес 77,5", log))
+    assert log[-1][0].startswith("⚖️ Записал: 77,5 кг.")
+    assert client.get("/api/measurements", headers=h).json()[0]["weight_kg"] == 77.5
+    assert client.get("/api/profile", headers=h).json()["weight_kg"] == 77.5  # the norm follows the latest weight
+
+    client.portal.call(chat.today_cmd, FakeMsg(tg_id, log=log))
+    assert log[-1][0].startswith("📊 <b>Сегодня") and "ккал" in log[-1][0] and "💧" in log[-1][0]
+    client.portal.call(chat.workout_cmd, FakeMsg(tg_id, log=log))
+    text, markup = log[-1]
+    assert "Тренировка" in text or "тренировка" in text
+    assert any(b.web_app and "open=workout" in b.web_app.url for b in buttons_of(markup))
+
+
+def test_bot_plan_message_after_first_questionnaire(client):
+    import random
+
+    from sqlalchemy import select
+
+    from backend.bot import outbox
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    client.put("/api/profile", headers=h, json=PROFILE)  # an edit: no second "plan ready"
+    sent = []
+
+    class Bot:
+        async def send_message(self, chat_id, text, **kw):
+            sent.append((chat_id, text, kw.get("reply_markup")))
+
+    async def run():
+        async with SessionLocal() as s:
+            rows = list(await s.scalars(select(Outbox).where(Outbox.telegram_id == tg_id, Outbox.kind == "plan")))
+            for m in rows:
+                await outbox.send_plan(Bot(), s, m)
+            return len(rows)
+
+    assert client.portal.call(run) == 1
+    assert "Ваш план готов" in sent[0][1] and "ккал" in sent[0][1] and sent[0][2].keyboard
+
+
+def test_bot_onboarding_chain(client, seeded):
+    import random
+    from datetime import datetime, timedelta
+
+    from sqlalchemy import update
+
+    from backend.bot import chat
+    from backend.bot.reminders import collect
+    from backend.database.db import SessionLocal
+    from backend.database.models import User
+
+    now = datetime.now().astimezone()
+    newbie = random.randint(3 * 10**9, 4 * 10**9)  # pressed /start, no questionnaire
+    client.portal.call(chat.me_for_test, newbie)
+
+    async def age(tg_id, created):
+        async with SessionLocal() as s:
+            await s.execute(update(User).where(User.telegram_id == tg_id).values(created_at=created))
+            await s.commit()
+
+    async def run(at, tg_id):
+        async with SessionLocal() as s:
+            return [(t, b) for c, t, _, b in await collect(s, at) if c == tg_id]
+
+    afternoon = now.replace(hour=14, minute=0, second=0, microsecond=0)
+    client.portal.call(age, newbie, afternoon - timedelta(hours=4))
+    assert [t for t, _ in client.portal.call(run, afternoon, newbie)][0].startswith("Осталась пара вопросов")
+    assert client.portal.call(run, afternoon + timedelta(minutes=5), newbie) == []  # once
+    client.portal.call(age, newbie, afternoon - timedelta(hours=26))
+    assert "Последнее напоминание" in client.portal.call(run, afternoon, newbie)[0][0]
+    assert client.portal.call(run, afternoon + timedelta(hours=1), newbie) == []  # and then silence
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    evening = now.replace(hour=21, minute=1, second=0, microsecond=0)
+    assert client.portal.call(run, evening, tg_id)[0][0].startswith("🌙 Первый день позади")  # created today
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 300, "meal_type": "lunch"})
+    client.portal.call(age, tg_id, now - timedelta(days=5))
+    if evening.date() == now.date() and now.hour < 21:  # the entry is "today" only when the test runs before 21:00
+        text, buttons = client.portal.call(run, evening, tg_id)[0]
+        assert text.startswith("🌙 Итог дня: 363 из") and "Белка не хватает" in text
+        assert buttons == [("🍽 Записать ужин", "cb:ask:d")]
+    client.portal.call(age, tg_id, now - timedelta(days=2))
+    assert client.portal.call(run, now.replace(hour=13, minute=2, second=0, microsecond=0), tg_id)[0][0].startswith("📸 Совет")
+
+
+def test_tour_cards_are_vertical_pngs():
+    import io
+
+    from PIL import Image
+
+    from backend.bot import cards
+
+    for i in range(len(cards.TOUR)):
+        img = Image.open(io.BytesIO(cards.tour(i)))
+        assert img.size == (1080, 1350)

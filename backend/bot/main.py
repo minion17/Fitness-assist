@@ -17,18 +17,20 @@ from aiogram.types import (
     MenuButtonDefault,
     MenuButtonWebApp,
     Message,
+    BotCommand,
     WebAppInfo,
 )
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.account import delete_account
 from backend.api.habits import tick_from_bot
 from backend.api.social import USERNAME_FILE, befriend, name
-from backend.bot import admin, cards, outbox, profile, reminders
+from backend.bot import admin, cards, chat, outbox, profile, reminders
 from backend.core import alerts
 from backend.database.db import SessionLocal
-from backend.database.models import Profile, User
+from backend.database.models import ReminderSent, User
 from backend.core.config import Settings, settings
 
 log = logging.getLogger("bot")
@@ -36,11 +38,11 @@ router = Router()
 
 WELCOME = (
     "{hello} 👋\n\n"
-    "Я Setly. Помогаю не бросить питание и тренировки через неделю. Сфоткал тарелку — "
-    "я посчитал калории. Забыл про воду — напомню. Пропускаешь — тоже напомню, но по-доброму 🙂\n\n"
-    "Для начала пара вопросов о тебе, чтобы норма была твоя, а не «средняя по больнице». "
-    "Это пара минут, честно."
+    "Я Setly — считаю калории, веду тренировки и не даю бросить через неделю.\n\n"
+    "Ответь на пару вопросов, и я соберу тебе норму КБЖУ и программу тренировок. Это 2 минуты."
 )
+COMMANDS = [("today", "Сегодня: калории, вода, тренировка"), ("workout", "Тренировка на сегодня"),
+            ("water", "+250 мл воды"), ("weight", "Записать вес"), ("help", "Что я умею")]
 # Returning users: (greeting word, emoji, text, picture from cards.BACK_KINDS); never the same one twice in a row.
 BACK = [
     ("С возвращением", "👋", "Рад снова видеть. Дневник, тренировки и вода — всё на месте, жми «Открыть» и продолжаем.", "ring"),
@@ -67,11 +69,12 @@ def greeting(first_name: str | None, back: bool, variant: int = 0) -> str:
     return f"{hello} {emoji}\n\n{body}" if back else WELCOME.format(hello=hello)
 
 
-async def account(telegram_id: int) -> tuple[User | None, bool]:
-    """The user's account if they opened the app before (for their theme), and whether they filled the questionnaire."""
+async def first_time(user_id: int, key: str) -> bool:
+    """True once per (user, key): a one-off message is recorded before it is sent."""
     async with SessionLocal() as s:
-        user = await s.scalar(select(User).where(User.telegram_id == telegram_id))
-        return user, bool(user and await s.get(Profile, user.id))
+        fresh = await s.scalar(insert(ReminderSent).values(user_id=user_id, key=key).on_conflict_do_nothing().returning(ReminderSent.key))
+        await s.commit()
+        return fresh is not None
 
 
 def current_webapp_url() -> str:
@@ -90,10 +93,14 @@ async def start(message: Message, command: CommandObject | None = None) -> None:
     if message.from_user and command and command.args and command.args.startswith("f"):  # invite link t.me/<bot>?start=f<code>
         async with SessionLocal() as s:
             friend = await befriend(s, command.args[1:64], message.from_user.id, message.from_user.first_name)
-    user, back = await account(message.from_user.id) if message.from_user else (None, False)
+    async with SessionLocal() as s:  # the account exists from the first /start: the onboarding messages need it
+        user, prof = await chat.me(s, message.from_user)
+    back = prof is not None
     variant = pick_back(message.from_user.id) if back else 0
     caption = greeting(message.from_user and message.from_user.first_name, back, variant)
     keyboard = open_app_keyboard(url, "Открыть" if back else "Поехали →")
+    if not back:
+        keyboard.inline_keyboard.append([InlineKeyboardButton(text="Сначала покажи, что умеешь", callback_data="tour")])
     theme, accent = user and user.theme, user and user.accent
     try:
         png = await asyncio.to_thread(cards.welcome_back, BACK[variant][3], theme, accent) if back \
@@ -102,6 +109,9 @@ async def start(message: Message, command: CommandObject | None = None) -> None:
     except Exception:
         log.warning("welcome card failed, sending text", exc_info=True)
         await message.answer(caption, reply_markup=keyboard, parse_mode="HTML")
+    if back and await first_time(user.id, "onb:kb"):  # the quick-action keyboard, once for users from before it existed
+        await message.answer(f"Быстрые действия теперь на кнопках внизу 👇 А еду можно просто написать сюда, например {chat.EXAMPLE}.",
+                             reply_markup=chat.KEYBOARD)
     if friend:
         await message.answer(f"🤝 Вы с {html.escape(name(friend))} теперь друзья! Рейтинг недели и дуэли — в приложении: Прогресс → Друзья.", parse_mode="HTML")
 
@@ -251,6 +261,7 @@ async def main() -> None:
         log.warning("WEBAPP_URL не HTTPS — Telegram не откроет Mini App")
     dp = Dispatcher()
     dp.include_router(router)
+    dp.include_router(chat.router)  # last: it takes any other text as food
     # Optional proxy for networks where api.telegram.org is blocked (http:// or socks5://).
     session = AiohttpSession(proxy=settings.bot_proxy) if settings.bot_proxy else None
     bot = Bot(settings.bot_token, session=session)
@@ -269,6 +280,7 @@ async def main() -> None:
         try:
             if not profile_synced:  # first moment Telegram is reachable
                 await profile.sync(bot)
+                await bot.set_my_commands([BotCommand(command=c, description=d) for c, d in COMMANDS])
                 USERNAME_FILE.write_text((await bot.get_me()).username or "", encoding="utf-8")  # for invite links
                 profile_synced = True
             await dp.start_polling(bot)

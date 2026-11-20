@@ -2,6 +2,7 @@
 import asyncio
 import logging
 from sqlalchemy import func
+from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.challenges import finish_challenges
 from backend.api.leagues import finish_leagues
@@ -54,6 +55,35 @@ async def send_export(bot, session, m) -> None:
                             caption="📦 Все ваши записи: питание, вес и замеры, вода, тренировки — в таблицах CSV (открываются в Excel и Google Таблицах).")
 
 
+async def send_plan(bot, session, m) -> None:
+    """Right after the first questionnaire: the plan in numbers, and the chat's quick-action keyboard."""
+    from backend.api.daily import water_goal
+    from backend.api.main import recommended_program
+    from backend.api.stats import targets
+    from backend.bot import chat
+    from backend.database.models import Profile, Program, ReminderSent
+
+    user = await session.get(User, m.user_id)
+    profile = await session.get(Profile, m.user_id)
+    if profile is None:
+        return
+    goal = targets(profile)
+    program_id = user.program_id or ((await recommended_program(session, profile)) or {}).get("program_id")
+    program = program_id and await session.get(Program, program_id)
+    days = ", ".join(chat.DAYS[d] for d in sorted(profile.training_days or []))
+    lines = ["🎯 <b>Ваш план готов</b>\n",
+             f"Калории: <b>{chat.n(goal['calories'])} ккал</b> в день",
+             f"Белки {chat.n(goal['protein'])} г · Жиры {chat.n(goal['fat'])} г · Углеводы {chat.n(goal['carbs'])} г",
+             f"Вода: {chat.liters(water_goal(profile))} л"]
+    if program or days:
+        lines.append("Тренировки: " + " — ".join(x for x in (days, program and f"«{program.name}»") if x))
+    lines.append(f"\nЕду можно писать мне прямо сюда, например {chat.EXAMPLE}, — посчитаю и запишу. "
+                 "Или пришлите фото тарелки. Быстрые действия — на кнопках внизу 👇")
+    await bot.send_message(m.telegram_id, "\n".join(lines), parse_mode="HTML", reply_markup=chat.KEYBOARD)
+    await session.execute(insert(ReminderSent).values(user_id=user.id, key="onb:kb").on_conflict_do_nothing())  # they have the keyboard: no "кнопки внизу" on the next /start
+    await session.commit()
+
+
 async def send_pending(bot, keyboard) -> None:
     from aiogram.exceptions import TelegramForbiddenError
     from aiogram.types import BufferedInputFile
@@ -71,6 +101,8 @@ async def send_pending(bot, keyboard) -> None:
                     await send_report(bot, session, m)
                 elif m.kind == "export" and m.user_id:
                     await send_export(bot, session, m)
+                elif m.kind == "plan" and m.user_id:
+                    await send_plan(bot, session, m)
                 elif m.kind == "alert":  # for the owner: plain text, no "open the app" button
                     await bot.send_message(m.telegram_id, m.text)
                 else:

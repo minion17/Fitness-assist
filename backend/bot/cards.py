@@ -378,3 +378,100 @@ def story_duel(name: str, rival: str, me: int, them: int, metric: str, days: int
         c.text((cx, 1342), label, 36, "on_accent", 700, anchor="mm")
     _footer(c, bot)
     return c.png()
+
+
+# ---- Tour: the album a new user gets on "Сначала покажи, что умеешь" (4 cards, 4:5, swiped in full screen) ----
+
+TOUR = (
+    ("Еда —", "за 5 секунд", "Напиши «гречка 150 г» или пришли фото тарелки — посчитаю и запишу"),
+    ("Тренировки", "под тебя", "Программа по уровню и инвентарю, таймер отдыха и веса с прошлого раза"),
+    ("Вода", "и привычки", "Мягкие напоминания и отметка в одно касание прямо из чата"),
+    ("Прогресс", "виден сразу", "Серии дней, вес, итоги недели и соревнования с друзьями"),
+)
+TW, TH = 1080, 1350
+
+
+def wrap(c: Card, s: str, size: int, width: int, weight: int = 500) -> list[str]:
+    lines, cur = [], ""
+    for word in s.split():
+        if cur and c.width(f"{cur} {word}", size, weight) > width:
+            lines.append(cur)
+            cur = word
+        else:
+            cur = f"{cur} {word}".strip()
+    return lines + [cur] if cur else lines
+
+
+def check(c: Card, cx: int, cy: int, r: int, color: str = "accent") -> None:
+    """A filled circle with a check mark."""
+    c.d.ellipse([(cx - r) * K, (cy - r) * K, (cx + r) * K, (cy + r) * K], fill=c.p.get(color, color))
+    c.d.line([((cx - r * .45) * K, cy * K), ((cx - r * .1) * K, (cy + r * .35) * K), ((cx + r * .5) * K, (cy - r * .35) * K)],
+             fill=c.p["on_accent"], width=max(3, r // 4) * K, joint="curve")
+
+
+@lru_cache(maxsize=16)
+def tour(i: int, theme: str | None = None, accent: str | None = None) -> bytes:
+    title, accent_line, sub = TOUR[i]
+    c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "streak")[i]), size=(TW, TH))
+    c.brand(f"{i + 1} / {len(TOUR)}")
+    cx, cy = 540, 480
+    if i == 0:  # a message and the bot's answer
+        msg = "гречка 150 г, курица 120 г"
+        w = c.width(msg, 30, 600) + 64
+        c.rect((TW - 90 - w, 190, TW - 90, 270), 40, "accent")
+        c.text((TW - 90 - w + 32, 212), msg, 30, "on_accent", 600)
+        c.rect((90, 310, TW - 190, 770), 44, "card")
+        check(c, 150, 380, 26)
+        c.text((196, 362), "Записал в обед", 32, "text", 700)
+        c.text((130, 440), "365", 92, "text", 700, "Unbounded")
+        c.text((130 + c.width("365", 92, 700, "Unbounded") + 18, 486), "ккал", 30, "muted", 600)
+        for j, (label, color, frac, g) in enumerate((("Белки", "protein", .62, "41 г"), ("Жиры", "fat", .3, "9 г"), ("Углеводы", "carbs", .5, "33 г"))):
+            y = 580 + j * 60
+            c.text((130, y), label, 26, "muted", 600)
+            c.text((TW - 230, y), g, 26, "text", 700, anchor="ra")
+            c.bar((330, y + 10, TW - 340, y + 26), frac, color)
+    elif i == 1:  # today's workout and the rest timer
+        c.ring(cx, 380, 165, 26, .7)
+        c.text((cx, 360), "01:30", 66, "text", 700, "Unbounded", anchor="mm")
+        c.text((cx, 425), "отдых", 26, "muted", 600, anchor="mm")
+        for j, (name, sets, done) in enumerate((("Жим ногами", "3 × 10", 3), ("Тяга в наклоне", "3 × 12", 1), ("Планка", "3 × 45 с", 0))):
+            y = 590 + j * 78
+            c.rect((110, y, TW - 110, y + 64), 32, "card")
+            c.text((150, y + 17), name, 28, "text", 600)
+            c.text((TW - 290, y + 17), sets, 28, "muted", 600, anchor="ra")
+            for k in range(3):
+                x = TW - 250 + k * 40
+                c.d.ellipse([x * K, (y + 20) * K, (x + 24) * K, (y + 44) * K], fill=c.p["accent" if k < done else "track"])
+    elif i == 2:  # a glass of water and two habits ticked from the chat
+        gx = 330
+        c.rect((gx - 120, 200, gx + 120, 700), 56, "water_soft")
+        c.rect((gx - 120, 430, gx + 120, 700), 56, "water")
+        c.rect((gx - 120, 430, gx + 120, 490), 0, "water")
+        c.text((gx, 300), "+250", 54, "water", 700, "Unbounded", anchor="mm")
+        c.text((gx, 360), "мл", 26, "muted", 600, anchor="mm")
+        for j, (name, done) in enumerate((("Сон 8 часов", True), ("10 000 шагов", True), ("Без сладкого", False))):
+            y = 260 + j * 150
+            c.rect((520, y, TW - 90, y + 110), 55, "card")
+            if done:
+                check(c, 580, y + 55, 28)
+            else:
+                c.d.ellipse([552 * K, (y + 27) * K, 608 * K, (y + 83) * K], outline=c.p["track"], width=5 * K)
+            c.text((630, y + 38), name, 28, "text", 600)
+    else:  # a streak and a weight line going down
+        c.text((cx, 250), "12", 150, "streak", 700, "Unbounded", anchor="mm")
+        c.text((cx, 350), "дней подряд", 30, "muted", 600, anchor="mm")
+        for k in range(7):
+            x = cx - 7 * 32 + k * 64 + 10
+            c.rect((x, 400, x + 44, 444), 22, "streak" if k < 6 else "track")
+        c.rect((110, 500, TW - 110, 780), 40, "card")
+        c.text((150, 530), "Вес", 26, "muted", 600)
+        c.text((TW - 150, 530), "−2,4 кг", 28, "accent_text", 700, anchor="ra")
+        pts = [(160 + k * 108, 600 + v) for k, v in enumerate((20, 34, 28, 52, 70, 64, 92, 110))]
+        c.d.line([(x * K, y * K) for x, y in pts], fill=c.p["accent"], width=7 * K, joint="curve")
+        x, y = pts[-1]
+        c.d.ellipse([(x - 12) * K, (y - 12) * K, (x + 12) * K, (y + 12) * K], fill=c.p["accent"])
+    c.text((90, 940), title, 72, "text", 700, "Unbounded")
+    c.text((90, 1028), accent_line, 72, "accent_text", 700, "Unbounded")
+    for j, line in enumerate(wrap(c, sub, 34, TW - 180)):
+        c.text((90, 1166 + j * 48), line, 34, "muted", 500)
+    return c.png()

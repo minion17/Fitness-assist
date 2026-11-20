@@ -243,6 +243,8 @@ async def save_profile(
     for k, v in data.items():
         setattr(profile, k, v)
     session.add(profile)
+    if existing is None:  # the questionnaire is done for the first time: the bot sends "your plan is ready"
+        session.add(Outbox(telegram_id=user.telegram_id, kind="plan", text="", user_id=user.id))
     await session.commit()
     return profile_out(profile)
 

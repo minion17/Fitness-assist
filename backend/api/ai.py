@@ -207,13 +207,11 @@ class ConfirmIn(BaseModel):
     items: list[DraftItem] = Field(min_length=1, max_length=30)
 
 
-@router.post("/meal/confirm")
-async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    """Write the (possibly edited) draft to the diary. Unknown products become the user's own products."""
-    user = await get_or_create_user(tg, session)
-    slot = clock.now().strftime("%H:%M") if body.meal_type == "snack" else None  # one snack per recognised meal
+async def save_draft(session: AsyncSession, user: User, meal_type: str, items: list[DraftItem]) -> list[FoodLog]:
+    """Write a (possibly edited) draft to the diary; unknown products become the user's own. Shared with the bot."""
+    slot = clock.now().strftime("%H:%M") if meal_type == "snack" else None  # one snack per recognised meal
     logs = []
-    for it in body.items:
+    for it in items:
         if it.product_id is not None:
             product = await session.get(Product, it.product_id)
             if product is None or product.owner_user_id not in (None, user.id):
@@ -229,10 +227,17 @@ async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), sessi
             product.kcal, product.protein_g = it.kcal_100g, it.protein_100g
             product.fat_g, product.carbs_g = it.fat_100g, it.carbs_100g
             await session.flush()
-        logs.append(FoodLog(user_id=user.id, product_id=product.id, amount_g=it.grams, meal_type=body.meal_type,
-                            snack_slot=slot))
+        logs.append(FoodLog(user_id=user.id, product_id=product.id, amount_g=it.grams, meal_type=meal_type, snack_slot=slot))
     session.add_all(logs)
     await session.commit()
+    return logs
+
+
+@router.post("/meal/confirm")
+async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """Write the (possibly edited) draft to the diary. Unknown products become the user's own products."""
+    user = await get_or_create_user(tg, session)
+    logs = await save_draft(session, user, body.meal_type, body.items)
     # same key as the manual diary, so XP stays once per meal type per day
     xp = await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{body.meal_type}")
     return {"added": len(logs), "xp_awarded": xp}

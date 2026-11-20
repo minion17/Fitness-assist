@@ -40,7 +40,7 @@ export function AchievementUnlocked({ code, icon, title, more, onClose }: {
         {CONFETTI.map((i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${(i % 6) * 0.15}s` }} />)}
       </div>
       <div className="reward-body">
-        <AchievementBadge code={code} fallback={icon} large />
+        <div className="achievement-reveal" key={code}><AchievementBadge code={code} fallback={icon} large /></div>
         <p className="sub">Новое достижение!</p>
         <h1 className="reward-title">{title}</h1>
         <p className="sub">+25 XP</p>

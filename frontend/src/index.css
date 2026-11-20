@@ -356,10 +356,10 @@ label.link { cursor: pointer; }
 .chips-scroll .chip[aria-pressed='true'] { border-color: var(--accent); color: var(--accent-text); }
 .badges { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .badge-item { background: var(--card-2); border-radius: 16px; padding: 12px 8px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; min-width: 0; }
-.badge-item b { font-size: 12px; line-height: 1.2; }
+.badge-item b { display: flex; align-items: center; justify-content: center; min-height: 29px; font-size: 12px; line-height: 1.2; }
 .badge-item .sub { font-size: 11px; line-height: 1.25; }
 .badge-item .bar { width: 100%; height: 4px; margin-top: 2px; }
-.badge-icon { font-size: 30px; line-height: 1.1; filter: grayscale(1); opacity: .45; }
+.badge-icon { display: grid; place-items: center; width: 100%; height: 88px; flex: none; font-size: 30px; line-height: 1; filter: grayscale(1); opacity: .45; }
 .badge-item.on .badge-icon { filter: none; opacity: 1; }
 .badge-item.on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
 .badge-emoji span { font-size: 64px; }
@@ -1800,6 +1800,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 /* Onest: tabular digits run wide, tighten big numbers */
 .stat, .daily-progress-center strong, .overview-value, .hero-num, .amount-kcal strong, .workout-summary-grid b, .recap-tile b, .day-stat-value, .session-prescription dd, .session-clock strong, .chart-read b, .session-progress .sub, .set-go { letter-spacing: -.03em; }
 
-.achievement-art { display: inline-block; width: 76px; aspect-ratio: .803; background-image: url('/images/achievements/badges.png'); background-size: 500% 200%; background-repeat: no-repeat; }
+.achievement-art { display: block; flex: none; width: 76px; max-width: 100%; aspect-ratio: 320 / 356; background-image: url('/images/achievements/badges.png'); background-size: 554.375% 249.15730337%; background-repeat: no-repeat; }
+.achievement-art-fallback { display: grid; place-items: center; background: none; line-height: 1; }
 .achievement-art-large { width: min(200px, 45vw); }
 .medal .achievement-art { width: 28px; }

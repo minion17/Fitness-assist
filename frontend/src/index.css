@@ -2065,3 +2065,14 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .week-recap-trigger { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; min-height: 32px; }
 .week-recap-trigger .sub { margin-left: auto; }
 .week-recap-trigger > span:last-child { color: var(--accent-text); font-size: 22px; line-height: 1; }
+
+.lib-entry { flex-direction: row; align-items: center; gap: 9px; padding: 10px 12px; }
+.lib-entry-icon { width: 34px; height: 34px; flex: none; margin: 0; }
+.lib-entry small { display: none; }
+.lib-entry b { font-size: 14px; }
+.workout-feature { padding: 16px; gap: 10px; }
+.workout-preview { margin: 0; gap: 8px; }
+.workout-preview .muscle-map-wrap.compact { width: 96px; }
+.workout-preview .muscle-key { display: none; }
+.history-entry { width: 100%; text-align: left; }
+@media (max-width: 360px) { .lib-entry { padding: 8px; gap: 6px; } .lib-entry b { font-size: 12px; } }

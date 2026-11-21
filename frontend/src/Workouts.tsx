@@ -9,7 +9,7 @@ import exerciseCatalog from '../../content/exercises/exercises.json'
 import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
 import { nextWeight } from './progression'
-import { Chevron } from './ui'
+import { Chevron, Sheet } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
 import { workoutMinutes } from './workoutTime'
@@ -45,7 +45,19 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   onChanged: (xp: number) => void
   onProgramsChange?: (programs: Program[]) => void
 }) {
+  const [historyLog, setHistoryLog] = useState<WorkoutLog | null>(null)
+  const [historySets, setHistorySets] = useState<{ id: number; name: string; set_number: number; reps: number | null; duration_seconds: number | null; weight_kg: number }[] | null>(null)
+  const [historyError, setHistoryError] = useState(false)
   const [personalList, setPersonalList] = useState(false)
+  useEffect(() => {
+    if (!historyLog) return
+    let active = true
+    setHistorySets(null); setHistoryError(false)
+    api<{ sets: { id: number; name: string; set_number: number; reps: number | null; duration_seconds: number | null; weight_kg: number }[] }>(`/api/workout-logs/${historyLog.id}`)
+      .then(data => { if (active) { if (data) setHistorySets(data.sets); else setHistoryError(true) } })
+      .catch(() => { if (active) setHistoryError(true) })
+    return () => { active = false }
+  }, [historyLog])
   const [guideExercise, setGuideExercise] = useState<PlannedExercise | null>(null)
   const [previewProgramId, setPreviewProgramId] = useState<number | null>(null)
   // a workout left to log food comes back where it was (activeWorkout.ts)
@@ -233,14 +245,18 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведите первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
           <div className="list">
             {logs.slice(0, 10).map((l) => (
-              <div className="row" key={l.id}>
-                <div className="row-main"><div className="row-title">{l.title}</div><div className="row-sub">{dateRu(l.started_at)} · подходов: {l.sets}</div></div>
+              <button className="row row-btn history-entry" key={l.id} onClick={() => setHistoryLog(l)}>
+                <div className="row-main"><div className="row-title">{l.title.replace(/^(День\s+\d+)\s*:[^·]+·\s*/i, '$1 · ')}</div><div className="row-sub">{dateRu(l.started_at)} · подходов: {l.sets}</div></div>
                 <div className="row-end">{l.completed_at ? '✓' : 'не завершена'}</div>
-              </div>
+              </button>
             ))}
           </div>
         )}
       </section>
+      {historyLog && <Sheet title="Тренировка" onClose={() => setHistoryLog(null)}>
+        <h2>{historyLog.title}</h2><p className="sub">{dateRu(historyLog.started_at)} · подходов: {historyLog.sets}</p>
+        {historyError ? <p className="error" role="alert">Не удалось загрузить подходы.</p> : !historySets ? <p className="sub">Загрузка…</p> : historySets.length === 0 ? <p className="sub">Подходы не записаны.</p> : <div className="list">{historySets.map(item => <div className="row" key={item.id}><div className="row-main"><div className="row-title">{item.name}</div><div className="row-sub">Подход {item.set_number}</div></div><span className="row-end">{item.duration_seconds != null ? `${item.duration_seconds} сек` : `${item.reps ?? '—'} повт.`}{item.weight_kg ? ` · ${item.weight_kg} кг` : ''}</span></div>)}</div>}
+      </Sheet>}
     </>
   )
 }

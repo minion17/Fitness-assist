@@ -1853,10 +1853,12 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .badge-icon[data-stage="5"] { --tier: #e2b957; }
 .badge-item.on .badge-icon[data-stage] { filter: drop-shadow(0 0 5px var(--tier)); }
 
-.reward:has(.award-actions) { overflow-y: auto; gap: 10px; }
-.reward:has(.award-actions) .reward-body { flex: 1 0 auto; }
-.award-actions { width: min(100%, 440px); display: grid; gap: 10px; text-align: center; }
-.award-actions .btn { width: 100%; min-height: 48px; margin: 0; }
-.award-actions .btn:disabled { opacity: 1; background: var(--card-2); color: var(--muted); box-shadow: none; cursor: default; }
-.award-actions [role=status] { font-size: 14px; color: var(--text); }
-.award-dismiss { color: var(--text); min-height: 44px; padding: 8px 24px; font-weight: 600; }
+
+.sheet:has(.award-display) { width: min(100%, 420px); }
+.award-display { display: grid; place-items: center; padding: 16px; border-radius: 18px; background: radial-gradient(ellipse at center, color-mix(in srgb, var(--accent) 12%, var(--card-2)), var(--card-2) 72%); overflow: hidden; }
+.award-display .achievement-reveal { width: min(142px, 35vw); margin: 0; }
+.award-condition { text-align: center; margin: 0; color: var(--text); font-size: 15px; }
+.award-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.award-actions .btn { margin: 0; width: 100%; max-width: none; min-height: 58px; padding: 8px; line-height: 1.25; font-size: 14px; border-radius: 14px; }
+.award-actions [role] { grid-column: 1/-1; text-align: center; font-size: 13px; color: var(--muted); }
+.award-actions .btn:disabled { background: var(--card-2); color: var(--muted); box-shadow: none; }

@@ -1,3 +1,4 @@
+import { Sheet } from './ui'
 import AchievementBadge from './AchievementBadge'
 // Full-screen level-up celebration (Duolingo-style), shown when the level grows during the session.
 import { useEffect, useState } from 'react'
@@ -41,15 +42,23 @@ export function AchievementUnlocked({ code, icon, title, more, onClose, actionLa
     document.addEventListener('keydown', escape)
     return () => { document.removeEventListener('keydown', escape); previous?.focus() }
   }, [onClose])
+  const badge = (<button className="achievement-replay" aria-label="Повторить анимацию награды" onClick={() => setReplay((n) => n + 1)}>
+          <span className="achievement-reveal" key={`${code}-${replay}`}><AchievementBadge code={code} fallback={icon} large /></span>
+        </button>)
+  if (viewing) return (
+    <Sheet title={title} onClose={onClose}>
+      <div className="award-display">{badge}</div>
+      <p className="award-condition">{hint}</p>
+      {extra}
+    </Sheet>
+  )
   return (
     <div className="reward" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`}>
       <div className="confetti" key={replay} aria-hidden="true">
         {CONFETTI.map((i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${(i % 6) * 0.15}s` }} />)}
       </div>
       <div className="reward-body">
-        <button className="achievement-replay" aria-label="Повторить анимацию награды" onClick={() => setReplay((n) => n + 1)}>
-          <span className="achievement-reveal" key={`${code}-${replay}`}><AchievementBadge code={code} fallback={icon} large /></span>
-        </button>
+        {badge}
         <p className="sub">{viewing ? 'Достижение' : 'Новое достижение!'}</p>
         <h1 className="reward-title">{title}</h1>
         {viewing ? <><p className="sub">{hint}</p><p className="sub">Нажми на значок, чтобы повторить анимацию</p></> : <p className="sub">+25 XP</p>}

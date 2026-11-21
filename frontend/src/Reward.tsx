@@ -1,4 +1,3 @@
-import { Sheet } from './ui'
 import AchievementBadge from './AchievementBadge'
 // Full-screen level-up celebration (Duolingo-style), shown when the level grows during the session.
 import { useEffect, useState } from 'react'
@@ -46,11 +45,15 @@ export function AchievementUnlocked({ code, icon, title, more, onClose, actionLa
           <span className="achievement-reveal" key={`${code}-${replay}`}><AchievementBadge code={code} fallback={icon} large /></span>
         </button>)
   if (viewing) return (
-    <Sheet title={title} onClose={onClose}>
-      <div className="award-display">{badge}</div>
-      <p className="award-condition">{hint}</p>
-      {extra}
-    </Sheet>
+    <div className="award-overlay" role="presentation" onClick={onClose}>
+      <section className="award-modal" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`} onClick={e => e.stopPropagation()}>
+        <button className="award-close" onClick={onClose} aria-label="Закрыть" autoFocus>×</button>
+        <div className="award-display">{badge}</div>
+        <div className="award-heading"><span>ДОСТИЖЕНИЕ</span><h2>{title}</h2></div>
+        <div className="award-detail"><span>УСЛОВИЕ И ПРОГРЕСС</span><p>{hint}</p></div>
+        {extra}
+      </section>
+    </div>
   )
   return (
     <div className="reward" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`}>

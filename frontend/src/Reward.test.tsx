@@ -7,7 +7,8 @@ afterEach(() => { cleanup(); sessionStorage.clear() })
 
 test.each([null, '2026-11-20'])('opens an award, replays its artwork and closes without granting XP (%s)', (unlocked_at) => {
   render(<Progress canEdit={false} achievements={[{ code: 'norm_7', icon: '🎯', title: 'Точно в цель', hint: 'Семь дней в норме', progress: 0, target: 7, unlocked_at }]} freezes={0} body={null} />)
-  fireEvent.click(screen.getByRole('tab', { name: 'Награды' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Питание' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Награды' }))
   fireEvent.click(screen.getByRole('button', { name: 'Открыть достижение: Точно в цель' }))
   const dialog = screen.getByRole('dialog')
   expect(screen.queryByText('+25 XP')).toBeNull()

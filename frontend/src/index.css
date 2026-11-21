@@ -2033,3 +2033,16 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .profile-identity h1 { margin-bottom: 0; }
 .profile-identity .profile-level { padding-top: 10px; gap: 6px; }
 .profile-identity .medals { padding-top: 8px; }
+
+.day-summary { gap: 12px; padding: 18px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 8%, var(--card)), var(--card) 60%); }
+.day-summary-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.day-summary-head h2 { font-size: 16px; }
+.day-summary-head p { margin-top: 4px; }
+.day-summary-total { color: var(--accent-text); background: color-mix(in srgb, var(--accent) 14%, var(--card)); border-radius: 12px; padding: 7px 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.day-summary-list { list-style: none; display: flex; flex-direction: column; }
+.day-summary-list li { display: grid; grid-template-columns: 8px minmax(0, 1fr) auto auto; align-items: center; gap: 9px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.day-summary-list li:last-child { padding-bottom: 0; }
+.day-summary-list b { min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; font-size: 13px; }
+.day-summary-list .sub { text-align: right; }
+.day-summary-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.day-summary-dot.done { background: var(--accent); box-shadow: 0 0 8px var(--glow); }

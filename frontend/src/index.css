@@ -1986,3 +1986,26 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 @media (prefers-reduced-motion: reduce) {
   .nav button, :where(input, textarea, select) { transition: none; }
 }
+
+:root {
+  --panel-edge: color-mix(in srgb, var(--text) 9%, var(--card));
+  --panel-sheen: color-mix(in srgb, var(--text) 4%, transparent);
+  --panel-depth: inset 0 1px 0 var(--panel-sheen), 0 3px 12px rgba(0,0,0,.06);
+  --surface-error: #ff998e;
+}
+[data-theme='light'] { --surface-error: #a63129; }
+html { scroll-padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+.card, .meal-group, .lib-row, .q-option, .recap-tile {
+  border-color: var(--panel-edge);
+  box-shadow: var(--panel-depth);
+}
+.date-bar, .seg {
+  border: 1px solid var(--panel-edge);
+  box-shadow: inset 0 1px 0 var(--panel-sheen);
+}
+.error { color: var(--surface-error); }
+.input-wrap input:focus-visible, .feedback-form textarea:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-text) 23%, transparent);
+}
+body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--surface-glass); }
+@media (max-width: 375px) { .nav button { flex: 1 0 auto; padding-inline: 3px; } }

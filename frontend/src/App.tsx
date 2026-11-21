@@ -1,3 +1,4 @@
+import { Icon, type IconName } from './icons'
 import AchievementBadge from './AchievementBadge'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
@@ -37,12 +38,8 @@ const Workouts = lazy(() => import('./Workouts'))
 
 type Tab = 'home' | 'food' | 'workouts' | 'progress' | 'profile'
 
-const ICONS: Record<Tab, string> = {
-  home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
-  food: 'M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 3c-2 0-3 2-3 5s1 4 3 4v9',
-  workouts: 'M6 8v8M3 10v4M18 8v8M21 10v4M6 12h12',
-  progress: 'M4 20V11M10 20V5M16 20v-6M3 20h18',
-  profile: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6',
+const ICONS: Record<Tab, IconName> = {
+  home: 'home', food: 'utensils', workouts: 'dumbbell', progress: 'progress', profile: 'profile',
 }
 const TABS: { id: Tab; label: string }[] = [
   { id: 'home', label: 'Главная' },
@@ -732,7 +729,7 @@ function SetlyApp() {
         <div className="nav-inner">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => go(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[t.id]} /></svg>
+              <Icon name={ICONS[t.id]} size={24} />
               {t.label}
             </button>
           ))}

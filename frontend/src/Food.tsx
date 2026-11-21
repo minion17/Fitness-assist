@@ -14,7 +14,7 @@ import Calendar from './Calendar'
 import { eaten, localSearch, remember } from './catalog'
 import { api, ApiError, postJson, putJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
-import { foodIcon } from './foodIcon'
+import { emojiSrc, foodIcon } from './foodIcon'
 import { FeedbackForm } from './Feedback'
 import { applyWanted, defaultAmount, fmtQty, parseQuery, unitWord, unitsFor, type Unit, type Wanted } from './units'
 import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
@@ -83,7 +83,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
 
   if (mode === 'grams') return (
     <div className="row food-row-edit">
-      <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>
+      <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(i.product.name, i.product.category)} /></span>
       <div className="row-main"><div className="row-title">{i.product.name}</div>
         <div className="input-wrap grams-input"><input autoFocus inputMode="decimal" aria-label={`Граммы, ${i.product.name}`} value={grams}
           onChange={(e) => setGrams(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && gramsOk) onGrams(i.id, g).then(() => setMode(null)) }} /><i>г</i></div>
@@ -124,7 +124,7 @@ function FoodRow({ item: i, canEdit, onDelete, onGrams, onMove, onCopyToday }: {
         onPointerCancel={() => { stopPress(); setDrag(null); start.current = null }}>
         {RECIPE_PHOTO.has(i.product.name)
           ? <img className="food-icon food-photo" src={RECIPE_PHOTO.get(i.product.name)} alt="" loading="lazy" />
-          : <span className="food-icon" aria-hidden="true">{foodIcon(i.product.name, i.product.category)}</span>}
+          : <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(i.product.name, i.product.category)} /></span>}
         <div className="row-main">
           <div className="row-title">{i.product.name}</div>
           <div className="row-sub">{i.unit && i.qty ? `${fmtQty(i.qty)} ${unitWord(i.unit, i.qty)} · ` : ''}{i.amount_g} г · Б {r1(i.protein_g)} · Ж {r1(i.fat_g)} · У {r1(i.carbs_g)}</div>
@@ -615,7 +615,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     const kcal = Math.round((p.kcal * shown.qty * shown.unit.g) / 100)
     return (
       <div className="row quick-row" key={p.id}>
-        <span className="food-icon" aria-hidden="true">{foodIcon(p.name, p.category)}</span>
+        <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(p.name, p.category)} /></span>
         <button className="row-main row-btn-plain" onClick={() => pick(p)}>
           <div className="row-title">{p.name}</div>
           <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}<span className="macro-p">Б {r1(p.protein_g)}</span> на 100 г</div>
@@ -738,7 +738,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                     const kcal = Math.round((p.kcal * d.qty * d.unit.g) / 100)
                     return (
                       <div className="row quick-row" key={p.id}>
-                        <span className="food-icon" aria-hidden="true">{foodIcon(p.name, p.category)}</span>
+                        <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(p.name, p.category)} /></span>
                         <button className="row-main row-btn-plain" onClick={() => pick(p)}>
                           <div className="row-title">{p.name}</div>
                           <div className="row-sub">{amount} · {kcal} ккал{kcalLeft !== undefined && <> · {leftAfter(kcal)}</>}</div>
@@ -782,7 +782,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       ) : (
         <>
           <div className="row">
-            <span className="food-icon" aria-hidden="true">{foodIcon(picked.name, picked.category)}</span>
+            <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(picked.name, picked.category)} /></span>
             <div className="row-main">
               <div className="row-title">{picked.name}</div>
               <div className="row-sub">{picked.brand ?? ''}</div>
@@ -977,4 +977,8 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       <button className="link" onClick={onCancel}>Назад к поиску</button>
     </>
   )
+}
+
+function FoodEmoji({ e }: { e: string }) {
+  return <img className="food-emoji" src={emojiSrc(e)} alt="" draggable={false} />
 }

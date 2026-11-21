@@ -1999,7 +1999,7 @@ html { scroll-padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
   border-color: var(--panel-edge);
   box-shadow: var(--panel-depth);
 }
-.date-bar, .seg {
+.date-bar {
   border: 1px solid var(--panel-edge);
   box-shadow: inset 0 1px 0 var(--panel-sheen);
 }
@@ -2009,3 +2009,19 @@ html { scroll-padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
 }
 body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-filter: none; background: var(--surface-glass); }
 @media (max-width: 375px) { .nav button { flex: 1 0 auto; padding-inline: 3px; } }
+
+/* Profile cards */
+.profile-metrics { gap: 8px; background: transparent; overflow: visible; }
+.profile-metrics > .card { padding: 12px; border-radius: 13px; gap: 6px; box-shadow: none; }
+.profile-metrics .stat { font-size: 16px; }
+.profile-metrics .stat small { font-size: 13px; }
+.profile-metrics .row-title { font-size: 16px; font-weight: 700; }
+.reminders-card { gap: 0; padding: 12px 20px; }
+.reminders-panel[data-open='true'] .reminders-inner { padding-top: 12px; }
+.privacy-card { display: block; padding: 14px 20px; }
+.privacy-card summary { display: flex; align-items: center; justify-content: space-between; min-height: 28px; font-weight: 700; font-size: 16px; cursor: pointer; list-style: none; }
+.privacy-card summary::-webkit-details-marker { display: none; }
+.privacy-card summary span { color: var(--muted); font-size: 20px; transition: transform .2s ease; }
+.privacy-card[open] summary span { transform: rotate(180deg); }
+.privacy-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
+@media (prefers-reduced-motion: reduce) { .privacy-card summary span { transition: none; } }

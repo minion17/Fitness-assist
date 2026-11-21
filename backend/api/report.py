@@ -64,7 +64,7 @@ async def order_report(body: ReportIn, tg: dict = Depends(telegram_user), sessio
     recent = await session.scalar(select(func.count()).where(
         Outbox.telegram_id == user.telegram_id, Outbox.kind == "report", Outbox.created_at > func.now() - timedelta(minutes=2)))
     if recent:
-        raise HTTPException(429, "Отчёт уже готовится — загляните в чат с ботом")
+        raise HTTPException(429, "Отчёт уже готовится — загляни в чат с ботом")
     session.add(Outbox(telegram_id=user.telegram_id, kind="report", text=str(body.days), user_id=user.id))
     await session.commit()
     return {"ok": True}

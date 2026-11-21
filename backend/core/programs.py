@@ -23,7 +23,7 @@ def score_program(program, experience: str | None, equipment: list[str] | None, 
     coverage = len(usable) / len(exercises) if exercises else 0
     score = 40 * coverage
     if coverage == 1:
-        reasons.append("всё оборудование у вас есть")
+        reasons.append("всё оборудование у тебя есть")
     elif coverage >= 0.5:
         reasons.append(f"подходит {round(coverage * 100)}% упражнений по оборудованию")
 
@@ -31,13 +31,13 @@ def score_program(program, experience: str | None, equipment: list[str] | None, 
         gap = abs(LEVELS.index(experience) - LEVELS.index(program.level))
         score += 30 * {0: 1, 1: 0.4}.get(gap, 0)
         if gap == 0:
-            reasons.append("по вашему уровню подготовки")
+            reasons.append("по твоему уровню подготовки")
 
     if sessions:
         diff = abs(program.days_per_week - sessions)
         score += 30 * max(0.0, 1 - diff / 3)
         if diff == 0:
-            reasons.append(f"{sessions} тренировки в неделю, как вы хотите")
+            reasons.append(f"{sessions} тренировки в неделю, как ты хочешь")
     return round(score, 1), reasons
 
 
@@ -74,6 +74,6 @@ def recommend(programs, profile) -> dict | None:
     level, by_test = training_level(profile)
     scored = [(score_program(p, level, profile.equipment, profile.sessions_per_week), p) for p in programs]
     (score, reasons), best = max(scored, key=lambda x: x[0][0])
-    if by_test and "по вашему уровню подготовки" in reasons:
-        reasons = [("по вашей форме сейчас (приседания, отжимания)" if r == "по вашему уровню подготовки" else r) for r in reasons]
+    if by_test and "по твоему уровню подготовки" in reasons:
+        reasons = [("по твоей форме сейчас (приседания, отжимания)" if r == "по твоему уровню подготовки" else r) for r in reasons]
     return {"program_id": best.id, "score": score, "reasons": reasons}

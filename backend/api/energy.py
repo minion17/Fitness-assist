@@ -60,7 +60,7 @@ async def energy(tg: dict = Depends(telegram_user), session: AsyncSession = Depe
     user = await get_or_create_user(tg, session)
     profile = await session.get(Profile, user.id)
     if profile is None:
-        raise HTTPException(404, "Сначала заполните анкету")
+        raise HTTPException(404, "Сначала заполни анкету")
     today = clock.today()
     since = today - timedelta(days=WINDOW - 1)
     days = await daily_series(session, user, since, today - timedelta(days=1))  # today isn't finished yet
@@ -100,7 +100,7 @@ async def apply(body: Override, tg: dict = Depends(telegram_user), session: Asyn
     user = await get_or_create_user(tg, session)
     profile = await session.get(Profile, user.id)
     if profile is None:
-        raise HTTPException(404, "Сначала заполните анкету")
+        raise HTTPException(404, "Сначала заполни анкету")
     if body.kcal and body.kcal < MIN_CALORIES[profile.sex]:
         raise HTTPException(422, f"Не меньше {MIN_CALORIES[profile.sex]} ккал — ниже опасно для здоровья")
     profile.kcal_override = body.kcal
@@ -117,7 +117,7 @@ async def target_weight(body: TargetWeight, tg: dict = Depends(telegram_user), s
     user = await get_or_create_user(tg, session)
     profile = await session.get(Profile, user.id)
     if profile is None:
-        raise HTTPException(404, "Сначала заполните анкету")
+        raise HTTPException(404, "Сначала заполни анкету")
     profile.target_weight_kg = body.target_weight_kg
     await session.commit()
     return {"target_weight_kg": profile.target_weight_kg}

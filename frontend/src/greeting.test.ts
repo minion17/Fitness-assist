@@ -10,6 +10,6 @@ test('greeting by the time of day, and one true fact', () => {
   expect(insight({ ...base, workoutsThisWeek: 3 })).toBe('Уже 3 тренировки на этой неделе')
   expect(insight({ ...base, streak: 5 })).toBe('5 дней подряд с дневником — хороший ритм')
   expect(insight({ ...base, streak: 3 })).toBe('3 дня подряд с дневником — хороший ритм')
-  expect(insight({ ...base, hour: 8, kcalToday: 0 })).toBe('Начните день с завтрака — запись займёт пару секунд')
+  expect(insight({ ...base, hour: 8, kcalToday: 0 })).toBe('Начни день с завтрака — запись займёт пару секунд')
   expect(insight(base)).toBeNull()
 })

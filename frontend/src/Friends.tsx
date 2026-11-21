@@ -30,7 +30,7 @@ export default function Friends() {
 
   async function act(run: () => Promise<unknown>, done = '') {
     setError(''); setNote('')
-    try { await run(); if (done) setNote(done); await load() } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуйте ещё раз.') }
+    try { await run(); if (done) setNote(done); await load() } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуй ещё раз.') }
   }
 
   function invite() {
@@ -52,12 +52,12 @@ export default function Friends() {
         <h2>{friends.length ? 'Друзья' : 'Вместе проще не бросить'}</h2>
         <p className="sub">{friends.length
           ? 'Рейтинг недели, дуэли и общий азарт.'
-          : 'Отправьте другу ссылку. Когда он её откроет, вы появитесь друг у друга в списке: будет общий рейтинг недели и дуэли.'}
+          : 'Отправь другу ссылку. Когда он её откроет, ты появишься друг у друга в списке: будет общий рейтинг недели и дуэли.'}
           {' '}+50 XP за каждого нового друга, который пользуется Setly хотя бы 3 дня.</p>
         <div className="friends-actions">
           <button className="btn" disabled={!link} onClick={invite}>Пригласить друга</button>
           {canStory() && <button className="btn btn-ghost" onClick={() => act(() => shareStory({ kind: 'week' }))}>Неделя в историю</button>}
-          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешлите её кому угодно.')}>{canStory() ? 'Карточкой в чат' : 'Поделиться неделей'}</button>
+          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешли её кому угодно.')}>{canStory() ? 'Карточкой в чат' : 'Поделиться неделей'}</button>
         </div>
         {!link && <p className="sub">Ссылка появится, когда бот будет запущен.</p>}
       </section>
@@ -94,7 +94,7 @@ export default function Friends() {
               <li key={r.id} className={r.me ? 'me' : ''}>
                 <span className="board-place">{i + 1}</span>
                 <div className="board-who">
-                  <b>{r.me ? 'Вы' : r.name}</b>
+                  <b>{r.me ? 'Ты' : r.name}</b>
                   <span className="sub">Ур. {r.level} · 🔥 {r.streak}</span>
                 </div>
                 <span className="board-xp">{r.week_xp.toLocaleString('ru-RU')} XP</span>

@@ -33,7 +33,7 @@ export default function Challenges({ friends }: { friends: { id: number; name: s
     <section className="card challenges">
       <div className="card-head"><h2>Челленджи</h2>
         {friends.length > 0 && !form && <button className="link" onClick={() => setForm({ ...TEMPLATES[0], days: 7, ids: [] })}>+ Новый</button>}</div>
-      {!list.length && !form && <p className="sub">{friends.length ? 'Вместе с друзьями: «Без сладкого», «Зарядка» — отмечаетесь каждый день, видите прогресс друг друга. За 80% дней — +50 XP.' : 'Позовите друга — и запускайте челленджи вместе.'}</p>}
+      {!list.length && !form && <p className="sub">{friends.length ? 'Вместе с друзьями: «Без сладкого», «Зарядка» — отмечаешься каждый день, видишь прогресс друг друга. За 80% дней — +50 XP.' : 'Позови друга — и запускай челленджи вместе.'}</p>}
       {form && (
         <div className="challenge-form">
           <div className="habit-chips">

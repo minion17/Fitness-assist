@@ -31,7 +31,7 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
       if (list) onChange(list)
       return true
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуйте ещё раз.')
+      setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуй ещё раз.')
       return false
     }
   }

@@ -46,7 +46,7 @@ def day_start(d: date) -> datetime:
 async def use_quota(session: AsyncSession, user: User, kind: str) -> None:
     """Count the request against the daily limit before calling the paid API."""
     if not settings.anthropic_api_key:
-        raise HTTPException(503, "AI не настроен: добавьте ANTHROPIC_API_KEY в .env")
+        raise HTTPException(503, "AI не настроен: добавь ANTHROPIC_API_KEY в .env")
     used = await session.scalar(
         select(func.count(AiRequest.id)).where(
             AiRequest.user_id == user.id, AiRequest.created_at >= day_start(clock.today())
@@ -70,7 +70,7 @@ MEAL_SYSTEM = """Ты помощник дневника питания. Разб
 - Если подходящего продукта в каталоге нет — catalog_id = null, дай короткое название и свою оценку КБЖУ на 100 г.
 - Массу оценивай реалистично: «тарелка супа» ≈ 300 г, «яйцо» ≈ 55 г, «кусок хлеба» ≈ 30 г, «ложка масла» ≈ 10 г.
 - Не выдумывай продукты, которых нет в описании/на фото. Если на фото не еда или ничего не понять — верни пустой список и объясни в note.
-- note — одна короткая фраза по-русски, только если есть важная неопределённость. Иначе пусто."""
+- note — одна короткая фраза по-русски, обращение на «ты», только если есть важная неопределённость. Иначе пусто."""
 
 MEAL_TOOL = {
     "name": "record_meal",
@@ -253,7 +253,8 @@ SUMMARY_SYSTEM = """Ты доброжелательный фитнес-помо�
 - Опирайся только на переданные данные, ничего не выдумывай. Если данных почти нет — скажи об этом и предложи начать с записи приёмов пищи.
 - Тон поддерживающий, без стыда и давления. Не предлагай резких ограничений, голодания или калорийности ниже нормы из анкеты.
 - Если человек сильно недоедает несколько дней подряд — мягко напомни, что есть достаточно важно, и при сложностях стоит обратиться к врачу или диетологу.
-- Не ставь диагнозов и не давай медицинских назначений."""
+- Не ставь диагнозов и не давай медицинских назначений.
+- Обращайся к пользователю на «ты», как всё приложение."""
 
 
 async def summary_data(session: AsyncSession, user: User, period: str) -> str:
@@ -334,7 +335,7 @@ async def summary(
     except ai.AIUnavailable as e:
         raise ai_errors(e)
     if not text:
-        raise HTTPException(503, "AI вернул пустой ответ, попробуйте ещё раз")
+        raise HTTPException(503, "AI вернул пустой ответ, попробуй ещё раз")
     row = (await session.execute(
         insert(AiSummary).values(user_id=user.id, period=period, day=today, text=text)
         .on_conflict_do_update(index_elements=["user_id", "period", "day"], set_={"text": text, "created_at": func.now()})
@@ -409,7 +410,7 @@ async def read_label(
     except ai.AIUnavailable as e:
         raise ai_errors(e)
     if not raw.get("found"):
-        return {"found": False, "note": str(raw.get("note") or "Не удалось прочитать таблицу пищевой ценности — снимите её ближе и ровнее.")}
+        return {"found": False, "note": str(raw.get("note") or "Не удалось прочитать таблицу пищевой ценности — сними её ближе и ровнее.")}
     out = {k: round(clamp(raw.get(f"{k}_100g", 0), 0, hi), 1) for k, hi in (("kcal", 900), ("protein", 100), ("fat", 100), ("carbs", 100))}
     net = clamp(raw.get("net_amount") or 0, 0, 5000)
     pieces = int(clamp(raw.get("pieces") or 0, 0, 100))

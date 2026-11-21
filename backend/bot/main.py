@@ -291,7 +291,7 @@ async def main() -> None:
             await dp.start_polling(bot)
             return
         except TelegramNetworkError as e:
-            log.error("Нет связи с Telegram (%s). Проверьте интернет/VPN или BOT_PROXY в .env. Повтор через 15 с…", e)
+            log.error("Нет связи с Telegram (%s). Проверь интернет/VPN или BOT_PROXY в .env. Повтор через 15 с…", e)
             await asyncio.sleep(15)
 
 

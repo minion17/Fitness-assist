@@ -168,7 +168,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
   return (
     <div className="library">
       <div className="card-head"><h1>{build ? 'Собрать тренировку' : 'Упражнения'}</h1><button className="link" onClick={onClose}>Назад</button></div>
-      {build && <p className="sub">Нажмите на мышцы на схеме — подберём упражнения под ваше оборудование и уровень.</p>}
+      {build && <p className="sub">Нажми на мышцы на схеме — подберём упражнения под твоё оборудование и уровень.</p>}
       <MuscleMap primary={muscles} onPick={toggleMuscle} />
       <div className="lib-chips" role="group" aria-label="Мышцы">
         {MUSCLE_GROUPS.flatMap((g) => g.muscles).map((m) => (
@@ -177,7 +177,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
       </div>
       {build ? (
         <button className="btn" disabled={!muscles.length || !all} onClick={() => setPlan(pickWorkout(all ?? [], muscles, profile))}>
-          {muscles.length ? `Подобрать упражнения · ${muscles.map((m) => MUSCLES[m]).join(', ')}` : 'Выберите мышцы'}
+          {muscles.length ? `Подобрать упражнения · ${muscles.map((m) => MUSCLES[m]).join(', ')}` : 'Выбери мышцы'}
         </button>
       ) : (
         <>
@@ -193,7 +193,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           {!all && !error && <p className="sub">Загружаем упражнения…</p>}
-          {all && <p className="sub">{list.length ? `Нашлось: ${list.length}` : 'Ничего не нашлось — уберите часть фильтров'}</p>}
+          {all && <p className="sub">{list.length ? `Нашлось: ${list.length}` : 'Ничего не нашлось — убери часть фильтров'}</p>}
           <div className="lib-list">{list.slice(0, shown).map((e) => <Row key={e.id} e={e} onOpen={() => setOpen(e)} />)}</div>
           {list.length > shown && <button className="btn btn-ghost" onClick={() => setShown(shown + PAGE)}>Показать ещё</button>}
         </>
@@ -256,16 +256,16 @@ function WorkoutPlan({ plan: initial, all, profile, muscles, onBack, onSave }: {
     try {
       await onSave({ name: name.trim() || 'Моя тренировка', days: [{ name: name.trim() || 'Моя тренировка', exercises: plan.map((e) => ({ exercise_id: e.id, sets: 3, reps, rest_seconds: rest, unit: 'reps' as const })) }] }, new Map(plan.map((e) => [e.id, e.name])))
     } catch {
-      setError('Не сохранилось: нет связи. Попробуйте ещё раз')
+      setError('Не сохранилось: нет связи. Попробуй ещё раз')
       setBusy(false)
     }
   }
 
   return (
     <div className="library">
-      <div className="card-head"><h1>Ваша тренировка</h1><button className="link" onClick={onBack}>Назад</button></div>
+      <div className="card-head"><h1>Твоя тренировка</h1><button className="link" onClick={onBack}>Назад</button></div>
       <MuscleMap primary={muscles} secondary={[...new Set(plan.flatMap((e) => [...e.primary, ...e.secondary]))].filter((m) => !muscles.includes(m as Muscle))} compact />
-      <p className="sub">{plan.length ? `${plan.length} упражнений · 3 подхода по ${reps} · отдых ${rest} с. Любое можно заменить или убрать.` : 'Под ваше оборудование не нашлось упражнений — отметьте его в анкете или выберите другие мышцы.'}</p>
+      <p className="sub">{plan.length ? `${plan.length} упражнений · 3 подхода по ${reps} · отдых ${rest} с. Любое можно заменить или убрать.` : 'Под твоё оборудование не нашлось упражнений — отметь его в анкете или выбери другие мышцы.'}</p>
       <div className="lib-list">
         {plan.map((e, i) => (
           <Row key={e.id} e={e} onOpen={() => setOpen(e)} end={

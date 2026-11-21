@@ -287,7 +287,7 @@ def test_extended_questionnaire_and_program_recommendation(client, seeded):
            "equipment": ["barbell", "bench", "pullup_bar", "dumbbells", "machine"]}
     client.put("/api/profile", headers=h, json={**PROFILE, **gym})
     rec = client.post("/api/auth", headers=h).json()["recommended_program"]
-    assert programs[rec["program_id"]] == "Тяни-Толкай-Ноги (PPL)" and "всё оборудование у вас есть" in rec["reasons"]
+    assert programs[rec["program_id"]] == "Тяни-Толкай-Ноги (PPL)" and "всё оборудование у тебя есть" in rec["reasons"]
 
     # the self-test caps a stated level: "advanced" who can't do 10 push-ups gets a program for today's form
     weak = {**gym, "experience": "advanced", "squats": "lt15", "pushups": "lt10", "pullups": "none", "body_now": 6,
@@ -1142,7 +1142,7 @@ def test_weekly_quests_assigned_once_and_paid_once(client, seeded):
         client.post("/api/water", headers=h, json={"delta_ml": 1000})
     r = client.get("/api/quests", headers=h).json()
     assert all(q["done"] for q in r["items"]) and r["xp_awarded"] == 30 + 50 + 50  # two tasks + the all-three bonus
-    assert r["items"][1]["title"] == "Взвесьтесь 1 раз"
+    assert r["items"][1]["title"] == "Взвесься 1 раз"
 
 
 def test_bootstrap_has_the_whole_first_screen(client, seeded):
@@ -1733,7 +1733,7 @@ def test_weekly_leagues(client, seeded):
     assert boards[0]["tier_name"] == "Бронза" and boards[0]["promote"] == 5 and boards[0]["demote"] == 0  # nowhere below Bronze
     assert len(boards[0]["members"]) == 1 and len(boards[19]["members"]) == 20 and len(boards[20]["members"]) == 1  # 20 per group
     b = client.get("/api/league", headers=heads[0]).json()
-    assert [m["name"] for m in b["members"][:2]] == ["Вы", "Игрок1"] and b["members"][0]["xp"] == 100  # strangers: first name only
+    assert [m["name"] for m in b["members"][:2]] == ["Ты", "Игрок1"] and b["members"][0]["xp"] == 100  # strangers: first name only
 
     async def close_week():
         async with SessionLocal() as s:
@@ -1780,7 +1780,7 @@ def test_group_challenges(client, seeded):
     assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 5, "friend_ids": [boris]}).status_code == 422
     assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 7, "friend_ids": [vera]}).status_code == 422
     ch = client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "emoji": "🍬", "days": 7, "friend_ids": [boris, vera]}).json()
-    assert [m["name"] for m in ch["members"]] == ["Вы", "Боря"] and ch["members"][1]["joined"] is False  # Vera wasn't added
+    assert [m["name"] for m in ch["members"]] == ["Ты", "Боря"] and ch["members"][1]["joined"] is False  # Vera wasn't added
     cid = ch["id"]
     assert client.post(f"/api/challenges/{cid}/check", headers=b, json={"done": True}).status_code == 409  # accept first
     got = client.get("/api/challenges", headers=b).json()[0]
@@ -1805,7 +1805,7 @@ def test_group_challenges(client, seeded):
             xa = await s.scalar(select(User.xp).where(User.id == ua))
             return n, texts, xa
     n, texts, xp = client.portal.call(finish)
-    assert n >= 1 and "справились: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
+    assert n >= 1 and "справился: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
     assert "1 из 7" in texts[ids[1]][0] and "Аня 6/7" in texts[ids[1]][0]
     assert client.get("/api/challenges", headers=a).json()[0]["finished"] is True
 

@@ -50,7 +50,7 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
       }
       setSaved(out)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуйте ещё раз')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуй ещё раз')
     } finally {
       setBusy('')
     }
@@ -59,7 +59,7 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
   if (saved) {
     return (
       <>
-        <p className="row-title strong">Сохранено: {saved.length}. Выберите, что добавить сейчас:</p>
+        <p className="row-title strong">Сохранено: {saved.length}. Выбери, что добавить сейчас:</p>
         {saved.some((p) => p.shared) && <p className="sub pos">Спасибо! Часть блюд подтвердили другие пользователи — теперь они доступны всем.</p>}
         <div className="list scroll-list">
           {saved.map((p) => (
@@ -79,7 +79,7 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
 
   return (
     <>
-      <p className="sub">Сфотографируйте меню или карточку блюда в приложении доставки — раскройте «Пищевую ценность», чтобы цифры были видны. Сохраню только то, где КБЖУ напечатаны.</p>
+      <p className="sub">Сфотографируй меню или карточку блюда в приложении доставки — раскрой «Пищевую ценность», чтобы цифры были видны. Сохраню только то, где КБЖУ напечатаны.</p>
       <label className={busy ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
         {busy || (menu ? '📷 Другое фото' : '📷 Сфоткать меню')}
         <input type="file" accept="image/*" hidden disabled={!!busy} onChange={(e) => { read(e.target.files?.[0]); e.target.value = '' }} />
@@ -102,7 +102,7 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
               </label>
             ))}
           </div>
-          <p className="sub">Сверьте цифры с фото. Блюда будут видны только вам, пока их не подтвердят ещё двое.</p>
+          <p className="sub">Сверь цифры с фото. Блюда будут видны только тебе, пока их не подтвердят ещё двое.</p>
           <button className="btn" disabled={!!busy || chosen.size === 0} onClick={save}>Сохранить выбранные ({chosen.size})</button>
         </>
       )}

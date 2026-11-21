@@ -46,7 +46,7 @@ def newest(directory: Path = DIR) -> Path | None:
 async def make(directory: Path = DIR) -> Path:
     exe = pg_dump()
     if not exe:
-        raise RuntimeError("pg_dump не найден: укажите путь в .env как PG_DUMP=...")
+        raise RuntimeError("pg_dump не найден: укажи путь в .env как PG_DUMP=...")
     directory.mkdir(exist_ok=True)
     out = directory / f"setly-{datetime.now():%Y-%m-%d-%H%M}.dump"
     args, env = command(exe, settings.database_url, out)

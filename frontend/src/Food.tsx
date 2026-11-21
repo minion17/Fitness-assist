@@ -209,7 +209,7 @@ function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, it
         <h2>Что съесть на {meal === 'lunch' ? 'обед' : 'ужин'}</h2>
         <button className="link" aria-label="Скрыть на сегодня" onClick={() => { setHidden(true); try { localStorage.setItem(key, '1') } catch { /* private mode */ } }}>✕</button>
       </div>
-      <p className="sub">Осталось {s.kcal_left} ккал{s.protein_left > 10 ? ` и ${s.protein_left} г белка` : ''} — из того, что вы ели раньше:</p>
+      <p className="sub">Осталось {s.kcal_left} ккал{s.protein_left > 10 ? ` и ${s.protein_left} г белка` : ''} — из того, что ты ел раньше:</p>
       <div className="list">
         {s.options.map((o) => (
           <button className="row row-btn" key={o.title} disabled={busy} onClick={() => { setBusy(true); onLog(meal, o.items).finally(() => setBusy(false)) }}>
@@ -262,7 +262,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       await api(`/api/meal-plan/today/${index}`, putJson({ completed }))
       await onPlanLogged()
       setTodayPlan(await api<TodayPlan>('/api/meal-plan/today'))
-    } catch { setPlanError('Приём пищи не обновился: нет связи. Попробуйте ещё раз') }
+    } catch { setPlanError('Приём пищи не обновился: нет связи. Попробуй ещё раз') }
     finally { setPlanBusy(null) }
   }
   const [adding, setAdding] = useState<{ meal: MealType; slot?: string | null } | null>(intent === 'search' ? { meal: mealNow() } : null)
@@ -324,9 +324,9 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
             ))}
           </div>
         </div>
-        {!targets && <span className="sub">Ориентир по умолчанию — заполните анкету в профиле, чтобы получить свою норму.</span>}
+        {!targets && <span className="sub">Ориентир по умолчанию — заполни анкету в профиле, чтобы получить свою норму.</span>}
       </section>
-      {editable && onDate && <Tip id="days">Смахните КБЖУ вбок — соседний день. Дата сверху — календарь.</Tip>}
+      {editable && onDate && <Tip id="days">Смахни КБЖУ вбок — соседний день. Дата сверху — календарь.</Tip>}
       {canEdit && !editable && <p className="sub">Дописать можно только последние {BACKFILL_DAYS} дней — этот день только для просмотра.</p>}
       {editable && (isToday
         ? <button className="food-search" onClick={() => setAdding({ meal: mealNow() })} aria-label={`Добавить продукт в «${MEALS[mealNow()]}»: поиск`}>
@@ -342,9 +342,9 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
 
       <section className="meal-diary">
       <h2>Приёмы пищи</h2>
-      {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажмите продукт — изменить или перенести. Влево — быстрые действия.</Tip>}
+      {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажми продукт — изменить или перенести. Влево — быстрые действия.</Tip>}
       {queued > 0 && <p className="queued" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
-      {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отметьте, что съели.</p>}
+      {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отметь, что съел.</p>}
       {isToday && todayPlan?.finished && <p className="sub">Рацион завершён.</p>}
       {planError && <p className="error" role="alert">{planError}</p>}
       {mealGroups(day).map(({ key, meal, slot, title, items }) => {
@@ -397,9 +397,9 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       })}
       {editable && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: isToday ? nowSlot() : null })}>+ Перекус</button>}
       </section>
-      <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span className="meal-plan-icon" aria-hidden="true"><Icon name="leaf" size={22} /></span><span className="meal-plan-text"><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По вашим предпочтениям'}</small></span><span className="meal-plan-go"><Chevron /></span></button>
+      <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span className="meal-plan-icon" aria-hidden="true"><Icon name="leaf" size={22} /></span><span className="meal-plan-text"><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По твоим предпочтениям'}</small></span><span className="meal-plan-go"><Chevron /></span></button>
       {canEdit && isToday && targets && onLogBatch && <WhatToEat eaten={Math.round(day.totals.kcal)} onLog={onLogBatch} />}
-      {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, откройте приложение из Telegram.</p>}
+      {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, открой приложение из Telegram.</p>}
       {recipe && <RecipeCard meal={recipe} onClose={() => setRecipe(null)} />}
       {aiMode && <AiMeal mode={aiMode} initialText={aiText} onClose={() => { setAiMode(null); setAiText('') }} onDone={onAiDone} />}
       {saving && (
@@ -505,7 +505,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       eaten(p)
       await (shown.unit.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: shown.unit.label, qty: shown.qty }))
       done(p, grams)
-    } catch { setError('Не добавилось — попробуйте ещё раз') }
+    } catch { setError('Не добавилось — попробуй ещё раз') }
     setBusy(false)
   }
 
@@ -522,7 +522,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     try {
       await onLogSet(id, meal, meal === 'snack' ? slot : null)
       if (set) setAdded((a) => [...a, { name: set.name, kcal: Math.round(set.kcal) }])
-    } catch { setError('Набор не добавился — попробуйте ещё раз') }
+    } catch { setError('Набор не добавился — попробуй ещё раз') }
     setBusy(false)
   }
   const [thanks, setThanks] = useState(false)
@@ -544,7 +544,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   async function toggleFav(p: Product) {
     const was = favorites?.some((f) => f.id === p.id)
     setFavorites((fs) => (was ? (fs ?? []).filter((f) => f.id !== p.id) : [p, ...(fs ?? [])])) // optimistic
-    try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Избранное не обновилось — попробуйте ещё раз') }
+    try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Избранное не обновилось — попробуй ещё раз') }
   }
   async function lookup(c: string) {
     setScan('busy')
@@ -554,7 +554,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       if (p) { pick(p); setScan('idle'); return }
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) { setScan('idle'); setLastCode(c); setCustom('notFound'); return }
-      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуйте через минуту')
+      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуй через минуту')
     }
     setScan('manual')
   }
@@ -564,7 +564,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setError('')
     const c = await readBarcode(file).catch(() => null)
     if (c) return lookup(c)
-    setError('Не получилось распознать штрихкод. Сфотографируйте ближе и ровнее или введите цифры.')
+    setError('Не получилось распознать штрихкод. Сфотографируй ближе и ровнее или введи цифры.')
     setScan('manual')
   }
 
@@ -600,7 +600,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
         let r = w && w.unit ? null : await find(q.trim(), Boolean(w))
         if (w && !r?.length && text.length >= 2) { r = await find(text); if (!stale) setWanted(w) } else if (!stale) setWanted(null)
         if (!stale) { setFound({ q, items: r ?? [] }); (r ?? []).forEach(remember) }
-      } catch { if (!stale) setError('Поиск недоступен — проверьте соединение') }
+      } catch { if (!stale) setError('Поиск недоступен — проверь соединение') }
     }, 300) // wait for the user to stop typing
     return () => { stale = true; clearTimeout(timer) }
   }, [q])
@@ -649,7 +649,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
       done(picked, g)
     } catch {
-      setError('Не добавилось — попробуйте ещё раз')
+      setError('Не добавилось — попробуй ещё раз')
     }
     setBusy(false)
   }
@@ -705,7 +705,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
               {list === 'mine' ? (
                 <div className="list scroll-list">
                   {sets === null || recipes === null ? <p className="sub">Загружаем…</p> : sets.length + recipes.length === 0 ? (
-                    <p className="sub">Наборы — то, что вы обычно едите вместе: в дневнике под приёмом пищи нажмите «☆ В наборы». Рецепт — своё блюдо из продуктов: «🍲 Рецепт» выше.</p>
+                    <p className="sub">Наборы — то, что ты обычно ешь вместе: в дневнике под приёмом пищи нажми «☆ В наборы». Рецепт — своё блюдо из продуктов: «🍲 Рецепт» выше.</p>
                   ) : null}
                   {sets?.map((s) => (
                     <div className="row" key={`s${s.id}`}>
@@ -729,7 +729,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                   ))}
                 </div>
               ) : (list === 'recent' ? recentForMeal! : favorites).length === 0 ? (
-                <p className="sub">{list === 'recent' ? 'Здесь появятся продукты, которые вы добавляли.' : 'Отметьте продукт звёздочкой — он появится здесь.'}</p>
+                <p className="sub">{list === 'recent' ? 'Здесь появятся продукты, которые ты добавлял.' : 'Отметь продукт звёздочкой — он появится здесь.'}</p>
               ) : (
                 <div className="list scroll-list">
                   {(list === 'recent' ? recentForMeal! : favorites).map((p) => {
@@ -794,7 +794,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
             )}
             <button className="link" onClick={() => setPicked(null)}>Другой</button>
           </div>
-          {thanks && <p className="sub pos">Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем, а вам +25 XP.</p>}
+          {thanks && <p className="sub pos">Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем, а тебе +25 XP.</p>}
           <label className="field">
             <span>Количество{unit.label !== 'г' && valid ? ` · ${fmtQty(g)} г` : ''}</span>
             <div className="input-wrap">
@@ -842,7 +842,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
         </div>
       )}
       {scanner && (
-        <Scanner note={fromScan && added.length ? `Добавлено: ${added.length} · ${addedKcal} ккал — сканируйте следующий` : undefined}
+        <Scanner note={fromScan && added.length ? `Добавлено: ${added.length} · ${addedKcal} ккал — сканируй следующий` : undefined}
           onCode={(c) => { setScanner(false); setFromScan(true); lookup(c) }} onClose={() => { setScanner(false); setFromScan(false) }}
           onPhoto={(f) => { setScanner(false); onPhoto(f) }} onManual={() => { setScanner(false); setScan('manual') }} />
       )}
@@ -879,7 +879,7 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       setV((old) => ({ ...old, name: old.name || r.name, kcal: s(r.kcal), protein_g: s(r.protein_g), fat_g: s(r.fat_g), carbs_g: s(r.carbs_g),
         brand: old.brand || r.brand || '', package_g: r.package_g ? s(r.package_g) : old.package_g, pieces: r.pieces ? String(r.pieces) : old.pieces }))
       if (r.liquid !== undefined) setLiquid(r.liquid)
-      setHint(r.note || 'Проверьте цифры с упаковкой и сохраните.')
+      setHint(r.note || 'Проверь цифры с упаковкой и сохрани.')
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось прочитать этикетку')
     } finally {
@@ -889,7 +889,7 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
   const fields = [['kcal', 'Ккал', 900], ['protein_g', 'Белки, г', 100], ['fat_g', 'Жиры, г', 100], ['carbs_g', 'Углеводы, г', 100]] as const
 
   async function save() {
-    if (v.name.trim().length < 2) return setError('Введите название')
+    if (v.name.trim().length < 2) return setError('Введи название')
     for (const [k, label, max] of fields) {
       const n = num(v[k])
       if (v[k] === '' || !Number.isFinite(n) || n < 0 || n > max) return setError(`${label}: от 0 до ${max}`)
@@ -913,16 +913,16 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
       }))
       if (p) onCreated(p)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуйте ещё раз')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуй ещё раз')
       setBusy(false)
     }
   }
 
   return (
     <>
-      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавьте его один раз — дальше он будет находиться по штрихкоду у всех.</p>}
+      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавь его один раз — дальше он будет находиться по штрихкоду у всех.</p>}
       {barcode && <p className="xp-note">🏅 <b>+25 XP</b>, когда ещё двое подтвердят те же цифры и товар попадёт в общий каталог</p>}
-      {!barcode && <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только вам; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а вы получите <b>+25 XP</b>.</p>}
+      {!barcode && <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только тебе; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а ты получишь <b>+25 XP</b>.</p>}
       {aiEnabled && (
         <label className={`btn ${barcode ? '' : 'btn-ghost '}photo-btn${reading ? ' disabled' : ''}`}>
           {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку — заполню сам'}

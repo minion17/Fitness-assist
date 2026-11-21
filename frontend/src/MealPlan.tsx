@@ -76,8 +76,8 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
     try {
       const result = await api<{ input: PlanInput; plan: GeneratedPlan }>('/api/meal-plan', putJson({ input: planInput, plan }))
       if (!result) throw new Error()
-      setSavedPlan(result); setPlanMessage('Рацион сохранён в вашем профиле.'); onClose()
-    } catch { setPlanMessage('Не удалось сохранить рацион. Проверьте подключение и согласие в профиле.') }
+      setSavedPlan(result); setPlanMessage('Рацион сохранён в твоём профиле.'); onClose()
+    } catch { setPlanMessage('Не удалось сохранить рацион. Проверь подключение и согласие в профиле.') }
     finally { setSavingPlan(false) }
   }
   const openSavedPlan = (savedPlan: { input: PlanInput; plan: GeneratedPlan }) => {
@@ -112,23 +112,23 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
       setCookingMode(extra.cooking_mode ?? 'daily'); setBatchDays(extra.batch_days ?? 2); setSex(extra.sex ?? profile?.sex ?? null); setDiet(extra.dietary_type ?? 'omnivore'); setLikedRecipes(extra.liked_recipe_ids ?? []); setDislikedRecipes(extra.disliked_recipe_ids ?? [])
       setBudgetLimits([data.budget, data.current_spend].map(n => Math.max(30000, Math.ceil((n ?? 0) / 100) * 100)))
       setLiked(data.liked); setDisliked(data.disliked); setBudget(data.budget === null ? '' : String(data.budget)); setCurrentSpend(data.current_spend === null ? '' : String(data.current_spend))
-    }).catch(() => { if (active) { setLoadFailed(true); setError('Не удалось загрузить сохранённые ответы. Попробуйте открыть анкету позже.') } }).finally(() => { if (active) setLoading(false) })
+    }).catch(() => { if (active) { setLoadFailed(true); setError('Не удалось загрузить сохранённые ответы. Попробуй открыть анкету позже.') } }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [canEdit, healthConsent])
   const save = async () => {
     if (loadFailed) return
     const asNumber = (v: string) => v.trim() === '' ? null : Number(v)
     const body = { days: Number.parseInt(days), goal: Object.entries(GOALS).find(([, label]) => label === goal)?.[0], allergies: healthConsent ? allergies : '', liked, disliked, budget: asNumber(budget), current_spend: asNumber(currentSpend), persons, selected_meals: selectedMeals, shared_meals: persons > 1 ? sharedMeals : [], sex, dietary_type: diet, cooking_mode: cookingMode, batch_days: batchDays, liked_recipe_ids: likedRecipes, disliked_recipe_ids: dislikedRecipes }
-    if ([body.budget, body.current_spend].some(n => n !== null && (!Number.isInteger(n) || n < 0 || n > 10000000))) { setError('Укажите бюджет целым числом от 0 до 10 000 000 ₽.'); return }
+    if ([body.budget, body.current_spend].some(n => n !== null && (!Number.isInteger(n) || n < 0 || n > 10000000))) { setError('Укажи бюджет целым числом от 0 до 10 000 000 ₽.'); return }
     setError(''); setSaved(false)
     try { const result = await api('/api/meal-preferences', putJson(body)); if (result === null) throw new Error(); setSaved(true) }
-    catch { setError('Не удалось сохранить ответы. Проверьте подключение и попробуйте ещё раз.') }
+    catch { setError('Не удалось сохранить ответы. Проверь подключение и попробуй ещё раз.') }
   }
   const selectedGoal: Goal = goal === GOALS.weight_loss ? (profile?.goal === 'fat_loss' ? 'fat_loss' : 'weight_loss') : goal === GOALS.mass_gain ? (profile?.goal === 'muscle_gain' ? 'muscle_gain' : 'mass_gain') : 'maintenance'
   const targets = profile ? (selectedGoal === profile.goal && profile.targets && (!sex || sex === profile.sex) ? profile.targets : calculateTargets({ ...profile, sex: sex ?? profile.sex }, selectedGoal)) : null
   const defaultCalories = targets?.calories ?? (goal === GOALS.weight_loss ? 1800 : goal === GOALS.mass_gain ? 2200 : 2000)
   const next = () => {
-    if (step === 3 && selectedMeals.length === 0) { setError('Выберите хотя бы один приём пищи.'); return }
+    if (step === 3 && selectedMeals.length === 0) { setError('Выбери хотя бы один приём пищи.'); return }
     if (step === 2 && persons === 1) { setSelectedMeals(['breakfast', 'lunch', 'dinner']); setSharedMeals([]); setError(''); setStep(4); return }
     setError(''); setStep((s) => s + 1)
   }
@@ -143,10 +143,10 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
     setDislikedRecipes(prev => prev.filter(v => v !== id))
   }
   const generate = () => {
-    if (!allergies.trim() && !noAllergies) { setError('Укажите аллергию или подтвердите её отсутствие.'); return }
+    if (!allergies.trim() && !noAllergies) { setError('Укажи аллергию или подтверди её отсутствие.'); return }
     try {
       const override = calorieOverride.trim() ? Number(calorieOverride) : null
-      if (override !== null && (!Number.isInteger(override) || override < 1200 || override > 6000)) { setError('Укажите целое значение от 1200 до 6000 ккал.'); return }
+      if (override !== null && (!Number.isInteger(override) || override < 1200 || override > 6000)) { setError('Укажи целое значение от 1200 до 6000 ккал.'); return }
       const calories = override ?? defaultCalories
       const input: PlanInput = { days: Number.parseInt(days), calories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, persons, selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) }
       setPlan(createMealPlan(input))
@@ -174,26 +174,26 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
       onReplace={index => changeMeal(dayIndex, index)} onClearError={() => setError('')} />
   }
   return <div className="meal-plan">
-    <div className="meal-plan-heading"><div>{step < 11 && <span className="sub">ПИТАНИЕ · {Math.min(visibleStep, totalSteps)} / {totalSteps}</span>}<h1>{step === 12 ? 'Рацион' : step === 11 ? 'Ваши ответы' : 'Подбор рациона'}</h1></div><button className="link" onClick={back}>Назад</button></div>
+    <div className="meal-plan-heading"><div>{step < 11 && <span className="sub">ПИТАНИЕ · {Math.min(visibleStep, totalSteps)} / {totalSteps}</span>}<h1>{step === 12 ? 'Рацион' : step === 11 ? 'Твои ответы' : 'Подбор рациона'}</h1></div><button className="link" onClick={back}>Назад</button></div>
     {step < 11 && <div className="meal-plan-progress" aria-hidden="true"><span style={{ width: `${Math.min(visibleStep, totalSteps) * (100 / totalSteps)}%` }} /></div>}
     <section className={step === 12 ? 'meal-plan-result' : step === 11 ? 'meal-review-page' : 'card meal-plan-card'}>
       {step === 0 && <><img src="/images/meal-planning.jpg" className="meal-q-food-image" alt="Пример сервировки блюд" />{savedPlan && <button className="btn btn-ghost meal-plan-next" onClick={() => openSavedPlan(savedPlan)}>Открыть сохранённый рацион</button>}<h2>На сколько дней составить рацион?</h2><div className="meal-q-range-card"><strong className="meal-q-budget-value">{days}</strong>
         <MealRange label="Срок рациона" min={0} max={dayOptions.length - 1} step={1} value={dayOptions.indexOf(days)} valueText={days} onChange={i => setDays(dayOptions[i])} />
         <div className="meal-q-range-labels">{dayOptions.map(v => <button key={v} type="button" className={days === v ? 'selected' : ''} aria-pressed={days === v} onClick={() => setDays(v)}>{v}</button>)}</div></div></>}
-      {step === 1 && <><h2>Какая у вас цель?</h2><p className="sub">Это поможет подобрать направление питания.</p><div className="meal-q-range-card meal-q-goal"><strong className="meal-q-budget-value">{goal}</strong><MealRange label="Цель" min={0} max={2} step={1} value={goalOptions.indexOf(goal)} valueText={goal} onChange={i => setGoal(goalOptions[i])} /><div className="meal-q-range-labels">{goalOptions.map(v => <button key={v} type="button" className={goal === v ? 'selected' : ''} aria-pressed={goal === v} onClick={() => setGoal(v)}>{v}</button>)}</div></div></>}
-      {step === 9 && <><h2>Есть аллергии или ограничения?</h2>{healthConsent ? <><p className="sub">Укажите продукты и ингредиенты, которые необходимо исключить.</p><label className="meal-plan-label">Аллергии и ограничения<textarea aria-label="Аллергии и ограничения" value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="Например, арахис или молоко" /></label></> : <p className="sub">Чтобы указать аллергии, включите обработку данных о здоровье в профиле.</p>}</>}
-      {step === 10 && <><h2>Что вам нравится?</h2><p className="sub">Укажите любимые продукты и то, что не хотите включать.</p><label className="meal-plan-label">Продукты, которые нравятся<textarea aria-label="Продукты, которые нравятся" value={liked} onChange={e => setLiked(e.target.value)} placeholder="Например, курица, гречка" /></label><label className="meal-plan-label">Что не нравится<textarea aria-label="Что не нравится" value={disliked} onChange={e => setDisliked(e.target.value)} placeholder="Например, грибы" /></label></>}
-      {step === 2 && <><h2>Кто будет есть?</h2><p className="sub">Укажите общее число людей, включая вас.</p><div className="meal-q-range-card"><strong className="meal-q-budget-value">{persons} {persons === 1 ? 'человек' : persons < 5 ? 'человека' : 'человек'}</strong><MealRange label="Количество человек" min={1} max={10} step={1} value={persons} onChange={setPersons} /><div className="meal-q-range-ends"><span>1</span><span>10</span></div></div></>}
-      {step === 3 && <><h2>Какие приёмы пищи включить?</h2><p className="sub">Выберите приёмы, затем отметьте общие с семьёй.</p><div className="meal-q-meals">{MEALS.map(m => <div key={m.id}><button className="meal-q-meal" aria-pressed={selectedMeals.includes(m.id)} onClick={() => toggleMeal(m.id)}>{m.icon} {m.label}</button>{persons > 1 && selectedMeals.includes(m.id) && <button className="meal-q-meal" aria-pressed={sharedMeals.includes(m.id)} onClick={() => toggleShared(m.id)}>Для всей семьи</button>}</div>)}</div></>}
-      {step === 4 && <><h2>Как вам удобнее готовить?</h2><p className="sub">Учтём это при выборе блюд и продуктов.</p><div className="meal-q-cooking">{([
+      {step === 1 && <><h2>Какая у тебя цель?</h2><p className="sub">Это поможет подобрать направление питания.</p><div className="meal-q-range-card meal-q-goal"><strong className="meal-q-budget-value">{goal}</strong><MealRange label="Цель" min={0} max={2} step={1} value={goalOptions.indexOf(goal)} valueText={goal} onChange={i => setGoal(goalOptions[i])} /><div className="meal-q-range-labels">{goalOptions.map(v => <button key={v} type="button" className={goal === v ? 'selected' : ''} aria-pressed={goal === v} onClick={() => setGoal(v)}>{v}</button>)}</div></div></>}
+      {step === 9 && <><h2>Есть аллергии или ограничения?</h2>{healthConsent ? <><p className="sub">Укажи продукты и ингредиенты, которые необходимо исключить.</p><label className="meal-plan-label">Аллергии и ограничения<textarea aria-label="Аллергии и ограничения" value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="Например, арахис или молоко" /></label></> : <p className="sub">Чтобы указать аллергии, включи обработку данных о здоровье в профиле.</p>}</>}
+      {step === 10 && <><h2>Что тебе нравится?</h2><p className="sub">Укажи любимые продукты и то, что не хочешь включать.</p><label className="meal-plan-label">Продукты, которые нравятся<textarea aria-label="Продукты, которые нравятся" value={liked} onChange={e => setLiked(e.target.value)} placeholder="Например, курица, гречка" /></label><label className="meal-plan-label">Что не нравится<textarea aria-label="Что не нравится" value={disliked} onChange={e => setDisliked(e.target.value)} placeholder="Например, грибы" /></label></>}
+      {step === 2 && <><h2>Кто будет есть?</h2><p className="sub">Укажи общее число людей, включая тебя.</p><div className="meal-q-range-card"><strong className="meal-q-budget-value">{persons} {persons === 1 ? 'человек' : persons < 5 ? 'человека' : 'человек'}</strong><MealRange label="Количество человек" min={1} max={10} step={1} value={persons} onChange={setPersons} /><div className="meal-q-range-ends"><span>1</span><span>10</span></div></div></>}
+      {step === 3 && <><h2>Какие приёмы пищи включить?</h2><p className="sub">Выбери приёмы, затем отметь общие с семьёй.</p><div className="meal-q-meals">{MEALS.map(m => <div key={m.id}><button className="meal-q-meal" aria-pressed={selectedMeals.includes(m.id)} onClick={() => toggleMeal(m.id)}>{m.icon} {m.label}</button>{persons > 1 && selectedMeals.includes(m.id) && <button className="meal-q-meal" aria-pressed={sharedMeals.includes(m.id)} onClick={() => toggleShared(m.id)}>Для всей семьи</button>}</div>)}</div></>}
+      {step === 4 && <><h2>Как тебе удобнее готовить?</h2><p className="sub">Учтём это при выборе блюд и продуктов.</p><div className="meal-q-cooking">{([
         ['daily', '🍳', 'Готовить каждый день', 'Один основной продукт на обед и ужин'],
         ['batch', '🥡', 'На несколько дней', 'Повторяем блюда, чтобы приготовить порции заранее'],
         ['varied', '🥗', 'Разные блюда', 'Больше разнообразия в течение дня']
-      ] as const).map(([id, icon, title, hint]) => <button key={id} className="meal-q-option" aria-pressed={cookingMode === id} onClick={() => setCookingMode(id)}><span className="meal-q-emoji">{icon}</span><span><strong>{title}</strong><small>{hint}</small></span></button>)}</div>{cookingMode === 'batch' && <><div className="meal-q-options">{([2, 7] as const).map(n => <button key={n} className="meal-plan-option" aria-pressed={batchDays === n} onClick={() => setBatchDays(n)}>На {n} {n === 2 ? 'дня' : 'дней'}</button>)}</div><p className="sub">Одинаковое основное блюдо повторяется на обед и ужин. Для недели часть порций может потребовать заморозки; проверяйте сроки хранения каждого продукта.</p></>}</>}
+      ] as const).map(([id, icon, title, hint]) => <button key={id} className="meal-q-option" aria-pressed={cookingMode === id} onClick={() => setCookingMode(id)}><span className="meal-q-emoji">{icon}</span><span><strong>{title}</strong><small>{hint}</small></span></button>)}</div>{cookingMode === 'batch' && <><div className="meal-q-options">{([2, 7] as const).map(n => <button key={n} className="meal-plan-option" aria-pressed={batchDays === n} onClick={() => setBatchDays(n)}>На {n} {n === 2 ? 'дня' : 'дней'}</button>)}</div><p className="sub">Одинаковое основное блюдо повторяется на обед и ужин. Для недели часть порций может потребовать заморозки; проверяй сроки хранения каждого продукта.</p></>}</>}
       {step === 5 && <BudgetStep persons={persons} budget={budget} currentSpend={currentSpend} limits={budgetLimits} onBudget={setBudget} onCurrent={setCurrentSpend} />}
-      {step === 6 && <><h2>Ваш пол</h2><p className="sub">{profile ? 'Данные взяты из профиля и используются для расчёта.' : 'Укажите пол. Остальные данные для расчёта можно заполнить в профиле.'}</p><div className="meal-q-options">{([{id:'female',icon:'👩',label:'Женский'},{id:'male',icon:'👨',label:'Мужской'}] as const).map(v => <button className="meal-q-option" aria-pressed={sex === v.id} key={v.id} onClick={() => setSex(v.id)}><span className="meal-q-emoji">{v.icon}</span><strong>{v.label}</strong></button>)}</div></>}
-      {step === 7 && <><h2>Какой у вас тип питания?</h2><p className="sub">Подберём подходящие варианты.</p><div className="meal-q-options">{DIETS.map(v => <button className="meal-q-option" aria-pressed={diet === v.id} key={v.id} onClick={() => setDiet(v.id)}><img className="meal-q-diet-photo" src={`/images/diets/${v.id}.jpg`} alt="" /><span><strong>{v.label}</strong><small>{v.description}</small></span></button>)}</div></>}
-      {step === 8 && <><h2>Что вам нравится?</h2><p className="sub">Отметьте блюда, которые хотели бы есть, — чаще поставим их в рацион. Можно пропустить.</p>
+      {step === 6 && <><h2>Твой пол</h2><p className="sub">{profile ? 'Данные взяты из профиля и используются для расчёта.' : 'Укажи пол. Остальные данные для расчёта можно заполнить в профиле.'}</p><div className="meal-q-options">{([{id:'female',icon:'👩',label:'Женский'},{id:'male',icon:'👨',label:'Мужской'}] as const).map(v => <button className="meal-q-option" aria-pressed={sex === v.id} key={v.id} onClick={() => setSex(v.id)}><span className="meal-q-emoji">{v.icon}</span><strong>{v.label}</strong></button>)}</div></>}
+      {step === 7 && <><h2>Какой у тебя тип питания?</h2><p className="sub">Подберём подходящие варианты.</p><div className="meal-q-options">{DIETS.map(v => <button className="meal-q-option" aria-pressed={diet === v.id} key={v.id} onClick={() => setDiet(v.id)}><img className="meal-q-diet-photo" src={`/images/diets/${v.id}.jpg`} alt="" /><span><strong>{v.label}</strong><small>{v.description}</small></span></button>)}</div></>}
+      {step === 8 && <><h2>Что тебе нравится?</h2><p className="sub">Отметь блюда, которые хочешь есть, — чаще поставим их в рацион. Можно пропустить.</p>
         {([['Завтраки', RECIPES.filter((r) => r.meal === 'breakfast')], ['Обеды и ужины', RECIPES.filter((r) => r.meal !== 'breakfast')]] as const).map(([title, list]) => (
           <section className="taste-group" key={title}><h3>{title}</h3>
             <div className="taste-grid">{list.map((r) => {
@@ -215,10 +215,10 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
             value={Number(calorieOverride || defaultCalories)} valueText={`${calorieOverride || defaultCalories} ккал`}
             onChange={n => setCalorieOverride(String(n))} />
           <div className="meal-q-range-ends"><span>1 200</span><span>6 000</span></div>
-          <p className="sub">{targets ? `Дневной ориентир по профилю — ${targets.calories} ккал` : 'Примерный ориентир. Для личного расчёта заполните профиль.'}</p>
+          <p className="sub">{targets ? `Дневной ориентир по профилю — ${targets.calories} ккал` : 'Примерный ориентир. Для личного расчёта заполни профиль.'}</p>
           {calorieOverride && <button className="link" onClick={() => setCalorieOverride('')}>Вернуть исходное значение</button>}
         </section>
-        <AnswerGroup title="Ваш план" entries={[
+        <AnswerGroup title="Твой план" entries={[
           ['Срок', days], ['Цель', goal], ['Человек', String(persons)], ['Готовка', cookingMode === 'daily' ? 'Каждый день' : cookingMode === 'batch' ? `На ${batchDays} дн.` : 'Разные блюда'],
           ['Приёмы пищи', MEALS.filter(m => selectedMeals.includes(m.id)).map(m => m.label).join(', ')],
           ...(persons > 1 ? [['Общие с семьёй', MEALS.filter(m => sharedMeals.includes(m.id)).map(m => m.label).join(', ') || 'Нет']] : [])
@@ -230,10 +230,10 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
         <AnswerGroup title="Расходы в неделю" entries={[
           ['Бюджет', budget ? `${budget} ₽` : 'Не указан'], ['Сейчас', currentSpend ? `${currentSpend} ₽ в неделю` : 'Не указано']
         ]} />
-        <p className="sub">Цены пока не участвуют в подборе.{persons > 1 && ' Общие блюда рассчитываются одинаковыми порциями по вашей норме.'} {canEdit ? 'Ответы можно сохранить.' : 'В деморежиме ответы не сохраняются.'}</p>{!allergies.trim() && <label className="meal-plan-confirm"><input type="checkbox" checked={noAllergies} onChange={e => setNoAllergies(e.target.checked)} /> У меня нет пищевой аллергии</label>}{saved && <p role="status">Ответы сохранены</p>}</>}
+        <p className="sub">Цены пока не участвуют в подборе.{persons > 1 && ' Общие блюда рассчитываются одинаковыми порциями по твоей норме.'} {canEdit ? 'Ответы можно сохранить.' : 'В деморежиме ответы не сохраняются.'}</p>{!allergies.trim() && <label className="meal-plan-confirm"><input type="checkbox" checked={noAllergies} onChange={e => setNoAllergies(e.target.checked)} /> У меня нет пищевой аллергии</label>}{saved && <p role="status">Ответы сохранены</p>}</>}
       {step === 12 && plan && <>
-        <div className="meal-result-intro"><span className="meal-result-kicker">ВАШ ПЛАН · ПРОБНАЯ ВЕРСИЯ</span><h2>Рацион на {days}</h2><p>{`Ориентир — ${planInput?.calories ?? '—'} ккал в день`}</p><div className="meal-result-disclaimer">Расчёты примерные. Общие блюда рассчитаны на одинаковые порции по вашей норме. При аллергии проверяйте состав и следы аллергенов. Стоимость и бюджет пока не рассчитаны.</div></div>
-        {diet === 'vegan' && <p className="sub">Растительное меню пока ограничено по разнообразию и источникам белка. Проверьте состав рациона.</p>}{plan.warnings.filter(w => w.includes("калорийность") || w.includes("количество белков")).map(w => <p className="sub" key={w}>{w}</p>)}<div className="meal-result-section-head"><h2>Меню по дням</h2><span>{plan.days.length} дн.</span></div>
+        <div className="meal-result-intro"><span className="meal-result-kicker">ТВОЙ ПЛАН · ПРОБНАЯ ВЕРСИЯ</span><h2>Рацион на {days}</h2><p>{`Ориентир — ${planInput?.calories ?? '—'} ккал в день`}</p><div className="meal-result-disclaimer">Расчёты примерные. Общие блюда рассчитаны на одинаковые порции по твоей норме. При аллергии проверяй состав и следы аллергенов. Стоимость и бюджет пока не рассчитаны.</div></div>
+        {diet === 'vegan' && <p className="sub">Растительное меню пока ограничено по разнообразию и источникам белка. Проверь состав рациона.</p>}{plan.warnings.filter(w => w.includes("калорийность") || w.includes("количество белков")).map(w => <p className="sub" key={w}>{w}</p>)}<div className="meal-result-section-head"><h2>Меню по дням</h2><span>{plan.days.length} дн.</span></div>
         <div className="meal-result-days plan-days-list">{plan.days.map((day, index) => {
           const featured = day.meals.find(m => m.meal === 'lunch') ?? day.meals[0]
           return <button key={day.day} className="plan-day-link" aria-label={`Открыть день ${day.day}`} onClick={() => setDayIndex(index)}>
@@ -252,7 +252,7 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
     {error && <p role="alert">{error}</p>}
     {planMessage && <p role="status">{planMessage}</p>}
     {step === 12 && canEdit && <button className="btn meal-plan-next" disabled={savingPlan} onClick={savePlan}>{savingPlan ? 'Сохраняем…' : 'Сохранить и использовать рацион'}</button>}
-    {step === 12 && !canEdit && <p className="sub">В деморежиме рацион доступен до закрытия страницы. Для сохранения откройте SETLY в своём аккаунте.</p>}
+    {step === 12 && !canEdit && <p className="sub">В деморежиме рацион доступен до закрытия страницы. Для сохранения открой SETLY в своём аккаунте.</p>}
     {step < 11 ? <button className="btn meal-plan-next" disabled={loading} onClick={next}>{step === 10 ? 'Посмотреть ответы' : 'Продолжить'}</button> : step === 11 ? <><button className="btn meal-plan-next" onClick={generate}>Составить рацион</button>{canEdit && <button className="btn btn-ghost meal-plan-next" disabled={loadFailed} onClick={save}>Сохранить ответы</button>}<button className="btn btn-ghost meal-plan-next" onClick={() => { setSaved(false); setStep(0) }}>Изменить ответы</button></> : <button className="btn btn-ghost meal-plan-next" onClick={() => setStep(11)}>К ответам</button>}
   </div>
 }
@@ -287,9 +287,9 @@ function BudgetStep({ persons, budget, currentSpend, limits, onBudget, onCurrent
       <div className="q-slider-ends"><span>0 ₽</span><span>{rub(max(0))}</span></div>
     </div>
     <details className="budget-current" open={!!currentSpend || undefined}>
-      <summary>Сколько тратите сейчас? <small>необязательно — покажем, сколько сэкономите</small></summary>
+      <summary>Сколько тратишь сейчас? <small>необязательно — покажем, сколько сэкономишь</small></summary>
       <div className="budget-head"><b>{currentSpend ? rub(Number(currentSpend)) : 'Не указано'}</b></div>
-      <MealRange label="Сколько тратите сейчас" min={0} max={max(1)} step={100} value={Number(currentSpend)} valueText={currentSpend ? `${currentSpend} рублей` : 'Не указано'} onChange={(n) => onCurrent(n ? String(n) : '')} />
+      <MealRange label="Сколько тратишь сейчас" min={0} max={max(1)} step={100} value={Number(currentSpend)} valueText={currentSpend ? `${currentSpend} рублей` : 'Не указано'} onChange={(n) => onCurrent(n ? String(n) : '')} />
     </details>
   </>
 }

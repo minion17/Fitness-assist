@@ -156,7 +156,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     <div className="card-head programs-page-head"><h1>Программы</h1><button className="link" onClick={() => setPersonalList(false)}>Назад</button></div>
     <div className="personal-programs-list">
       <div className="programs-section-title"><h2>Мои программы</h2><span className="sub">{programs.filter(p => p.is_personal).length}</span></div>
-      {!programs.some(p => p.is_personal) && <div className="programs-empty"><p>У вас пока нет своих программ</p><span className="sub">Создайте программу под свои тренировки</span></div>}
+      {!programs.some(p => p.is_personal) && <div className="programs-empty"><p>У тебя пока нет своих программ</p><span className="sub">Создай программу под свои тренировки</span></div>}
       {programs.filter(p => p.is_personal).map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
         <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
         <span className="sub">Тренировок: {p.days.length}</span>
@@ -181,7 +181,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
               {items.length === 0 && <p className="sub">Программ пока нет</p>}
               {items.map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
                 <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
-                {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит вам</span>}
+                {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит тебе</span>}
                 <div className="program-card-actions"><button className="link" onClick={() => setPreviewProgramId(p.id)}>Посмотреть тренировки</button><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button></div>
               </section>)}
             </div>
@@ -199,7 +199,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         <button className="card lib-entry" onClick={() => setLibrary('build')}><span className="lib-entry-icon" aria-hidden="true"><Icon name="target" size={22} /></span><b>Собрать тренировку</b><small>На нужные мышцы</small></button>
       </div>
 
-  if (!program) return <><h1>Тренировки</h1>{programsButton}{libraryEntries}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>
+  if (!program) return <><h1>Тренировки</h1>{programsButton}{libraryEntries}<p className="sub">Выбери программу, чтобы начать тренировки.</p></>
 
   const next = nextDay(program, logs)
   return (
@@ -223,7 +223,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         </div>
         {canEdit
           ? <button className="btn" onClick={() => morph(() => setSession(next))}>Начать тренировку</button>
-          : <p className="sub">Демо-режим: чтобы записывать тренировки, откройте приложение из Telegram.</p>}
+          : <p className="sub">Демо-режим: чтобы записывать тренировки, открой приложение из Telegram.</p>}
       </section>
 
       {canEdit && program.days.length > 1 && (
@@ -242,7 +242,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
       <section className="card">
         <h2>История</h2>
-        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведите первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
+        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведи первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
           <div className="list">
             {logs.slice(0, 10).map((l) => (
               <button className="row row-btn history-entry" key={l.id} onClick={() => setHistoryLog(l)}>
@@ -381,7 +381,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     const reps = measuredSeconds ?? Number(s.reps)
     const timed = timedExercise(day.exercises[ei])
     const weight = s.weight ? Number(s.weight.replace(',', '.')) : 0
-    if (!Number.isInteger(reps) || reps <= 0 || reps > (timed ? 86400 : 500)) return setError(timed ? 'Время: укажите секунды' : 'Повторы: целое число от 1 до 500')
+    if (!Number.isInteger(reps) || reps <= 0 || reps > (timed ? 86400 : 500)) return setError(timed ? 'Время: укажи секунды' : 'Повторы: целое число от 1 до 500')
     if (!Number.isFinite(weight) || weight < 0 || weight > 500) return setError('Вес: от 0 до 500 кг')
     setError('')
     setBusy(true)
@@ -409,7 +409,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
         setCur(ei + 1)
       }
     } catch {
-      setError('Подход не сохранился: нет связи. Нажмите ещё раз')
+      setError('Подход не сохранился: нет связи. Нажми ещё раз')
     } finally {
       setBusy(false)
     }
@@ -426,7 +426,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       if (rest) skipRest()
       setTimer(null)
       setCur(ei)
-    } catch { setError('Не получилось отменить подход — попробуйте ещё раз') }
+    } catch { setError('Не получилось отменить подход — попробуй ещё раз') }
     setBusy(false)
   }
 
@@ -450,7 +450,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0 })
       setBusy(false)
     } catch {
-      setError('Тренировка не завершилась: нет связи. Нажмите ещё раз')
+      setError('Тренировка не завершилась: нет связи. Нажми ещё раз')
       setBusy(false)
     }
   }
@@ -577,7 +577,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
               <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
             ) : null}
             {nextWeight(last[e.exercise_id]?.sets, e.reps) && (
-              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуйте {String(nextWeight(last[e.exercise_id]?.sets, e.reps)).replace('.', ',')} кг</div>
+              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуй {String(nextWeight(last[e.exercise_id]?.sets, e.reps)).replace('.', ',')} кг</div>
             )}
           </div>
           {timed ? <>

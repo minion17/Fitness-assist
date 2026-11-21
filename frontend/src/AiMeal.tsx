@@ -10,7 +10,7 @@ type DraftItem = {
 }
 type Draft = { meal_type: MealType | null; items: DraftItem[]; note: string }
 
-const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуйте через минуту')
+const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуй через минуту')
 
 export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
   mode: 'text' | 'photo'
@@ -62,7 +62,7 @@ export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
   }
 
   return (
-    <Sheet title={mode === 'text' ? 'Описать, что съели' : 'Еда по фото'} onClose={onClose}>
+    <Sheet title={mode === 'text' ? 'Описать, что съел' : 'Еда по фото'} onClose={onClose}>
       {!draft && mode === 'text' && (
         <>
           <textarea className="textarea" rows={3} autoFocus maxLength={1000} value={text} onChange={(e) => setText(e.target.value)}
@@ -86,7 +86,7 @@ export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
             ))}
           </div>
           {draft.note && <p className="sub">{draft.note}</p>}
-          {items.length === 0 && <p className="sub">Не удалось распознать еду. Попробуйте описать подробнее или сделать другое фото.</p>}
+          {items.length === 0 && <p className="sub">Не удалось распознать еду. Попробуй описать подробнее или сделать другое фото.</p>}
           <div className="list">
             {items.map((it, i) => (
               <div className="row" key={i}>
@@ -103,7 +103,7 @@ export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
               </div>
             ))}
           </div>
-          {items.length > 0 && <p className="sub">Итого ≈ {total} ккал. Проверьте граммы — AI оценивает порции примерно.</p>}
+          {items.length > 0 && <p className="sub">Итого ≈ {total} ккал. Проверь граммы — AI оценивает порции примерно.</p>}
           <button className="btn" disabled={!valid || busy} onClick={confirm}>{busy ? 'Добавляем…' : `Добавить в «${MEALS[meal]}»`}</button>
           <button className="btn btn-ghost" disabled={busy} onClick={() => { setDraft(null); setError('') }}>Заново</button>
         </>

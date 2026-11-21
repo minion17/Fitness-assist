@@ -19,7 +19,7 @@ def _zones() -> set[str]:
         _zones_cache.update(available_timezones())
         if not _zones_cache:  # Windows without the tzdata package: users' zones silently fall back to the server's
             import logging
-            logging.getLogger("clock").warning("Нет базы часовых поясов — установите пакет tzdata (update.bat ставит его сам)")
+            logging.getLogger("clock").warning("Нет базы часовых поясов — установи пакет tzdata (update.bat ставит его сам)")
     return _zones_cache
 
 

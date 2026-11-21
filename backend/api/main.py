@@ -327,7 +327,7 @@ async def create_custom_exercise(body: CustomExerciseIn, tg: dict = Depends(tele
     user = await get_or_create_user(tg, session)
     name = body.name.strip()
     if not name:
-        raise HTTPException(422, "Введите название упражнения")
+        raise HTTPException(422, "Введи название упражнения")
     exercise = await session.scalar(select(Exercise).where(Exercise.name == name, Exercise.owner_user_id == user.id))
     if exercise is None:
         exercise = Exercise(name=name, owner_user_id=user.id, muscle_groups=[], equipment=[], difficulty="beginner", is_bodyweight=False)
@@ -394,11 +394,11 @@ class PersonalProgramIn(BaseModel):
 
 async def save_personal_program(body: PersonalProgramIn, user: User, session: AsyncSession, tg: dict, program: Program | None = None):
     if any(e.planned_weights is not None and (len(e.planned_weights) != e.sets or any(w is not None and not 0 <= w <= 500 for w in e.planned_weights)) for d in body.days for e in d.exercises):
-        raise HTTPException(422, "Проверьте веса подходов")
+        raise HTTPException(422, "Проверь веса подходов")
     ids = {item.exercise_id for day in body.days for item in day.exercises}
     existing = set((await session.scalars(select(Exercise.id).where(Exercise.id.in_(ids), (Exercise.owner_user_id.is_(None)) | (Exercise.owner_user_id == user.id)))).all())
     if ids != existing or not body.name.strip() or any(not d.name.strip() or any(not e.reps.strip() for e in d.exercises) for d in body.days):
-        raise HTTPException(422, "Проверьте название, упражнения и повторения")
+        raise HTTPException(422, "Проверь название, упражнения и повторения")
     if program is None:
         program = Program(name=body.name.strip(), owner_user_id=user.id, goal="Своя программа", level="beginner", days_per_week=len(body.days), days=[])
         session.add(program)
@@ -590,7 +590,7 @@ async def save_measurement(
     body: MeasurementIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
     if all(getattr(body, k) is None for k in MEASURE_FIELDS):
-        raise HTTPException(422, "Укажите хотя бы одно значение")
+        raise HTTPException(422, "Укажи хотя бы одно значение")
     day = body.measured_on or clock.today()
     if day > clock.today() + timedelta(days=1):  # +1: client may be ahead of the server's timezone
         raise HTTPException(422, "Дата в будущем")
@@ -690,7 +690,7 @@ async def log_set(
     if exercise is None or exercise.owner_user_id not in (None, user.id):
         raise HTTPException(404, "Упражнение не найдено")
     if (body.reps is None) == (body.duration_seconds is None):
-        raise HTTPException(422, "Укажите повторы или время")
+        raise HTTPException(422, "Укажи повторы или время")
     record = await personal_record(session, user, body)  # before adding: compare with what was there
     ws = WorkoutSet(workout_log_id=w.id, **body.model_dump())
     session.add(ws)
@@ -772,7 +772,7 @@ async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), sessi
     user = await get_or_create_user(tg, session)
     w = await own_workout(log_id, user, session)
     if not await session.scalar(select(WorkoutSet.id).where(WorkoutSet.workout_log_id == w.id).limit(1)):
-        raise HTTPException(400, "Добавьте хотя бы один подход")  # no XP for empty workouts
+        raise HTTPException(400, "Добавь хотя бы один подход")  # no XP for empty workouts
     if w.completed_at is None:
         w.completed_at = func.now()
         await session.commit()

@@ -426,7 +426,7 @@ function SetlyApp() {
     }
     if (!p) return send()
     flash('Добавлено')
-    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось — попробуйте ещё раз'))
+    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось — попробуй ещё раз'))
   }
 
   /** "Повторить вчерашний завтрак": the meal of this hour is empty today and was logged yesterday. */
@@ -634,12 +634,12 @@ function SetlyApp() {
     const suggestion = programs?.find((p) => p.id === profileResult.recommendation?.program_id)
     const finish = (destination: Tab) => { setProfileResult(null); go(destination) }
     return <div className="app"><main className="screen profile-results">
-      <div><p className="hello">Анкета заполнена</p><h1>Ваши первые ориентиры</h1><p className="sub">Ответы помогут настроить питание и тренировки под вас.</p></div>
+      <div><p className="hello">Анкета заполнена</p><h1>Твои первые ориентиры</h1><p className="sub">Ответы помогут настроить питание и тренировки под тебя.</p></div>
       <section className="card profile-results-card"><h2>Питание на день</h2>
-        {targets ? <><div className="profile-results-calories">{targets.calories} <span>ккал</span></div><div className="sub">Белки {targets.protein} г · Жиры {targets.fat} г · Углеводы {targets.carbs} г</div><p className="sub">Это расчётные ориентиры, не готовый рацион. Их можно уточнять по мере наблюдения за результатами.</p></> : <p className="sub">Ориентиры недоступны в деморежиме. Откройте приложение с подключённым аккаунтом.</p>}
+        {targets ? <><div className="profile-results-calories">{targets.calories} <span>ккал</span></div><div className="sub">Белки {targets.protein} г · Жиры {targets.fat} г · Углеводы {targets.carbs} г</div><p className="sub">Это расчётные ориентиры, не готовый рацион. Их можно уточнять по мере наблюдения за результатами.</p></> : <p className="sub">Ориентиры недоступны в деморежиме. Открой приложение с подключённым аккаунтом.</p>}
       </section>
       <section className="card"><h2>Тренировки</h2>
-        {suggestion ? <><div className="profile-results-program">{suggestion.name}</div>{profileResult.recommendation?.reasons.length ? <p className="sub">{profileResult.recommendation.reasons.join(' · ')}</p> : <p className="sub">Посмотрите программу и решите, подходит ли она вам.</p>}<p className="sub">Подбор учитывает уровень, оборудование и частоту занятий; ограничения и травмы автоматически не проверяются.</p></> : <p className="sub">Рекомендация пока недоступна. Можно посмотреть готовые программы и создать свою.</p>}
+        {suggestion ? <><div className="profile-results-program">{suggestion.name}</div>{profileResult.recommendation?.reasons.length ? <p className="sub">{profileResult.recommendation.reasons.join(' · ')}</p> : <p className="sub">Посмотри программу и реши, подходит ли она тебе.</p>}<p className="sub">Подбор учитывает уровень, оборудование и частоту занятий; ограничения и травмы автоматически не проверяются.</p></> : <p className="sub">Рекомендация пока недоступна. Можно посмотреть готовые программы и создать свою.</p>}
       </section>
       <button className="btn" onClick={() => finish('workouts')}>Посмотреть тренировки</button>
       <button className="btn btn-ghost" onClick={() => finish('food')}>Перейти к питанию</button>
@@ -670,15 +670,15 @@ function SetlyApp() {
             habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
             weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
-            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуйте ещё раз')) } : null}
+            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуй ещё раз')) } : null}
             intro={canEdit && <FirstSteps steps={[
-              { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
+              { key: 'meal', title: 'Запиши, что съел', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найди продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
-              { key: 'water', title: 'Отметьте стакан воды', hint: 'Нажмите — добавим 250 мл',
+              { key: 'water', title: 'Отметь стакан воды', hint: 'Нажми — добавим 250 мл',
                 done: water.ml > 0 || week.days.some((d) => d.water_ml > 0), action: () => changeWater(250) },
-              { key: 'program', title: 'Выберите программу', hint: recommended ? 'Подобрали подходящую по анкете' : 'Готовую или свою',
+              { key: 'program', title: 'Выбери программу', hint: recommended ? 'Подобрали подходящую по анкете' : 'Готовую или свою',
                 done: programId !== null, action: () => go('workouts') },
-              { key: 'workout', title: 'Проведите первую тренировку', hint: 'Отмечайте подходы прямо во время занятия',
+              { key: 'workout', title: 'Проведи первую тренировку', hint: 'Отмечай подходы прямо во время занятия',
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
@@ -738,14 +738,14 @@ function SetlyApp() {
       {toast && (
         <div className={toast.undo ? 'toast toast-undo' : 'toast'} role="status" key={toast.id}>
           <span>{toast.text}</span>
-          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не получилось отменить — попробуйте ещё раз')) }}>Отменить</button>}
+          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не получилось отменить — попробуй ещё раз')) }}>Отменить</button>}
         </div>
       )}
       {xpFloat && <div className="xp-float" key={xpFloat.id} aria-hidden="true" onAnimationEnd={() => setXpFloat(null)}>+{xpFloat.n} XP</div>}
       {party > 0 && <Confetti key={party} />}
       {storyOffer && canEdit && canStory() && (
         <Sheet title="Неделя для истории" onClose={() => setStoryOffer(false)}>
-          <p className="sub">Карточка с вашей серией, XP и тренировками за неделю — с вашей ссылкой-приглашением в подписи.</p>
+          <p className="sub">Карточка с твоей серией, XP и тренировками за неделю — с твоей ссылкой-приглашением в подписи.</p>
           <button className="btn" onClick={() => { setStoryOffer(false); shareStory({ kind: 'week' }).catch(() => flash('Не получилось открыть истории')) }}>Опубликовать в истории</button>
         </Sheet>
       )}

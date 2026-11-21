@@ -46,7 +46,7 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     return (
       <section className="card energy">
         <div className="card-head"><h2>Реальный расход</h2><span className="sub">по формуле {fmt(e.formula)} ккал</span></div>
-        <p className="sub">Посчитаем, сколько вы тратите на самом деле — по вашему дневнику и весу, а не по формуле. Нужно {e.need_days} дней с полным дневником
+        <p className="sub">Посчитаем, сколько ты тратишь на самом деле — по твоему дневнику и весу, а не по формуле. Нужно {e.need_days} дней с полным дневником
           (есть {e.days_logged}) и {e.need_weighins} взвешивания за 10+ дней (есть {e.weighins}).</p>
         <Bar value={done * 100} goal={100} />
         {goalRow}
@@ -60,11 +60,11 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     <section className="card energy">
       <div className="card-head"><h2>Реальный расход</h2><span className="sub">за 4 недели</span></div>
       <div className="energy-main"><b>{fmt(tdee)}</b><span>ккал в день</span></div>
-      <p className="sub">По формуле было {fmt(e.formula)}. Вы ели в среднем {fmt(e.intake!)} ккал, вес {perWeek === 0 ? 'не менялся' : `${kg(perWeek)} в неделю`}.</p>
+      <p className="sub">По формуле было {fmt(e.formula)}. Ты ел в среднем {fmt(e.intake!)} ккал, вес {perWeek === 0 ? 'не менялся' : `${kg(perWeek)} в неделю`}.</p>
       {e.plateau && (
         <div className="energy-note">
-          <b>Вес стоит две недели.</b> Это нормально и часто связано с водой. Если так ещё неделю — снизьте норму на 100–150 ккал,
-          добавьте шагов или проверьте, всё ли попадает в дневник: масло, соусы, перекусы.
+          <b>Вес стоит две недели.</b> Это нормально и часто связано с водой. Если так ещё неделю — снизь норму на 100–150 ккал,
+          добавь шагов или проверь, всё ли попадает в дневник: масло, соусы, перекусы.
         </div>
       )}
       <p className="energy-forecast">{e.eta ? <>Цель {String(e.target_weight_kg).replace('.', ',')} кг — примерно <b>к {date(e.eta)}</b></>

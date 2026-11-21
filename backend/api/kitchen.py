@@ -67,7 +67,7 @@ async def create_set(body: SetIn, tg: dict = Depends(telegram_user), session: As
 
     user = await get_or_create_user(tg, session)
     if await session.scalar(select(func.count()).where(MealSet.user_id == user.id)) >= MAX_SETS:
-        raise HTTPException(409, f"Не больше {MAX_SETS} наборов — удалите ненужный")
+        raise HTTPException(409, f"Не больше {MAX_SETS} наборов — удали ненужный")
     try:
         day = date.fromisoformat(body.from_day)
     except ValueError:
@@ -150,7 +150,7 @@ async def build(session: AsyncSession, user: User, body: RecipeIn) -> dict:
     raw = sum(i.grams for i in body.ingredients)
     weight = body.cooked_g or raw
     if weight < raw * 0.2:
-        raise HTTPException(422, "Готовое блюдо не может весить в 5 раз меньше продуктов — проверьте вес")
+        raise HTTPException(422, "Готовое блюдо не может весить в 5 раз меньше продуктов — проверь вес")
     t = totals((known[i.product_id], i.grams) for i in body.ingredients)
     per100 = {k: round(v * 100 / weight, 1) for k, v in t.items()}
     per100["kcal"] = round(per100["kcal"])

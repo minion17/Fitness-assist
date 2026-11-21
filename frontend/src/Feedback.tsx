@@ -12,13 +12,13 @@ export function FeedbackForm({ kind: fixed, productId, placeholder, onSent }: { 
   const [error, setError] = useState('')
 
   async function send() {
-    if (text.trim().length < 3) return setError('Напишите хотя бы пару слов')
+    if (text.trim().length < 3) return setError('Напиши хотя бы пару слов')
     setState('busy'); setError('')
     try {
       await api('/api/feedback', postJson({ kind, text: text.trim(), product_id: productId ?? null }))
       setState('sent'); setText(''); onSent?.()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не отправилось — проверьте соединение'); setState('idle')
+      setError(e instanceof ApiError ? e.message : 'Не отправилось — проверь соединение'); setState('idle')
     }
   }
 

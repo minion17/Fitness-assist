@@ -108,11 +108,11 @@ function UsualCard({ meal, title, kcal, run }: { meal: string; title: string; kc
 
 type Block = 'workout' | 'habits' | 'quests' | 'weight' | 'usual'
 const BLOCKS: Record<Block, { icon: IconName; name: string; hint: string }> = {
-  workout: { icon: 'dumbbell', name: 'Тренировка на сегодня', hint: 'Следующий день вашей программы' },
+  workout: { icon: 'dumbbell', name: 'Тренировка на сегодня', hint: 'Следующий день твоей программы' },
   habits: { icon: 'check', name: 'Привычки', hint: 'Отметки за день: сон, шаги, витамины' },
   quests: { icon: 'trophy', name: 'Задания недели', hint: 'Три задания и XP за них' },
   weight: { icon: 'scale', name: 'Вес', hint: 'Записать вес в два нажатия' },
-  usual: { icon: 'repeat', name: 'Подсказка «как обычно»', hint: 'Ваш обычный завтрак, обед или ужин — одной кнопкой' },
+  usual: { icon: 'repeat', name: 'Подсказка «как обычно»', hint: 'Твой обычный завтрак, обед или ужин — одной кнопкой' },
 }
 const LAYOUT_KEY = 'setly-home-layout'
 type Layout = { order: Block[]; hidden: Block[] }
@@ -158,7 +158,7 @@ function HomeSettings({ layout, onChange, onClose }: { layout: Layout; onChange:
   const changed = JSON.stringify(layout) !== JSON.stringify(DEFAULT_LAYOUT)
   return (
     <Sheet title="Главный экран" onClose={onClose}>
-      <p className="sub">Включите то, что хотите видеть, и расставьте стрелками в удобном порядке. Главная за окном меняется сразу.</p>
+      <p className="sub">Включи то, что хочешь видеть, и расставь стрелками в удобном порядке. Главная за окном меняется сразу.</p>
       <div className="home-setting fixed">
         <span className="home-row-icon" aria-hidden="true"><Icon name="utensils" /></span>
         <span className="step-text"><b>Питание и вода</b><span className="sub">Всегда наверху</span></span>
@@ -317,7 +317,7 @@ export default function Home(props: {
             {props.aiEnabled && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>}
             {props.aiEnabled ? 'Добавить еду' : '+ Добавить еду'}
           </button>
-          <button className="btn btn-ghost btn-side water-quick" aria-label={`Добавить воды, ${portion} мл`} title="Зажмите — другие порции"
+          <button className="btn btn-ghost btn-side water-quick" aria-label={`Добавить воды, ${portion} мл`} title="Зажми — другие порции"
             onPointerDown={() => { longPressed.current = false; pressTimer.current = setTimeout(() => { longPressed.current = true; haptic('light'); setWaterOpen(true) }, 450) }}
             onPointerUp={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }} onPointerLeave={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }}
             onContextMenu={(e) => e.preventDefault()}
@@ -340,7 +340,7 @@ export default function Home(props: {
             <button key={b} className="home-row" onClick={props.onWorkouts}>
               <span className="home-row-icon" aria-hidden="true"><Icon name="dumbbell" /></span>
               {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /><span className="skeleton skeleton-line" style={{ width: 90, height: 14, marginTop: 6 }} /></span> // not "choose a program" before the program has loaded
-                : <span className="step-text"><b>{restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выберите программу тренировок'}</b>
+                : <span className="step-text"><b>{restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выбери программу тренировок'}</b>
                 <span className="sub">{restDay ? `Следующая тренировка — ${nextTraining}: ${next!.day_name}` : next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}
               <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
             </button>

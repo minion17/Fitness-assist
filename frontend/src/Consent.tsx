@@ -23,14 +23,14 @@ export default function Consent({ url, onDone }: { url: string | null; onDone: (
       await api('/api/consent', postJson({ health }))
       onDone(health)
     } catch {
-      setError('Не получилось сохранить. Проверьте связь и попробуйте ещё раз.')
+      setError('Не получилось сохранить. Проверь связь и попробуй ещё раз.')
     } finally { setBusy(false) }
   }
 
   return (
     <main className="screen consent">
       <h1 className="home-title">Перед началом</h1>
-      <p className="sub">Setly хранит анкету, дневник питания, воду, тренировки и замеры, чтобы считать вашу норму и напоминать о важном. Данные не продаём и не передаём рекламным сетям.</p>
+      <p className="sub">Setly хранит анкету, дневник питания, воду, тренировки и замеры, чтобы считать твою норму и напоминать о важном. Данные не продаём и не передаём рекламным сетям.</p>
       <section className="card">
         <label className="consent-check">
           <input type="checkbox" checked={main} onChange={(e) => setMain(e.target.checked)} />
@@ -81,7 +81,7 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
       <div className="privacy-content">
       <label className="consent-check">
         <input type="checkbox" checked={consent.health} onChange={toggleHealth} />
-        <span><b>Учитывать аллергии и травмы</b><span className="sub">{consent.health ? 'Если выключить, эти ответы сотрутся из анкеты.' : 'Включите, чтобы указать их в анкете.'}</span></span>
+        <span><b>Учитывать аллергии и травмы</b><span className="sub">{consent.health ? 'Если выключить, эти ответы сотрутся из анкеты.' : 'Включи, чтобы указать их в анкете.'}</span></span>
       </label>
       <div className="row">
         <div className="row-main"><div className="row-title">Мои данные</div><div className="row-sub">{exported === 'sent' ? 'Файл придёт в чат с ботом через минуту' : 'Питание, вес, вода и тренировки — таблицами для Excel'}</div></div>
@@ -92,9 +92,9 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
       </div>
       {ask && (
         <Sheet title="Удалить аккаунт?" onClose={() => state !== 'busy' && setAsk(false)}>
-          {state === 'done' ? <p>Готово: аккаунт и данные удалены. Если вернётесь — начнём с чистого листа.</p> : <>
+          {state === 'done' ? <p>Готово: аккаунт и данные удалены. Если вернёшься — начнём с чистого листа.</p> : <>
             <p className="sub">Удалятся анкета, дневник, тренировки, замеры, привычки, друзья и XP. Это нельзя отменить. Из резервных копий данные исчезнут в течение 14 дней.</p>
-            {state === 'error' && <p className="error" role="alert">Не получилось удалить. Попробуйте ещё раз.</p>}
+            {state === 'error' && <p className="error" role="alert">Не получилось удалить. Попробуй ещё раз.</p>}
             <button className="btn btn-danger" disabled={state === 'busy'} onClick={remove}>{state === 'busy' ? 'Удаляем…' : 'Удалить навсегда'}</button>
             <button className="btn btn-ghost" onClick={() => setAsk(false)}>Отмена</button>
           </>}

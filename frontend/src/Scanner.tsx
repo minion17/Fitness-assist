@@ -57,8 +57,8 @@ export default function Scanner({ onCode, onPhoto, onManual, onClose, note }: {
       } catch (e) {
         const denied = e instanceof DOMException && e.name === 'NotAllowedError'
         setError(denied
-          ? 'Нет доступа к камере. Разрешите его Telegram в настройках телефона или выберите фото.'
-          : 'Камера недоступна в этой версии Telegram — выберите фото штрихкода или введите цифры.')
+          ? 'Нет доступа к камере. Разреши его Telegram в настройках телефона или выбери фото.'
+          : 'Камера недоступна в этой версии Telegram — выбери фото штрихкода или введи цифры.')
       }
     })()
     return () => { stopped = true; stream?.getTracks().forEach((t) => t.stop()) }
@@ -73,7 +73,7 @@ export default function Scanner({ onCode, onPhoto, onManual, onClose, note }: {
       </div>
       <div className="scan-bottom">
         {note && !error && <p className="scan-note">{note}</p>}
-        <p className={error ? 'error' : 'sub'}>{error || 'Наведите камеру на штрихкод или квадратный код «Честного знака»'}</p>
+        <p className={error ? 'error' : 'sub'}>{error || 'Наведи камеру на штрихкод или квадратный код «Честного знака»'}</p>
         <div className="meal-actions">
           <label className="link">
             Фото из галереи

@@ -19,6 +19,6 @@ export function insight(g: GreetingInput): string | null {
   if (g.workoutsThisWeek >= 2) return `Уже ${g.workoutsThisWeek} ${workoutsWord(g.workoutsThisWeek)} на этой неделе`
   if (g.trainingDay && g.hour < 18) return 'Сегодня день тренировки — план уже ждёт'
   if (g.streak >= 3) return `${g.streak} дня подряд с дневником — хороший ритм`.replace(/^(\d+) дня/, (m, n) => (Number(n) % 10 >= 5 || Number(n) % 10 === 0 || (Number(n) % 100 >= 11 && Number(n) % 100 <= 14) ? `${n} дней` : m))
-  if (g.kcalToday === 0 && g.hour >= 5 && g.hour < 11) return 'Начните день с завтрака — запись займёт пару секунд'
+  if (g.kcalToday === 0 && g.hour >= 5 && g.hour < 11) return 'Начни день с завтрака — запись займёт пару секунд'
   return null
 }

@@ -9,7 +9,7 @@ export default function ReportCard() {
   async function order() {
     setState('busy'); setError('')
     try { await api('/api/report', postJson({ days })); setState('sent') } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : 'Не получилось — попробуйте ещё раз'); setState('error')
+      setError(e instanceof Error && e.message ? e.message : 'Не получилось — попробуй ещё раз'); setState('error')
     }
   }
   return (

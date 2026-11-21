@@ -259,13 +259,13 @@ class DuelIn(BaseModel):
 async def challenge(body: DuelIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     if not await session.get(Friendship, (user.id, body.friend_id)):
-        raise HTTPException(404, "Сначала добавьте друга по ссылке")
+        raise HTTPException(404, "Сначала добавь друга по ссылке")
     if not await session.get(Profile, user.id):
-        raise HTTPException(403, "Заполните анкету, чтобы участвовать в дуэлях")
+        raise HTTPException(403, "Заполни анкету, чтобы участвовать в дуэлях")
     if not await session.get(Profile, body.friend_id):
         raise HTTPException(403, "Друг ещё не заполнил анкету — дуэли только между зарегистрированными")
     if await session.scalar(select(func.count()).where(Duel.challenger_id == user.id, Duel.status == "pending")) >= MAX_PENDING_CHALLENGES:
-        raise HTTPException(429, "Дождитесь ответа на уже отправленные вызовы")
+        raise HTTPException(429, "Дождись ответа на уже отправленные вызовы")
     pair = or_((Duel.challenger_id == user.id) & (Duel.opponent_id == body.friend_id),
                (Duel.challenger_id == body.friend_id) & (Duel.opponent_id == user.id))
     if await session.scalar(select(Duel.id).where(pair, Duel.status.in_(("pending", "active"))).limit(1)):
@@ -359,7 +359,7 @@ async def story(body: StoryIn, tg: dict = Depends(telegram_user), session: Async
     if body.kind == "duel":
         d = await session.get(Duel, body.duel_id or 0)
         if d is None or d.status != "done" or d.winner_id != user.id:
-            raise HTTPException(404, "Это не ваша победа")
+            raise HTTPException(404, "Это не твоя победа")
         out = await duel_out(session, d, user)
         png = await asyncio.to_thread(cards.story_duel, name(user), out["rival"], out["me"], out["them"], d.metric, d.days,
                                       d.rewarded, bot, theme, user.accent)

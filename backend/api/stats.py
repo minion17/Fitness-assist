@@ -123,20 +123,20 @@ async def stats(
 
 # code -> (icon, title, what to do, metric, target)
 ACHIEVEMENTS = [
-    ("first_water", "💧", "Первая вода", "Запишите первый приём воды", "water_first", 1),
-    ("first_meal", "🥄", "Первый шаг", "Запишите первый приём пищи", "meals", 1),
-    ("first_workout", "💪", "Первая тренировка", "Завершите тренировку", "workouts", 1),
+    ("first_water", "💧", "Первая вода", "Запиши первый приём воды", "water_first", 1),
+    ("first_meal", "🥄", "Первый шаг", "Запиши первый приём пищи", "meals", 1),
+    ("first_workout", "💪", "Первая тренировка", "Заверши тренировку", "workouts", 1),
     ("streak_3", "🔥", "Разогрев", "3 дня подряд", "best_streak", 3),
     ("streak_7", "🔥", "Неделя", "7 дней подряд", "best_streak", 7),
     ("streak_30", "🏆", "Месяц без пропусков", "30 дней подряд", "best_streak", 30),
     ("streak_100", "💎", "Сотня", "100 дней подряд", "best_streak", 100),
     ("water_7", "💧", "Водный баланс", "7 дней с нормой воды", "water_days", 7),
-    ("glasses_100", "🥛", "100 стаканов", "Выпейте 25 литров воды", "water_glasses", 100),
+    ("glasses_100", "🥛", "100 стаканов", "Выпей 25 литров воды", "water_glasses", 100),
     ("norm_7", "🎯", "Точно в цель", "7 дней в норме калорий (±10%)", "norm_days", 7),
     ("workouts_10", "🏋️", "Десятка", "10 тренировок", "workouts", 10),
     ("workouts_50", "🦾", "Железный", "50 тренировок", "workouts", 50),
     ("measure_4", "📏", "Под контролем", "4 замера веса", "weighings", 4),
-    ("level_5", "⭐", "Пятый уровень", "Достигните 5 уровня", "level", 5),
+    ("level_5", "⭐", "Пятый уровень", "Достигни 5 уровня", "level", 5),
 ]
 
 
@@ -235,7 +235,7 @@ async def update_showcase(body: ShowcaseSettings, tg: dict = Depends(telegram_us
         select(UserAchievement.code).where(UserAchievement.user_id == user.id))}
     selected = set(body.showcase)
     if len(selected) != len(body.showcase) or not selected <= owned or (body.pinned is not None and body.pinned not in owned):
-        raise HTTPException(400, "Выберите полученные награды без повторов")
+        raise HTTPException(400, "Выбери полученные награды без повторов")
     user.showcase = body.showcase
     user.pinned_badge = body.pinned
     await session.commit()
@@ -256,7 +256,7 @@ async def update_title(body: TitleSettings, tg: dict = Depends(telegram_user),
             (UserAchievement.code == body.code) | (UserAchievement.code == f"{body.code}:1"),
         ).limit(1))
         if not owned:
-            raise HTTPException(400, "Сначала получите достижение")
+            raise HTTPException(400, "Сначала получи достижение")
     user.selected_title = body.code
     await session.commit()
     return {"ok": True}

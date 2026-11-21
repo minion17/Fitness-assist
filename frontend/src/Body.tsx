@@ -115,21 +115,21 @@ function AddMeasurement({ measurements, onClose, onSave }: {
       if (!Number.isFinite(n) || n < min || n > max) return setError(`${label}: от ${min} до ${max}`)
       out[key] = n
     }
-    if (Object.values(out).every((v) => v === null)) return setError('Заполните хотя бы одно поле')
+    if (Object.values(out).every((v) => v === null)) return setError('Заполни хотя бы одно поле')
     setError('')
     setBusy(true)
     try {
       await onSave(out)
       onClose()
     } catch {
-      setError('Не сохранилось: нет связи. Попробуйте ещё раз')
+      setError('Не сохранилось: нет связи. Попробуй ещё раз')
       setBusy(false)
     }
   }
 
   return (
     <Sheet title="Замер на сегодня" onClose={onClose}>
-      <span className="sub">{base ? 'Сегодняшний замер будет обновлён.' : 'Подставлены последние значения — поменяйте то, что изменилось.'}</span>
+      <span className="sub">{base ? 'Сегодняшний замер будет обновлён.' : 'Подставлены последние значения — поменяй то, что изменилось.'}</span>
       <div className="grid2">
         {MEASURES.map(({ key, label, unit }) => (
           <label className="field" key={key}>
@@ -167,7 +167,7 @@ export function QuickWeight({ measurements, onSave }: { measurements: Measuremen
       const keep = Object.fromEntries(MEASURES.map(({ key }) => [key, todays?.[key] ?? null])) as MeasurementInput
       await onSave({ ...keep, weight_kg: kg })
       setOpen(false)
-    } catch { setError('Не сохранилось: нет связи. Попробуйте ещё раз') }
+    } catch { setError('Не сохранилось: нет связи. Попробуй ещё раз') }
     setBusy(false)
   }
 
@@ -175,7 +175,7 @@ export function QuickWeight({ measurements, onSave }: { measurements: Measuremen
     <button className="card quick-weight" onClick={() => { setValue(String(todays?.weight_kg ?? last?.value ?? '')); setOpen(true) }}>
       <span className="home-row-icon" aria-hidden="true"><Icon name="scale" /></span>
       <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${ru(todays.weight_kg)} кг` : 'Взвеситься'}</b>
-        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запишите вес — увидите динамику'}</span></span>
+        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запиши вес — увидишь динамику'}</span></span>
       <span className="link">{todays?.weight_kg ? 'Изменить' : 'Записать'}</span>
     </button>
   )

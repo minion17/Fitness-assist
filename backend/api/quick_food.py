@@ -166,9 +166,9 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
         found = await off.fetch(code)
     except httpx.HTTPError as e:
         log.warning("Open Food Facts lookup failed for %s: %s", code, e)
-        raise HTTPException(503, "Не удалось проверить штрихкод — попробуйте позже или добавьте продукт вручную")
+        raise HTTPException(503, "Не удалось проверить штрихкод — попробуй позже или добавь продукт вручную")
     if found is None:
-        raise HTTPException(404, "Товар не найден — добавьте его вручную, это займёт минуту")
+        raise HTTPException(404, "Товар не найден — добавь его вручную, это займёт минуту")
     product = Product(barcode=code, category="Из штрихкода", **found)
     session.add(product)
     try:
@@ -179,7 +179,7 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
             select(Product).where(Product.owner_user_id.is_(None), Product.name == found["name"], Product.brand == found["brand"])
         )
         if product is None:
-            raise HTTPException(409, "Не удалось сохранить товар, попробуйте ещё раз")
+            raise HTTPException(409, "Не удалось сохранить товар, попробуй ещё раз")
     return product_out(product)
 
 

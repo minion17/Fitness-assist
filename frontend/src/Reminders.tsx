@@ -51,7 +51,7 @@ export default function Reminders() {
     try {
       await api('/api/reminders', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) })
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не сохранилось — проверьте соединение')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось — проверь соединение')
     }
   }
 
@@ -84,7 +84,7 @@ export default function Reminders() {
         <div className="row">
           <div className="row-main">
             <div className="row-title">Вода</div>
-            <div className="row-sub">В 12, 16 и 19 ч, если отстаёте</div>
+            <div className="row-sub">В 12, 16 и 19 ч, если отстаёшь</div>
           </div>
           <Switch on={s.water} label="Напоминать о воде" onChange={(v) => save({ water: v })} />
         </div>
@@ -108,7 +108,7 @@ export default function Reminders() {
       <div className="reminders-test">
         {next && <p className="sub">Ближайшее: {next.what} {next.tomorrow ? 'завтра' : 'сегодня'} в {next.at} — придёт, только если это ещё не сделано.</p>}
         <button className="btn btn-ghost" disabled={test === 'wait'} onClick={sendTest}>{test === 'wait' ? 'Отправляем…' : '🔔 Прислать пробное в чат'}</button>
-        {test === 'ok' && <p className="sub" role="status">Отправлено — проверьте чат с ботом.</p>}
+        {test === 'ok' && <p className="sub" role="status">Отправлено — проверь чат с ботом.</p>}
         {test === 'fail' && <p className="error" role="alert">Бот не ответил: он не запущен. Напоминания отправляет компьютер с сервером — он должен быть включён, а окно «FA бот» открыто.</p>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}

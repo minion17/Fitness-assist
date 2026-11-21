@@ -1907,3 +1907,17 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 
 .profile-title { color: var(--accent-text); font-size: 13px; font-weight: 600; }
 .award-actions .btn:nth-of-type(3) { grid-column: 1 / -1; }
+
+.muscle-map-wrap { width: 100%; min-width: 0; }
+.muscle-map-wrap.compact { max-width: 300px; margin: auto; }
+.muscle-scale { width: 100%; padding: 4px 2px 0; }
+.muscle-scale-bar { display: flex; height: 7px; border-radius: 10px; overflow: hidden; }
+.muscle-scale-bar i { flex: 1; background: #4cc78a; }
+.muscle-scale-bar i:nth-child(2) { background: #e4b94d; }
+.muscle-scale-bar i:nth-child(3) { background: #ed6354; }
+.muscle-scale-labels { display: flex; justify-content: space-between; color: var(--muted); font-size: 10px; margin-top: 3px; }
+.muscle-key { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; color: var(--muted); font-size: 10px; }
+.muscle-key span { display: inline-flex; align-items: center; gap: 4px; }
+.muscle-dot { width: 7px; height: 7px; border-radius: 50%; background: #ed6354; }
+.muscle-dot.assist { background: #e4b94d; }
+.workout-preview .muscle-map-wrap.compact { width: 120px; flex: none; margin: 0; }

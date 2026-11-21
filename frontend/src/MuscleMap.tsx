@@ -16,9 +16,9 @@ export default function MuscleMap({ primary = [], secondary = [], heat, onPick, 
   const fill = (m: Muscle) => {
     if (heat) {
       const v = heat[m] ?? 0
-      return v > 0 ? `color-mix(in srgb, var(--accent) ${Math.round(25 + 75 * Math.min(1, v))}%, var(--card-2))` : undefined
+      return v > 0 ? (v < 0.4 ? '#4cc78a' : v < 0.8 ? '#e4b94d' : '#ed6354') : undefined
     }
-    return primary.includes(m) ? 'var(--accent)' : secondary.includes(m) ? 'color-mix(in srgb, var(--accent) 45%, var(--card-2))' : undefined
+    return primary.includes(m) ? '#ed6354' : secondary.includes(m) ? '#e4b94d' : undefined
   }
   const label = heat ? 'Нагрузка на мышцы за неделю'
     : `Мышцы: ${[...primary, ...secondary].map((m) => MUSCLES[m as Muscle] ?? m).join(', ') || 'не указаны'}`
@@ -40,8 +40,15 @@ export default function MuscleMap({ primary = [], secondary = [], heat, onPick, 
     </svg>
   )
   return (
-    <div className={compact ? 'muscle-map compact' : 'muscle-map'} role={onPick ? 'group' : 'img'} aria-label={label} id={id}>
-      {view('front')}{view('back')}
+    <div className={compact ? 'muscle-map-wrap compact' : 'muscle-map-wrap'}>
+      <div className={compact ? 'muscle-map compact' : 'muscle-map'} role={onPick ? 'group' : 'img'} aria-label={label} id={id}>
+        {view('front')}{view('back')}
+      </div>
+      {heat && <div className="muscle-scale" aria-label="Относительное количество подходов за неделю">
+        <div className="muscle-scale-bar"><i /><i /><i /></div>
+        <div className="muscle-scale-labels"><span>Меньше</span><span>Больше</span></div>
+      </div>}
+      {!heat && !onPick && <div className="muscle-key"><span><i className="muscle-dot main" />Основные</span>{secondary.length > 0 && <span><i className="muscle-dot assist" />Дополнительные</span>}</div>}
     </div>
   )
 }

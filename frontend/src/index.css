@@ -1852,3 +1852,11 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .badge-icon[data-stage="4"] { --tier: #b084d7; }
 .badge-icon[data-stage="5"] { --tier: #e2b957; }
 .badge-item.on .badge-icon[data-stage] { filter: drop-shadow(0 0 5px var(--tier)); }
+
+.reward:has(.award-actions) { overflow-y: auto; gap: 10px; }
+.reward:has(.award-actions) .reward-body { flex: 1 0 auto; }
+.award-actions { width: min(100%, 440px); display: grid; gap: 10px; text-align: center; }
+.award-actions .btn { width: 100%; min-height: 48px; margin: 0; }
+.award-actions .btn:disabled { opacity: 1; background: var(--card-2); color: var(--muted); box-shadow: none; cursor: default; }
+.award-actions [role=status] { font-size: 14px; color: var(--text); }
+.award-dismiss { color: var(--text); min-height: 44px; padding: 8px 24px; font-weight: 600; }

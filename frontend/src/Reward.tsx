@@ -53,10 +53,10 @@ export function AchievementUnlocked({ code, icon, title, more, onClose, actionLa
         <p className="sub">{viewing ? 'Достижение' : 'Новое достижение!'}</p>
         <h1 className="reward-title">{title}</h1>
         {viewing ? <><p className="sub">{hint}</p><p className="sub">Нажми на значок, чтобы повторить анимацию</p></> : <p className="sub">+25 XP</p>}
-        {extra}
         {more > 0 && <p className="sub">И ещё {more} — посмотрите в «Прогрессе»</p>}
       </div>
-      <button className="btn" onClick={onClose} autoFocus>{actionLabel}</button>
+      {extra}
+      <button className={extra ? "award-dismiss" : "btn"} onClick={onClose} autoFocus>{actionLabel}</button>
     </div>
   )
 }

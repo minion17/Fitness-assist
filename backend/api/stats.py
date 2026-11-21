@@ -14,7 +14,7 @@ from backend.core import clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.rewards import award_xp, sync_evolution
 from backend.database.models import (
-    BodyMeasurement, Exercise, FoodLog, Product, Profile, User, UserAchievement, WaterIntake, WorkoutLog, WorkoutSet,
+    BodyMeasurement, Exercise, FoodLog, Product, Profile, User, UserAchievement, WaterIntake, WorkoutLog, WorkoutSet, XpEvent,
 )
 
 router = APIRouter(prefix="/api")
@@ -189,7 +189,23 @@ async def achievements(tg: dict = Depends(telegram_user), session: AsyncSession 
         if evolved.pop("unseen"):
             new.append(evolved)
         items.append(evolved)
+    # Active means a user with a recorded activity reward during the last 30 days.
+    active = select(XpEvent.user_id).where(
+        XpEvent.created_at >= func.now() - timedelta(days=30),
+        XpEvent.event_type != "achievement",
+    ).distinct().subquery()
+    active_count = await session.scalar(select(func.count()).select_from(active))
+    rarity = {}
+    if active_count >= 10:
+        rows = await session.execute(
+            select(UserAchievement.code, func.count(func.distinct(UserAchievement.user_id)))
+            .join(active, active.c.user_id == UserAchievement.user_id)
+            .group_by(UserAchievement.code)
+        )
+        rarity = dict(rows.all())
     for item in items:
+        rarity_code = f'{item["code"]}:{item["stage"]}' if item.get("stage", 0) > 0 else item["code"]
+        item["holder_percent"] = round(100 * rarity.get(rarity_code, 0) / active_count, 1) if active_count >= 10 and item["unlocked_at"] else None
         item["featured"] = item["code"] in user.showcase
         item["pinned"] = item["code"] == user.pinned_badge
     await session.commit()

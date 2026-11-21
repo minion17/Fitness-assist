@@ -30,8 +30,8 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
 }
 
 /** Same celebration for a newly unlocked achievement. */
-export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично', viewing = false, hint, extra, stage, progress, target, quote }: {
-  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string; viewing?: boolean; hint?: string; extra?: React.ReactNode; stage?: number; progress?: number; target?: number; quote?: string
+export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично', viewing = false, hint, extra, stage, progress, target, quote, holder_percent }: {
+  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string; viewing?: boolean; hint?: string; extra?: React.ReactNode; stage?: number; progress?: number; target?: number; quote?: string; holder_percent?: number | null
 }) {
   const [replay, setReplay] = useState(0)
   useEffect(() => { if (!viewing) haptic('success') }, [viewing])
@@ -51,6 +51,7 @@ export function AchievementUnlocked({ code, icon, title, more, onClose, actionLa
         <div className="award-display" data-tier={stage}>{badge}</div>
         <div className="award-heading"><span>ДОСТИЖЕНИЕ</span><h2>{title}</h2></div>
         <div className="award-detail"><span>УСЛОВИЕ И ПРОГРЕСС</span><p>{hint}</p>{stage !== undefined && target !== undefined && progress !== undefined && <div className="award-tier-progress"><i style={{ width: `${Math.min(100, progress / target * 100)}%` }} /></div>}</div>
+        {holder_percent != null && <p className="award-rarity">Получили {holder_percent}% активных пользователей</p>}
         {quote && <p className="award-quote">«{quote}»</p>}
         {extra}
       </section>

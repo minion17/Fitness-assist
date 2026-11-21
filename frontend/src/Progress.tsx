@@ -10,7 +10,7 @@ import MuscleWeek from './MuscleWeek'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar } from './ui'
 
-export type Achievement = { quote?: string; featured?: boolean; pinned?: boolean; stage?: number; stage_xp?: number; code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
+export type Achievement = { holder_percent?: number | null; quote?: string; featured?: boolean; pinned?: boolean; stage?: number; stage_xp?: number; code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
 
 const PERIODS = [[7, 'Неделя'], [30, 'Месяц'], [90, '3 месяца']] as const
 const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDigits: d })

@@ -1902,3 +1902,5 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .award-tier-progress { height: 5px; border-radius: 8px; background: var(--card); margin-top: 10px; overflow: hidden; }
 .award-tier-progress i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .award-quote { margin: 0; text-align: center; color: var(--muted); font-style: italic; font-size: 13px; }
+
+.award-rarity { margin: 0; text-align: center; color: var(--accent-text); font-size: 13px; }

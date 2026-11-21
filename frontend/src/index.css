@@ -2025,3 +2025,11 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .privacy-card[open] summary span { transform: rotate(180deg); }
 .privacy-content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; }
 @media (prefers-reduced-motion: reduce) { .privacy-card summary span { transition: none; } }
+
+/* Compact profile header */
+.profile-identity { padding: 16px; gap: 10px; }
+.profile-person { gap: 12px; }
+.profile-identity .avatar { width: 52px; height: 52px; font-size: 22px; }
+.profile-identity h1 { margin-bottom: 0; }
+.profile-identity .profile-level { padding-top: 10px; gap: 6px; }
+.profile-identity .medals { padding-top: 8px; }

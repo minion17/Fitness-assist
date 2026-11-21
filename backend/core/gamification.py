@@ -50,3 +50,10 @@ def level_progress(xp: int) -> dict:
         level += 1
         step += STEP_GROWTH
     return {"xp": xp, "level": level, "level_xp": xp - floor, "level_xp_needed": step}
+
+
+# Stable codes and event keys preserve earned stages when a user takes a break.
+EVOLUTIONS = {
+    "iron_will": ("Железная воля", "workout_completed", (5, 25, 100, 250, 500), "Завершённые тренировки", "🏋️"),
+    "like_water": ("Будь как вода", "water_goal", (7, 30, 90, 180, 365), "Дни выполнения личной нормы воды", "💧"),
+}

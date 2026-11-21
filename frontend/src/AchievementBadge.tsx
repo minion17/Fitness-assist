@@ -10,7 +10,7 @@ const additionalFrames: Record<string, [number, number]> = {
 }
 
 export default function AchievementBadge({ code, fallback, large = false }: { code: string; fallback: string; large?: boolean }) {
-  const additional = additionalFrames[code]
+  const additional = additionalFrames[code === 'iron_will' ? 'workouts_50' : code === 'like_water' ? 'water_7' : code]
   const frame = frames[code]
   const className = `achievement-art${large ? ' achievement-art-large' : ''}`
   if (additional) {

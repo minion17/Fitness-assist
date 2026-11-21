@@ -10,7 +10,7 @@ import MuscleWeek from './MuscleWeek'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar } from './ui'
 
-export type Achievement = { code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
+export type Achievement = { featured?: boolean; pinned?: boolean; stage?: number; stage_xp?: number; code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
 
 const PERIODS = [[7, 'Неделя'], [30, 'Месяц'], [90, '3 месяца']] as const
 const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDigits: d })
@@ -18,16 +18,27 @@ const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDig
 type Part = 'food' | 'body' | 'training' | 'awards'
 const PARTS: [Part, string][] = [['food', 'Питание'], ['body', 'Тело'], ['training', 'Тренировки'], ['awards', 'Награды']]
 
-export default function Progress({ canEdit, achievements, freezes, body, top, bodyTop, weightGoal }: {
+export default function Progress({ canEdit, achievements, freezes, body, top, bodyTop, weightGoal, onShowcase }: {
   canEdit: boolean; achievements: Achievement[]; freezes: number; body: React.ReactNode
   top?: React.ReactNode // this week + the AI summary: the «Питание» part
   bodyTop?: React.ReactNode // real expenditure: the «Тело» part
+  onShowcase?: (codes: string[], pinned: string | null) => Promise<void>
   weightGoal?: number | null
 }) {
   // one part at a time: the screen had grown to ten blocks in a row
   const [part, setPart] = useState<Part>(() => { try { return (sessionStorage.getItem('setly-progress-part') as Part) || 'food' } catch { return 'food' } })
   const choosePart = (p: Part) => { setPart(p); try { sessionStorage.setItem('setly-progress-part', p) } catch { /* private mode */ } }
   const [selectedAward, setSelectedAward] = useState<Achievement | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const featured = achievements.filter(a => a.featured).map(a => a.code)
+  const pinned = achievements.find(a => a.pinned)?.code ?? null
+  async function saveDisplay(codes: string[], pin: string | null) {
+    setSaving(true); setSaveError('')
+    try { await onShowcase?.(codes, pin) }
+    catch { setSaveError('Не удалось сохранить. Попробуйте ещё раз.') }
+    finally { setSaving(false) }
+  }
   const [days, setDays] = useState<number>(30)
   const [s, setS] = useState<Stats | null>(() => cachedStats(30))
   const [error, setError] = useState('')
@@ -171,8 +182,9 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           <div className="badges">
             {achievements.map((a) => (
               <button type="button" key={a.code} onClick={() => setSelectedAward(a)} aria-label={`Открыть достижение: ${a.title}`} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>
-                <span className="badge-icon" aria-hidden="true"><AchievementBadge code={a.code} fallback={a.icon} /></span>
+                <span data-stage={a.stage} className="badge-icon" aria-hidden="true"><AchievementBadge code={a.code} fallback={a.icon} /></span>
                 <b>{a.title}</b>
+                {a.stage !== undefined && <span className="sub">Ступень {a.stage} / 5</span>}
                 {a.unlocked_at
                   ? <span className="sub">{new Date(a.unlocked_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
                   : <>
@@ -185,7 +197,11 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
         </section>
       )}
       </>}
-      {selectedAward && <AchievementUnlocked {...selectedAward} more={0} viewing hint={selectedAward.unlocked_at ? selectedAward.hint : `Пока не получено. ${selectedAward.hint}`} actionLabel="Закрыть" onClose={() => setSelectedAward(null)} />}
+      {selectedAward && <AchievementUnlocked {...selectedAward} more={0} viewing hint={selectedAward.stage !== undefined ? `${selectedAward.hint} · ступень ${selectedAward.stage} из 5 · ${selectedAward.stage === 5 ? "Все ступени получены" : `${selectedAward.progress} / ${selectedAward.target} · +${selectedAward.stage_xp} XP за ступень`}` : selectedAward.unlocked_at ? selectedAward.hint : `Пока не получено. ${selectedAward.hint}`} extra={canEdit && onShowcase && selectedAward.unlocked_at && <>
+        <button className="link" disabled={saving} onClick={() => saveDisplay(featured, pinned === selectedAward.code ? null : selectedAward.code)}>{pinned === selectedAward.code ? 'Открепить от имени' : 'Закрепить у имени'}</button>
+        <button className="link" disabled={saving || (!featured.includes(selectedAward.code) && featured.length >= 3)} onClick={() => saveDisplay(featured.includes(selectedAward.code) ? featured.filter(c => c !== selectedAward.code) : [...featured, selectedAward.code], pinned)}>{featured.includes(selectedAward.code) ? 'Убрать с витрины' : 'На витрину'} · {featured.length}/3</button>
+        {saveError && <span role="alert">{saveError}</span>}
+      </>} actionLabel="Закрыть" onClose={() => setSelectedAward(null)} />}
     </>
   )
 }

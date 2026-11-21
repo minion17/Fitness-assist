@@ -56,7 +56,7 @@ from backend.database.models import (
     WorkoutSet,
 )
 from backend.core import alerts, backup, off_sync
-from backend.database.rewards import award_xp
+from backend.database.rewards import award_xp, sync_evolution
 
 
 @asynccontextmanager
@@ -777,6 +777,8 @@ async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), sessi
         w.completed_at = func.now()
         await session.commit()
     xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}")
+    await sync_evolution(session, user.id, "iron_will")
+    await session.commit()
     return {"ok": True, "xp_awarded": xp}
 
 

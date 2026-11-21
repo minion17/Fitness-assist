@@ -1,17 +1,18 @@
 """Progress over time (charts) and achievements."""
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core.nutrition import daily_targets
-from backend.core.gamification import level_progress
+from backend.core.gamification import EVOLUTIONS, level_progress
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
-from backend.database.rewards import award_xp
+from backend.database.rewards import award_xp, sync_evolution
 from backend.database.models import (
     BodyMeasurement, Exercise, FoodLog, Product, Profile, User, UserAchievement, WaterIntake, WorkoutLog, WorkoutSet,
 )
@@ -171,18 +172,28 @@ async def metrics(session: AsyncSession, user: User) -> dict[str, int]:
 async def achievements(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """All badges with progress. `new` lists ones unlocked but not celebrated yet; POST /achievements/seen clears it."""
     user = await get_or_create_user(tg, session)
+    await session.scalar(select(User.id).where(User.id == user.id).with_for_update())
     m = await metrics(session, user)
     for code, *_, metric, target in ACHIEVEMENTS:
         if m[metric] >= target:
             if await session.scalar(insert(UserAchievement).values(user_id=user.id, code=code).on_conflict_do_nothing()
                                     .returning(UserAchievement.code)):
-                await session.commit()
-                await award_xp(session, user.id, "achievement", f"achievement:{code}")
+                await award_xp(session, user.id, "achievement", f"achievement:{code}", commit=False)
     got = {a.code: a for a in await session.scalars(select(UserAchievement).where(UserAchievement.user_id == user.id))}
     items = [{"code": code, "icon": icon, "title": title, "hint": hint, "progress": min(m[metric], target), "target": target,
               "unlocked_at": got[code].unlocked_at.isoformat() if code in got else None}
              for code, icon, title, hint, metric, target in ACHIEVEMENTS]
-    return {"items": items, "new": [i for i in items if i["code"] in got and not got[i["code"]].seen],
+    new = [i for i in items if i["code"] in got and not got[i["code"]].seen]
+    for code in EVOLUTIONS:
+        evolved = await sync_evolution(session, user.id, code)
+        if evolved.pop("unseen"):
+            new.append(evolved)
+        items.append(evolved)
+    for item in items:
+        item["featured"] = item["code"] in user.showcase
+        item["pinned"] = item["code"] == user.pinned_badge
+    await session.commit()
+    return {"items": items, "new": new,
             "freezes": user.streak_freezes}
 
 
@@ -191,5 +202,24 @@ async def achievements_seen(tg: dict = Depends(telegram_user), session: AsyncSes
     user = await get_or_create_user(tg, session)
     for a in await session.scalars(select(UserAchievement).where(UserAchievement.user_id == user.id, UserAchievement.seen.is_(False))):
         a.seen = True
+    await session.commit()
+    return {"ok": True}
+
+class ShowcaseSettings(BaseModel):
+    showcase: list[str] = Field(max_length=3)
+    pinned: str | None = None
+
+
+@router.put("/achievements/showcase")
+async def update_showcase(body: ShowcaseSettings, tg: dict = Depends(telegram_user),
+                          session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    owned = {key.split(":")[0] for key in await session.scalars(
+        select(UserAchievement.code).where(UserAchievement.user_id == user.id))}
+    selected = set(body.showcase)
+    if len(selected) != len(body.showcase) or not selected <= owned or (body.pinned is not None and body.pinned not in owned):
+        raise HTTPException(400, "Выберите полученные награды без повторов")
+    user.showcase = body.showcase
+    user.pinned_badge = body.pinned
     await session.commit()
     return {"ok": True}

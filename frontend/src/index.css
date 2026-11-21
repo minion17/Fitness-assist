@@ -1845,3 +1845,10 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .achievement-replay { display: grid; place-items: center; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; cursor: pointer; }
 .achievement-replay .achievement-reveal { width: min(200px, 45vw); }
 .achievement-replay:focus-visible { outline: 2px solid var(--accent); outline-offset: 8px; border-radius: 24px; }
+
+.badge-icon[data-stage="1"] { --tier: #979aa1; }
+.badge-icon[data-stage="2"] { --tier: #69ad79; }
+.badge-icon[data-stage="3"] { --tier: #649bd9; }
+.badge-icon[data-stage="4"] { --tier: #b084d7; }
+.badge-icon[data-stage="5"] { --tier: #e2b957; }
+.badge-item.on .badge-icon[data-stage] { filter: drop-shadow(0 0 5px var(--tier)); }

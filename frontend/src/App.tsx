@@ -162,6 +162,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
   theme: ReturnType<typeof useTheme>
   canEdit: boolean
 }) {
+  const pin = awards.find(a => a.pinned)
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
     : profile
@@ -171,7 +172,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <div className="profile-person">
         <Avatar />
         <div>
-          <h1 style={{ fontSize: 22 }}>{name}</h1>
+          <h1 style={{ fontSize: 22 }}>{name}{pin && <span className="medal" title={pin.title}><AchievementBadge code={pin.code} fallback={pin.icon} /></span>}</h1>
           {tgUser?.username && <div className="sub">@{tgUser.username}</div>}
           {synced && <div className="sub">{synced}</div>}
         </div>
@@ -179,7 +180,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <LevelCard p={progress} />
         {awards.some((a) => a.unlocked_at) && (
           <button className="medals" onClick={onAwards} aria-label="Все награды">
-            {awards.filter((a) => a.unlocked_at).sort((a, b) => b.unlocked_at!.localeCompare(a.unlocked_at!)).slice(0, 6).map((a) => (
+            {awards.filter((a) => a.featured && a.unlocked_at).sort((a, b) => b.unlocked_at!.localeCompare(a.unlocked_at!)).slice(0, 3).map((a) => (
               <span key={a.code} className="medal" title={a.title}><AchievementBadge code={a.code} fallback={a.icon} /></span>
             ))}
             <span className="medals-more">{awards.filter((a) => a.unlocked_at).length} из {awards.length} <Chevron dir="right" /></span>
@@ -692,7 +693,10 @@ function SetlyApp() {
           </Suspense>
         )}
         {tab === 'progress' && (
-          <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
+          <Progress onShowcase={async (codes, pinned) => {
+            await api('/api/achievements/showcase', putJson({ showcase: codes, pinned }))
+            setAch(a => ({ ...a, items: a.items.map(i => ({ ...i, pinned: i.code === pinned, featured: codes.includes(i.code) })) }))
+          }} canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             weightGoal={me?.target_weight_kg}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
               norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}

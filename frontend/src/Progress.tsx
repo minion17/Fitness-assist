@@ -200,11 +200,11 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       {selectedAward && <AchievementUnlocked {...selectedAward} more={0} viewing hint={selectedAward.stage !== undefined ? `${selectedAward.hint} · ступень ${selectedAward.stage} из 5 · ${selectedAward.stage === 5 ? "Все ступени получены" : `${selectedAward.progress} / ${selectedAward.target} · +${selectedAward.stage_xp} XP за ступень`}` : selectedAward.unlocked_at ? selectedAward.hint : `Пока не получено. ${selectedAward.hint}`} extra={canEdit && onShowcase && <div className="award-actions">
         <button className="btn" disabled={!selectedAward.unlocked_at || saving || (!featured.includes(selectedAward.code) && featured.length >= 3)}
           onClick={() => saveDisplay(featured.includes(selectedAward.code) ? featured.filter(c => c !== selectedAward.code) : [...featured, selectedAward.code], pinned)}>
-          {featured.includes(selectedAward.code) ? 'Убрать с витрины профиля' : 'Закрепить на витрине'}
+          {featured.includes(selectedAward.code) ? 'Убрать с профиля' : 'На профиль'}
         </button>
         <button className="btn btn-ghost" disabled={!selectedAward.unlocked_at || saving}
           onClick={() => saveDisplay(featured, pinned === selectedAward.code ? null : selectedAward.code)}>
-          {pinned === selectedAward.code ? 'Убрать значок у имени' : 'Закрепить рядом с именем'}
+          {pinned === selectedAward.code ? 'Убрать у имени' : 'Закрепить с именем'}
         </button>
         <span role="status">{!selectedAward.unlocked_at ? 'Получите награду, чтобы закрепить её в профиле.' : featured.length === 3 && !featured.includes(selectedAward.code) ? 'Витрина заполнена. Снимите один из трёх значков.' : `На витрине: ${featured.length} из 3`}</span>
         {saveError && <span role="alert">{saveError}</span>}

@@ -1884,3 +1884,10 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .award-modal .achievement-replay { margin: auto; }
 .award-modal .achievement-reveal { display: grid; place-items: center; width: min(180px, 40vw); }
 .award-modal .achievement-reveal .achievement-art { width: 100%; }
+
+.award-modal { gap: 12px; }
+.award-modal .award-display { min-height: 235px; padding: 4px; }
+.award-modal .achievement-reveal { width: min(225px, 52vw); }
+.award-modal .award-detail { padding: 8px 12px; border-radius: 12px; }
+.award-modal .award-detail p { margin-top: 3px; font-size: 14px; }
+.award-modal .award-actions .btn { min-height: 46px; }

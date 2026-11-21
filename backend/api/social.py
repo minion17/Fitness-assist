@@ -81,7 +81,7 @@ async def befriend(session: AsyncSession, code: str, telegram_id: int, first_nam
     session.add_all([Friendship(user_id=me.id, friend_id=inviter.id), Friendship(user_id=inviter.id, friend_id=me.id)])
     if new:  # only people who never used Setly before count as invited (no re-inviting existing friends for XP)
         me.invited_by_id = inviter.id
-    notify(session, inviter, f"🤝 {name(me)} теперь у вас в друзьях. Посмотрите рейтинг недели или вызовите на дуэль.")
+    notify(session, inviter, f"🤝 {name(me)} теперь у тебя в друзьях. Загляни в рейтинг недели или вызови на дуэль.")
     await session.commit()
     return inviter
 
@@ -154,7 +154,7 @@ async def reward_invites(session: AsyncSession) -> int:
         ) >= MAX_INVITE_REWARDS:
             continue
         if await award_xp(session, inviter.id, "friend_invited", key):
-            notify(session, inviter, f"🎉 {name(user)} уже {INVITE_ACTIVE_DAYS} дня с Setly по вашему приглашению — +50 XP!")
+            notify(session, inviter, f"🎉 {name(user)} уже {INVITE_ACTIVE_DAYS} дня с Setly по твоему приглашению — +50 XP!")
             await session.commit()
             given += 1
     return given
@@ -274,7 +274,7 @@ async def challenge(body: DuelIn, tg: dict = Depends(telegram_user), session: As
     session.add(d)
     goal = "больше XP" if body.metric == "xp" else "больше тренировок"
     notify(session, await session.get(User, body.friend_id),
-           f"⚔️ {name(user)} вызывает вас на дуэль: кто наберёт {goal} за {plural_days(body.days)}. Принять можно в приложении: Прогресс → Друзья.")
+           f"⚔️ {name(user)} вызывает тебя на дуэль: кто наберёт {goal} за {plural_days(body.days)}. Принять можно в приложении: Прогресс → Друзья.")
     await session.commit()
     return await duel_out(session, d, user)
 

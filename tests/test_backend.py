@@ -672,7 +672,8 @@ def test_cards_render_in_every_theme():
             cards.water(0, 2500, "12:00", theme),
             cards.water(3000, 2500, "19:00", theme),
             cards.streak(365, [True] * 6 + [False], theme),
-            *(cards.welcome_back(kind, theme, "#a98bff") for kind in cards.BACK_KINDS),
+            cards.today("Осталось", "874 ккал", 1240, 2114, ["Вода 1,2 из 2,3 л", "Серия 12 дн.", "Тренировка сегодня"], "22 ноября", theme),
+            cards.today("Норма", "набрана", 2900, 2114, ["Вода 0 из 2,3 л"], "1 января", theme, "#a98bff"),
             cards.share("Егор", 21, 1340, 4, 7, theme, "#a98bff"),
             cards.story_week("Константин Константинопольский", 365, 123456, 21, 40, "setly_bot", theme, "#a98bff"),
             cards.story_duel("Егор", "Александра", 12345, 9999, "xp", 7, True, "", theme),
@@ -682,25 +683,39 @@ def test_cards_render_in_every_theme():
 
 
 def test_bot_greeting_handles_empty_and_invisible_names():
-    from backend.bot.main import greeting
+    from backend.bot.main import UNFINISHED, WELCOME, clean_name
 
-    assert greeting("Егор", False).startswith("Привет, Егор! 👋")
-    assert greeting("­", False).startswith("Привет! 👋")  # soft hyphen only: Telegram shows it as blank
-    assert greeting("​ ⁣", False).startswith("Привет! 👋")
-    assert greeting(None, False).startswith("Привет! 👋")
-    assert greeting("<b>Хакер</b>", False).startswith("Привет, &lt;b&gt;Хакер&lt;/b&gt;!")  # HTML caption
-    assert greeting("Анна Мария", True).startswith("С возвращением, Анна Мария!")
+    assert clean_name("Егор") == "Егор" and clean_name("Анна Мария") == "Анна Мария"
+    assert clean_name("\u00ad") == "друг"  # soft hyphen only: Telegram shows it as blank
+    assert clean_name("\u200b \u2063") == "друг" and clean_name(None) == "друг"
+    assert clean_name("<b>Хакер</b>") == "&lt;b&gt;Хакер&lt;/b&gt;"  # HTML caption
+    assert WELCOME.format(name="Егор").startswith("Привет, Егор! 👋") and "Анкета ещё ждёт" in UNFINISHED
 
 
-def test_welcome_back_varies_and_never_repeats_in_a_row():
-    from backend.bot import cards
-    from backend.bot.main import BACK, greeting, pick_back
+def test_bot_greets_a_returning_user_with_their_day(client, seeded):
+    import random
 
-    assert {b[3] for b in BACK} <= set(cards.BACK_KINDS)
-    picks = [pick_back(42) for _ in range(60)]
-    assert all(a != b for a, b in zip(picks, picks[1:])) and len(set(picks)) == len(BACK)
-    for i, (word, emoji, body, _) in enumerate(BACK):
-        assert greeting("Егор", True, i) == f"{word}, Егор! {emoji}\n\n{body}"
+    from backend.bot import chat
+    from backend.database.db import SessionLocal
+    from backend.database.models import Profile, User
+    from sqlalchemy import select
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+
+    async def greet():
+        async with SessionLocal() as s:
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            return await chat.day_greeting(s, user, await s.get(Profile, user.id), "Егор")
+
+    text, card, _ = client.portal.call(greet)
+    assert ", Егор! " in text and "Сегодня пока пусто" in text and card["accent_line"] == "пока пусто"
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "lunch"})
+    text, card, _ = client.portal.call(greet)
+    assert "Сегодня 242 из" in text and "Осталось" in text and card["eaten"] == 242 and card["title"] == "Осталось"
+    assert card["chips"][0].startswith("Вода 0 из")
 
 
 def test_stats_for_charts(client, seeded):
@@ -975,7 +990,7 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     async def texts(s):
         return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id.in_(ids))))
     t = db(texts)
-    assert any("+40 XP и бустер ×1,5" in x for x in t) and any("Реванш" in x for x in t) and any("вызывает вас на дуэль" in x for x in t)
+    assert any("+40 XP и бустер ×1,5" in x for x in t) and any("Реванш" in x for x in t) and any("вызывает тебя на дуэль" in x for x in t)
     assert any("+50 XP" in x for x in t)
 
     # the winner's boost: x1.5 for a day (water goal 10 -> 15)
@@ -2182,7 +2197,7 @@ def test_bot_plan_message_after_first_questionnaire(client):
             return len(rows)
 
     assert client.portal.call(run) == 1
-    assert "Ваш план готов" in sent[0][1] and "ккал" in sent[0][1] and sent[0][2].keyboard
+    assert "Твой план готов" in sent[0][1] and "ккал" in sent[0][1] and sent[0][2].keyboard
 
 
 def test_bot_onboarding_chain(client, seeded):

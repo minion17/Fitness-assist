@@ -1,6 +1,5 @@
 import asyncio
 import html
-import random
 import logging
 import unicodedata
 
@@ -37,36 +36,21 @@ log = logging.getLogger("bot")
 router = Router()
 
 WELCOME = (
-    "{hello} 👋\n\n"
-    "Я Setly — считаю калории, веду тренировки и не даю бросить через неделю.\n\n"
-    "Ответь на пару вопросов, и я соберу тебе норму КБЖУ и программу тренировок. Это 2 минуты."
+    "Привет, {name}! 👋\n\n"
+    "Я Setly — дневник питания и тренер прямо в Telegram.\n\n"
+    "Пишешь «гречка 150 г, курица» или присылаешь фото тарелки — я считаю калории. "
+    "Даю программу тренировок и напоминаю про воду, без занудства.\n\n"
+    "Начнём с анкеты: 2 минуты, и у тебя своя норма КБЖУ и план."
 )
+UNFINISHED = "Привет, {name}! 👋\n\nАнкета ещё ждёт — осталось пару минут, и твой план готов: норма КБЖУ, вода и программа тренировок."
 COMMANDS = [("today", "Сегодня: калории, вода, тренировка"), ("workout", "Тренировка на сегодня"),
             ("water", "+250 мл воды"), ("weight", "Записать вес"), ("help", "Что я умею")]
-# Returning users: (greeting word, emoji, text, picture from cards.BACK_KINDS); never the same one twice in a row.
-BACK = [
-    ("С возвращением", "👋", "Рад снова видеть. Дневник, тренировки и вода — всё на месте, жми «Открыть» и продолжаем.", "ring"),
-    ("Привет", "🔥", "Серия сама себя не продлит. Запиши хотя бы один приём пищи — и день засчитан.", "streak"),
-    ("О, привет", "💧", "Начнём с простого: стакан воды. Остальное подтянется.", "water"),
-    ("Здорово", "💪", "Если сегодня тренировка — программа уже ждёт. Если нет — просто отметь, что ел.", "workout"),
-    ("Привет", "🍽", "Сфоткай, что на тарелке, — калории посчитаю сам. Это быстрее, чем кажется.", "food"),
-    ("С возвращением", "✌️", "Неважно, сколько было пропусков. Важно, что ты здесь. Открывай — продолжим с сегодняшнего дня.", "comeback"),
-]
-last_back: dict[int, int] = {}  # shortcut: in memory, forgotten on restart; only avoids an immediate repeat
 
 
-def pick_back(telegram_id: int) -> int:
-    i = random.choice([i for i in range(len(BACK)) if i != last_back.get(telegram_id)])
-    last_back[telegram_id] = i
-    return i
-
-
-def greeting(first_name: str | None, back: bool, variant: int = 0) -> str:
-    """"Привет, Егор!" — or just "Привет!" when the name is empty or made only of invisible characters."""
+def clean_name(first_name: str | None) -> str:
+    """"Егор" for the greeting, HTML-escaped; "друг" when the name is empty or made only of invisible characters."""
     name = "".join(ch for ch in (first_name or "") if unicodedata.category(ch)[0] not in "CZ" or ch == " ").strip()
-    word, emoji, body = (BACK[variant][:3] if back else ("Привет", "👋", None))
-    hello = word + (f", {html.escape(name)}!" if name else "!")
-    return f"{hello} {emoji}\n\n{body}" if back else WELCOME.format(hello=hello)
+    return html.escape(name) if name else "друг"
 
 
 async def first_time(user_id: int, key: str) -> bool:
@@ -99,28 +83,37 @@ async def welcome_preview(message: Message) -> None:
 
 
 async def welcome(message: Message, command: CommandObject | None, as_new: bool = False) -> None:
+    """New user: what the bot does and the questionnaire. Questionnaire not finished: a nudge to finish it.
+    Has a plan: their actual day (calories, water, streak, today's workout)."""
     url = current_webapp_url()
     friend = None
     if message.from_user and command and command.args and command.args.startswith("f"):  # invite link t.me/<bot>?start=f<code>
         async with SessionLocal() as s:
             friend = await befriend(s, command.args[1:64], message.from_user.id, message.from_user.first_name)
+    hello_name = clean_name(message.from_user.first_name)
     async with SessionLocal() as s:  # the account exists from the first /start: the onboarding messages need it
+        existed = await s.scalar(select(User.id).where(User.telegram_id == message.from_user.id))
         user, prof = await chat.me(s, message.from_user)
-    back = prof is not None and not as_new
-    variant = pick_back(message.from_user.id) if back else 0
-    caption = greeting(message.from_user and message.from_user.first_name, back, variant)
-    keyboard = open_app_keyboard(url, "Открыть" if back else "Поехали →")
-    if not back:
-        keyboard.inline_keyboard.append([InlineKeyboardButton(text="Сначала покажи, что умеешь", callback_data="tour")])
-    theme, accent = user and user.theme, user and user.accent
+        day = await chat.day_greeting(s, user, prof, hello_name) if prof and not as_new else None
+    theme, accent = user.theme, user.accent
+    if day:
+        caption, card, workout_due = day
+        keyboard = chat.kb([chat.app_button("💪 Начать тренировку", "open=workout") if workout_due else None],
+                           [chat.app_button("Открыть Setly")]) or open_app_keyboard(url, "Открыть Setly")
+        render = lambda: cards.today(**card, theme=theme, accent=accent)  # noqa: E731
+    else:
+        unfinished = existed and not prof and not as_new and not friend
+        caption = (UNFINISHED if unfinished else WELCOME).format(name=hello_name)
+        keyboard = open_app_keyboard(url, "Продолжить анкету →" if unfinished else "Начать — 2 минуты")
+        keyboard.inline_keyboard.append([InlineKeyboardButton(text="Что ты умеешь?", callback_data="tour")])
+        render = lambda: cards.welcome(theme, accent)  # noqa: E731
     try:
-        png = await asyncio.to_thread(cards.welcome_back, BACK[variant][3], theme, accent) if back \
-            else await asyncio.to_thread(cards.welcome, theme, accent)
+        png = await asyncio.to_thread(render)
         await message.answer_photo(BufferedInputFile(png, "welcome.png"), caption=caption, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         log.warning("welcome card failed, sending text", exc_info=True)
         await message.answer(caption, reply_markup=keyboard, parse_mode="HTML")
-    if back and await first_time(user.id, "onb:kb"):  # the quick-action keyboard, once for users from before it existed
+    if day and await first_time(user.id, "onb:kb"):  # the quick-action keyboard, once for users from before it existed
         await message.answer(f"Быстрые действия теперь на кнопках внизу 👇 А еду можно просто написать сюда, например {chat.EXAMPLE}.",
                              reply_markup=chat.KEYBOARD)
     if friend:
@@ -133,8 +126,8 @@ async def stats(message: Message) -> None:
     admins = {int(x) for x in settings.admin_ids.replace(" ", "").split(",") if x.isdigit()}
     if uid not in admins:
         # not secret: the owner needs their id to put it into .env
-        await message.answer(f"Статистика доступна только владельцу. Ваш Telegram ID: <code>{uid}</code>.\n"
-                             "Если это вы — допишите в .env строку ADMIN_IDS=этот_номер и перезапустите бота.", parse_mode="HTML")
+        await message.answer(f"Статистика доступна только владельцу. Твой Telegram ID: <code>{uid}</code>.\n"
+                             "Если это ты — допиши в .env строку ADMIN_IDS=этот_номер и перезапусти бота.", parse_mode="HTML")
         return
     async with SessionLocal() as s:
         await message.answer(await admin.summary(s), parse_mode="HTML")
@@ -151,7 +144,7 @@ async def broadcast(message: Message, command: CommandObject) -> None:
         return
     text = (command.args or "").strip()
     if not text:
-        await message.answer("Напишите текст после команды, например:\n/broadcast Новое в Setly: задания недели 🏆")
+        await message.answer("Напиши текст после команды, например:\n/broadcast Новое в Setly: задания недели 🏆")
         return
     _drafts[uid] = text
     async with SessionLocal() as s:
@@ -188,7 +181,7 @@ async def delete_answer(call: CallbackQuery) -> None:
     if call.data == "del:yes":
         async with SessionLocal() as s:
             gone = await delete_account(s, call.from_user.id)
-        await call.message.edit_text("Готово: аккаунт и данные удалены. Если вернётесь — нажмите /start, начнём с чистого листа."
+        await call.message.edit_text("Готово: аккаунт и данные удалены. Если вернёшься — нажми /start, начнём с чистого листа."
                                      if gone else "Аккаунта уже нет — удалять нечего.")
     else:
         await call.message.edit_text("Удаление отменено, всё на месте.")
@@ -220,7 +213,7 @@ async def on_error(event: ErrorEvent) -> bool:
     msg = event.update.message
     if msg:
         try:
-            await msg.answer("Что-то пошло не так. Попробуйте ещё раз чуть позже.")
+            await msg.answer("Что-то пошло не так. Попробуй ещё раз чуть позже.")
         except Exception:
             pass
     return True

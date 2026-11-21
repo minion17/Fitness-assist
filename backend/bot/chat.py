@@ -54,7 +54,7 @@ KEYBOARD = ReplyKeyboardMarkup(
 EXAMPLE = "«овсянка 60 г, банан» или «гречка 150 г и котлета»"
 HELP = (
     "Что можно делать прямо здесь:\n\n"
-    f"🍽 <b>Записать еду</b> — напишите, что съели: {EXAMPLE}. Или пришлите фото тарелки.\n"
+    f"🍽 <b>Записать еду</b> — напиши, что съел: {EXAMPLE}. Или пришли фото тарелки.\n"
     "💧 <b>Вода</b> — кнопка «+250 мл» или любое количество: «500 мл», «вода 0,5 л», «2 стакана воды».\n"
     "⚖️ <b>Вес</b> — «вес 76,4».\n"
     "📊 /today — сколько съедено и сколько осталось.\n"
@@ -141,7 +141,7 @@ async def me(session, tg_user) -> tuple[User, Profile | None]:
 
 
 async def need_profile(message: Message) -> None:
-    await message.answer("Сначала короткая анкета — 2 минуты. Без неё я не знаю вашу норму калорий.",
+    await message.answer("Сначала короткая анкета — 2 минуты. Без неё я не знаю твою норму калорий.",
                          reply_markup=kb([app_button("Заполнить анкету")]))
 
 
@@ -305,7 +305,7 @@ async def log_food(message: Message, text: str = "", image: dict | None = None) 
                 draft = await recognise(session, user, "meal_photo" if image else "meal_text", content, text)
             except HTTPException as e:
                 if not items:
-                    await wait.edit_text(f"Не получилось распознать: {e.detail}\n\nНапишите с граммами, например {EXAMPLE} — "
+                    await wait.edit_text(f"Не получилось распознать: {e.detail}\n\nНапиши с граммами, например {EXAMPLE} — "
                                          "такое я посчитаю и без AI.")
                     return
                 draft = None  # AI unavailable or out of quota: the catalog's picks are still a good answer
@@ -314,7 +314,7 @@ async def log_food(message: Message, text: str = "", image: dict | None = None) 
                 items, note = draft_items(draft), draft["note"]
             if not items:
                 await message.answer((html.escape(note) + "\n\n" if note else "") +
-                                     f"Не понял, что записать. Напишите, например, {EXAMPLE}.", parse_mode="HTML")
+                                     f"Не понял, что записать. Напиши, например, {EXAMPLE}.", parse_mode="HTML")
                 return
         logs = await save_draft(session, user, meal, items)
         ids = [l.id for l in logs]
@@ -382,7 +382,7 @@ async def undo_food(call: CallbackQuery) -> None:
 async def ask_meal(call: CallbackQuery) -> None:
     meal = CODE.get(call.data[4:], "dinner")
     _asked[call.message.chat.id] = (meal, time.time() + 30 * 60)
-    await call.message.answer(f"Напишите, что было на {MEALS[meal]}, — например «рыба 150 г, рис 100 г». Или пришлите фото.")
+    await call.message.answer(f"Напиши, что было на {MEALS[meal]}, — например «рыба 150 г, рис 100 г». Или пришли фото.")
     await call.answer()
 
 
@@ -410,7 +410,7 @@ async def repeat_meal(call: CallbackQuery) -> None:
 async def food_photo(message: Message, bot: Bot) -> None:
     photo = message.photo[-1]
     if (photo.file_size or 0) > 6 * 1024 * 1024:
-        await message.answer("Фото слишком большое — пришлите поменьше (до 6 МБ).")
+        await message.answer("Фото слишком большое — пришли поменьше (до 6 МБ).")
         return
     data = (await bot.download(photo)).read()
     image = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(data).decode()}}
@@ -419,7 +419,7 @@ async def food_photo(message: Message, bot: Bot) -> None:
 
 @router.message(F.voice | F.video_note)
 async def voice(message: Message) -> None:
-    await message.answer(f"Голосовые пока не понимаю. Напишите текстом, например {EXAMPLE}, или пришлите фото.")
+    await message.answer(f"Голосовые пока не понимаю. Напиши текстом, например {EXAMPLE}, или пришли фото.")
 
 
 # ---- Water and weight ----
@@ -532,7 +532,7 @@ async def weight(message: Message, kg: float) -> None:
 async def water_cmd(message: Message, command: CommandObject) -> None:
     arg = (command.args or "").strip()
     ml = water_amount(f"вода {arg}") if arg else GLASS_ML
-    await water(message, ml) if ml else await message.answer("Напишите количество, например /water 500 или «вода 0,5 л».")
+    await water(message, ml) if ml else await message.answer("Напиши количество, например /water 500 или «вода 0,5 л».")
 
 
 @router.message(Command("weight"))
@@ -541,7 +541,7 @@ async def weight_cmd(message: Message, command: CommandObject) -> None:
     try:
         await weight(message, float(arg))
     except ValueError:
-        await message.answer("Напишите вес сообщением, например: вес 76,4")
+        await message.answer("Напиши вес сообщением, например: вес 76,4")
 
 
 # ---- Today and workout ----
@@ -600,6 +600,67 @@ async def next_workout(session, user: User, profile: Profile) -> ProgramDay | No
     return program.days[(ids.index(last) + 1) % len(ids)] if last in ids else program.days[0]
 
 
+def day_minutes(day: ProgramDay) -> int:
+    """About how long the workout takes: 45 s a set plus the rest, rounded to 5 minutes."""
+    return max(10, round(sum(i.sets * (45 + i.rest_seconds) for i in day.items) / 60 / 5) * 5)
+
+
+MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря")
+
+
+async def day_greeting(session, user: User, profile: Profile, hello_name: str) -> tuple[str, dict, bool]:
+    """/start of someone who has a plan: their actual day instead of a stock phrase.
+    Returns the caption, the card's arguments (cards.today) and whether today's workout is due."""
+    from backend.api.daily import is_active, streak_state
+    from backend.bot.reminders import eaten_today
+
+    today, hour = clock.today(), clock.now().hour
+    word, emoji = (("Доброе утро", "☀️") if 5 <= hour < 12 else ("Добрый день", "👋") if hour < 17 else
+                   ("Добрый вечер", "🌙") if hour < 23 else ("Привет", "🌙"))
+    eaten, t = await eaten_today(session, user, local_start(today))
+    goal = targets(profile)
+    norm, left = goal["calories"], goal["calories"] - t["kcal"]
+    ml = await session.scalar(select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)) or 0
+    wgoal = water_goal(profile)
+    streak, days = await streak_state(session, user, today)
+    active_today = today in days and is_active(days[today])
+    recent = [d for d, v in days.items() if today - timedelta(days=7) <= d < today and is_active(v)]
+    away = not recent and clock.local(user.created_at).date() < today - timedelta(days=7)
+    trained = await session.scalar(select(WorkoutLog.id).where(WorkoutLog.user_id == user.id, WorkoutLog.completed_at.is_not(None),
+                                                               WorkoutLog.started_at >= local_start(today)).limit(1))
+    day = None
+    if not trained and profile.training_days and today.weekday() in profile.training_days:
+        day = await next_workout(session, user, profile)
+
+    lines = [f"{word}, {hello_name}! {emoji}", ""]
+    if away:
+        lines.append("Давно не виделись! Ничего страшного — начнём с сегодняшнего дня. Твой план на месте, "
+                     "просто напиши, что ел, — я посчитаю.")
+        title = ("С возвращением", "начнём с сегодня")
+    elif not eaten:
+        lines.append("Сегодня пока пусто — напиши сюда завтрак, например «омлет из 2 яиц, кофе»." if hour < 12 else
+                     f"Сегодня пока пусто — напиши, что ел, например {EXAMPLE}, и я посчитаю.")
+        title = ("Сегодня", "пока пусто")
+    else:
+        lines.append(f"Сегодня {n(t['kcal'])} из {n(norm)} ккал, воды {liters(ml)} из {liters(wgoal)} л. " +
+                     (f"Осталось {n(left)} ккал — пиши, что съел, запишу." if left > 0 else "Норма на сегодня набрана 👌"))
+        title = ("Осталось", f"{n(left)} ккал") if left > 0 else ("Норма", "набрана")
+    if not away and streak >= 2 and not active_today:
+        lines.append(f"\n🔥 Серия {streak} дн. — запиши сегодня хоть что-то, и она продолжится.")
+    elif streak >= 3 and active_today:
+        lines.append(f"\n🔥 Серия {streak} дн. — так держать!")
+    if day:
+        lines.append(f"\n💪 По плану тренировка: {html.escape(day.day_name)} — ~{day_minutes(day)} мин.")
+    chips = [f"Вода {liters(ml)} из {liters(wgoal)} л"]
+    if streak:
+        chips.append(f"Серия {streak} дн.")
+    if trained or day:
+        chips.append("Тренировка ✓" if trained else "Тренировка сегодня")
+    card = {"title": title[0], "accent_line": title[1], "eaten": t["kcal"], "goal": norm, "chips": chips,
+            "date": f"{today.day} {MONTHS[today.month - 1]}"}
+    return "\n".join(lines), card, day is not None
+
+
 async def workout_cmd(message: Message) -> None:
     async with SessionLocal() as session:
         user, profile = await me(session, message.from_user)
@@ -611,15 +672,15 @@ async def workout_cmd(message: Message) -> None:
         trained = await session.scalar(select(WorkoutLog.id).where(WorkoutLog.user_id == user.id, WorkoutLog.completed_at.is_not(None),
                                                                    WorkoutLog.started_at >= local_start(today)).limit(1))
         if day is None:
-            await message.answer("Программа ещё не выбрана — выберите её в приложении.",
+            await message.answer("Программа ещё не выбрана — выбери её в приложении.",
                                  reply_markup=kb([app_button("Выбрать программу", "open=workout")]))
             return
         rest = profile.training_days and today.weekday() not in profile.training_days
-        head = ("💪 Сегодня уже потренировались ✓ Следующая тренировка:" if trained else
+        head = ("💪 Сегодня тренировка уже сделана ✓ Следующая:" if trained else
                 "😌 Сегодня по плану отдых. Если хочется — следующая тренировка:" if rest else "💪 Тренировка на сегодня:")
         sets = sum(i.sets for i in day.items)
-        minutes = round(sum(i.sets * (45 + i.rest_seconds) for i in day.items) / 60 / 5) * 5
-        lines = [head, f"\n<b>{html.escape(day.day_name)}</b> — {len(day.items)} упр., ~{max(minutes, 10)} мин\n"]
+        minutes = day_minutes(day)
+        lines = [head, f"\n<b>{html.escape(day.day_name)}</b> — {len(day.items)} упр., ~{minutes} мин\n"]
         lines += [f"• {html.escape(i.exercise.name)} — {i.sets} × {html.escape(i.reps)}" for i in day.items[:8]]
         if len(day.items) > 8:
             lines.append(f"• и ещё {len(day.items) - 8}")
@@ -630,7 +691,7 @@ async def workout_cmd(message: Message) -> None:
 
 # ---- Tour ----
 
-TOUR_CAPTIONS = ("Листайте стрелками →", "", "", "Ответьте на пару вопросов — и я соберу ваш план: норму КБЖУ, воду и "
+TOUR_CAPTIONS = ("Листай стрелками →", "", "", "Ответь на пару вопросов — и я соберу твой план: норму КБЖУ, воду и "
                  "программу тренировок. Это 2 минуты.")
 
 
@@ -650,7 +711,7 @@ async def tour_card(tg_id: int, i: int) -> BufferedInputFile:
 
 
 TOUR_POST = Path(__file__).resolve().parents[2] / ".tour_post"  # project root, git-ignored: {"chat_id", "ids"}
-TOUR_INVITE = "Ответьте на пару вопросов — и я соберу ваш план: норму КБЖУ, воду и программу тренировок. Это 2 минуты."
+TOUR_INVITE = "Ответь на пару вопросов — и я соберу твой план: норму КБЖУ, воду и программу тренировок. Это 2 минуты."
 
 
 def tour_post() -> dict | None:
@@ -697,7 +758,7 @@ async def save_tour_post(message: Message, bot: Bot) -> None:
     try:
         await bot.copy_messages(message.chat.id, origin.chat.id, ids)
     except Exception as e:
-        await message.answer(f"Не получилось скопировать: {e}. Проверьте, что бот — админ канала.")
+        await message.answer(f"Не получилось скопировать: {e}. Проверь, что бот — админ канала.")
 
 
 @router.callback_query(F.data.startswith("tour:"))
@@ -745,7 +806,7 @@ async def water_button_msg(message: Message) -> None:
 
 @router.message(F.text == BTN_FOOD)
 async def food_button(message: Message) -> None:
-    await message.answer(f"Напишите, что съели, — например {EXAMPLE}. Или пришлите фото тарелки.",
+    await message.answer(f"Напиши, что съел, — например {EXAMPLE}. Или пришли фото тарелки.",
                          reply_markup=kb([app_button("Открыть дневник", "open=food")]))
 
 
@@ -760,7 +821,7 @@ async def any_text(message: Message) -> None:
     elif m := WEIGHT.match(text):
         await weight(message, float((m[1] or m[2]).replace(",", ".")))
     elif len(text) > 300:
-        await message.answer("Слишком длинно — напишите покороче, например " + EXAMPLE + ".")
+        await message.answer("Слишком длинно — напиши покороче, например " + EXAMPLE + ".")
     else:
         await log_food(message, text)
 
@@ -777,7 +838,7 @@ async def me_for_test(tg_id: int) -> None:
 async def anything_else(message: Message) -> None:
     """Stickers, files, a forwarded post, a kind of message the bot doesn't know yet: never silence."""
     if message.forward_origin and message.forward_origin.type == "channel":
-        await message.answer("Пост из канала сохраняет как карусель только владелец бота. Если это вы — отправьте /stats: "
-                             "я пришлю ваш Telegram ID и подскажу, что вписать в .env (ADMIN_IDS), затем перезапустите бота.")
+        await message.answer("Пост из канала сохраняет как карусель только владелец бота. Если это ты — отправь /stats: "
+                             "я пришлю твой Telegram ID и подскажу, что вписать в .env (ADMIN_IDS), затем перезапусти бота.")
     else:
         await message.answer(HELP, parse_mode="HTML", reply_markup=KEYBOARD)

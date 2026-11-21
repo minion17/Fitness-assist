@@ -52,7 +52,7 @@ async def send_export(bot, session, m) -> None:
     finally:
         clock.use_tz(None)
     await bot.send_document(m.telegram_id, BufferedInputFile(data, f"setly-{clock.today():%Y-%m-%d}.zip"),
-                            caption="📦 Все ваши записи: питание, вес и замеры, вода, тренировки — в таблицах CSV (открываются в Excel и Google Таблицах).")
+                            caption="📦 Все твои записи: питание, вес и замеры, вода, тренировки — в таблицах CSV (открываются в Excel и Google Таблицах).")
 
 
 async def send_plan(bot, session, m) -> None:
@@ -71,14 +71,14 @@ async def send_plan(bot, session, m) -> None:
     program_id = user.program_id or ((await recommended_program(session, profile)) or {}).get("program_id")
     program = program_id and await session.get(Program, program_id)
     days = ", ".join(chat.DAYS[d] for d in sorted(profile.training_days or []))
-    lines = ["🎯 <b>Ваш план готов</b>\n",
+    lines = ["🎯 <b>Твой план готов</b>\n",
              f"Калории: <b>{chat.n(goal['calories'])} ккал</b> в день",
              f"Белки {chat.n(goal['protein'])} г · Жиры {chat.n(goal['fat'])} г · Углеводы {chat.n(goal['carbs'])} г",
              f"Вода: {chat.liters(water_goal(profile))} л"]
     if program or days:
         lines.append("Тренировки: " + " — ".join(x for x in (days, program and f"«{program.name}»") if x))
     lines.append(f"\nЕду можно писать мне прямо сюда, например {chat.EXAMPLE}, — посчитаю и запишу. "
-                 "Или пришлите фото тарелки. Быстрые действия — на кнопках внизу 👇")
+                 "Или пришли фото тарелки. Быстрые действия — на кнопках внизу 👇")
     await bot.send_message(m.telegram_id, "\n".join(lines), parse_mode="HTML", reply_markup=chat.KEYBOARD)
     await session.execute(insert(ReminderSent).values(user_id=user.id, key="onb:kb").on_conflict_do_nothing())  # they have the keyboard: no "кнопки внизу" on the next /start
     await session.commit()
@@ -96,7 +96,7 @@ async def send_pending(bot, keyboard) -> None:
                 if m.kind == "share" and m.user_id:
                     png = await share_card(session, await session.get(User, m.user_id))
                     await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly.png"), caption=m.text)
-                    await bot.send_message(m.telegram_id, "☝️ Перешлите карточку другу — по ссылке в подписи он сразу попадёт к вам в друзья.")
+                    await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу — по ссылке в подписи он сразу попадёт к тебе в друзья.")
                 elif m.kind == "report" and m.user_id:
                     await send_report(bot, session, m)
                 elif m.kind == "export" and m.user_id:

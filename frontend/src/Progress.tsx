@@ -10,7 +10,7 @@ import MuscleWeek from './MuscleWeek'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar } from './ui'
 
-export type Achievement = { holder_percent?: number | null; quote?: string; featured?: boolean; pinned?: boolean; stage?: number; stage_xp?: number; code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
+export type Achievement = { title_selected?: boolean; holder_percent?: number | null; quote?: string; featured?: boolean; pinned?: boolean; stage?: number; stage_xp?: number; code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
 
 const PERIODS = [[7, 'Неделя'], [30, 'Месяц'], [90, '3 месяца']] as const
 const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDigits: d })
@@ -18,10 +18,11 @@ const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDig
 type Part = 'food' | 'body' | 'training' | 'awards'
 const PARTS: [Part, string][] = [['food', 'Питание'], ['body', 'Тело'], ['training', 'Тренировки'], ['awards', 'Награды']]
 
-export default function Progress({ canEdit, achievements, freezes, body, top, bodyTop, weightGoal, onShowcase }: {
+export default function Progress({ canEdit, achievements, freezes, body, top, bodyTop, weightGoal, onShowcase, onTitle }: {
   canEdit: boolean; achievements: Achievement[]; freezes: number; body: React.ReactNode
   top?: React.ReactNode // this week + the AI summary: the «Питание» part
   bodyTop?: React.ReactNode // real expenditure: the «Тело» part
+  onTitle?: (code: string | null) => Promise<void>
   onShowcase?: (codes: string[], pinned: string | null) => Promise<void>
   weightGoal?: number | null
 }) {
@@ -207,6 +208,12 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           {pinned === selectedAward.code ? 'Убрать у имени' : 'Закрепить с именем'}
         </button>
         <span role="status">{!selectedAward.unlocked_at ? 'Получите награду, чтобы закрепить её в профиле.' : featured.length === 3 && !featured.includes(selectedAward.code) ? 'Витрина заполнена. Снимите один из трёх значков.' : `На витрине: ${featured.length} из 3`}</span>
+        {selectedAward.unlocked_at && onTitle && <button className="btn btn-ghost" disabled={saving} onClick={async () => {
+          setSaving(true); setSaveError('')
+          try { await onTitle(selectedAward.title_selected ? null : selectedAward.code); setSelectedAward({ ...selectedAward, title_selected: !selectedAward.title_selected }) }
+          catch { setSaveError('Не удалось сохранить. Попробуйте ещё раз.') }
+          finally { setSaving(false) }
+        }}>{selectedAward.title_selected ? 'Убрать титул' : 'Выбрать титул'}</button>}
         {saveError && <span role="alert">{saveError}</span>}
       </div>} actionLabel="Закрыть" onClose={() => setSelectedAward(null)} />}
     </>

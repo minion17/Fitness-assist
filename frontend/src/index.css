@@ -1904,3 +1904,6 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .award-quote { margin: 0; text-align: center; color: var(--muted); font-style: italic; font-size: 13px; }
 
 .award-rarity { margin: 0; text-align: center; color: var(--accent-text); font-size: 13px; }
+
+.profile-title { color: var(--accent-text); font-size: 13px; font-weight: 600; }
+.award-actions .btn:nth-of-type(3) { grid-column: 1 / -1; }

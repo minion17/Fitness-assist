@@ -208,6 +208,7 @@ async def achievements(tg: dict = Depends(telegram_user), session: AsyncSession 
         item["holder_percent"] = round(100 * rarity.get(rarity_code, 0) / active_count, 1) if active_count >= 10 and item["unlocked_at"] else None
         item["featured"] = item["code"] in user.showcase
         item["pinned"] = item["code"] == user.pinned_badge
+        item["title_selected"] = item["code"] == user.selected_title
     await session.commit()
     return {"items": items, "new": new,
             "freezes": user.streak_freezes}
@@ -237,5 +238,25 @@ async def update_showcase(body: ShowcaseSettings, tg: dict = Depends(telegram_us
         raise HTTPException(400, "Выберите полученные награды без повторов")
     user.showcase = body.showcase
     user.pinned_badge = body.pinned
+    await session.commit()
+    return {"ok": True}
+
+
+class TitleSettings(BaseModel):
+    code: str | None = None
+
+
+@router.put("/achievements/title")
+async def update_title(body: TitleSettings, tg: dict = Depends(telegram_user),
+                       session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    if body.code is not None:
+        owned = await session.scalar(select(UserAchievement.code).where(
+            UserAchievement.user_id == user.id,
+            (UserAchievement.code == body.code) | (UserAchievement.code == f"{body.code}:1"),
+        ).limit(1))
+        if not owned:
+            raise HTTPException(400, "Сначала получите достижение")
+    user.selected_title = body.code
     await session.commit()
     return {"ok": True}

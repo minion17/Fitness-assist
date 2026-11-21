@@ -2361,3 +2361,18 @@ def test_showcase_ownership_and_persistence(client, seeded):
     items = client.get("/api/achievements", headers=h).json()["items"]
     assert any(i["code"] == "first_water" and i["featured"] and i["pinned"] for i in items)
     assert client.put(endpoint, headers=new_user_headers(), json=choice).status_code == 400
+
+
+def test_achievement_title_requires_ownership_and_persists(client, seeded):
+    user = new_user_headers()
+    other = new_user_headers()
+    endpoint = "/api/achievements/title"
+    assert client.put(endpoint, headers=user, json={"code": "first_water"}).status_code == 400
+    client.post("/api/water", headers=user, json={"delta_ml": 250}).raise_for_status()
+    client.get("/api/achievements", headers=user).raise_for_status()
+    assert client.put(endpoint, headers=other, json={"code": "first_water"}).status_code == 400
+    client.put(endpoint, headers=user, json={"code": "first_water"}).raise_for_status()
+    items = client.get("/api/achievements", headers=user).json()["items"]
+    assert next(a for a in items if a["code"] == "first_water")["title_selected"]
+    client.put(endpoint, headers=user, json={"code": None}).raise_for_status()
+    assert not any(a["title_selected"] for a in client.get("/api/achievements", headers=user).json()["items"])

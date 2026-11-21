@@ -163,6 +163,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
   canEdit: boolean
 }) {
   const pin = awards.find(a => a.pinned)
+  const title = awards.find(a => a.title_selected)
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
     : profile
@@ -173,6 +174,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <Avatar />
         <div>
           <h1 style={{ fontSize: 22 }}>{name}{pin && <span className="medal" title={pin.title}><AchievementBadge code={pin.code} fallback={pin.icon} /></span>}</h1>
+          {title && <div className="profile-title">{title.title}</div>}
           {tgUser?.username && <div className="sub">@{tgUser.username}</div>}
           {synced && <div className="sub">{synced}</div>}
         </div>
@@ -693,7 +695,10 @@ function SetlyApp() {
           </Suspense>
         )}
         {tab === 'progress' && (
-          <Progress onShowcase={async (codes, pinned) => {
+          <Progress onTitle={async code => {
+            await api('/api/achievements/title', putJson({ code }))
+            setAch(a => ({ ...a, items: a.items.map(i => ({ ...i, title_selected: i.code === code })) }))
+          }} onShowcase={async (codes, pinned) => {
             await api('/api/achievements/showcase', putJson({ showcase: codes, pinned }))
             setAch(a => ({ ...a, items: a.items.map(i => ({ ...i, pinned: i.code === pinned, featured: codes.includes(i.code) })) }))
           }} canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}

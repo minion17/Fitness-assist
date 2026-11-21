@@ -38,6 +38,7 @@ async def init_db() -> None:
 
 
 ADDED_COLUMNS = [
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_title VARCHAR(32)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS showcase VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pinned_badge VARCHAR(32)",
     "ALTER TABLE exercises ADD COLUMN IF NOT EXISTS owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE",

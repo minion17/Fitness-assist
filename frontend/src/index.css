@@ -1875,3 +1875,12 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .award-detail { border: 1px solid var(--card-border); border-radius: 16px; background: var(--card-2); padding: 14px 16px; }
 .award-detail p { margin: 6px 0 0; color: var(--text); font-size: 15px; line-height: 1.4; }
 .award-modal .award-actions .btn { min-height: 52px; }
+
+/* Center the entire badge inside the wider artwork area and fade the light to transparent. */
+.award-overlay { padding: 12px; }
+.award-modal { width: min(100%, 480px); }
+.award-modal .award-display { position: relative; isolation: isolate; width: 100%; min-height: 210px; background: none; padding: 12px; }
+.award-modal .award-display::before { content: ''; position: absolute; z-index: -1; width: min(100%, 300px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 17%, transparent) 0%, transparent 70%); pointer-events: none; }
+.award-modal .achievement-replay { margin: auto; }
+.award-modal .achievement-reveal { display: grid; place-items: center; width: min(180px, 40vw); }
+.award-modal .achievement-reveal .achievement-art { width: 100%; }

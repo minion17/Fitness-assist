@@ -40,6 +40,8 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
     catch { setSaveError('Не удалось сохранить. Попробуйте ещё раз.') }
     finally { setSaving(false) }
   }
+  const [partsOpen, setPartsOpen] = useState(false)
+  const [periodOpen, setPeriodOpen] = useState(false)
   const [days, setDays] = useState<number>(30)
   const [s, setS] = useState<Stats | null>(() => cachedStats(30))
   const [error, setError] = useState('')
@@ -78,12 +80,22 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       )}
       {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : <>
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
-      <div className="seg seg-row progress-parts" role="tablist" aria-label="Что смотреть">
-        {PARTS.map(([p, label]) => <button key={p} role="tab" aria-selected={part === p} onClick={() => choosePart(p)}>{label}</button>)}
+      <div className="progress-picker" role="group" aria-label="Что смотреть">
+        <button className="progress-picker-current" aria-expanded={partsOpen} aria-controls="progress-parts-menu" onClick={() => { setPartsOpen(!partsOpen); setPeriodOpen(false) }}>
+          {PARTS.find(([p]) => p === part)?.[1]} <span aria-hidden="true">⌄</span>
+        </button>
+        {partsOpen && <div className="progress-picker-options" id="progress-parts-menu">
+          {PARTS.filter(([p]) => p !== part).map(([p, label]) => <button key={p} onClick={() => { choosePart(p); setPartsOpen(false) }}>{label}</button>)}
+        </div>}
       </div>
       {canEdit && part !== 'awards' && (
-        <div className="seg seg-row progress-period" role="group" aria-label="Период">
-          {PERIODS.map(([n, label]) => <button key={n} aria-pressed={days === n} onClick={() => { setDays(n); const kept = cachedStats(n); if (kept) setS(kept) }}>{label}</button>)}
+        <div className="progress-picker" role="group" aria-label="Период">
+          <button className="progress-picker-current" aria-expanded={periodOpen} aria-controls="progress-period-menu" onClick={() => { setPeriodOpen(!periodOpen); setPartsOpen(false) }}>
+            {PERIODS.find(([n]) => n === days)?.[1]} <span aria-hidden="true">⌄</span>
+          </button>
+          {periodOpen && <div className="progress-picker-options" id="progress-period-menu">
+            {PERIODS.filter(([n]) => n !== days).map(([n, label]) => <button key={n} onClick={() => { setDays(n); const kept = cachedStats(n); if (kept) setS(kept); setPeriodOpen(false) }}>{label}</button>)}
+          </div>}
         </div>
       )}
       {error && <p className="error">{error}</p>}

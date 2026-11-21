@@ -80,6 +80,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       )}
       {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : <>
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
+      <div className="progress-filters">
       <div className="progress-picker" role="group" aria-label="Что смотреть">
         <button className="progress-picker-current" aria-expanded={partsOpen} aria-controls="progress-parts-menu" onClick={() => { setPartsOpen(!partsOpen); setPeriodOpen(false) }}>
           {PARTS.find(([p]) => p === part)?.[1]} <Chevron dir="right" />
@@ -98,6 +99,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           </div>}
         </div>
       )}
+      </div>
       {error && <p className="error">{error}</p>}
 
       {part === 'food' && <>

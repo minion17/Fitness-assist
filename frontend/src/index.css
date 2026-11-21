@@ -2054,3 +2054,14 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .progress-picker-current .chev { color: currentColor; }
 .progress-picker-options { display: flex; flex-wrap: wrap; gap: 6px; animation: fade .2s ease-out; }
 @media (prefers-reduced-motion: reduce) { .progress-picker-options { animation: none; } }
+
+.progress-summary { gap: 8px; overflow: visible; background: transparent; }
+.progress-summary > .card { border-radius: 14px; }
+.progress-filters { display: flex; gap: 8px; align-items: flex-start; position: relative; z-index: 2; }
+.progress-picker { position: relative; flex: 1; min-width: 0; }
+.progress-picker-current { width: 100%; }
+.progress-picker-options { position: absolute; top: calc(100% + 6px); left: 0; z-index: 5; min-width: 100%; display: flex; flex-direction: column; flex-wrap: nowrap; padding: 6px; border: 1px solid var(--surface-border); border-radius: 16px; background: var(--surface-glass); box-shadow: var(--surface-shadow); }
+.progress-picker-options button { width: 100%; text-align: left; }
+.week-recap-trigger { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; min-height: 32px; }
+.week-recap-trigger .sub { margin-left: auto; }
+.week-recap-trigger > span:last-child { color: var(--accent-text); font-size: 22px; line-height: 1; }

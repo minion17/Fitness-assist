@@ -701,8 +701,8 @@ function SetlyApp() {
           }} canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             weightGoal={me?.target_weight_kg}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
-              norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}
-              {canEdit && week.days.length === 7 && <button className="btn btn-ghost recap-open" onClick={() => setRecapAsked(true)}>Итоги недели — открыть карточку</button>}
+              norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length}
+              onRecap={canEdit ? () => setRecapAsked(true) : undefined} />}
               {aiEnabled && <AiSummary />}</>}
             bodyTop={canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
               api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})

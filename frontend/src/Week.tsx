@@ -22,15 +22,14 @@ const cap = (t: string) => t[0].toUpperCase() + t.slice(1)
 const short = (kcal: number) => (kcal >= 1000 ? `${(kcal / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 1 })}к` : kcal > 0 ? String(Math.round(kcal)) : '—')
 
 /** Seven days as rings with calories under each; tap a day for its numbers. */
-export default function WeekCard({ week, goal, norm }: { week: WeekDay[]; goal: number; norm: number }) {
+export default function WeekCard({ week, goal, norm, onRecap }: { week: WeekDay[]; goal: number; norm: number; onRecap?: () => void }) {
   const [picked, setPicked] = useState<number | null>(null)
   const d = picked === null ? null : week[picked]
   return (
-    <section className="card">
-      <div className="card-head">
-        <h2>Неделя</h2>
-        <span className="sub">{norm} из 7 дней в норме</span>
-      </div>
+    <section className="card week-card" onClick={(event) => { if (onRecap && !(event.target as HTMLElement).closest('button')) onRecap() }}>
+      {onRecap ? <button className="week-recap-trigger" onClick={onRecap} aria-label="Открыть итоги недели">
+        <h2>Неделя</h2><span className="sub">{norm} из 7 дней в норме</span><span aria-hidden="true">›</span>
+      </button> : <div className="card-head"><h2>Неделя</h2><span className="sub">{norm} из 7 дней в норме</span></div>}
       <div className="week">
         {week.map((w, i) => (
           <button key={w.date} className={`week-day${i === 6 ? ' today' : ''}${picked === i ? ' picked' : ''}`} aria-pressed={picked === i}

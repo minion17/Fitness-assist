@@ -30,8 +30,8 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
 }
 
 /** Same celebration for a newly unlocked achievement. */
-export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично', viewing = false, hint, extra }: {
-  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string; viewing?: boolean; hint?: string; extra?: React.ReactNode
+export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично', viewing = false, hint, extra, stage, progress, target, quote }: {
+  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string; viewing?: boolean; hint?: string; extra?: React.ReactNode; stage?: number; progress?: number; target?: number; quote?: string
 }) {
   const [replay, setReplay] = useState(0)
   useEffect(() => { if (!viewing) haptic('success') }, [viewing])
@@ -48,9 +48,10 @@ export function AchievementUnlocked({ code, icon, title, more, onClose, actionLa
     <div className="award-overlay" role="presentation" onClick={onClose}>
       <section className="award-modal" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`} onClick={e => e.stopPropagation()}>
         <button className="award-close" onClick={onClose} aria-label="Закрыть" autoFocus>×</button>
-        <div className="award-display">{badge}</div>
+        <div className="award-display" data-tier={stage}>{badge}</div>
         <div className="award-heading"><span>ДОСТИЖЕНИЕ</span><h2>{title}</h2></div>
-        <div className="award-detail"><span>УСЛОВИЕ И ПРОГРЕСС</span><p>{hint}</p></div>
+        <div className="award-detail"><span>УСЛОВИЕ И ПРОГРЕСС</span><p>{hint}</p>{stage !== undefined && target !== undefined && progress !== undefined && <div className="award-tier-progress"><i style={{ width: `${Math.min(100, progress / target * 100)}%` }} /></div>}</div>
+        {quote && <p className="award-quote">«{quote}»</p>}
         {extra}
       </section>
     </div>

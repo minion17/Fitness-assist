@@ -47,6 +47,7 @@ async def sync_evolution(session: AsyncSession, user_id: int, code: str) -> dict
     count = await session.scalar(select(func.count(XpEvent.id)).where(
         XpEvent.user_id == user_id, XpEvent.event_type == source))
     stage = sum(count >= target for target in thresholds)
+    quotes = {"iron_will": "Каждая тренировка — шаг вперёд.", "like_water": "Маленькие привычки складываются в большой результат.", "personal_best": "Сравнивай себя только с собой вчерашним.", "food_habits": "Постоянство важнее идеального дня."}
     newest = None
     unseen = False
     for number in range(1, stage + 1):
@@ -60,4 +61,4 @@ async def sync_evolution(session: AsyncSession, user_id: int, code: str) -> dict
         unseen = unseen or not badge.seen
     return {"code": code, "title": title, "hint": hint, "icon": icon, "stage": stage,
             "target": thresholds[min(stage, len(thresholds)-1)], "progress": count,
-            "unlocked_at": newest, "unseen": unseen, "stage_xp": xp_for_rule("achievement")}
+            "unlocked_at": newest, "unseen": unseen, "quote": quotes[code], "stage_xp": xp_for_rule("achievement")}

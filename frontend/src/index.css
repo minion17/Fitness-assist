@@ -1891,3 +1891,14 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 .award-modal .award-detail { padding: 8px 12px; border-radius: 12px; }
 .award-modal .award-detail p { margin-top: 3px; font-size: 14px; }
 .award-modal .award-actions .btn { min-height: 46px; }
+
+.award-display[data-tier="1"] { --tier: #a5aab1; }
+.award-display[data-tier="2"] { --tier: #63cd8c; }
+.award-display[data-tier="3"] { --tier: #65aaf1; }
+.award-display[data-tier="4"] { --tier: #c090f5; }
+.award-display[data-tier="5"] { --tier: #f5cb67; }
+.award-display[data-tier]:not([data-tier="0"]) .achievement-replay { filter: drop-shadow(0 0 12px var(--tier)); }
+.award-display[data-tier="1"] .achievement-art { filter: grayscale(.7); }
+.award-tier-progress { height: 5px; border-radius: 8px; background: var(--card); margin-top: 10px; overflow: hidden; }
+.award-tier-progress i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.award-quote { margin: 0; text-align: center; color: var(--muted); font-style: italic; font-size: 13px; }

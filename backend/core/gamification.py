@@ -55,5 +55,7 @@ def level_progress(xp: int) -> dict:
 # Stable codes and event keys preserve earned stages when a user takes a break.
 EVOLUTIONS = {
     "iron_will": ("Железная воля", "workout_completed", (5, 25, 100, 250, 500), "Завершённые тренировки", "🏋️"),
+    "personal_best": ("Личный рекорд", "personal_record", (1, 5, 15, 30, 60), "Личные рекорды", "🏆"),
+    "food_habits": ("Осознанное питание", "daily_nutrition_goal", (7, 30, 90, 180, 365), "Дни выполнения цели по питанию", "🎯"),
     "like_water": ("Будь как вода", "water_goal", (7, 30, 90, 180, 365), "Дни выполнения личной нормы воды", "💧"),
 }

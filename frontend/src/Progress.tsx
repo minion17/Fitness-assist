@@ -1,3 +1,5 @@
+import AchievementBadge from './AchievementBadge'
+import { AchievementUnlocked } from './Reward'
 // "Прогресс": period summary, charts (calories, weight, water, macros, exercise records) and achievements.
 import { useEffect, useState } from 'react'
 import { BarChart, LineChart } from './charts'
@@ -6,9 +8,9 @@ import Friends from './Friends'
 import League from './League'
 import MuscleWeek from './MuscleWeek'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
-import { Bar } from './ui'
+import { Bar, Chevron } from './ui'
 
-export type Achievement = { code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
+export type Achievement = { title_selected?: boolean; holder_percent?: number | null; quote?: string; featured?: boolean; pinned?: boolean; stage?: number; stage_xp?: number; code: string; icon: string; title: string; hint: string; progress: number; target: number; unlocked_at: string | null }
 
 const PERIODS = [[7, 'Неделя'], [30, 'Месяц'], [90, '3 месяца']] as const
 const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDigits: d })
@@ -16,15 +18,30 @@ const fmt = (n: number, d = 0) => n.toLocaleString('ru-RU', { maximumFractionDig
 type Part = 'food' | 'body' | 'training' | 'awards'
 const PARTS: [Part, string][] = [['food', 'Питание'], ['body', 'Тело'], ['training', 'Тренировки'], ['awards', 'Награды']]
 
-export default function Progress({ canEdit, achievements, freezes, body, top, bodyTop, weightGoal }: {
+export default function Progress({ canEdit, achievements, freezes, body, top, bodyTop, weightGoal, onShowcase, onTitle }: {
   canEdit: boolean; achievements: Achievement[]; freezes: number; body: React.ReactNode
   top?: React.ReactNode // this week + the AI summary: the «Питание» part
   bodyTop?: React.ReactNode // real expenditure: the «Тело» part
+  onTitle?: (code: string | null) => Promise<void>
+  onShowcase?: (codes: string[], pinned: string | null) => Promise<void>
   weightGoal?: number | null
 }) {
   // one part at a time: the screen had grown to ten blocks in a row
   const [part, setPart] = useState<Part>(() => { try { return (sessionStorage.getItem('setly-progress-part') as Part) || 'food' } catch { return 'food' } })
   const choosePart = (p: Part) => { setPart(p); try { sessionStorage.setItem('setly-progress-part', p) } catch { /* private mode */ } }
+  const [selectedAward, setSelectedAward] = useState<Achievement | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const featured = achievements.filter(a => a.featured).map(a => a.code)
+  const pinned = achievements.find(a => a.pinned)?.code ?? null
+  async function saveDisplay(codes: string[], pin: string | null) {
+    setSaving(true); setSaveError('')
+    try { await onShowcase?.(codes, pin) }
+    catch { setSaveError('Не удалось сохранить. Попробуйте ещё раз.') }
+    finally { setSaving(false) }
+  }
+  const [partsOpen, setPartsOpen] = useState(false)
+  const [periodOpen, setPeriodOpen] = useState(false)
   const [days, setDays] = useState<number>(30)
   const [s, setS] = useState<Stats | null>(() => cachedStats(30))
   const [error, setError] = useState('')
@@ -63,14 +80,26 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       )}
       {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : <>
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
-      <div className="seg seg-row progress-parts" role="tablist" aria-label="Что смотреть">
-        {PARTS.map(([p, label]) => <button key={p} role="tab" aria-selected={part === p} onClick={() => choosePart(p)}>{label}</button>)}
+      <div className="progress-filters">
+      <div className="progress-picker" role="group" aria-label="Что смотреть">
+        <button className="progress-picker-current" aria-expanded={partsOpen} aria-controls="progress-parts-menu" onClick={() => { setPartsOpen(!partsOpen); setPeriodOpen(false) }}>
+          {PARTS.find(([p]) => p === part)?.[1]} <Chevron dir="right" />
+        </button>
+        {partsOpen && <div className="progress-picker-options" id="progress-parts-menu">
+          {PARTS.filter(([p]) => p !== part).map(([p, label]) => <button key={p} onClick={() => { choosePart(p); setPartsOpen(false) }}>{label}</button>)}
+        </div>}
       </div>
       {canEdit && part !== 'awards' && (
-        <div className="seg seg-row progress-period" role="group" aria-label="Период">
-          {PERIODS.map(([n, label]) => <button key={n} aria-pressed={days === n} onClick={() => { setDays(n); const kept = cachedStats(n); if (kept) setS(kept) }}>{label}</button>)}
+        <div className="progress-picker" role="group" aria-label="Период">
+          <button className="progress-picker-current" aria-expanded={periodOpen} aria-controls="progress-period-menu" onClick={() => { setPeriodOpen(!periodOpen); setPartsOpen(false) }}>
+            {PERIODS.find(([n]) => n === days)?.[1]} <Chevron dir="right" />
+          </button>
+          {periodOpen && <div className="progress-picker-options" id="progress-period-menu">
+            {PERIODS.filter(([n]) => n !== days).map(([n, label]) => <button key={n} onClick={() => { setDays(n); const kept = cachedStats(n); if (kept) setS(kept); setPeriodOpen(false) }}>{label}</button>)}
+          </div>}
         </div>
       )}
+      </div>
       {error && <p className="error">{error}</p>}
 
       {part === 'food' && <>
@@ -167,21 +196,40 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           <p className="sub">❄ Заморозок серии: {freezes} из 2 — даются за каждые 7 дней подряд и спасают серию, если день пропущен.</p>
           <div className="badges">
             {achievements.map((a) => (
-              <div key={a.code} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>
-                <span className="badge-icon" aria-hidden="true">{a.icon}</span>
+              <button type="button" key={a.code} onClick={() => setSelectedAward(a)} aria-label={`Открыть достижение: ${a.title}`} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>
+                <span data-stage={a.stage} className="badge-icon" aria-hidden="true"><AchievementBadge code={a.code} fallback={a.icon} /></span>
                 <b>{a.title}</b>
+                {a.stage !== undefined && <span className="sub">Ступень {a.stage} / 5</span>}
                 {a.unlocked_at
                   ? <span className="sub">{new Date(a.unlocked_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span>
                   : <>
                     <span className="sub">{a.hint}</span>
                     {a.target > 1 && <Bar value={a.progress} goal={a.target} />}
                   </>}
-              </div>
+              </button>
             ))}
           </div>
         </section>
       )}
       </>}
+      {selectedAward && <AchievementUnlocked {...selectedAward} more={0} viewing hint={selectedAward.stage !== undefined ? `${selectedAward.hint} · ступень ${selectedAward.stage} из 5 · ${selectedAward.stage === 5 ? "Все ступени получены" : `${selectedAward.progress} / ${selectedAward.target} · +${selectedAward.stage_xp} XP за ступень`}` : selectedAward.unlocked_at ? selectedAward.hint : `Пока не получено. ${selectedAward.hint}`} extra={canEdit && onShowcase && <div className="award-actions">
+        <button className="btn" disabled={!selectedAward.unlocked_at || saving || (!featured.includes(selectedAward.code) && featured.length >= 3)}
+          onClick={() => saveDisplay(featured.includes(selectedAward.code) ? featured.filter(c => c !== selectedAward.code) : [...featured, selectedAward.code], pinned)}>
+          {featured.includes(selectedAward.code) ? 'Убрать с профиля' : 'На профиль'}
+        </button>
+        <button className="btn btn-ghost" disabled={!selectedAward.unlocked_at || saving}
+          onClick={() => saveDisplay(featured, pinned === selectedAward.code ? null : selectedAward.code)}>
+          {pinned === selectedAward.code ? 'Убрать у имени' : 'Закрепить с именем'}
+        </button>
+        <span role="status">{!selectedAward.unlocked_at ? 'Получите награду, чтобы закрепить её в профиле.' : featured.length === 3 && !featured.includes(selectedAward.code) ? 'Витрина заполнена. Снимите один из трёх значков.' : `На витрине: ${featured.length} из 3`}</span>
+        {selectedAward.unlocked_at && onTitle && <button className="btn btn-ghost" disabled={saving} onClick={async () => {
+          setSaving(true); setSaveError('')
+          try { await onTitle(selectedAward.title_selected ? null : selectedAward.code); setSelectedAward({ ...selectedAward, title_selected: !selectedAward.title_selected }) }
+          catch { setSaveError('Не удалось сохранить. Попробуйте ещё раз.') }
+          finally { setSaving(false) }
+        }}>{selectedAward.title_selected ? 'Убрать титул' : 'Выбрать титул'}</button>}
+        {saveError && <span role="alert">{saveError}</span>}
+      </div>} actionLabel="Закрыть" onClose={() => setSelectedAward(null)} />}
     </>
   )
 }

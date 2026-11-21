@@ -29,7 +29,8 @@ test('bottom navigation opens all five sections', async () => {
 
   nav('Прогресс')
   expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Прогресс')
-  fireEvent.click(screen.getByRole('tab', { name: 'Тело' })) // the screen is split into parts
+  fireEvent.click(screen.getByRole('group', { name: 'Что смотреть' }).querySelector('button')!)
+  fireEvent.click(screen.getByRole('button', { name: 'Тело' })) // the screen is split into parts
   expect(screen.getByText('Параметры тела')).toBeTruthy() // measurements live next to the weight chart
 
   nav('Профиль')

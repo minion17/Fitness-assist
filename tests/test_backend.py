@@ -2345,3 +2345,49 @@ def test_bot_understands_any_amount_of_water(client):
     assert client.get("/api/water", headers=h).json()["ml"] == 1500
     datas = [b.callback_data for row in log[-1][1].inline_keyboard for b in row]
     assert "w:500" in datas and "w:-1500" in datas
+
+
+def test_workout_evolution_uses_distinct_completions(client, seeded):
+    h = new_user_headers()
+    ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    for _ in range(5):
+        log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
+        assert client.post(f"/api/workout-logs/{log}/sets", headers=h, json={
+            "exercise_id": ex, "set_number": 1, "reps": 8}).status_code == 200
+        assert client.post(f"/api/workout-logs/{log}/complete", headers=h).status_code == 200
+    response = client.get("/api/achievements", headers=h).json()
+    badge = next(i for i in response["items"] if i["code"] == "iron_will")
+    assert (badge["progress"], badge["stage"], badge["target"]) == (5, 1, 25)
+    xp = client.post("/api/auth", headers=h).json()["progress"]["xp"]
+    assert client.post(f"/api/workout-logs/{log}/complete", headers=h).json()["xp_awarded"] == 0
+    client.post("/api/achievements/seen", headers=h)
+    assert not client.get("/api/achievements", headers=h).json()["new"]
+    assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == xp
+
+
+def test_showcase_ownership_and_persistence(client, seeded):
+    h = new_user_headers()
+    endpoint = "/api/achievements/showcase"
+    choice = {"showcase": ["first_water"], "pinned": "first_water"}
+    assert client.put(endpoint, headers=h, json=choice).status_code == 400
+    client.post("/api/water", headers=h, json={"delta_ml": 250}).raise_for_status()
+    client.get("/api/achievements", headers=h).raise_for_status()
+    client.put(endpoint, headers=h, json=choice).raise_for_status()
+    items = client.get("/api/achievements", headers=h).json()["items"]
+    assert any(i["code"] == "first_water" and i["featured"] and i["pinned"] for i in items)
+    assert client.put(endpoint, headers=new_user_headers(), json=choice).status_code == 400
+
+
+def test_achievement_title_requires_ownership_and_persists(client, seeded):
+    user = new_user_headers()
+    other = new_user_headers()
+    endpoint = "/api/achievements/title"
+    assert client.put(endpoint, headers=user, json={"code": "first_water"}).status_code == 400
+    client.post("/api/water", headers=user, json={"delta_ml": 250}).raise_for_status()
+    client.get("/api/achievements", headers=user).raise_for_status()
+    assert client.put(endpoint, headers=other, json={"code": "first_water"}).status_code == 400
+    client.put(endpoint, headers=user, json={"code": "first_water"}).raise_for_status()
+    items = client.get("/api/achievements", headers=user).json()["items"]
+    assert next(a for a in items if a["code"] == "first_water")["title_selected"]
+    client.put(endpoint, headers=user, json={"code": None}).raise_for_status()
+    assert not any(a["title_selected"] for a in client.get("/api/achievements", headers=user).json()["items"])

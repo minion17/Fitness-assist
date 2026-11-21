@@ -290,17 +290,24 @@ export default function Home(props: {
             <span className="day-stat-value water-value">{liters(Math.round(shownWater / 10) * 10)} <small>/ {liters(water.goal_ml)} л</small></span>
           </button>
         </div>
-        {whyOpen && !props.loading && (
-          <ul className="day-why">
-            {evening && <li className="day-why-title"><b>{progress >= 100 ? 'День закрыт 🎉' : 'Итог дня'}</b><span className="sub">{progress >= 100 ? 'Всё по плану — так держать' : 'Ещё можно успеть:'}</span></li>}
-            {parts.map((p) => (
-              <li key={p.label}><span>{p.label}</span><span className="sub">{p.note}</span><b className={p.value >= 1 ? 'full' : ''}>{Math.round(p.value * 100)}%</b></li>
-            ))}
-            {targets?.protein ? <li><span>Белок</span><span className="sub">{day.totals.protein_g >= targets.protein * 0.9 ? 'в норме' : `ещё ${fmt(targets.protein - day.totals.protein_g)} г`}</span><b className={day.totals.protein_g >= targets.protein * 0.9 ? 'full' : ''}>{fmt(day.totals.protein_g)} г</b></li> : null}
-            {!trained && <li className="sub">Тренировка добавится в круг, когда вы её проведёте сегодня.</li>}
-          </ul>
-        )}
       </section>
+
+      {whyOpen && !props.loading && (
+        <section className="card day-summary" aria-label="Итоги дня">
+          <div className="day-summary-head">
+            <div><h2>{progress >= 100 ? 'День закрыт 🎉' : evening ? 'Итог дня' : 'Прогресс дня'}</h2>
+              <p className="sub">{progress >= 100 ? 'Всё по плану — так держать' : evening ? 'Ещё можно успеть' : 'Что уже сделано сегодня'}</p></div>
+            <span className="day-summary-total">{progress}%</span>
+          </div>
+          <ul className="day-summary-list">
+            {parts.map((p) => (
+              <li key={p.label}><span className={`day-summary-dot ${p.value >= 1 ? 'done' : ''}`} aria-hidden="true" /><span className="day-summary-label">{p.label}</span><span className="sub">{p.note}</span><b>{Math.round(p.value * 100)}%</b></li>
+            ))}
+            {!trained && <li><span className="day-summary-dot" aria-hidden="true" /><span className="day-summary-label">Тренировка</span><span className="sub">ещё не проведена</span><b>—</b></li>}
+            {targets?.protein ? <li><span className={`day-summary-dot ${day.totals.protein_g >= targets.protein * 0.9 ? 'done' : ''}`} aria-hidden="true" /><span className="day-summary-label">Белок</span><span className="sub">{day.totals.protein_g >= targets.protein * 0.9 ? 'в норме' : `ещё ${fmt(targets.protein - day.totals.protein_g)} г`}</span><b>{fmt(day.totals.protein_g)} г</b></li> : null}
+          </ul>
+        </section>
+      )}
 
       {waterOpen && <WaterCard water={water} canEdit={props.canEdit} onWater={props.onWater} onPortion={choosePortion} />}
 

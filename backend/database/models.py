@@ -8,6 +8,9 @@ from backend.database.db import Base
 
 class User(Base):
     __tablename__ = "users"
+    showcase: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
+    selected_title: Mapped[str | None] = mapped_column(String(32))
+    pinned_badge: Mapped[str | None] = mapped_column(String(32))
 
     id: Mapped[int] = mapped_column(primary_key=True)
     telegram_id: Mapped[int] = mapped_column(BigInteger, unique=True, index=True)

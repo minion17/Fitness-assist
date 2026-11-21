@@ -1,5 +1,6 @@
+import AchievementBadge from './AchievementBadge'
 // Full-screen level-up celebration (Duolingo-style), shown when the level grows during the session.
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { haptic } from './haptics'
 
 const CONFETTI = Array.from({ length: 18 }, (_, i) => i)
@@ -29,23 +30,58 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
 }
 
 /** Same celebration for a newly unlocked achievement. */
-export function AchievementUnlocked({ icon, title, more, onClose }: {
-  icon: string; title: string; more: number; onClose: () => void
+export function AchievementUnlocked({ code, icon, title, more, onClose, actionLabel = 'Отлично', viewing = false, hint, extra, stage, progress, target, quote, holder_percent }: {
+  code: string; icon: string; title: string; more: number; onClose: () => void; actionLabel?: string; viewing?: boolean; hint?: string; extra?: React.ReactNode; stage?: number; progress?: number; target?: number; quote?: string; holder_percent?: number | null
 }) {
-  useEffect(() => { haptic('success') }, [])
+  const [replay, setReplay] = useState(0)
+  useEffect(() => { if (!viewing) haptic('success') }, [viewing])
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
+    document.addEventListener('keydown', escape)
+    return () => { document.removeEventListener('keydown', escape); previous?.focus() }
+  }, [onClose])
+  const badge = (<button className="achievement-replay" aria-label="Повторить анимацию награды" onClick={() => setReplay((n) => n + 1)}>
+          <span className="achievement-reveal" key={`${code}-${replay}`}><AchievementBadge code={code} fallback={icon} large /></span>
+        </button>)
+  if (viewing) return (
+    <div className="award-overlay" role="presentation" onClick={onClose}>
+      <section className="award-modal" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`} onClick={e => e.stopPropagation()}>
+        <button className="award-close" onClick={onClose} aria-label="Закрыть" autoFocus>×</button>
+        <div className="award-display" data-tier={stage}>{badge}</div>
+        <div className="award-heading"><span>ДОСТИЖЕНИЕ</span><h2>{title}</h2></div>
+        <div className="award-detail"><span>УСЛОВИЕ И ПРОГРЕСС</span><p>{hint}</p>{stage !== undefined && target !== undefined && progress !== undefined && <div className="award-tier-progress"><i style={{ width: `${Math.min(100, progress / target * 100)}%` }} /></div>}</div>
+        {holder_percent != null && <p className="award-rarity">Получили {holder_percent}% активных пользователей</p>}
+        {quote && <p className="award-quote">«{quote}»</p>}
+        {extra}
+      </section>
+    </div>
+  )
   return (
     <div className="reward" role="dialog" aria-modal="true" aria-label={`Достижение: ${title}`}>
-      <div className="confetti" aria-hidden="true">
+      <div className="confetti" key={replay} aria-hidden="true">
         {CONFETTI.map((i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, animationDelay: `${(i % 6) * 0.15}s` }} />)}
       </div>
       <div className="reward-body">
-        <div className="badge badge-emoji" aria-hidden="true"><span>{icon}</span></div>
-        <p className="sub">Новое достижение!</p>
+        {badge}
+        <p className="sub">{viewing ? 'Достижение' : 'Новое достижение!'}</p>
         <h1 className="reward-title">{title}</h1>
-        <p className="sub">+25 XP</p>
+        {viewing ? <><p className="sub">{hint}</p><p className="sub">Нажми на значок, чтобы повторить анимацию</p></> : <p className="sub">+25 XP</p>}
         {more > 0 && <p className="sub">И ещё {more} — посмотрите в «Прогрессе»</p>}
       </div>
-      <button className="btn" onClick={onClose} autoFocus>Отлично</button>
+      {extra}
+      <button className={extra ? "award-dismiss" : "btn"} onClick={onClose} autoFocus>{actionLabel}</button>
     </div>
   )
+}
+
+/** Isolated visual preview: never awards XP or changes achievement state. */
+export function AchievementPreview() {
+  const [replay, setReplay] = useState(0)
+  return <>
+    <AchievementUnlocked key={replay} code="norm_7" icon="🎯" title="Точно в цель" more={0}
+      actionLabel="Повторить анимацию" onClose={() => setReplay((n) => n + 1)} />
+    <a className="achievement-preview-exit" href="/">Закрыть просмотр ×</a>
+    <span className="achievement-preview-label">Предпросмотр награды · прогресс не меняется</span>
+  </>
 }

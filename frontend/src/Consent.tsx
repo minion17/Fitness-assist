@@ -76,8 +76,9 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
   }
 
   return (
-    <section className="card">
-      <h2>Данные и конфиденциальность</h2>
+    <details className="card privacy-card">
+      <summary>Данные и конфиденциальность <span aria-hidden="true">⌄</span></summary>
+      <div className="privacy-content">
       <label className="consent-check">
         <input type="checkbox" checked={consent.health} onChange={toggleHealth} />
         <span><b>Учитывать аллергии и травмы</b><span className="sub">{consent.health ? 'Если выключить, эти ответы сотрутся из анкеты.' : 'Включите, чтобы указать их в анкете.'}</span></span>
@@ -88,6 +89,7 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
       </div>
       {consent.url && <a className="link" href={consent.url} target="_blank" rel="noreferrer">Политика конфиденциальности</a>}
       <button className="link danger" onClick={() => setAsk(true)}>Удалить аккаунт и все данные</button>
+      </div>
       {ask && (
         <Sheet title="Удалить аккаунт?" onClose={() => state !== 'busy' && setAsk(false)}>
           {state === 'done' ? <p>Готово: аккаунт и данные удалены. Если вернётесь — начнём с чистого листа.</p> : <>
@@ -98,6 +100,6 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
           </>}
         </Sheet>
       )}
-    </section>
+    </details>
   )
 }

@@ -1,3 +1,5 @@
+import { Icon, type IconName } from './icons'
+import AchievementBadge from './AchievementBadge'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
@@ -21,7 +23,7 @@ import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
 import { prefetchStats } from './stats'
 import Progress, { type Achievement } from './Progress'
-import Reward, { AchievementUnlocked } from './Reward'
+import Reward, { AchievementUnlocked, AchievementPreview } from './Reward'
 import { ACCENTS, LIGHT, THEMES, useTheme, type ThemePref, type ThemeSettings } from './theme'
 import Questionnaire from './Questionnaire'
 import { GOALS, YEAR, calculateTargets, type ProfileData, type Recommendation } from './profile'
@@ -36,12 +38,8 @@ const Workouts = lazy(() => import('./Workouts'))
 
 type Tab = 'home' | 'food' | 'workouts' | 'progress' | 'profile'
 
-const ICONS: Record<Tab, string> = {
-  home: 'M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
-  food: 'M7 3v8a2 2 0 0 0 2 2v8M5 3v5M9 3v5M17 3c-2 0-3 2-3 5s1 4 3 4v9',
-  workouts: 'M6 8v8M3 10v4M18 8v8M21 10v4M6 12h12',
-  progress: 'M4 20V11M10 20V5M16 20v-6M3 20h18',
-  profile: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 4-6 8-6s8 2 8 6',
+const ICONS: Record<Tab, IconName> = {
+  home: 'home', food: 'utensils', workouts: 'dumbbell', progress: 'progress', profile: 'profile',
 }
 const TABS: { id: Tab; label: string }[] = [
   { id: 'home', label: 'Главная' },
@@ -161,6 +159,8 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
   theme: ReturnType<typeof useTheme>
   canEdit: boolean
 }) {
+  const pin = awards.find(a => a.pinned)
+  const title = awards.find(a => a.title_selected)
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
     : profile
@@ -170,7 +170,8 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <div className="profile-person">
         <Avatar />
         <div>
-          <h1 style={{ fontSize: 22 }}>{name}</h1>
+          <h1 style={{ fontSize: 22 }}>{name}{pin && <span className="medal" title={pin.title}><AchievementBadge code={pin.code} fallback={pin.icon} /></span>}</h1>
+          {title && <div className="profile-title">{title.title}</div>}
           {tgUser?.username && <div className="sub">@{tgUser.username}</div>}
           {synced && <div className="sub">{synced}</div>}
         </div>
@@ -178,8 +179,8 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <LevelCard p={progress} />
         {awards.some((a) => a.unlocked_at) && (
           <button className="medals" onClick={onAwards} aria-label="Все награды">
-            {awards.filter((a) => a.unlocked_at).sort((a, b) => b.unlocked_at!.localeCompare(a.unlocked_at!)).slice(0, 6).map((a) => (
-              <span key={a.code} className="medal" title={a.title}><span aria-hidden="true">{a.icon}</span></span>
+            {awards.filter((a) => a.featured && a.unlocked_at).sort((a, b) => b.unlocked_at!.localeCompare(a.unlocked_at!)).slice(0, 3).map((a) => (
+              <span key={a.code} className="medal" title={a.title}><AchievementBadge code={a.code} fallback={a.icon} /></span>
             ))}
             <span className="medals-more">{awards.filter((a) => a.unlocked_at).length} из {awards.length} <Chevron dir="right" /></span>
           </button>
@@ -216,6 +217,10 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
 }
 
 export default function App() {
+  return new URLSearchParams(window.location.search).get('preview') === 'achievement' ? <AchievementPreview /> : <SetlyApp />
+}
+
+function SetlyApp() {
   // the last server answer kept on this phone: the screen starts from it instead of zeros (see snapshot.ts)
   const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
   const kcalRef = useRef<number | null>(null) // last known kcal, to notice the moment the norm is reached
@@ -687,11 +692,17 @@ export default function App() {
           </Suspense>
         )}
         {tab === 'progress' && (
-          <Progress canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
+          <Progress onTitle={async code => {
+            await api('/api/achievements/title', putJson({ code }))
+            setAch(a => ({ ...a, items: a.items.map(i => ({ ...i, title_selected: i.code === code })) }))
+          }} onShowcase={async (codes, pinned) => {
+            await api('/api/achievements/showcase', putJson({ showcase: codes, pinned }))
+            setAch(a => ({ ...a, items: a.items.map(i => ({ ...i, pinned: i.code === pinned, featured: codes.includes(i.code) })) }))
+          }} canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             weightGoal={me?.target_weight_kg}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
-              norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length} />}
-              {canEdit && week.days.length === 7 && <button className="btn btn-ghost recap-open" onClick={() => setRecapAsked(true)}>Итоги недели — открыть карточку</button>}
+              norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length}
+              onRecap={canEdit ? () => setRecapAsked(true) : undefined} />}
               {aiEnabled && <AiSummary />}</>}
             bodyTop={canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
               api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
@@ -718,7 +729,7 @@ export default function App() {
         <div className="nav-inner">
           {TABS.map((t) => (
             <button key={t.id} onClick={() => go(t.id)} aria-current={tab === t.id ? 'page' : undefined}>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[t.id]} /></svg>
+              <Icon name={ICONS[t.id]} size={24} />
               {t.label}
             </button>
           ))}

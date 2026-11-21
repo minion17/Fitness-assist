@@ -10,7 +10,7 @@ from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import FoodLog, FrozenDay, HabitCheck, Outbox, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
-from backend.database.rewards import award_xp
+from backend.database.rewards import award_xp, sync_evolution
 
 router = APIRouter(prefix="/api")
 GLASS_ML = 250
@@ -57,6 +57,8 @@ async def add_water(body: WaterIn, tg: dict = Depends(telegram_user), session: A
     await session.commit()
     goal = water_goal(await session.get(Profile, user.id))
     xp = await award_xp(session, user.id, "water_goal", f"water:{today}") if ml >= goal else 0
+    await sync_evolution(session, user.id, "like_water")
+    await session.commit()
     return {"ml": ml, "goal_ml": goal, "xp_awarded": xp}
 
 

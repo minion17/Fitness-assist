@@ -56,7 +56,7 @@ from backend.database.models import (
     WorkoutSet,
 )
 from backend.core import alerts, backup, off_sync
-from backend.database.rewards import award_xp
+from backend.database.rewards import award_xp, sync_evolution
 
 
 @asynccontextmanager
@@ -777,6 +777,8 @@ async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), sessi
         w.completed_at = func.now()
         await session.commit()
     xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}")
+    await sync_evolution(session, user.id, "iron_will")
+    await session.commit()
     return {"ok": True, "xp_awarded": xp}
 
 
@@ -799,6 +801,19 @@ async def list_workout_logs(tg: dict = Depends(telegram_user), session: AsyncSes
         }
         for w in rows
     ]
+
+
+@app.get("/api/workout-logs/{log_id}")
+async def workout_log_detail(log_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    workout = await own_workout(log_id, user, session)
+    rows = (await session.execute(
+        select(WorkoutSet, Exercise.name).join(Exercise, Exercise.id == WorkoutSet.exercise_id)
+        .where(WorkoutSet.workout_log_id == workout.id).order_by(WorkoutSet.id)
+    )).all()
+    return {"sets": [{"id": item.id, "name": name, "set_number": item.set_number,
+                      "reps": item.reps, "duration_seconds": item.duration_seconds,
+                      "weight_kg": item.weight_kg} for item, name in rows]}
 
 
 @app.get("/api/exercises/last")

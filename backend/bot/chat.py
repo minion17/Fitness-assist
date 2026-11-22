@@ -57,6 +57,9 @@ HELP = (
     f"🍽 <b>Записать еду</b> — напиши, что съел: {EXAMPLE}. Или пришли фото тарелки.\n"
     "💧 <b>Вода</b> — кнопка «+250 мл» или любое количество: «500 мл», «вода 0,5 л», «2 стакана воды».\n"
     "⚖️ <b>Вес</b> — «вес 76,4».\n"
+    "✏️ <b>Поправить</b> — «убери хлеб», «риса было 200», «это был обед».\n"
+    "🍽 /eat — что поесть сейчас под твой остаток.\n"
+    "🧾 <b>Меню ресторана</b> — пришли фото с подписью «меню», подскажу, что взять.\n"
     "📊 /today — сколько съедено и сколько осталось.\n"
     "💪 /workout — тренировка на сегодня.\n\n"
     "Всё остальное — в приложении: кнопка «Setly» слева от поля ввода."
@@ -327,12 +330,22 @@ async def log_food(message: Message, text: str = "", image: dict | None = None) 
                     await session.commit()
             ids = card[2] + ids
         await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{meal}")
-        text, ids = await card_text(session, user, profile, meal, ids, note)
-    if card:
+        await show_card(message, session, user, profile, meal, ids, note, card)
+
+
+async def show_card(message: Message, session, user: User, profile: Profile | None, meal: str, ids: list[int], note: str = "",
+                    old: tuple | None = None) -> None:
+    """The meal card at the bottom of the chat (the previous one of this meal removed), open for products sent next."""
+    text, ids = await card_text(session, user, profile, meal, ids, note)
+    if old:
         try:
-            await message.bot.delete_message(message.chat.id, card[0])  # the card moves down to the newest message
+            await message.bot.delete_message(message.chat.id, old[0])  # the card moves down to the newest message
         except Exception:
             pass
+    if not ids:
+        _cards.pop(message.chat.id, None)
+        await message.answer("Карточка пуста — всё убрал из дневника.")
+        return
     sent = await message.answer(text, parse_mode="HTML", reply_markup=logged_keyboard(meal, ids))
     _cards[message.chat.id] = (sent.message_id, meal, ids, time.time() + CARD_WINDOW)
 
@@ -414,7 +427,10 @@ async def food_photo(message: Message, bot: Bot) -> None:
         return
     data = (await bot.download(photo)).read()
     image = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(data).decode()}}
-    await log_food(message, (message.caption or "")[:300], image)
+    if "меню" in (message.caption or "").lower():  # a restaurant menu: what fits today, not a plate to log
+        await menu_photo(message, image)
+    else:
+        await log_food(message, (message.caption or "")[:300], image)
 
 
 @router.message(F.voice | F.video_note)
@@ -579,7 +595,8 @@ async def today_cmd(message: Message) -> None:
             return
         text, _ = await today_text(session, user, profile)
     await message.answer(text, parse_mode="HTML", reply_markup=kb(
-        [InlineKeyboardButton(text="💧 +250 мл", callback_data="w:250")], [app_button("Открыть дневник", "open=food")]))
+        [InlineKeyboardButton(text="🍽 Что поесть?", callback_data="eat"), InlineKeyboardButton(text="💧 +250 мл", callback_data="w:250")],
+        [app_button("Открыть дневник", "open=food")]))
 
 
 async def next_workout(session, user: User, profile: Profile) -> ProgramDay | None:
@@ -772,7 +789,234 @@ async def tour_flip(call: CallbackQuery) -> None:
         pass  # a double tap: "message is not modified"
 
 
+# ---- "Что поесть?", "Как обычно", corrections in words, menu advice ----
+
+def ideas_text(sug: dict) -> str:
+    meal = sug["meal_type"]
+    head = f"🍽 <b>Что поесть на {MEALS[meal]}</b>\n\nОсталось {n(sug['kcal_left'])} ккал" + \
+        (f" и {n(sug['protein_left'])} г белка" if sug["protein_left"] > 10 else "") + "."
+    lines = [head, ""]
+    lines += [f"{i + 1}. {html.escape(o['title'])} — {n(o['kcal'])} ккал, Б {n(o['protein_g'])}" for i, o in enumerate(sug["options"])]
+    lines.append("\nНажми номер — запишу.")
+    return "\n".join(lines)
+
+
+def ideas_keyboard(sug: dict) -> InlineKeyboardMarkup | None:
+    row = []
+    for i, o in enumerate(sug["options"]):
+        data = f"ea:{SHORT[sug['meal_type']]}:" + ".".join(f"{_b36(it['product_id'])}x{round(it['amount_g'])}" for it in o["items"])
+        if len(data.encode()) <= 64:
+            row.append(InlineKeyboardButton(text=f"✓ {i + 1}", callback_data=data))
+    return kb(row, [app_button("Открыть дневник", "open=food")])
+
+
+async def eat_cmd(message: Message, tg_user) -> None:
+    from backend.api.kitchen import meal_suggestions
+
+    async with SessionLocal() as session:
+        user, profile = await me(session, tg_user)
+        if profile is None:
+            await need_profile(message)
+            return
+        sug = await meal_suggestions(session, user, guess_meal(clock.now().hour))
+    if sug["kcal_left"] < 150:
+        await message.answer("На сегодня норма набрана 👌 Если голодно — лучше овощи, кефир или чай.")
+    elif not sug["options"]:
+        await message.answer(f"Пока не из чего выбрать — запиши пару дней еды, и я буду подсказывать. Осталось {n(sug['kcal_left'])} ккал.")
+    else:
+        await message.answer(ideas_text(sug), parse_mode="HTML", reply_markup=ideas_keyboard(sug))
+
+
+async def log_items(message: Message, tg_user, meal: str, items: list[dict]) -> None:
+    """Products with their grams into a meal, then the usual card (open for more products)."""
+    from backend.api.kitchen import BatchIn, log_batch
+
+    async with SessionLocal() as session:
+        user, profile = await me(session, tg_user)
+        try:
+            res = await log_batch(BatchIn(meal_type=meal, items=items), tg=tgd(tg_user), session=session)
+        except HTTPException as e:
+            await message.answer(f"Не записалось: {e.detail}")
+            return
+        card = open_card(message.chat.id)
+        card = card if card and card[1] == meal else None
+        await show_card(message, session, user, profile, meal, (card[2] if card else []) + res["ids"], "", card)
+
+
+@router.callback_query(F.data == "eat")
+async def eat_button(call: CallbackQuery) -> None:
+    await call.answer()
+    await eat_cmd(call.message, call.from_user)
+
+
+@router.callback_query(F.data.startswith("ea:"))
+async def eat_pick(call: CallbackQuery) -> None:
+    _, code, packed = call.data.split(":", 2)
+    items = []
+    for part in packed.split("."):
+        pid, _, grams = part.partition("x")
+        if pid and grams.isdigit():
+            items.append({"product_id": int(pid, 36), "amount_g": int(grams)})
+    await call.answer("Записываю")
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)  # one pick per list
+    except Exception:
+        pass
+    if items:
+        await log_items(call.message, call.from_user, CODE.get(code, "snack"), items)
+
+
+@router.callback_query(F.data.startswith("us:"))
+async def usual_pick(call: CallbackQuery) -> None:
+    """"↻ Как обычно" under a meal reminder."""
+    from backend.api.kitchen import usual_for
+
+    meal = CODE.get(call.data[3:], "breakfast")
+    async with SessionLocal() as session:
+        user, _ = await me(session, call.from_user)
+        usual = await usual_for(session, user, meal)
+    await call.answer()
+    if not usual:
+        await call.message.answer(f"Сегодня {MEALS[meal]} уже записан — или привычного набора пока нет.")
+        return
+    await log_items(call.message, call.from_user, meal, [{"product_id": i["product_id"], "amount_g": i["amount_g"]} for i in usual["items"]])
+
+
+REMOVE = re.compile(r"^(?:убери|удали|убрать|удалить|без|минус)\s+(.+)$", re.I)
+AMEND = re.compile(r"^(?:(?:исправь|поправь|не)\s+)?(.+?)\s+(?:было|был|была|были|на|а)\s+(\d+(?:[.,]\d+)?)\s*(?:г|гр|грамм\w*|мл)?\.?$", re.I)
+WAS_MEAL = re.compile(r"^(?:это\s+)?(?:был[аио]?\s+)?(?:на\s+)?(завтрак|обед|ужин|перекус)\w*$", re.I)
+MEAL_WORD = {"завтрак": "breakfast", "обед": "lunch", "ужин": "dinner", "перекус": "snack"}
+
+
+def which(logs: list[FoodLog], words: str) -> FoodLog | None:
+    """The card's entry the user means by "хлеб" / "риса": the first word's stem against the product names."""
+    w = norm(words).split()
+    if not w:
+        return None
+    root = stem(w[0])[:4]
+    return next((l for l in logs if any(x.startswith(root) for x in norm(l.product.name).split())), None)
+
+
+async def correct(message: Message, text: str) -> bool:
+    """"убери хлеб", "риса было 200", "это был обед": a fix to the open card. False when the text isn't one."""
+    card = open_card(message.chat.id)
+    if not card:
+        return False
+    mm, rm, am = WAS_MEAL.match(text), REMOVE.match(text), AMEND.match(text)
+    if not (mm or rm or am):
+        return False
+    async with SessionLocal() as session:
+        user, profile = await me(session, message.from_user)
+        logs = list(await session.scalars(select(FoodLog).options(selectinload(FoodLog.product))
+                                          .where(FoodLog.id.in_(card[2]), FoodLog.user_id == user.id).order_by(FoodLog.id)))
+        meal = card[1]
+        if mm:
+            meal = MEAL_WORD[mm[1].lower()]
+            slot = clock.local(min(l.logged_at for l in logs)).strftime("%H:%M") if meal == "snack" and logs else None
+            for l in logs:
+                l.meal_type, l.snack_slot = meal, slot
+        else:
+            target = which(logs, (rm or am)[1])
+            if target is None:
+                return False  # "без сахара" may be a new product after all: let it be food
+            if rm:
+                await session.delete(target)
+                logs.remove(target)
+            else:
+                target.amount_g = max(1.0, min(3000.0, float(am[2].replace(",", "."))))
+        await session.commit()
+        await show_card(message, session, user, profile, meal, [l.id for l in logs], "", card)
+    return True
+
+
+def menu_advice(dishes: list[dict], kcal_left: float, protein_left: float, aim: float) -> str:
+    """Which dishes of a menu fit what's left today: the best 3, and what would eat most of the day."""
+    portions = []
+    for d in dishes:
+        g = d.get("portion_g") or 0
+        if g:
+            k = d["kcal"] * g / 100
+            portions.append({**d, "pk": k, "pp": d["protein_g"] * g / 100})
+    if not portions:
+        return "В меню не нашёл блюд с весом порции — не могу посчитать. Попробуй сфотографировать страницу крупнее."
+    fit = sorted((p for p in portions if p["pk"] <= aim * 1.1),
+                 key=lambda p: abs(aim * 0.8 - p["pk"]) / max(aim, 1) - (0.5 * min(p["pp"], protein_left) / max(protein_left, 1)))[:3]
+    heavy = sorted((p for p in portions if p["pk"] > kcal_left * 0.6), key=lambda p: -p["pk"])[:2]
+    mark = lambda p: "≈" if p.get("estimated") else ""  # noqa: E731
+    lines = [f"🧾 <b>Что взять</b> — осталось {n(kcal_left)} ккал" + (f", белка {n(protein_left)} г" if protein_left > 10 else "") + ":", ""]
+    lines += [f"✅ {html.escape(p['name'])} — {mark(p)}{n(p['pk'])} ккал, Б {mark(p)}{n(p['pp'])}" for p in fit] or ["Под остаток ничего не влезает целиком — возьми половину порции или салат."]
+    if heavy:
+        lines.append("")
+        lines += [f"⚠️ {html.escape(p['name'])} — {mark(p)}{n(p['pk'])} ккал, это {round(p['pk'] / max(kcal_left, 1) * 100)}% остатка" for p in heavy]
+    if any(p.get("estimated") for p in portions):
+        lines.append("\n≈ — оценка: КБЖУ в меню не напечатаны.")
+    return "\n".join(lines)
+
+
+async def menu_photo(message: Message, image: dict) -> None:
+    from backend.api.ai import menu_dishes
+    from backend.api.kitchen import meal_suggestions
+
+    async with SessionLocal() as session:
+        user, profile = await me(session, message.from_user)
+        if profile is None:
+            await need_profile(message)
+            return
+        wait = await message.answer("Читаю меню… 🔎")
+        try:
+            menu = await menu_dishes(session, user, image)
+        except HTTPException as e:
+            await wait.edit_text(f"Не получилось прочитать меню: {e.detail}")
+            return
+        meal = guess_meal(clock.now().hour)
+        sug = await meal_suggestions(session, user, meal)
+        goal = targets(profile)
+        aim = sug["kcal_left"] if meal == "dinner" else min(sug["kcal_left"], goal["calories"] * 0.4)
+    await wait.delete()
+    if not menu["items"]:
+        await message.answer(html.escape(menu["note"] or "Не нашёл в фото блюд из меню."), parse_mode="HTML")
+        return
+    await message.answer(menu_advice(menu["items"], sug["kcal_left"], sug["protein_left"], aim), parse_mode="HTML")
+
+
+# ---- Morning check-in: sleep and energy ----
+
+SLEEP_BTN = (("<6 ч", 1), ("6–7", 2), ("7–8", 3), ("8+", 4))
+ENERGY_BTN = (("😩 мало сил", 1), ("🙂 норм", 2), ("💪 бодро", 3))
+
+
+@router.callback_query(F.data.startswith("sl:"))
+async def sleep_pick(call: CallbackQuery) -> None:
+    from backend.api.daily import save_checkin
+
+    async with SessionLocal() as session:
+        user, _ = await me(session, call.from_user)
+        await save_checkin(session, user, int(call.data[3:]), None)
+    label = dict((v, k) for k, v in SLEEP_BTN)[int(call.data[3:])]
+    await call.message.edit_text(f"Сон: {label}. А как энергия сейчас?",
+                                 reply_markup=kb([InlineKeyboardButton(text=t, callback_data=f"en:{v}") for t, v in ENERGY_BTN]))
+    await call.answer()
+
+
+@router.callback_query(F.data.startswith("en:"))
+async def energy_pick(call: CallbackQuery) -> None:
+    from backend.api.daily import checkin_insight, save_checkin
+
+    async with SessionLocal() as session:
+        user, _ = await me(session, call.from_user)
+        await save_checkin(session, user, None, int(call.data[3:]))
+        insight = await checkin_insight(session, user)
+    text = (call.message.text or "").split(" А как", 1)[0] + " " + dict((v, k) for k, v in ENERGY_BTN)[int(call.data[3:])] + ". Записал ✓"
+    await call.message.edit_text(text + (f"\n\n💡 {insight}" if insight else ""))
+    await call.answer()
+
+
 # ---- Commands and buttons; any other text is food ----
+
+@router.message(Command("eat"))
+async def eat_command(message: Message) -> None:
+    await eat_cmd(message, message.from_user)
+
 
 @router.message(Command("help"))
 async def help_cmd(message: Message) -> None:
@@ -816,7 +1060,11 @@ async def any_text(message: Message) -> None:
     if text.startswith("/"):
         await message.answer(HELP, parse_mode="HTML", reply_markup=KEYBOARD)
         return
-    if (ml := water_amount(text)) is not None:
+    if re.fullmatch(r"(?:а\s+)?что\s+(?:мне\s+)?(?:поесть|съесть|покушать)\??", text.strip().lower()):
+        await eat_cmd(message, message.from_user)
+    elif await correct(message, text):
+        pass
+    elif (ml := water_amount(text)) is not None:
         await water(message, ml)
     elif m := WEIGHT.match(text):
         await weight(message, float((m[1] or m[2]).replace(",", ".")))

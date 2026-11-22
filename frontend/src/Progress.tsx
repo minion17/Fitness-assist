@@ -1,3 +1,4 @@
+import { forecast, forecastText } from './pace'
 import AchievementBadge from './AchievementBadge'
 import { AchievementUnlocked } from './Reward'
 // "Прогресс": period summary, charts (calories, weight, water, macros, exercise records) and achievements.
@@ -153,6 +154,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={170} goal={weightGoal} />
               : <Empty art="chart" title="Пока нет записей веса" text="Запиши вес на Главной — здесь появится линия, как он меняется, и твоя цель." />}
             {weightGoal && w.length > 0 && <p className="sub">До цели {fmt(Math.abs(w[w.length - 1].kg - weightGoal), 1)} кг</p>}
+            {(() => { const f = forecast(w, weightGoal); return f && weightGoal ? <p className="sub forecast">📅 {forecastText(f, weightGoal)}</p> : null })()}
           </section>
         )}
         {bodyTop}

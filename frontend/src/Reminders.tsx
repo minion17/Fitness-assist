@@ -4,8 +4,8 @@ import { api, ApiError, postJson } from './telegram'
 import { Chevron } from './ui'
 
 type Settings = {
-  meals: boolean; water: boolean; streak: boolean; weekly: boolean; workout: boolean
-  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string; weekly_at: string; workout_at: string
+  meals: boolean; water: boolean; streak: boolean; weekly: boolean; workout: boolean; checkin?: boolean
+  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string; weekly_at: string; workout_at: string; checkin_at?: string
 }
 
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) {
@@ -96,6 +96,14 @@ export default function Reminders() {
           <Switch on={s.streak} label="Напоминать о серии" onChange={(v) => save({ streak: v })} />
         </div>
         {s.streak && <div className="time-row"><Time label="Вечером в" value={s.streak_at} onChange={(v) => save({ streak_at: v })} /></div>}
+        <div className="row">
+          <div className="row-main">
+            <div className="row-title">Как спалось? ☀️</div>
+            <div className="row-sub">Утром две кнопки: сон и энергия. Через пару недель — наблюдения</div>
+          </div>
+          <Switch on={s.checkin ?? false} label="Спрашивать про сон утром" onChange={(v) => save({ checkin: v })} />
+        </div>
+        {s.checkin && <div className="time-row"><Time label="Утром в" value={s.checkin_at ?? '09:00'} onChange={(v) => save({ checkin_at: v })} /></div>}
         <div className="row">
           <div className="row-main">
             <div className="row-title">Итоги недели 📊</div>

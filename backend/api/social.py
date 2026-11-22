@@ -20,7 +20,7 @@ from backend.core import clock
 from backend.core.config import settings
 from backend.core.gamification import BOOST_HOURS, MAX_INVITE_REWARDS, level_progress
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import Duel, Friendship, Outbox, Profile, User, WorkoutLog, WorkoutSet, XpEvent
+from backend.database.models import Cheer, Duel, Friendship, Outbox, Profile, User, WorkoutLog, WorkoutSet, XpEvent
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -108,17 +108,41 @@ async def friends(tg: dict = Depends(telegram_user), session: AsyncSession = Dep
     user = await get_or_create_user(tg, session)
     people = [user, *await friends_of(session, user)]
     xp = await week_xp(session, [u.id for u in people])
+    cheered = set(await session.scalars(select(Cheer.to_user_id).where(Cheer.from_user_id == user.id, Cheer.day == clock.today())))
     board = []
     for u in people:
         clock.use_tz(u.device_tz)  # each person's streak by their own calendar
         streak, _ = await streak_state(session, u, clock.today())
+        trained = await session.scalar(select(WorkoutLog.id).where(  # their workout today: something to cheer
+            WorkoutLog.user_id == u.id, WorkoutLog.completed_at.is_not(None), WorkoutLog.completed_at >= clock.local_start(clock.today())).limit(1))
         board.append({"id": u.id, "name": name(u), "me": u.id == user.id, "level": level_progress(u.xp)["level"],
-                      "week_xp": xp.get(u.id, 0), "streak": streak,
-                      "registered": await session.get(Profile, u.id) is not None})
+                      "week_xp": xp.get(u.id, 0), "streak": streak, "trained_today": trained is not None,
+                      "cheered": u.id in cheered, "registered": await session.get(Profile, u.id) is not None})
     clock.use_tz(user.device_tz)
     board.sort(key=lambda r: (-r["week_xp"], -r["streak"], not r["me"]))
     code, bot = await invite_code(session, user), bot_username()
     return {"invite_link": f"https://t.me/{bot}?start=f{code}" if bot else None, "board": board}
+
+
+class CheerIn(BaseModel):
+    emoji: Literal["👏", "🔥", "💪"] = "👏"
+
+
+@router.post("/friends/{friend_id}/cheer")
+async def cheer(friend_id: int, body: CheerIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """👏 for a friend's workout: they get it in the bot. Once per friend a day, so it stays something that matters."""
+    from sqlalchemy.dialects.postgresql import insert
+
+    user = await get_or_create_user(tg, session)
+    friend = next((f for f in await friends_of(session, user) if f.id == friend_id), None)
+    if friend is None:
+        raise HTTPException(404, "Это не твой друг в Setly")
+    fresh = await session.scalar(insert(Cheer).values(from_user_id=user.id, to_user_id=friend.id, day=clock.today(), emoji=body.emoji)
+                                 .on_conflict_do_nothing().returning(Cheer.day))
+    if fresh:
+        notify(session, friend, f"{body.emoji} {name(user)} отмечает твою тренировку сегодня — так держать!")
+    await session.commit()
+    return {"ok": True, "sent": fresh is not None}
 
 
 @router.delete("/friends/{friend_id}")

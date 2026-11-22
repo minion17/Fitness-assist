@@ -423,14 +423,16 @@ async def read_label(
 # ---- Restaurant menu / delivery-app dish card ----
 
 MENU_SYSTEM = """Ты читаешь фото меню ресторана, карточки блюда в приложении доставки или упаковки готовой еды.
-Перепиши блюда, для которых на фото напечатана пищевая ценность.
+Перепиши блюда из меню.
 Правила:
-- Только напечатанные числа, ничего не оценивай «на глаз». Блюдо без КБЖУ на фото — пропусти.
-- Нужны значения на 100 г. Если КБЖУ даны на порцию и вес порции напечатан — пересчитай на 100 г. Если вес порции не указан — пропусти блюдо.
-- portion_g — вес порции/выход, если он напечатан, иначе null. portion_name — «порция», «пицца», «кусок», «шт» и т. п.
+- Если пищевая ценность напечатана — бери только напечатанные числа, estimated=false.
+- Если КБЖУ не напечатано (обычное меню ресторана) — оцени по типичному рецепту и обычной порции этого блюда, estimated=true.
+  Блюда, которые не понять по названию, пропусти. Напитки без калорий (вода, чай, кофе без молока) пропусти.
+- Нужны значения на 100 г. Если КБЖУ даны на порцию и вес порции напечатан — пересчитай на 100 г.
+- portion_g — вес порции/выход: напечатанный, а для оценки — типичный вес порции. portion_name — «порция», «пицца», «кусок», «шт» и т. п.
 - Название — как в меню, с размером если он есть («Пепперони 30 см»).
 - venue — название заведения или бренда, если оно видно на фото (логотип, шапка меню, заголовок приложения), иначе пустая строка.
-- Если ни у одного блюда нет КБЖУ — пустой список и объясни в note, что снять (например, раскрыть «Пищевая ценность» в карточке)."""
+- Если на фото нет меню и блюд — пустой список и объясни в note, что снять. Обращайся к пользователю на «ты»."""
 
 MENU_TOOL = {
     "name": "menu_dishes",
@@ -451,8 +453,9 @@ MENU_TOOL = {
                         "protein_100g": {"type": "number"},
                         "fat_100g": {"type": "number"},
                         "carbs_100g": {"type": "number"},
+                        "estimated": {"type": "boolean"},
                     },
-                    "required": ["name", "portion_g", "portion_name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g"],
+                    "required": ["name", "portion_g", "portion_name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g", "estimated"],
                 },
             },
             "note": {"type": "string"},
@@ -466,15 +469,20 @@ MENU_TOOL = {
 async def read_menu(
     file: UploadFile = File(...), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
-    """Dishes with printed nutrition from a menu / delivery-app photo, for the user to pick and save."""
+    """Dishes from a menu / delivery-app photo, for the user to pick and save."""
     if file.content_type not in IMAGE_TYPES:
         raise HTTPException(415, "Нужна фотография (JPEG, PNG или WebP)")
     data = await file.read(MAX_IMAGE_BYTES + 1)
     if len(data) > MAX_IMAGE_BYTES:
         raise HTTPException(413, "Фото слишком большое (до 6 МБ)")
     user = await get_or_create_user(tg, session)
-    await use_quota(session, user, "menu")
     image = {"type": "image", "source": {"type": "base64", "media_type": file.content_type, "data": base64.b64encode(data).decode()}}
+    return await menu_dishes(session, user, image)
+
+
+async def menu_dishes(session: AsyncSession, user: User, image: dict) -> dict:
+    """The menu read by AI (printed values, or estimates marked `estimated`). Shared with the bot's menu advice."""
+    await use_quota(session, user, "menu")
     try:
         raw = await ai.call_tool(MENU_SYSTEM, [image, {"type": "text", "text": "Перепиши блюда с КБЖУ."}], MENU_TOOL, 3000)
     except ai.AIUnavailable as e:
@@ -493,6 +501,7 @@ async def read_menu(
             "protein_g": macros["protein"], "fat_g": macros["fat"], "carbs_g": macros["carbs"],
             "portion_g": clamp(portion, 1, 3000) if isinstance(portion, (int, float)) and portion > 0 else None,
             "portion_name": (str(it.get("portion_name") or "").strip() or "порция")[:40],
+            "estimated": bool(it.get("estimated")),
         })
     return {"venue": str(raw.get("venue") or "").strip()[:100], "items": items, "note": str(raw.get("note") or "")}
 

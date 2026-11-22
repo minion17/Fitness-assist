@@ -4,8 +4,9 @@ import Empty from './Empty'
 import Challenges from './Challenges'
 import { canStory, shareStory } from './story'
 import { api, postJson, tg } from './telegram'
+import { haptic } from './haptics'
 
-type Row = { id: number; name: string; me: boolean; level: number; week_xp: number; streak: number; registered: boolean }
+type Row = { id: number; name: string; me: boolean; level: number; week_xp: number; streak: number; registered: boolean; trained_today?: boolean; cheered?: boolean }
 type Duel = {
   id: number; metric: 'xp' | 'workouts'; days: number; status: 'pending' | 'active' | 'done'; incoming: boolean
   rival: string; rival_id: number; ends_at: string | null; result: 'win' | 'loss' | 'draw' | null; me?: number; them?: number
@@ -16,6 +17,12 @@ const dayWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'день' : [2
 
 export default function Friends() {
   const [board, setBoard] = useState<Row[] | null>(null)
+  // 👏 for a friend's workout today: they get it in the bot, once a day per friend
+  const cheer = (r: Row) => {
+    haptic('success')
+    setBoard((b) => b && b.map((x) => (x.id === r.id ? { ...x, cheered: true } : x)))
+    api(`/api/friends/${r.id}/cheer`, postJson({ emoji: '👏' })).catch(() => setBoard((b) => b && b.map((x) => (x.id === r.id ? { ...x, cheered: false } : x))))
+  }
   const [link, setLink] = useState<string | null>(null)
   const [duels, setDuels] = useState<Duel[]>([])
   const [challenge, setChallenge] = useState<{ friend: Row; metric: 'xp' | 'workouts'; days: 3 | 7 } | null>(null)
@@ -95,8 +102,11 @@ export default function Friends() {
                 <span className="board-place">{i + 1}</span>
                 <div className="board-who">
                   <b>{r.me ? 'Ты' : r.name}</b>
-                  <span className="sub">Ур. {r.level} · 🔥 {r.streak}</span>
+                  <span className="sub">Ур. {r.level} · 🔥 {r.streak}{r.trained_today ? ' · 💪 тренировался сегодня' : ''}</span>
                 </div>
+                {!r.me && r.trained_today && (r.cheered
+                  ? <span className="cheer-sent" aria-label="Ты уже поддержал">👏</span>
+                  : <button className="cheer-btn" aria-label={`Похвалить ${r.name} за тренировку`} onClick={() => cheer(r)}>👏</button>)}
                 <span className="board-xp">{r.week_xp.toLocaleString('ru-RU')} XP</span>
                 {!r.me && !r.registered && <span className="sub">без анкеты</span>}
                 {!r.me && r.registered && !open.some((d) => d.rival_id === r.id) && (

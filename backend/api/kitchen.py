@@ -230,22 +230,50 @@ def score(c: dict, kcal_left: float, protein_left: float) -> float:
     return abs(kcal_left - c["kcal"]) / max(kcal_left, 1) + 0.8 * miss
 
 
-@router.get("/suggest/meal")
-async def suggest_meal(meal_type: str = "dinner", tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+SHARE = {"breakfast": 0.25, "lunch": 0.35, "snack": 0.15}  # of the day's norm; dinner gets whatever is left
+# Ideas for someone with little history: plain staples (name prefix in the shared catalog, grams).
+IDEAS = {
+    "breakfast": [[("Овсяные хлопья", 60), ("Банан", 120)], [("Яйцо куриное", 165), ("Хлеб", 40)], [("Творог 5%", 200), ("Банан", 120)]],
+    "lunch": [[("Куриная грудка", 150), ("Гречка", 200)], [("Рис", 200), ("Говядина", 120)], [("Суп", 300), ("Хлеб", 40)]],
+    "dinner": [[("Куриная грудка", 150), ("Огурец", 150)], [("Рыба", 150), ("Картофель", 200)], [("Творог 5%", 200), ("Яблоко", 150)]],
+    "snack": [[("Йогурт", 150)], [("Яблоко", 150), ("Орехи", 20)], [("Творог 5%", 150)], [("Кефир", 250)]],
+}
+
+
+async def idea_options(session: AsyncSession, meal_type: str) -> list[dict]:
+    out = []
+    for combo in IDEAS.get(meal_type, IDEAS["snack"]):
+        items = []
+        for prefix, grams in combo:
+            p = await session.scalar(select(Product).where(
+                Product.owner_user_id.is_(None), Product.brand.is_(None), Product.name.ilike(f"{prefix}%"))
+                .order_by(func.length(Product.name)).limit(1))
+            if p is None:
+                break
+            items.append((p, grams))
+        if len(items) == len(combo):
+            out.append({"title": "Идея: " + ", ".join(p.name for p, _ in items),
+                        "items": [{"product_id": p.id, "name": p.name, "amount_g": g} for p, g in items],
+                        **totals(items)})
+    return out
+
+
+async def meal_suggestions(session: AsyncSession, user: User, meal_type: str) -> dict:
+    """Up to 3 meals that fit what's left of the day: first from what this user ate for this meal lately, then their saved
+    sets, then plain ideas. Shared by the app's "Что поесть" card and the bot's /eat."""
     from datetime import timedelta
 
     from backend.api.stats import targets
     from backend.database.models import Profile
 
-    user = await get_or_create_user(tg, session)
+    meal_type = meal_type if meal_type in MEALS else "dinner"
     t = targets(await session.get(Profile, user.id))
     if not t:
-        return {"options": []}
+        return {"options": [], "kcal_left": 0, "protein_left": 0}
     today = clock.today()
-    since = local_start(today - timedelta(days=30))
     logs = list(await session.execute(
         select(FoodLog, Product).join(Product, Product.id == FoodLog.product_id)
-        .where(FoodLog.user_id == user.id, FoodLog.logged_at >= since).order_by(FoodLog.logged_at)))
+        .where(FoodLog.user_id == user.id, FoodLog.logged_at >= local_start(today - timedelta(days=30))).order_by(FoodLog.logged_at)))
     eaten = {k: 0.0 for k in MACROS}
     meals: dict[tuple, list] = {}
     for log, p in logs:
@@ -253,14 +281,17 @@ async def suggest_meal(meal_type: str = "dinner", tg: dict = Depends(telegram_us
         if day == today:
             for k in MACROS:
                 eaten[k] += getattr(p, k) * log.amount_g / 100
-        elif log.meal_type in ("lunch", "dinner"):
-            meals.setdefault((day, log.meal_type), []).append((log, p))
+        else:
+            meals.setdefault((day, log.meal_type, log.snack_slot), []).append((log, p))
     kcal_left, protein_left = t["calories"] - eaten["kcal"], t["protein"] - eaten["protein_g"]
-    out = {"kcal_left": round(kcal_left), "protein_left": round(max(protein_left, 0)), "options": []}
-    if kcal_left < 200:
+    out = {"meal_type": meal_type, "kcal_left": round(kcal_left), "protein_left": round(max(protein_left, 0)), "options": []}
+    if kcal_left < 150:
         return out
+    aim = kcal_left if meal_type == "dinner" else min(kcal_left, t["calories"] * SHARE[meal_type] * 1.2)
     candidates, seen = [], set()
-    for items in reversed(list(meals.values())):  # newest first, so a tie goes to what they ate lately
+    same = [v for (d, m, _), v in meals.items() if m == meal_type]
+    other = [v for (d, m, _), v in meals.items() if m != meal_type and m != "snack" and meal_type != "snack"]
+    for items in [*reversed(same), *reversed(other)]:  # this meal's own history first, newest first
         key = frozenset(p.id for _, p in items)
         if key in seen:
             continue
@@ -271,9 +302,18 @@ async def suggest_meal(meal_type: str = "dinner", tg: dict = Depends(telegram_us
             **totals((p, log.amount_g) for log, p in items)})
     for s in await session.scalars(select(MealSet).where(MealSet.user_id == user.id)):
         candidates.append({**(c := await set_out(session, user, s)), "title": f"☆ {c['name']}"})
-    fit = [c for c in candidates if 0.35 * kcal_left <= c["kcal"] <= 1.1 * kcal_left and c["items"]]
-    out["options"] = [{k: c[k] for k in ("title", "items", *MACROS)} for c in sorted(fit, key=lambda c: score(c, kcal_left, protein_left))[:3]]
+    fit = sorted((c for c in candidates if 0.35 * aim <= c["kcal"] <= 1.1 * aim and c["items"]),
+                 key=lambda c: score(c, aim, protein_left if meal_type != "snack" else 0))[:3]
+    if len(fit) < 3:  # little history yet: plain ideas fill the rest
+        ideas = [c for c in await idea_options(session, meal_type) if c["kcal"] <= 1.15 * aim]
+        fit += sorted(ideas, key=lambda c: score(c, aim, protein_left))[:3 - len(fit)]
+    out["options"] = [{k: c[k] for k in ("title", "items", *MACROS)} for c in fit]
     return out
+
+
+@router.get("/suggest/meal")
+async def suggest_meal(meal_type: str = "dinner", tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    return await meal_suggestions(session, await get_or_create_user(tg, session), meal_type)
 
 
 class BatchIn(BaseModel):
@@ -332,11 +372,15 @@ def usual_of(days: list[list]) -> list | None:
 @router.get("/usual")
 async def usual_meal(meal_type: str, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """The usual breakfast / lunch / dinner — offered on Home while that meal is still empty today."""
-    from datetime import timedelta
-
     if meal_type not in MEALS:
         raise HTTPException(422, "Неизвестный приём пищи")
-    user = await get_or_create_user(tg, session)
+    return await usual_for(session, await get_or_create_user(tg, session), meal_type)
+
+
+async def usual_for(session: AsyncSession, user: User, meal_type: str) -> dict | None:
+    """Shared with the bot ("↻ Как обычно" under a meal reminder)."""
+    from datetime import timedelta
+
     today = clock.today()
     rows = await session.execute(
         select(FoodLog, Product).join(Product, Product.id == FoodLog.product_id)
@@ -352,5 +396,5 @@ async def usual_meal(meal_type: str, tg: dict = Depends(telegram_user), session:
         return None
     items = sorted(items, key=lambda x: x[0].logged_at)
     return {"meal_type": meal_type, "title": ", ".join(p.name for _, p in items[:3]) + ("…" if len(items) > 3 else ""),
-            "items": [{"product_id": p.id, "amount_g": log.amount_g, "unit": log.unit, "qty": log.qty} for log, p in items],
+            "items": [{"product_id": p.id, "name": p.name, "amount_g": log.amount_g, "unit": log.unit, "qty": log.qty} for log, p in items],
             **totals((p, log.amount_g) for log, p in items)}

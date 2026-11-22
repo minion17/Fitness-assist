@@ -668,7 +668,7 @@ function SetlyApp() {
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
             habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
-            weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
+            weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} goal={me?.target_weight_kg} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
             usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуй ещё раз')) } : null}
             intro={canEdit && <FirstSteps steps={[

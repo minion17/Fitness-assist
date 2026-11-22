@@ -2096,7 +2096,7 @@ class FakeMsg:
     async def edit_text(self, text, reply_markup=None, parse_mode=None):  # noqa
         self.log.append((text, reply_markup))
 
-    async def delete(self):
+    async def delete(self, *a, **kw):
         pass
 
 
@@ -2243,7 +2243,7 @@ def test_bot_onboarding_chain(client, seeded):
     if evening.date() == now.date() and now.hour < 21:  # the entry is "today" only when the test runs before 21:00
         text, buttons = client.portal.call(run, evening, tg_id)[0]
         assert text.startswith("🌙 Итог дня: 363 из") and "Белка не хватает" in text
-        assert buttons == [("🍽 Записать ужин", "cb:ask:d")]
+        assert buttons == [("🍽 Записать ужин", "cb:ask:d"), ("Что поесть?", "cbr:eat")]
     client.portal.call(age, tg_id, now - timedelta(days=2))
     assert client.portal.call(run, now.replace(hour=13, minute=2, second=0, microsecond=0), tg_id)[0][0].startswith("📸 Совет")
 
@@ -2391,3 +2391,153 @@ def test_achievement_title_requires_ownership_and_persists(client, seeded):
     assert next(a for a in items if a["code"] == "first_water")["title_selected"]
     client.put(endpoint, headers=user, json={"code": None}).raise_for_status()
     assert not any(a["title_selected"] for a in client.get("/api/achievements", headers=user).json()["items"])
+
+
+# ---- Coaching features: what to eat, effort and plateaus, check-in, cheers, corrections, menu advice ----
+
+def test_what_to_eat_has_ideas_for_a_new_user_and_follows_history(client, seeded):
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    r = client.get("/api/suggest/meal", params={"meal_type": "breakfast"}, headers=h).json()
+    assert r["meal_type"] == "breakfast" and r["kcal_left"] > 1500
+    assert r["options"] and all(o["title"].startswith("Идея: ") for o in r["options"])  # no history yet: plain ideas
+    assert all(o["kcal"] <= r["kcal_left"] for o in r["options"])
+
+
+def test_effort_and_plateau_history_for_the_next_workout(client, seeded):
+    h = new_user_headers()
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    for reps in (9, 10, 9):  # three workouts at the same weight
+        w = client.post("/api/workout-logs", headers=h, json={"program_day_id": day_id, "title": "День 1"}).json()
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={"exercise_id": ex_id, "set_number": 1, "reps": reps, "weight_kg": 60})
+        client.post(f"/api/workout-logs/{w['id']}/complete", headers=h)
+    assert client.post(f"/api/workout-logs/{w['id']}/effort", headers=h, json={"effort": "hard"}).status_code == 200
+    assert client.post(f"/api/workout-logs/{w['id']}/effort", headers=h, json={"effort": "meh"}).status_code == 422
+    last = client.get("/api/exercises/last", params={"ids": str(ex_id)}, headers=h).json()[str(ex_id)]
+    assert last["effort"] == "hard" and [x["reps"] for x in last["history"]] == [9, 10, 9]  # newest first
+    assert client.post(f"/api/workout-logs/{w['id']}/effort", headers=new_user_headers(), json={"effort": "easy"}).status_code == 404
+
+
+def test_morning_checkin_and_its_insight(client):
+    import random
+    from datetime import timedelta
+
+    from backend.api.daily import checkin_insight
+    from backend.core import clock
+    from backend.database.db import SessionLocal
+    from backend.database.models import DailyCheckin, FoodLog, Product, User
+    from sqlalchemy import select
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    assert client.post("/api/checkin", headers=h, json={"sleep": 3}).json()["sleep"] == 3
+    r = client.post("/api/checkin", headers=h, json={"energy": 2}).json()
+    assert (r["sleep"], r["energy"], r["insight"]) == (3, 2, None)  # sleep kept, too early for insights
+    assert client.post("/api/checkin", headers=h, json={"sleep": 5}).status_code == 422
+
+    async def history():  # 5 good nights with light days, 5 short nights with heavy days
+        async with SessionLocal() as s:
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            p = Product(name="Еда для теста сна", kcal=100, protein_g=5, fat_g=5, carbs_g=10)
+            s.add(p)
+            await s.flush()
+            for i in range(1, 11):
+                d = clock.today() - timedelta(days=i)
+                s.add(DailyCheckin(user_id=user.id, day=d, sleep=4 if i <= 5 else 1, energy=2))
+                s.add(FoodLog(user_id=user.id, product_id=p.id, amount_g=1800 if i <= 5 else 2400, meal_type="lunch",
+                              logged_at=clock.local_start(d) + timedelta(hours=13)))
+            await s.commit()
+            return await checkin_insight(s, user)
+
+    assert client.portal.call(history) == "В дни после сна 7+ часов ты съедаешь на 600 ккал меньше."
+
+
+def test_cheer_a_friend_for_a_workout(client, seeded):
+    import random
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox
+    from sqlalchemy import select
+
+    a, b = (random.randint(3 * 10**9, 4 * 10**9) for _ in range(2))
+    ha = {"Authorization": f"tma {make_init_data({**USER, 'id': a, 'first_name': 'Аня'})}"}
+    hb = {"Authorization": f"tma {make_init_data({**USER, 'id': b, 'first_name': 'Боря'})}"}
+    link = client.get("/api/friends", headers=ha).json()["invite_link"] or ""
+    code = link.rsplit("=f", 1)[-1] if link else client.portal.call(_invite_code, a)
+    from backend.api.social import befriend
+
+    async def make_friends():
+        async with SessionLocal() as s:
+            await befriend(s, code, b, "Боря")
+    client.portal.call(make_friends)
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    w = client.post("/api/workout-logs", headers=hb, json={"program_day_id": day_id, "title": "День 1"}).json()
+    client.post(f"/api/workout-logs/{w['id']}/sets", headers=hb, json={"exercise_id": ex_id, "set_number": 1, "reps": 8, "weight_kg": 40})
+    client.post(f"/api/workout-logs/{w['id']}/complete", headers=hb)
+    boris = next(r for r in client.get("/api/friends", headers=ha).json()["board"] if not r["me"])
+    assert boris["trained_today"] and not boris["cheered"]
+    assert client.post(f"/api/friends/{boris['id']}/cheer", headers=ha, json={"emoji": "👏"}).json()["sent"] is True
+    assert client.post(f"/api/friends/{boris['id']}/cheer", headers=ha, json={"emoji": "🔥"}).json()["sent"] is False  # once a day
+    assert next(r for r in client.get("/api/friends", headers=ha).json()["board"] if not r["me"])["cheered"]
+    assert client.post(f"/api/friends/{boris['id']}/cheer", headers=new_user_headers(), json={"emoji": "👏"}).status_code == 404
+
+    async def sent():
+        async with SessionLocal() as s:
+            return [m.text for m in await s.scalars(select(Outbox).where(Outbox.telegram_id == b))]
+    assert any(t.startswith("👏 Аня отмечает твою тренировку") for t in client.portal.call(sent))
+
+
+async def _invite_code(tg_id):
+    from backend.api.social import invite_code
+    from backend.database.db import SessionLocal
+    from backend.database.models import User
+    from sqlalchemy import select
+
+    async with SessionLocal() as s:
+        return await invite_code(s, await s.scalar(select(User).where(User.telegram_id == tg_id)))
+
+
+def test_bot_fixes_the_open_card_in_words_and_suggests_food(client, seeded):
+    import random
+
+    from backend.bot import chat
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    log: list = []
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 200 г", log))
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог обезжиренный 100 г", log))
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "творога было 150", log))  # the first one that matches
+    items = client.get("/api/food-logs", headers=h).json()["items"]
+    assert sorted(i["amount_g"] for i in items) == [100, 150]
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "это был ужин", log))
+    assert {i["meal_type"] for i in client.get("/api/food-logs", headers=h).json()["items"]} == {"dinner"}
+    assert "Ужин" in log[-1][0]
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "убери обезжиренный", log))
+    assert [i["amount_g"] for i in client.get("/api/food-logs", headers=h).json()["items"]] == [150]
+
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "что поесть?", log))
+    text, markup = log[-1]
+    assert text.startswith("🍽 <b>Что поесть на") and "Осталось" in text
+    pick = next(b.callback_data for row in markup.inline_keyboard for b in row if b.callback_data and b.callback_data.startswith("ea:"))
+    before = len(client.get("/api/food-logs", headers=h).json()["items"])
+    call = FakeCall(tg_id, pick, log)
+    call.message.edit_reply_markup = FakeMsg(tg_id).delete  # accepts reply_markup=None like aiogram's
+    client.portal.call(chat.eat_pick, call)
+    assert len(client.get("/api/food-logs", headers=h).json()["items"]) > before
+
+
+def test_menu_advice_picks_what_fits():
+    from backend.bot.chat import menu_advice
+
+    dishes = [
+        {"name": "Цезарь с курицей", "kcal": 180, "protein_g": 12, "fat_g": 10, "carbs_g": 8, "portion_g": 250, "estimated": True},
+        {"name": "Паста карбонара", "kcal": 300, "protein_g": 11, "fat_g": 15, "carbs_g": 30, "portion_g": 350, "estimated": True},
+        {"name": "Морс", "kcal": 40, "protein_g": 0, "fat_g": 0, "carbs_g": 10, "portion_g": None},
+    ]
+    text = menu_advice(dishes, kcal_left=900, protein_left=40, aim=700)
+    assert "✅ Цезарь с курицей — ≈450 ккал" in text
+    assert "⚠️ Паста карбонара — ≈1 050 ккал, это 117% остатка" in text and "≈ — оценка" in text

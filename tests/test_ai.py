@@ -159,5 +159,5 @@ def test_menu_photo_lists_dishes_clamped(client, fake_ai):
     assert r["venue"] == "Додо Пицца"
     assert [i["name"] for i in r["items"]] == ["Пепперони 30 см", "Морс"]  # impossible macros and empty names dropped
     assert r["items"][0] == {"name": "Пепперони 30 см", "kcal": 260.1, "protein_g": 10.6, "fat_g": 8.3, "carbs_g": 34,
-                             "portion_g": 610, "portion_name": "пицца"}
+                             "portion_g": 610, "portion_name": "пицца", "estimated": False}
     assert r["items"][1]["portion_g"] is None and r["items"][1]["portion_name"] == "порция"

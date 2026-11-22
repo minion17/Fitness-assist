@@ -1,4 +1,5 @@
 // Daily overview with compact food and workout summaries.
+import Checkin from './Checkin'
 import { Fragment, useRef, useState } from 'react'
 import type { Targets } from './profile'
 import { Sheet, Chevron } from './ui'
@@ -291,6 +292,8 @@ export default function Home(props: {
           </button>
         </div>
       </section>
+
+      {props.canEdit && !props.loading && <Checkin />}
 
       {whyOpen && !props.loading && (
         <section className="card day-summary" aria-label="Итоги дня">

@@ -79,7 +79,8 @@ export function latestValues(ms: Measurement[]): Partial<Record<MeasureKey, { va
 
 // "В прошлый раз": sets from the latest workout with this exercise (GET /api/exercises/last)
 export type LastSet = { reps: number | null; duration_seconds: number | null; weight_kg: number }
-export type Last = Record<string, { date: string; sets: LastSet[] }>
+export type Effort = 'easy' | 'ok' | 'hard'
+export type Last = Record<string, { date: string; sets: LastSet[]; effort?: Effort | null; history?: { weight_kg: number; reps: number }[] }>
 
 const kg = (n: number) => n.toLocaleString('ru-RU', { maximumFractionDigits: 2 })
 export function lastLabel(sets: LastSet[]): string {

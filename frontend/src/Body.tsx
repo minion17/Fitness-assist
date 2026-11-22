@@ -1,3 +1,4 @@
+import { forecast, forecastText } from './pace'
 import { useState } from 'react'
 import { latestValues, MEASURES, weightTrend, type MeasureKey, type Measurement } from './types'
 import { Sheet } from './ui'
@@ -148,7 +149,7 @@ function AddMeasurement({ measurements, onClose, onSave }: {
 }
 
 /** Home: today's weight in two taps — the last value prefilled, ± 0.1 kg steps. Keeps the rest of today's measurement. */
-export function QuickWeight({ measurements, onSave }: { measurements: Measurement[]; onSave: (m: MeasurementInput) => Promise<void> }) {
+export function QuickWeight({ measurements, onSave, goal }: { measurements: Measurement[]; onSave: (m: MeasurementInput) => Promise<void>; goal?: number | null }) {
   const [today] = useState(() => new Date().toLocaleDateString('sv-SE'))
   const last = latestValues(measurements).weight_kg
   const todays = measurements.find((m) => m.measured_on === today)
@@ -175,7 +176,11 @@ export function QuickWeight({ measurements, onSave }: { measurements: Measuremen
     <button className="card quick-weight" onClick={() => { setValue(String(todays?.weight_kg ?? last?.value ?? '')); setOpen(true) }}>
       <span className="home-row-icon" aria-hidden="true"><Icon name="scale" /></span>
       <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${ru(todays.weight_kg)} кг` : 'Взвеситься'}</b>
-        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запиши вес — увидишь динамику'}</span></span>
+        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запиши вес — увидишь динамику'}</span>
+        {(() => {
+          const f = forecast(measurements.filter((m) => m.weight_kg != null).map((m) => ({ date: m.measured_on, kg: m.weight_kg! })).sort((a, b) => a.date.localeCompare(b.date)), goal)
+          return f && goal ? <span className="sub forecast">📅 {forecastText(f, goal)}</span> : null
+        })()}</span>
       <span className="link">{todays?.weight_kg ? 'Изменить' : 'Записать'}</span>
     </button>
   )

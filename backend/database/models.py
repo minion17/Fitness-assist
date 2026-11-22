@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, SmallInteger, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.db import Base
@@ -276,6 +276,18 @@ class ReminderSettings(Base):
     weekly_at: Mapped[str] = mapped_column(String(5), default="19:00", server_default="19:00")
     workout: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")  # morning of a training day
     workout_at: Mapped[str] = mapped_column(String(5), default="09:00", server_default="09:00")
+    checkin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # "Как спалось?" in the morning
+    checkin_at: Mapped[str] = mapped_column(String(5), default="09:00", server_default="09:00")
+
+
+class DailyCheckin(Base):
+    """A morning check-in: sleep and energy, for "в дни с 7+ часами сна ты…" insights."""
+    __tablename__ = "daily_checkins"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    sleep: Mapped[int | None] = mapped_column(SmallInteger)  # 1: <6 h, 2: 6–7, 3: 7–8, 4: 8+
+    energy: Mapped[int | None] = mapped_column(SmallInteger)  # 1 low, 2 ok, 3 high
 
 
 class FrozenDay(Base):
@@ -313,6 +325,7 @@ class WorkoutLog(Base):
     title: Mapped[str] = mapped_column(String(200))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    effort: Mapped[str | None] = mapped_column(String(5))  # how it felt: easy / ok / hard
     sets: Mapped[list["WorkoutSet"]] = relationship(cascade="all, delete-orphan", order_by="WorkoutSet.id")
 
 
@@ -509,6 +522,16 @@ class Visit(Base):
 
 
 # ---- Social: friends, duels, and messages the bot should send ----
+
+class Cheer(Base):
+    """👏 / 🔥 for a friend's workout: once per friend a day."""
+    __tablename__ = "cheers"
+
+    from_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    to_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    emoji: Mapped[str] = mapped_column(String(8))
+
 
 class Friendship(Base):
     """Stored both ways (a->b and b->a), so "my friends" is one simple query."""

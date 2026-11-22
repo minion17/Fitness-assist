@@ -13,12 +13,14 @@ from sqlalchemy.dialects.postgresql import insert
 from functools import partial
 
 from backend.api.daily import is_active, local_start, streak_state, water_goal
+from backend.api.kitchen import usual_for
 from backend.bot import cards
 from backend.core import alerts, clock
 from backend.core.nutrition import daily_targets
 from backend.database.db import SessionLocal
 from backend.database.models import (
-    BodyMeasurement, FoodLog, Habit, HabitCheck, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake, WorkoutLog,
+    BodyMeasurement, DailyCheckin, FoodLog, Habit, HabitCheck, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake,
+    WorkoutLog,
 )
 
 log = logging.getLogger("reminders")
@@ -139,7 +141,7 @@ async def day_close(session, user: User, today) -> tuple[str, str, Render, Butto
     ml = await session.scalar(select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)) or 0
     if ml < water_goal(p) * 0.7:
         text += f" Воды {liters(ml)} из {liters(water_goal(p))} л."
-    buttons = [("🍽 Записать ужин", "cb:ask:d")] if "dinner" not in eaten else None
+    buttons = [("🍽 Записать ужин", "cb:ask:d"), ("Что поесть?", "cbr:eat")] if "dinner" not in eaten else None
     return f"{today}:close", text, NO_CARD, buttons
 
 
@@ -190,10 +192,14 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
             goal = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal, p.kcal_override)
             macros = {"Белки": (t["protein"], goal["protein"]), "Жиры": (t["fat"], goal["fat"]), "Углеводы": (t["carbs"], goal["carbs"])}
             yesterday, _ = await eaten_today(session, user, local_start(today - timedelta(days=1)), local_start(today))
-            out += [(f"{today}:{m}", f"🍽 Не забудь записать {MEALS[m]} — напиши его сюда, например «омлет из 2 яиц, кофе».",
-                     Render(cards.meal, MEALS[m].capitalize(), t["kcal"], goal["calories"], macros, **look),
-                     [("↻ Как вчера", f"cb:rep:{m[0]}")] if m in yesterday else None)
-                    for m in todo if m not in eaten]
+            for m in todo:
+                if m in eaten:
+                    continue
+                usual = await usual_for(session, user, m)  # "Как обычно" beats "Как вчера": it's what they really eat
+                buttons = [(f"↻ Как обычно · {round(usual['kcal'])} ккал", f"cb:us:{m[0]}")] if usual else \
+                    [("↻ Как вчера", f"cb:rep:{m[0]}")] if m in yesterday else None
+                out.append((f"{today}:{m}", f"🍽 Не забудь записать {MEALS[m]} — напиши его сюда, например «омлет из 2 яиц, кофе».",
+                            Render(cards.meal, MEALS[m].capitalize(), t["kcal"], goal["calories"], macros, **look), buttons))
     if cfg.water:
         for at, share in WATER_CHECKS:
             if due(at, now):
@@ -227,6 +233,10 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
             if not trained:
                 out.append((f"{today}:workout", "🏋️ Сегодня день тренировки. Открывай приложение — план уже ждёт, веса подставим с прошлого раза.",
                             NO_CARD, None))
+    if getattr(cfg, "checkin", False) and due(cfg.checkin_at or "09:00", now) and \
+            not await session.get(DailyCheckin, (user.id, today)):
+        out.append((f"{today}:checkin", "☀️ Доброе утро! Как спалось?", NO_CARD,
+                    [("<6 ч", "cb:sl:1"), ("6–7", "cbr:sl:2"), ("7–8", "cbr:sl:3"), ("8+", "cbr:sl:4")]))
     if clock.local(user.created_at).date() == today - timedelta(days=2) and due("13:00", now):
         out.append(await day_three_tip(session, user))
     out += await habit_reminders(session, user, now)
@@ -261,13 +271,15 @@ async def collect(session, now: datetime) -> list[tuple[int, str, Render, Button
 
 
 def markup(buttons: Buttons, keyboard, app_url: str):
-    """Extra buttons (one per row) above the usual "Открыть" keyboard."""
+    """Extra buttons (one per row; "cbr:" joins the previous row) above the usual "Открыть" keyboard."""
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
     rows = []
     for text, action in buttons or []:
         kind, _, value = action.partition(":")
-        if kind == "cb":
+        if kind == "cbr" and rows:
+            rows[-1].append(InlineKeyboardButton(text=text, callback_data=value))
+        elif kind in ("cb", "cbr"):
             rows.append([InlineKeyboardButton(text=text, callback_data=value)])
         elif app_url.startswith("https://"):
             rows.append([InlineKeyboardButton(text=text, web_app=WebAppInfo(url=f"{app_url}{'&' if '?' in app_url else '?'}{value}"))])

@@ -198,7 +198,7 @@ function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, it
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(key) === '1' } catch { return false } })
   const [s, setS] = useState<Suggest | null>(null)
   const [busy, setBusy] = useState(false)
-  const show = !hidden && (meal === 'lunch' || meal === 'dinner')
+  const show = !hidden
   useEffect(() => {
     if (show) api<Suggest>(`/api/suggest/meal?meal_type=${meal}`).then((r) => setS(r)).catch(() => {})
   }, [show, meal, eaten])
@@ -206,10 +206,10 @@ function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, it
   return (
     <section className="card suggest">
       <div className="card-head">
-        <h2>Что съесть на {meal === 'lunch' ? 'обед' : 'ужин'}</h2>
+        <h2>Что съесть на {MEALS[meal].toLowerCase()}</h2>
         <button className="link" aria-label="Скрыть на сегодня" onClick={() => { setHidden(true); try { localStorage.setItem(key, '1') } catch { /* private mode */ } }}>✕</button>
       </div>
-      <p className="sub">Осталось {s.kcal_left} ккал{s.protein_left > 10 ? ` и ${s.protein_left} г белка` : ''} — из того, что ты ел раньше:</p>
+      <p className="sub">Осталось {s.kcal_left} ккал{s.protein_left > 10 ? ` и ${s.protein_left} г белка` : ''} — {s.options.some((o) => !o.title.startsWith('Идея')) ? 'из того, что ты ел раньше' : 'пара идей, пока мало истории'}:</p>
       <div className="list">
         {s.options.map((o) => (
           <button className="row row-btn" key={o.title} disabled={busy} onClick={() => { setBusy(true); onLog(meal, o.items).finally(() => setBusy(false)) }}>
@@ -668,7 +668,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       ) : custom && !picked ? (
         <CustomProduct aiEnabled={aiEnabled} barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); setThanks(!!p.shared); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
       ) : menuMode && !picked ? (
-        <MenuImport onPick={(p) => { setMenuMode(false); pick(p) }} onCancel={() => setMenuMode(false)} />
+        <MenuImport kcalLeft={kcalLeft} onPick={(p) => { setMenuMode(false); pick(p) }} onCancel={() => setMenuMode(false)} />
       ) : !picked ? (
         <>
           <div className="input-wrap">

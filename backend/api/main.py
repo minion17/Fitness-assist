@@ -782,6 +782,20 @@ async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), sessi
     return {"ok": True, "xp_awarded": xp}
 
 
+class EffortIn(BaseModel):
+    effort: str = Field(pattern=r"^(easy|ok|hard)$")
+
+
+@app.post("/api/workout-logs/{log_id}/effort")
+async def workout_effort(log_id: int, body: EffortIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """How the workout felt: next time an easy one goes heavier sooner, a hard one keeps the weight."""
+    user = await get_or_create_user(tg, session)
+    w = await own_workout(log_id, user, session)
+    w.effort = body.effort
+    await session.commit()
+    return {"ok": True}
+
+
 @app.get("/api/workout-logs")
 async def list_workout_logs(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
@@ -820,21 +834,28 @@ async def workout_log_detail(log_id: int, tg: dict = Depends(telegram_user), ses
 async def last_sets(
     ids: str = Query(..., max_length=500), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
-    """For each exercise id: the sets from the latest workout where the user did it ("в прошлый раз 60 кг × 8")."""
+    """For each exercise id: the sets from the latest workout where the user did it ("в прошлый раз 60 кг × 8"), how
+    that workout felt, and the best set of each of the last 4 workouts (a plateau: the weight stopped growing)."""
     user = await get_or_create_user(tg, session)
     wanted = {int(x) for x in ids.split(",") if x.strip().isdigit()}
     rows = await session.execute(
-        select(WorkoutSet, WorkoutLog.id, WorkoutLog.started_at)
+        select(WorkoutSet, WorkoutLog.id, WorkoutLog.started_at, WorkoutLog.effort)
         .join(WorkoutLog, WorkoutLog.id == WorkoutSet.workout_log_id)
         .where(WorkoutLog.user_id == user.id, WorkoutSet.exercise_id.in_(wanted))
         .order_by(WorkoutLog.started_at.desc(), WorkoutSet.set_number)
     )
     out: dict[int, dict] = {}
-    for ws, log_id, at in rows:
-        last = out.setdefault(ws.exercise_id, {"log_id": log_id, "date": at.astimezone(clock.tz()).date().isoformat(), "sets": []})
+    for ws, log_id, at, effort in rows:
+        last = out.setdefault(ws.exercise_id, {"log_id": log_id, "date": at.astimezone(clock.tz()).date().isoformat(), "sets": [],
+                                               "effort": effort, "history": {}})
         if last["log_id"] == log_id:
             last["sets"].append({"reps": ws.reps, "duration_seconds": ws.duration_seconds, "weight_kg": ws.weight_kg})
-    return {str(k): {"date": v["date"], "sets": v["sets"]} for k, v in out.items()}
+        best = last["history"].get(log_id)
+        if (log_id in last["history"] or len(last["history"]) < 4) and (
+                best is None or ((ws.weight_kg or 0), (ws.reps or 0)) > (best["weight_kg"], best["reps"])):
+            last["history"][log_id] = {"weight_kg": ws.weight_kg or 0, "reps": ws.reps or 0}
+    return {str(k): {"date": v["date"], "sets": v["sets"], "effort": v["effort"], "history": list(v["history"].values())}
+            for k, v in out.items()}
 
 
 @app.post("/api/bootstrap")

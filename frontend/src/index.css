@@ -2077,3 +2077,26 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .workout-preview .muscle-key { display: none; }
 .history-entry { width: 100%; text-align: left; }
 @media (max-width: 360px) { .lib-entry { padding: 8px; gap: 6px; } .lib-entry b { font-size: 12px; } }
+
+/* Menu: how a dish fits what's left of the day */
+.fit-tag { display: inline-block; margin-left: 8px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; vertical-align: 2px; }
+.fit-ok { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent-text, var(--accent)); }
+.fit-mid { background: color-mix(in srgb, var(--fat, #f6c453) 22%, transparent); color: var(--fat, #f6c453); }
+.fit-over { background: color-mix(in srgb, var(--danger, #ff6b6b) 18%, transparent); color: var(--danger, #ff6b6b); }
+
+/* After a workout: how it felt */
+.effort { margin: 8px 0 4px; }
+.effort-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.effort-row .chip { padding: 8px 14px; border: 0; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; }
+
+/* Morning check-in */
+.checkin h2 { margin: 0 0 10px; font-size: 16px; }
+.checkin p { margin: 0; }
+.checkin-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.checkin-row .chip { padding: 8px 14px; border: 0; font: inherit; font-size: 14px; color: var(--text); cursor: pointer; }
+.forecast { display: block; margin-top: 2px; }
+
+/* Friends: 👏 for a workout today */
+.cheer-btn { border: 0; background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 999px; width: 34px; height: 34px; font-size: 17px; cursor: pointer; flex: none; }
+.cheer-btn:active { transform: scale(.9); }
+.cheer-sent { opacity: .45; font-size: 17px; flex: none; }

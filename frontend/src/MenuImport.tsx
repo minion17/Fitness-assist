@@ -1,15 +1,25 @@
-// "Меню ресторана": AI reads dishes with printed nutrition from a menu / delivery-app photo; the user picks what to keep.
-// Saved as the user's own products (brand = restaurant); identical entries from 3 users become shared (see backend).
+// "Меню ресторана": AI reads dishes from a menu / delivery-app photo (printed nutrition, or an estimate marked ≈);
+// the user sees what fits the calories left and picks what to keep. Saved as the user's own products (brand = restaurant);
+// identical printed entries from 3 users become shared (see backend). Estimates are saved without the brand: never shared.
 import { useState } from 'react'
 import { shrink } from './image'
 import { api, ApiError, postJson } from './telegram'
 import type { Product } from './types'
 import { Chevron } from './ui'
 
-type Dish = { name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; portion_g: number | null; portion_name: string }
+type Dish = { name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; portion_g: number | null; portion_name: string; estimated?: boolean }
 type Menu = { venue: string; items: Dish[]; note: string }
 
-export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) => void; onCancel: () => void }) {
+/** How a dish fits what's left of the day: "влезает" / "почти весь остаток" / "больше остатка". */
+export function fitLabel(d: Dish, kcalLeft: number | undefined): { text: string; cls: string } | null {
+  if (kcalLeft === undefined || !d.portion_g) return null
+  const k = (d.kcal * d.portion_g) / 100
+  if (k <= kcalLeft * 0.6) return { text: 'влезает', cls: 'fit-ok' }
+  if (k <= kcalLeft * 1.05) return { text: 'почти весь остаток', cls: 'fit-mid' }
+  return { text: 'больше остатка', cls: 'fit-over' }
+}
+
+export default function MenuImport({ onPick, onCancel, kcalLeft }: { onPick: (p: Product) => void; onCancel: () => void; kcalLeft?: number }) {
   const [menu, setMenu] = useState<Menu | null>(null)
   const [venue, setVenue] = useState('')
   const [chosen, setChosen] = useState<Set<number>>(new Set())
@@ -28,8 +38,8 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
       if (!r) return
       setMenu(r)
       setVenue(r.venue)
-      setChosen(new Set(r.items.map((_, i) => i)))
-      if (!r.items.length) setError(r.note || 'Не нашёл блюд с КБЖУ на фото.')
+      setChosen(new Set(r.items.map((d, i) => (d.estimated ? -1 : i)).filter((i) => i >= 0))) // estimates: only if picked
+      if (!r.items.length) setError(r.note || 'Не нашёл блюд на фото.')
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Не удалось прочитать меню')
     } finally {
@@ -45,7 +55,8 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
       const out = []
       for (const i of [...chosen].sort((a, b) => a - b)) {
         const d = menu.items[i]
-        const p = await api<Product & { shared: boolean }>('/api/products', postJson({ ...d, brand: venue.trim() || null }))
+        const { estimated, ...dish } = d
+        const p = await api<Product & { shared: boolean }>('/api/products', postJson({ ...dish, brand: estimated ? null : venue.trim() || null }))
         if (p) out.push(p)
       }
       setSaved(out)
@@ -79,7 +90,7 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
 
   return (
     <>
-      <p className="sub">Сфотографируй меню или карточку блюда в приложении доставки — раскрой «Пищевую ценность», чтобы цифры были видны. Сохраню только то, где КБЖУ напечатаны.</p>
+      <p className="sub">Сфотографируй меню или карточку блюда в приложении доставки. Где КБЖУ напечатаны — возьму их, где нет — оценю по обычному рецепту (≈). Подскажу, что влезает в остаток дня.</p>
       <label className={busy ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
         {busy || (menu ? '📷 Другое фото' : '📷 Сфоткать меню')}
         <input type="file" accept="image/*" hidden disabled={!!busy} onChange={(e) => { read(e.target.files?.[0]); e.target.value = '' }} />
@@ -96,13 +107,13 @@ export default function MenuImport({ onPick, onCancel }: { onPick: (p: Product) 
                 <input type="checkbox" checked={chosen.has(i)}
                   onChange={() => setChosen((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n })} />
                 <div className="row-main">
-                  <div className="row-title">{d.name}</div>
-                  <div className="row-sub">{d.portion_g ? `${d.portion_name} ${d.portion_g} г · ` : ''}на 100 г: {Math.round(d.kcal)} ккал · Б {d.protein_g} · Ж {d.fat_g} · У {d.carbs_g}</div>
+                  <div className="row-title">{d.name}{(() => { const f = fitLabel(d, kcalLeft); return f && <span className={`fit-tag ${f.cls}`}>{f.text}</span> })()}</div>
+                  <div className="row-sub">{d.portion_g ? `${d.portion_name} ${d.portion_g} г — ${d.estimated ? '≈' : ''}${Math.round((d.kcal * d.portion_g) / 100)} ккал · ` : ''}на 100 г: {d.estimated ? '≈' : ''}{Math.round(d.kcal)} ккал · Б {d.protein_g} · Ж {d.fat_g} · У {d.carbs_g}</div>
                 </div>
               </label>
             ))}
           </div>
-          <p className="sub">Сверь цифры с фото. Блюда будут видны только тебе, пока их не подтвердят ещё двое.</p>
+          <p className="sub">Сверь цифры с фото. Блюда будут видны только тебе, пока их не подтвердят ещё двое.{menu.items.some((d) => d.estimated) ? ' ≈ — оценка: КБЖУ не напечатаны, такие блюда видны только тебе.' : ''}</p>
           <button className="btn" disabled={!!busy || chosen.size === 0} onClick={save}>Сохранить выбранные ({chosen.size})</button>
         </>
       )}

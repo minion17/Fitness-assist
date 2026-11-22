@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { ProfileData, Recommendation } from './profile'
 import Library from './Library'
 import { api, postJson, publicGet } from './telegram'
-import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
+import { lastLabel, nextDay, type Effort, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
 import Empty from './Empty'
 import translatedCatalog from '../../content/exercises/translated_exercises.json'
 import exerciseCatalog from '../../content/exercises/exercises.json'
 import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
-import { nextWeight } from './progression'
+import { advice, nextWeight } from './progression'
 import { Chevron, Sheet } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
@@ -355,7 +355,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       // empty weight fields take last time's weight for the same set (or the last set done)
       setSets((prev) => prev.map((row, ei) => {
         const done = r[day.exercises[ei].exercise_id]?.sets
-        const up = nextWeight(done, day.exercises[ei].reps) // every set hit the top of the plan last time: a bit heavier
+        const up = nextWeight(done, day.exercises[ei].reps, r[day.exercises[ei].exercise_id]?.effort) // every set hit the top last time: a bit heavier
         return !done?.length ? row : row.map((x, si) => x.saved || x.weight !== '' ? x
           : { ...x, weight: String(up ?? ((done[si] ?? done[done.length - 1]).weight_kg || '')) })
       }))
@@ -492,6 +492,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       </div>
       {records.length > 0 && <ul className="workout-records">{records.map((r) => <li key={r}>🏆 Личный рекорд: {r}</li>)}</ul>}
       {summary.xp > 0 && <p className="pos">+{summary.xp} XP</p>}
+      {logId && <EffortPick logId={logId} />}
       <button className="btn" onClick={onExit}>Готово</button>
     </section>
   )
@@ -576,9 +577,9 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
             {last[e.exercise_id]?.sets.length ? (
               <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
             ) : null}
-            {nextWeight(last[e.exercise_id]?.sets, e.reps) && (
-              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуй {String(nextWeight(last[e.exercise_id]?.sets, e.reps)).replace('.', ',')} кг</div>
-            )}
+            {nextWeight(last[e.exercise_id]?.sets, e.reps, last[e.exercise_id]?.effort) ? (
+              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуй {String(nextWeight(last[e.exercise_id]?.sets, e.reps, last[e.exercise_id]?.effort)).replace('.', ',')} кг</div>
+            ) : advice(last[e.exercise_id], e.reps) && <div className="session-up">💡 {advice(last[e.exercise_id], e.reps)}</div>}
           </div>
           {timed ? <>
             {nextSet >= 0 && timer?.phase !== 'work' &&
@@ -645,6 +646,27 @@ function WorkoutPreview({ day }: { day: ProgramDay }) {
         {primary.length > 0 && <span>{primary.slice(0, 3).map((m) => MUSCLES[m as Muscle] ?? m).join(', ')}{primary.length > 3 ? '…' : ''}</span>}
       </div>
       {primary.length > 0 && <MuscleMap primary={primary} compact />}
+    </div>
+  )
+}
+
+/** "Как ощущения?" after a workout: next time an easy one goes up sooner, a hard one keeps the weight. */
+function EffortPick({ logId }: { logId: number }) {
+  const [picked, setPicked] = useState<Effort | null>(null)
+  const choose = (e: Effort) => {
+    setPicked(e)
+    haptic('select')
+    api(`/api/workout-logs/${logId}/effort`, postJson({ effort: e })).catch(() => setPicked(null))
+  }
+  if (picked) return <p className="sub effort-done">{{ easy: 'Понял: в следующий раз прибавим.', ok: 'Отлично, держим темп.', hard: 'Понял: в следующий раз держим вес.' }[picked]}</p>
+  return (
+    <div className="effort">
+      <p className="sub">Как ощущения?</p>
+      <div className="effort-row">
+        <button className="chip" onClick={() => choose('easy')}>😌 Легко</button>
+        <button className="chip" onClick={() => choose('ok')}>🙂 Норм</button>
+        <button className="chip" onClick={() => choose('hard')}>😮‍💨 Тяжело</button>
+      </div>
     </div>
   )
 }

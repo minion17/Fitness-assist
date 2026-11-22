@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from functools import partial
 
+from backend.api import fasting
 from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.api.kitchen import usual_for
 from backend.bot import cards
@@ -19,7 +20,7 @@ from backend.core import alerts, clock
 from backend.core.nutrition import daily_targets
 from backend.database.db import SessionLocal
 from backend.database.models import (
-    BodyMeasurement, DailyCheckin, FoodLog, Habit, HabitCheck, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake,
+    BodyMeasurement, DailyCheckin, FastingPlan, FoodLog, Habit, HabitCheck, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake,
     WorkoutLog,
 )
 
@@ -179,13 +180,37 @@ async def nudges(session, now: datetime) -> list[tuple[User, str, str]]:
     return out
 
 
+async def fasting_reminders(session, user: User, plan: FastingPlan, now: datetime) -> list[tuple[str, str, Render, Buttons]]:
+    """The window opens: how long the fast was; 30 minutes before it closes: protein still to eat."""
+    today, out = now.date(), []
+    if due(plan.eat_from, now):
+        st = fasting.state(plan, await fasting.last_meal(session, user.id), now)
+        out.append((f"{today}:fast_open", f"🍽 Окно питания открылось (до {fasting.eat_to(plan)}). "
+                    + (f"Голод {st['fasted_h']:g} ч позади. " if st["fasted_h"] >= 10 else "") + "Начни с белка.",
+                    NO_CARD, [("🍽 Что поесть?", "cb:eat")]))
+    close = (datetime.strptime(fasting.eat_to(plan), "%H:%M") - timedelta(minutes=30)).strftime("%H:%M")
+    if due(close, now):
+        _, t = await eaten_today(session, user, local_start(today))
+        p = await session.get(Profile, user.id)
+        left = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal, p.kcal_override)["protein"] - t["protein"]
+        out.append((f"{today}:fast_close", f"⏳ Через 30 минут, в {fasting.eat_to(plan)}, окно питания закрывается. "
+                    + (f"Белка осталось ~{round(left / 5) * 5} г — успей добрать." if left >= 20 else "Норма белка на сегодня почти добрана 👍"),
+                    NO_CARD, None))
+    return out
+
+
 async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) -> list[tuple[str, str, Render, Buttons]]:
     """(key, caption, card, buttons) of reminders that are due for this user right now and still make sense."""
     today = now.date()
     look = {"theme": user.theme if user.theme in cards.THEMES else None, "accent": user.accent}
     out = []
+    fast = await session.get(FastingPlan, user.id)
+    if fast and fast.remind:
+        out += await fasting_reminders(session, user, fast, now)
     if cfg.meals:
         todo = [m for m in MEALS if due(getattr(cfg, f"{m}_at"), now)]
+        if fast:  # no "запиши завтрак" at 10:00 when the window opens at 12:00
+            todo = [m for m in todo if fasting.in_window(fast, now)]
         if todo:
             eaten, t = await eaten_today(session, user, local_start(today))
             p = await session.get(Profile, user.id)

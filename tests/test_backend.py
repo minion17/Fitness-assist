@@ -2546,3 +2546,51 @@ def test_menu_advice_picks_what_fits():
     text = menu_advice(dishes, kcal_left=900, protein_left=40, aim=700)
     assert "✅ Цезарь с курицей — ≈450 ккал" in text
     assert "⚠️ Паста карбонара — ≈1 050 ккал, это 117% остатка" in text and "≈ — оценка" in text
+
+
+def test_fasting_plan_timer_and_reminders(client):
+    import random
+    from datetime import datetime, timedelta
+
+    from backend.api import fasting
+    from backend.bot.reminders import collect
+    from backend.database.db import SessionLocal
+    from backend.database.models import FastingPlan
+    from conftest import USER, make_init_data
+
+    plan = FastingPlan(hours=16, eat_from="12:00")
+    assert fasting.eat_to(plan) == "20:00" and fasting.eat_to(FastingPlan(hours=18, eat_from="20:00")) == "02:00"
+    day = datetime(2026, 3, 2, tzinfo=datetime.now().astimezone().tzinfo)
+    assert fasting.in_window(plan, day.replace(hour=12)) and not fasting.in_window(plan, day.replace(hour=20))
+    assert fasting.in_window(FastingPlan(hours=18, eat_from="20:00"), day.replace(hour=1))  # a window past midnight
+    # last meal at 19:30 -> at 9:30 the fast is 14 h, the window opens in 150 minutes
+    st = fasting.state(plan, day.replace(hour=19, minute=30), day.replace(hour=9, minute=30) + timedelta(days=1))
+    assert (st["eating"], st["fasted_h"], st["change_in"]) == (False, 14.0, 150)
+    assert "14 ч из 16" in fasting.text(plan, st)
+    # nothing logged for days: counted from the last window close, not from a week ago
+    old = fasting.state(plan, day - timedelta(days=5), day.replace(hour=10))
+    assert old["fasted_h"] == 14.0
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    assert client.get("/api/fasting", headers=h).json() == {"plan": None}
+    body = {"hours": 16, "eat_from": "12:00", "remind": True, "safe": True}
+    assert client.put("/api/fasting", headers=h, json={**body, "safe": False}).status_code == 422  # contraindications not confirmed
+    assert client.put("/api/fasting", headers=h, json={**body, "hours": 20}).status_code == 422
+    r = client.put("/api/fasting", headers=h, json=body).json()
+    assert r["plan"] == {"hours": 16, "eat_from": "12:00", "eat_to": "20:00", "remind": True} and "fast_start" in r
+
+    now = datetime.now().astimezone()
+
+    async def run(at):
+        async with SessionLocal() as s:
+            return await collect(s, now.replace(hour=at[0], minute=at[1], second=0, microsecond=0))
+
+    def texts(at):
+        return [t for chat, t, _, _ in client.portal.call(run, at) if chat == tg_id]
+
+    assert not any("завтрак" in t for t in texts((10, 5)))  # breakfast at 10:00 is outside the 12–20 window
+    assert any(t.startswith("🍽 Окно питания открылось (до 20:00)") for t in texts((12, 1)))
+    assert any("Через 30 минут, в 20:00" in t and "Белка осталось" in t for t in texts((19, 31)))
+    assert client.delete("/api/fasting", headers=h).json() == {"plan": None}

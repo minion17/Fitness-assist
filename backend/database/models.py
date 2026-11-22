@@ -290,6 +290,16 @@ class DailyCheckin(Base):
     energy: Mapped[int | None] = mapped_column(SmallInteger)  # 1 low, 2 ok, 3 high
 
 
+class FastingPlan(Base):
+    """Intermittent fasting: a daily eating window of 24 - hours, opening at eat_from (user's local time)."""
+    __tablename__ = "fasting_plans"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    hours: Mapped[int] = mapped_column(SmallInteger)  # 12 | 14 | 16 | 18
+    eat_from: Mapped[str] = mapped_column(String(5))
+    remind: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class FrozenDay(Base):
     """A missed day covered by a streak freeze."""
     __tablename__ = "frozen_days"

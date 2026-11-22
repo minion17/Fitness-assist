@@ -22,6 +22,7 @@ from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
+from backend.api.fasting import router as fasting_router
 from backend.api.account import router as account_router
 from backend.api.meal_preferences import router as meal_preferences_router
 from backend.api.saved_meal_plan import router as saved_meal_plan_router
@@ -899,6 +900,7 @@ async def yesterday_meals(tg: dict, session: AsyncSession) -> dict:
 app.include_router(ai_router)
 app.include_router(feedback_router)
 app.include_router(daily_router)
+app.include_router(fasting_router)
 app.include_router(quick_food_router)
 app.include_router(stats_router)
 app.include_router(social_router)

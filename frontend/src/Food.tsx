@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import Fasting from './Fasting'
 import type { ProfileData, Targets } from './profile'
 import AiMeal from './AiMeal'
 import RecipeEditor, { type RecipeData } from './Recipe'
@@ -398,6 +399,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       {editable && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: isToday ? nowSlot() : null })}>+ Перекус</button>}
       </section>
       <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span className="meal-plan-icon" aria-hidden="true"><Icon name="leaf" size={22} /></span><span className="meal-plan-text"><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По твоим предпочтениям'}</small></span><span className="meal-plan-go"><Chevron /></span></button>
+      {canEdit && isToday && <Fasting protein={targets?.protein} refresh={day.items.length} />}
       {canEdit && isToday && targets && onLogBatch && <WhatToEat eaten={Math.round(day.totals.kcal)} onLog={onLogBatch} />}
       {!canEdit && <p className="sub">Демо-режим: чтобы вести дневник, открой приложение из Telegram.</p>}
       {recipe && <RecipeCard meal={recipe} onClose={() => setRecipe(null)} />}

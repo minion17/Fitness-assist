@@ -61,7 +61,8 @@ HELP = (
     "🍽 /eat — что поесть сейчас под твой остаток.\n"
     "🧾 <b>Меню ресторана</b> — пришли фото с подписью «меню», подскажу, что взять.\n"
     "📊 /today — сколько съедено и сколько осталось.\n"
-    "💪 /workout — тренировка на сегодня.\n\n"
+    "💪 /workout — тренировка на сегодня.\n"
+    "⏱ /fast — интервальное голодание: сколько прошло и когда окно.\n\n"
     "Всё остальное — в приложении: кнопка «Setly» слева от поля ввода."
 )
 
@@ -1021,6 +1022,22 @@ async def eat_command(message: Message) -> None:
 @router.message(Command("help"))
 async def help_cmd(message: Message) -> None:
     await message.answer(HELP, parse_mode="HTML", reply_markup=KEYBOARD)
+
+
+@router.message(Command("fast"))
+async def fast_command(message: Message) -> None:
+    from backend.api import fasting
+
+    async with SessionLocal() as session:
+        user, _ = await me(session, message.from_user)
+        plan = await session.get(fasting.FastingPlan, user.id)
+        st = plan and fasting.state(plan, await fasting.last_meal(session, user.id), clock.now())
+    if not plan:
+        await message.answer("Интервальное голодание пока не включено. Выбери схему (12:12, 14:10, 16:8 или 18:6) и время "
+                             "окна в приложении — дальше я напомню, когда окно открывается и закрывается.",
+                             reply_markup=kb([app_button("Настроить голодание", "open=fasting")]))
+        return
+    await message.answer(fasting.text(plan, st), reply_markup=kb([app_button("Открыть таймер", "open=fasting")]))
 
 
 @router.message(Command("today"))

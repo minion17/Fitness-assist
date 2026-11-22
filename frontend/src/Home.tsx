@@ -1,5 +1,6 @@
 // Daily overview with compact food and workout summaries.
 import Checkin from './Checkin'
+import Fasting from './Fasting'
 import { Fragment, useRef, useState } from 'react'
 import type { Targets } from './profile'
 import { Sheet, Chevron } from './ui'
@@ -294,6 +295,7 @@ export default function Home(props: {
       </section>
 
       {props.canEdit && !props.loading && <Checkin />}
+      {props.canEdit && !props.loading && <Fasting home refresh={day.totals.kcal} />}
 
       {whyOpen && !props.loading && (
         <section className="card day-summary" aria-label="Итоги дня">

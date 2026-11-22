@@ -2733,7 +2733,7 @@ def test_month_challenge_board_finish_and_story(client, monkeypatch):
 
     assert len({monthly.theme(monthly.month_of(datetime(2026, k, 5).date()))["key"] for k in range(1, 5)}) == 4  # changes monthly
     assert monthly.places([(0, 0, 5), (0, 0, 3), (0, 0, 3), (0, 0, 1)]) == [1, 2, 2, 4]  # a tie shares the place
-    monkeypatch.setattr(monthly, "theme", lambda m: monthly.THEMES[0])  # workouts: days with a completed workout
+    monkeypatch.setattr(monthly, "theme", lambda m: monthly.BY_KEY["workouts"])  # days with a completed workout
     ids = [random.randint(8 * 10**9, 9 * 10**9) for _ in range(3)]
     hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Борис", "Вера"))]
     for h in hs:
@@ -2790,11 +2790,15 @@ def test_month_challenge_board_finish_and_story(client, monkeypatch):
             xp = await s.scalar(select(XpEvent.xp).where(XpEvent.user_id == uids[0], XpEvent.event_key == f"month:{prev.isoformat()}"))
             return a, v, texts, xp
     a, v, texts, xp = client.portal.call(check)
-    assert (a.closed, a.score, a.rank, v.score, v.rank) == (True, 12, 1, 3, 2) and xp == 100
+    assert (a.closed, a.score, a.rank, v.score, v.rank, v.total) == (True, 12, 1, 3, 2, 2) and xp == 100
     assert any("12 дней с тренировкой, 1-е место из 2" in t and "+100 XP" in t and "Новый челлендж" in t for t in texts)
     assert any("3 дня с тренировкой, 2-е место из 2" in t and "XP" not in t for t in texts)
     last = client.get("/api/month", headers=hs[0]).json()["last"]
     assert last["score"] == 12 and last["done"] is True
+    final = [t for t in texts if "12 дней с тренировкой" in t]
+    assert final  # sent as a photo with the card (Outbox kind month_end)
+    assert client.post("/api/share", headers=hs[0], json={"kind": "month"}).json() == {"ok": True}  # desktop: the card to the chat
+    assert client.post("/api/share", headers=hs[2], json={"kind": "month"}).status_code in (200, 404)
     r = client.post("/api/story", headers=hs[0], json={"kind": "month"}).json()
     assert client.get(r["url"]).content[:4] == b"\x89PNG" and "Месяц тренировок" in r["text"]
     assert client.post("/api/story", headers=hs[2], json={"kind": "month"}).status_code in (200, 404)
@@ -2807,3 +2811,56 @@ def test_month_challenge_board_finish_and_story(client, monkeypatch):
     client.portal.call(month_command, msg)
     text = msg.answer.call_args.args[0]
     assert text.startswith("🏋️ Челлендж месяца — «Месяц тренировок». Цель: 12 дней с тренировкой") and "2 дня с тренировкой" in text
+
+
+
+def test_month_themes_count_from_the_logs(client):
+    """Every theme of the rotation counts days from what's already logged."""
+    import random
+    from datetime import date, datetime, time, timedelta, timezone
+
+    from backend.api import monthly
+    from backend.database.db import SessionLocal
+    from backend.database.models import DailyCheckin, FoodLog, Habit, HabitCheck, Product, User, XpEvent
+    from conftest import USER, make_init_data
+
+    assert len(monthly.THEMES) == 10 and monthly.theme(date(2026, 11, 1))["key"] == "protein"  # November stays as it was
+    assert {monthly.theme(date(2027, k, 1))["key"] for k in range(1, 11)} == set(monthly.BY_KEY)  # each once in 10 months
+    tg_id = random.randint(9 * 10**9, 10**10 - 1)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    m = date(random.randint(1990, 2020), random.randint(1, 12), 1)  # a month of its own in the shared test DB
+
+    async def run():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            from backend.api.stats import targets
+            from backend.database.models import Profile
+            u = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            norm = targets(await s.get(Profile, u.id))["calories"]
+            veg = Product(name=f"Огурец {tg_id}", kcal=15, protein_g=1, fat_g=0, carbs_g=3, category="Овощи")
+            bun = Product(name=f"Булка {tg_id}", kcal=300, protein_g=8, fat_g=10, carbs_g=45, category="Хлеб и выпечка")
+            candy = Product(name=f"Конфета {tg_id}", kcal=500, protein_g=3, fat_g=25, carbs_g=60, category="Сладости")
+            s.add_all([veg, bun, candy])
+            await s.flush()
+            at = lambda k: datetime.combine(m + timedelta(days=k), time(12), tzinfo=timezone.utc)  # noqa: E731
+            # day 0: 500 g veg + a norm of buns, no sweets; day 1: the same plus a candy; day 2: buns only, too little
+            for k in (0, 1):
+                s.add(FoodLog(user_id=u.id, product_id=veg.id, amount_g=500, meal_type="lunch", logged_at=at(k)))
+                s.add(FoodLog(user_id=u.id, product_id=bun.id, amount_g=round((norm - 75) / 3), meal_type="lunch", logged_at=at(k)))
+            s.add(FoodLog(user_id=u.id, product_id=candy.id, amount_g=60, meal_type="snack", logged_at=at(1)))
+            s.add(FoodLog(user_id=u.id, product_id=bun.id, amount_g=100, meal_type="lunch", logged_at=at(2)))
+            s.add_all([DailyCheckin(user_id=u.id, day=m, sleep=3), DailyCheckin(user_id=u.id, day=m + timedelta(days=1), sleep=2)])
+            s.add_all([XpEvent(user_id=u.id, event_type="personal_record", event_key=f"pr:1:{m + timedelta(days=4)}", xp=15, created_at=at(4)),
+                       XpEvent(user_id=u.id, event_type="personal_record", event_key=f"pr:2:{m + timedelta(days=4)}", xp=15, created_at=at(4))])
+            h1, h2 = Habit(user_id=u.id, title="Шаги"), Habit(user_id=u.id, title="Растяжка")
+            s.add_all([h1, h2])
+            await s.flush()
+            s.add_all([HabitCheck(habit_id=h1.id, user_id=u.id, day=m), HabitCheck(habit_id=h2.id, user_id=u.id, day=m),
+                       HabitCheck(habit_id=h1.id, user_id=u.id, day=m + timedelta(days=1))])
+            await s.commit()
+            return {k: (await monthly.scores(s, m, [u], k))[u.id] for k in monthly.BY_KEY}
+    sc = client.portal.call(run)
+    assert (sc["veggies"], sc["nosweets"], sc["diary"], sc["norm"]) == (2, 1, 2, 1)  # the candy day is over the norm too
+    assert (sc["sleep"], sc["records"], sc["habits"]) == (1, 1, 1)  # two records on one day are one day

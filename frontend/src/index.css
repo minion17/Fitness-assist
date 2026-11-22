@@ -2137,3 +2137,5 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .progress-view { gap: 16px; overflow-x: auto; scrollbar-width: none; }
 .progress-view::-webkit-scrollbar { display: none; }
 .progress-view button { white-space: nowrap; flex-shrink: 0; font-size: 15px; }
+.month-share { display: flex; gap: 8px; flex-wrap: wrap; }
+.month-share .btn { flex: 1 1 140px; }

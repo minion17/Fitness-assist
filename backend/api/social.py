@@ -334,14 +334,26 @@ async def decline(duel_id: int, tg: dict = Depends(telegram_user), session: Asyn
 
 # ---- Share: the bot sends you a card with this week's results and your invite link, ready to forward ----
 
+class ShareIn(BaseModel):
+    kind: Literal["week", "month"] = "week"
+
+
 @router.post("/share")
-async def share(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+async def share(body: ShareIn | None = None, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """The card to the chat with the bot (no Stories on desktop): the week, or the challenge of the month."""
     user = await get_or_create_user(tg, session)
-    waiting = await session.scalar(select(Outbox.id).where(Outbox.user_id == user.id, Outbox.kind == "share", Outbox.sent_at.is_(None)).limit(1))
+    kind = "month_card" if body and body.kind == "month" else "share"
+    text = "Моя неделя в Setly 💪"
+    if kind == "month_card":
+        from backend.api.monthly import days, story_numbers
+
+        m = await story_numbers(session, user)  # 404 when they aren't taking part
+        text = f"{m['emoji']} {m['title']} в Setly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
+    waiting = await session.scalar(select(Outbox.id).where(Outbox.user_id == user.id, Outbox.kind == kind, Outbox.sent_at.is_(None)).limit(1))
     if not waiting:  # a double tap doesn't send two cards
         code, bot = await invite_code(session, user), bot_username()
         link = f"\n\nПрисоединяйся: https://t.me/{bot}?start=f{code}" if bot else ""
-        notify(session, user, f"Моя неделя в Setly 💪{link}", kind="share")
+        notify(session, user, text + link, kind=kind)
         await session.commit()
     return {"ok": True}
 

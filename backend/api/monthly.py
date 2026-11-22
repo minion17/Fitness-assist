@@ -9,7 +9,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from backend.api.daily import water_goal
 from backend.api.deps import get_or_create_user, telegram_user
@@ -17,20 +17,38 @@ from backend.api.leagues import short
 from backend.api.social import name, notify
 from backend.api.stats import targets
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FoodLog, Friendship, MonthEntry, Product, Profile, User, WaterIntake, WorkoutLog
+from backend.database.models import (DailyCheckin, FoodLog, Friendship, Habit, HabitCheck, MonthEntry, Product, Profile, User,
+                                     WaterIntake, WorkoutLog, XpEvent)
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
+# The rotation from November 2026 (ANCHOR), one a month in this order. Each is counted in days from what's logged.
 THEMES = [
-    {"key": "workouts", "emoji": "🏋️", "title": "Месяц тренировок", "goal": 12, "unit": "с тренировкой",
-     "hint": "Считаются дни с завершённой тренировкой — любой: в зале, дома, на улице."},
-    {"key": "diary", "emoji": "📒", "title": "Месяц честного дневника", "goal": 25, "unit": "с дневником",
-     "hint": "Считаются дни, когда записано всё за день — от 800 ккал."},
-    {"key": "water", "emoji": "💧", "title": "Месяц воды", "goal": 20, "unit": "с нормой воды",
-     "hint": "Считаются дни, когда выпита твоя норма воды."},
     {"key": "protein", "emoji": "🥩", "title": "Месяц белка", "goal": 20, "unit": "с нормой белка",
      "hint": "Считаются дни, когда съедено 90 % твоей нормы белка и больше."},
+    {"key": "water", "emoji": "💧", "title": "Месяц воды", "goal": 20, "unit": "с нормой воды",
+     "hint": "Считаются дни, когда выпита твоя норма воды."},
+    {"key": "workouts", "emoji": "🏋️", "title": "Месяц тренировок", "goal": 12, "unit": "с тренировкой",
+     "hint": "Считаются дни с завершённой тренировкой — любой: в зале, дома, на улице."},
+    {"key": "nosweets", "emoji": "🍬", "title": "Месяц без сладкого", "goal": 20, "unit": "без сладкого",
+     "hint": "Считаются дни с полным дневником (от 800 ккал), в которых нет ничего из категории «Сладости»."},
+    {"key": "diary", "emoji": "📒", "title": "Месяц честного дневника", "goal": 25, "unit": "с дневником",
+     "hint": "Считаются дни, когда записано всё за день — от 800 ккал."},
+    {"key": "veggies", "emoji": "🥦", "title": "Месяц овощей и фруктов", "goal": 15, "unit": "с 400 г овощей и фруктов",
+     "hint": "Считаются дни, когда записано 400 г овощей, фруктов, ягод и салатов и больше — норма ВОЗ."},
+    {"key": "sleep", "emoji": "😴", "title": "Месяц сна", "goal": 18, "unit": "со сном 7+ часов",
+     "hint": "Считаются утра, когда ты отметил на главной 7 часов сна и больше."},
+    {"key": "norm", "emoji": "🎯", "title": "Месяц в норме", "goal": 15, "unit": "в норме калорий",
+     "hint": "Считаются дни, когда съедено в пределах ±10 % от твоей нормы калорий."},
+    {"key": "records", "emoji": "💪", "title": "Месяц рекордов", "goal": 8, "unit": "с личным рекордом",
+     "hint": "Считаются дни, когда ты побил свой рекорд хотя бы в одном упражнении: больше вес или больше повторов."},
+    {"key": "habits", "emoji": "✅", "title": "Месяц привычек", "goal": 20, "unit": "со всеми привычками",
+     "hint": "Считаются дни, когда отмечены все твои привычки на главной (хотя бы одна должна быть)."},
 ]
+BY_KEY = {t["key"]: t for t in THEMES}
+ANCHOR = date(2026, 11, 1)
+VEGGIES = ("Овощи", "Фрукты и ягоды", "Фрукты", "Салаты")
+SWEETS = ("Сладости",)
 TOP = 10
 FULL_DAY = 800
 STORY_DAYS = 7  # the first week of a month still shares last month's final
@@ -52,7 +70,12 @@ def next_month(m: date) -> date:
 
 
 def theme(m: date) -> dict:
-    return THEMES[(m.year * 12 + m.month) % len(THEMES)]
+    return THEMES[((m.year - ANCHOR.year) * 12 + m.month - ANCHOR.month) % len(THEMES)]
+
+
+def theme_of(e: MonthEntry) -> dict:
+    """The theme the entry was played with (stored at joining), for months already over."""
+    return BY_KEY.get(e.theme or "", theme(e.month))
 
 
 def utc_today() -> date:
@@ -66,11 +89,11 @@ def tz_of(u: User):
         return timezone.utc
 
 
-async def scores(session: AsyncSession, m: date, users: list[User]) -> dict[int, int]:
+async def scores(session: AsyncSession, m: date, users: list[User], key: str | None = None) -> dict[int, int]:
     """Days that count this month for each user. shortcut: recomputed per request; cache per hour past a few thousand people."""
     if not users:
         return {}
-    key, ids, end = theme(m)["key"], [u.id for u in users], next_month(m)
+    key, ids, end = key or theme(m)["key"], [u.id for u in users], next_month(m)
     zones = {u.id: tz_of(u) for u in users}
     a = datetime.combine(m - timedelta(days=1), time(0), tzinfo=timezone.utc)  # a day of slack each side for time zones
     b = datetime.combine(end + timedelta(days=1), time(0), tzinfo=timezone.utc)
@@ -86,20 +109,46 @@ async def scores(session: AsyncSession, m: date, users: list[User]) -> dict[int,
                 WaterIntake.user_id.in_(ids), WaterIntake.day >= m, WaterIntake.day < end)):
             if ml >= water_goal(profiles.get(uid)):
                 days[uid].add(day)
-    else:
-        sums: dict[tuple[int, date], list[float]] = {}
-        for uid, at, g, kcal, protein in await session.execute(
-                select(FoodLog.user_id, FoodLog.logged_at, FoodLog.amount_g, Product.kcal, Product.protein_g)
+    elif key == "sleep":
+        for uid, day in await session.execute(select(DailyCheckin.user_id, DailyCheckin.day).where(
+                DailyCheckin.user_id.in_(ids), DailyCheckin.day >= m, DailyCheckin.day < end, DailyCheckin.sleep >= 3)):
+            days[uid].add(day)
+    elif key == "records":  # the XP key of a record carries its local day: "pr:<exercise>:<YYYY-MM-DD>"
+        for uid, k in await session.execute(select(XpEvent.user_id, XpEvent.event_key).where(
+                XpEvent.user_id.in_(ids), XpEvent.event_type == "personal_record", XpEvent.created_at >= a, XpEvent.created_at < b)):
+            try:
+                days[uid].add(date.fromisoformat(k.rsplit(":", 1)[1]))
+            except ValueError:
+                pass
+    elif key == "habits":
+        active: dict[int, int] = {}
+        for uid, n in await session.execute(select(Habit.user_id, func.count()).where(
+                Habit.user_id.in_(ids), Habit.archived.is_(False)).group_by(Habit.user_id)):
+            active[uid] = n
+        for uid, day, n in await session.execute(select(HabitCheck.user_id, HabitCheck.day, func.count()).where(
+                HabitCheck.user_id.in_(ids), HabitCheck.day >= m, HabitCheck.day < end).group_by(HabitCheck.user_id, HabitCheck.day)):
+            if n >= active.get(uid, 1):  # shortcut: compares with today's habits, not the ones active that day
+                days[uid].add(day)
+    else:  # from the food diary: diary, protein, norm, veggies, nosweets
+        sums: dict[tuple[int, date], list[float]] = {}  # kcal, protein, fruit and veg g, sweets g
+        for uid, at, g, kcal, protein, cat in await session.execute(
+                select(FoodLog.user_id, FoodLog.logged_at, FoodLog.amount_g, Product.kcal, Product.protein_g, Product.category)
                 .join(Product, Product.id == FoodLog.product_id)
                 .where(FoodLog.user_id.in_(ids), FoodLog.logged_at >= a, FoodLog.logged_at < b)):
-            s = sums.setdefault((uid, local(uid, at)), [0.0, 0.0])
+            s = sums.setdefault((uid, local(uid, at)), [0.0, 0.0, 0.0, 0.0])
             s[0] += kcal * g / 100
             s[1] += protein * g / 100
-        need = {}
-        if key == "protein":
-            need = {p.user_id: targets(p)["protein"] * 0.9 for p in await session.scalars(select(Profile).where(Profile.user_id.in_(ids)))}
-        for (uid, day), (kcal, protein) in sums.items():
-            if (kcal >= FULL_DAY) if key == "diary" else (uid in need and protein >= need[uid]):
+            s[2] += g if cat in VEGGIES else 0
+            s[3] += g if cat in SWEETS else 0
+        norms = {}
+        if key in ("protein", "norm"):
+            norms = {p.user_id: targets(p) for p in await session.scalars(select(Profile).where(Profile.user_id.in_(ids)))}
+        for (uid, day), (kcal, protein, veg, sweet) in sums.items():
+            t = norms.get(uid)
+            ok = {"diary": kcal >= FULL_DAY, "veggies": veg >= 400, "nosweets": kcal >= FULL_DAY and sweet == 0,
+                  "protein": bool(t) and protein >= t["protein"] * 0.9,
+                  "norm": bool(t) and abs(kcal - t["calories"]) <= t["calories"] * 0.1}[key]
+            if ok:
                 days[uid].add(day)
     return {uid: sum(1 for d in ds if m <= d < end) for uid, ds in days.items()}
 
@@ -108,7 +157,8 @@ async def board(session: AsyncSession, m: date) -> list[tuple[User, MonthEntry, 
     """Participants by score, most first; ties: who joined first."""
     rows = list(await session.execute(select(User, MonthEntry).join(MonthEntry, MonthEntry.user_id == User.id)
                                       .where(MonthEntry.month == m).order_by(MonthEntry.joined_at, User.id)))
-    sc = await scores(session, m, [u for u, _ in rows])
+    key = next((e.theme for _, e in rows if e.theme), None)  # what they joined, even if the rotation changed since
+    sc = await scores(session, m, [u for u, _ in rows], key)
     return sorted(((u, e, sc[u.id]) for u, e in rows), key=lambda r: -r[2])
 
 
@@ -145,7 +195,7 @@ async def month(tg: dict = Depends(telegram_user), session: AsyncSession = Depen
         out["me"] = {"rank": place[me], "score": rows[me][2], "top_percent": max(1, round(place[me] / len(rows) * 100))}
     last = await session.get(MonthEntry, (user.id, month_of(m - timedelta(days=1))))
     if last and last.closed:
-        t = theme(last.month)
+        t = theme_of(last)
         out["last"] = {"month": last.month.isoformat(), "emoji": t["emoji"], "title": t["title"], "unit": t["unit"], "goal": t["goal"],
                        "score": last.score, "rank": last.rank, "total": last.total, "done": (last.score or 0) >= t["goal"]}
     return out
@@ -156,7 +206,7 @@ async def join(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
     user = await get_or_create_user(tg, session)
     m = month_of(utc_today())
     if not await session.get(MonthEntry, (user.id, m)):
-        session.add(MonthEntry(user_id=user.id, month=m))
+        session.add(MonthEntry(user_id=user.id, month=m, theme=theme(m)["key"]))
         await session.commit()
     return await month(tg, session)
 
@@ -167,7 +217,7 @@ async def story_numbers(session: AsyncSession, user: User) -> dict:
     m = month_of(today)
     last = await session.get(MonthEntry, (user.id, month_of(m - timedelta(days=1))))
     if last and last.closed and today.day <= STORY_DAYS:
-        t = theme(last.month)
+        t = theme_of(last)
         return {**t, "score": last.score or 0, "rank": last.rank, "total": last.total, "final": True}
     rows = await board(session, m)
     me = next((i for i, (u, _, _) in enumerate(rows) if u.id == user.id), None)
@@ -183,7 +233,7 @@ async def finish_months(session: AsyncSession) -> int:
                                         .group_by(MonthEntry.month)))
     for m in months:
         rows = await board(session, m)
-        t, new, n, place = theme(m), theme(current), len(rows), places(rows)
+        t, new, n, place = (theme_of(rows[0][1]) if rows else theme(m)), theme(current), len(rows), places(rows)
         for i, (u, e, s) in enumerate(rows):
             if e.closed:  # already told (a late joiner's month closed again): keep their final
                 continue
@@ -193,8 +243,8 @@ async def finish_months(session: AsyncSession) -> int:
             if s >= t["goal"]:
                 xp = await award_xp(session, u.id, "month_done", f"month:{m.isoformat()}", commit=False)
                 text += f" Цель {t['goal']} взята — +{xp} XP! 🎉"
-            text += (f"\n\nКарточка для истории — в приложении: Прогресс → Челлендж.\nНовый челлендж уже идёт: {new['emoji']} «{new['title']}», "
-                     f"цель — {days(new['goal'], new)}.")
-            notify(session, u, text)
+            text += (f"\n\nПерешли эту карточку другу или выложи в истории — с телефона это проще всего из приложения: Прогресс → Челлендж."
+                     f"\nНовый челлендж уже идёт: {new['emoji']} «{new['title']}», цель — {days(new['goal'], new)}.")
+            notify(session, u, text, kind="month_end")  # sent as a photo with the final card
         await session.commit()
     return len(months)

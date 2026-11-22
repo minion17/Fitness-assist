@@ -457,6 +457,7 @@ class MonthEntry(Base):
 
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     month: Mapped[date] = mapped_column(Date, primary_key=True, index=True)  # the 1st
+    theme: Mapped[str | None] = mapped_column(String(20))  # monthly.THEMES key, kept so a reordered list can't rename the past
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     score: Mapped[int | None] = mapped_column(Integer)

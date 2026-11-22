@@ -45,6 +45,15 @@ export default function Month() {
 
   const join = () => { haptic('success'); api<MonthBoard>('/api/month/join', postJson({})).then((r) => r && setB(r)).catch(() => setError('Не получилось — попробуй ещё раз')) }
   const story = () => shareStory({ kind: 'month' }).catch(() => setError('Не получилось открыть истории'))
+  const [sent, setSent] = useState(false)
+  // Stories exist only in the phone app; everywhere the bot can send the same card to the chat to forward or save
+  const toChat = () => { haptic('success'); api('/api/share', postJson({ kind: 'month' })).then(() => setSent(true)).catch(() => setError('Не получилось — попробуй ещё раз')) }
+  const shareRow = (final: boolean) => (
+    <div className="month-share">
+      {canStory() && <button className={final ? 'btn' : 'btn btn-ghost'} onClick={story}>{final ? 'Итог в истории' : 'В истории'}</button>}
+      <button className="btn btn-ghost" disabled={sent} onClick={toChat}>{sent ? 'Карточка придёт в чат' : 'Карточкой в чат'}</button>
+    </div>
+  )
   const showLast = b.last && new Date().getDate() <= 7
   const rows = scope === 'friends' ? b.friends : b.top
   return (
@@ -53,7 +62,7 @@ export default function Month() {
         <section className="card month-final">
           <h2>{b.last.emoji} Итог: «{b.last.title}»</h2>
           <p>{days(b.last.score ?? 0, b.last.unit)} · {b.last.rank}-е место из {b.last.total}{b.last.done ? ' · цель взята 🎉' : ''}</p>
-          {canStory() && <button className="btn" onClick={story}>Поделиться в истории</button>}
+          {shareRow(true)}
         </section>
       )}
       <section className="card league month">
@@ -67,7 +76,7 @@ export default function Month() {
             <b>{b.me.score}</b><span>из {b.goal} · {b.me.rank}-е место{b.total >= 10 ? ` · топ-${b.me.top_percent} %` : ''}</span>
           </div>
           <Bar value={b.me.score} goal={b.goal} />
-          {canStory() && !showLast && <button className="link" onClick={story}>Поделиться прогрессом в истории</button>}
+          {!showLast && shareRow(false)}
         </> : <button className="btn" onClick={join}>Участвовать</button>}
         {b.friends.length > 1 && (
           <div className="seg seg-row" role="tablist">

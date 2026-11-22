@@ -24,6 +24,16 @@ async def share_card(session, user: User) -> bytes:
     return await asyncio.to_thread(cards.share, name(user), w["streak"], w["week_xp"], w["workouts"], w["level"], theme, user.accent)
 
 
+async def month_card(session, user: User) -> bytes:
+    """The challenge-of-the-month card (the same picture as for Stories): for desktop, where Stories don't exist."""
+    from backend.api.monthly import story_numbers
+    from backend.api.social import bot_username
+
+    m = await story_numbers(session, user)
+    theme = user.theme if user.theme in cards.THEMES else None
+    return await asyncio.to_thread(cards.story_month, name(user), m, bot_username(), theme, user.accent)
+
+
 async def send_report(bot, session, m) -> None:
     from aiogram.types import BufferedInputFile
 
@@ -100,6 +110,17 @@ async def send_pending(bot, keyboard) -> None:
                     png = await share_card(session, await session.get(User, m.user_id))
                     await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly.png"), caption=m.text)
                     await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу — по ссылке в подписи он сразу попадёт к тебе в друзья.")
+                elif m.kind in ("month_card", "month_end") and m.user_id:
+                    try:
+                        png = await month_card(session, await session.get(User, m.user_id))
+                    except Exception:  # no card (they left the challenge?): the final still arrives as text
+                        log.warning("month card for %s failed", m.user_id, exc_info=True)
+                        await bot.send_message(m.telegram_id, m.text, reply_markup=keyboard())
+                        continue
+                    await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly-month.png"), caption=m.text[:1024],
+                                         reply_markup=keyboard() if m.kind == "month_end" else None)
+                    if m.kind == "month_card":
+                        await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу или сохрани и выложи в истории.")
                 elif m.kind == "report" and m.user_id:
                     await send_report(bot, session, m)
                 elif m.kind == "export" and m.user_id:

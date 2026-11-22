@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import delete, func, or_, select
 
-from backend.api.daily import active_days, is_active, streak_state
+from backend.api.daily import active_days, streak_state
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.core.config import settings
@@ -158,7 +158,7 @@ async def remove_friend(friend_id: int, tg: dict = Depends(telegram_user), sessi
 
 
 async def reward_invites(session: AsyncSession) -> int:
-    """Inviters get XP once their invited friend has really used Setly: registered and active on INVITE_ACTIVE_DAYS
+    """Inviters get XP once their invited friend has really used Setly: registered and with a full diary or a workout on INVITE_ACTIVE_DAYS
     different days within INVITE_WINDOW_DAYS of joining (up to MAX_INVITE_REWARDS friends). Run by the bot."""
     since = clock.now() - timedelta(days=INVITE_WINDOW_DAYS)
     given = 0
@@ -171,7 +171,8 @@ async def reward_invites(session: AsyncSession) -> int:
         clock.use_tz(user.device_tz)
         days = await active_days(session, user, clock.local(user.created_at).date())
         clock.use_tz(None)
-        if sum(map(is_active, days.values())) < INVITE_ACTIVE_DAYS:
+        # real days, not "a glass of water" from a second account: a full diary (800+ kcal) or a workout
+        if sum(1 for v in days.values() if v["kcal"] >= 800 or v["workouts"]) < INVITE_ACTIVE_DAYS:
             continue
         inviter = await session.get(User, user.invited_by_id)
         if inviter is None or await session.scalar(

@@ -65,3 +65,19 @@ def seeded(client):
         return first, second
 
     return client.portal.call(seed)
+
+
+def long_workout(client, log_id: int) -> None:
+    """Move a workout's start 15 minutes back: XP needs MIN_WORKOUT_MINUTES between start and finish."""
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import update
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import WorkoutLog
+
+    async def run():
+        async with SessionLocal() as s:
+            await s.execute(update(WorkoutLog).where(WorkoutLog.id == log_id).values(started_at=datetime.now(timezone.utc) - timedelta(minutes=15)))
+            await s.commit()
+    client.portal.call(run)

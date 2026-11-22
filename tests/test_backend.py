@@ -195,6 +195,8 @@ def test_workout_flow(client, seeded):
     for n in (2, 3):  # XP needs MIN_WORKOUT_SETS sets
         client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={**s, "set_number": n})
 
+    from conftest import long_workout
+    long_workout(client, w["id"])
     assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 50
     assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 0
     assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json=s).status_code == 409
@@ -944,13 +946,22 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     assert client.post("/api/duels", headers=ha, json={"friend_id": b_id, "metric": "xp", "days": 3}).status_code == 403
     client.put("/api/profile", headers=hb, json=PROFILE)
 
-    # invite XP only after the invited friend is active on 3 days (an empty fake account earns nothing)
-    async def invite_check(s, active_days):
+    # invite XP only after the invited friend really used Setly on 3 days: a glass of water a day from a second
+    # account is not that; a workout (or a full diary) is
+    async def invite_check(s, active_days, water=False):
+        from backend.database.models import WorkoutLog
+
         await s.execute(update(User).where(User.id == b_id).values(created_at=datetime.now(timezone.utc) - timedelta(days=10)))
         for i in range(active_days):
-            await s.execute(insert(WaterIntake).values(user_id=b_id, day=date.today() - timedelta(days=i + 1), ml=250).on_conflict_do_nothing())
+            day = date.today() - timedelta(days=i + 1)
+            if water:
+                await s.execute(insert(WaterIntake).values(user_id=b_id, day=day, ml=250).on_conflict_do_nothing())
+            else:
+                at = datetime.combine(day, datetime.min.time()).astimezone() + timedelta(hours=12)
+                s.add(WorkoutLog(user_id=b_id, title="Тренировка", started_at=at, completed_at=at + timedelta(minutes=40)))
         await s.commit()
         return await social.reward_invites(s)
+    assert db(invite_check, 5, True) == 0 and xp(ha) == 0
     assert db(invite_check, 2) == 0 and xp(ha) == 0
     assert db(invite_check, 3) == 1 and xp(ha) == 50
     assert db(social.reward_invites) == 0  # once
@@ -2439,6 +2450,8 @@ def test_workout_evolution_uses_distinct_completions(client, seeded):
         for n in (1, 2, 3):
             assert client.post(f"/api/workout-logs/{log}/sets", headers=h, json={
                 "exercise_id": ex, "set_number": n, "reps": 8}).status_code == 200
+        from conftest import long_workout
+        long_workout(client, log)
         assert client.post(f"/api/workout-logs/{log}/complete", headers=h).json()["xp_awarded"] == 50
         client.portal.call(a_day_later)
     response = client.get("/api/achievements", headers=h).json()
@@ -2937,6 +2950,8 @@ def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
         w = client.post("/api/workout-logs", headers=hs[0], json={"program_day_id": day_id, "title": "Верх тела"}).json()
         for n in (1, 2, 3):
             client.post(f"/api/workout-logs/{w['id']}/sets", headers=hs[0], json={"exercise_id": ex_id, "set_number": n, "reps": 8, "weight_kg": 40})
+        from conftest import long_workout
+        long_workout(client, w["id"])
         client.post(f"/api/workout-logs/{w['id']}/complete", headers=hs[0])
 
     async def posts():
@@ -3054,12 +3069,47 @@ def test_workout_xp_cannot_be_farmed(client, seeded):
     h = new_user_headers()
     ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
 
-    def workout(sets):
+    def workout(sets, aged=True):
         log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
         for n in range(1, sets + 1):
             client.post(f"/api/workout-logs/{log}/sets", headers=h, json={"exercise_id": ex, "set_number": n, "reps": 8})
+        if aged:
+            from conftest import long_workout
+            long_workout(client, log)
         return client.post(f"/api/workout-logs/{log}/complete", headers=h).json()
     one = workout(1)
     assert one["xp_awarded"] == 0 and "от 3 подходов" in one["xp_note"]
+    quick = workout(3, aged=False)  # three sets tapped in a minute
+    assert quick["xp_awarded"] == 0 and "от 10 минут" in quick["xp_note"]
     assert [workout(3)["xp_awarded"] for _ in range(3)] == [50, 50, 0]
     assert "две тренировки в сутки" in workout(3)["xp_note"]
+
+
+
+def test_log_and_delete_pays_nothing(client):
+    """XP follows what's really there: a meal from 50 kcal, taken back when it's emptied; the same for water and weigh-ins."""
+    from datetime import date
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    xp = lambda: client.post("/api/auth", headers=h).json()["progress"]["xp"]  # noqa: E731
+    p = client.post("/api/products", headers=h, json={"name": "Творог тест", "kcal": 120, "protein_g": 17, "fat_g": 5, "carbs_g": 3}).json()
+    tiny = client.post("/api/food-logs", headers=h, json={"product_id": p["id"], "amount_g": 10, "meal_type": "breakfast"}).json()
+    assert tiny["xp_awarded"] == 0  # 12 kcal is not a meal
+    real = client.post("/api/food-logs", headers=h, json={"product_id": p["id"], "amount_g": 200, "meal_type": "breakfast"}).json()
+    assert real["xp_awarded"] == 10 and xp() == 10
+    client.delete(f"/api/food-logs/{real['id']}", headers=h)
+    assert xp() == 0  # the meal is empty again
+    again = client.post("/api/food-logs", headers=h, json={"product_id": p["id"], "amount_g": 200, "meal_type": "lunch"}).json()
+    client.patch(f"/api/food-logs/{again['id']}", headers=h, json={"amount_g": 5})
+    assert xp() == 0  # cut to 5 g: no meal
+
+    got = [client.post("/api/water", headers=h, json={"delta_ml": 1000}).json()["xp_awarded"] for _ in range(3)]
+    assert got == [0, 0, 10] and xp() == 10  # 3 l: the goal (~2.5 l for 78 kg)
+    client.post("/api/water", headers=h, json={"delta_ml": -1000})
+    assert xp() == 0
+
+    m = client.put("/api/measurements", headers=h, json={"weight_kg": 78}).json()
+    assert m["xp_awarded"] == 15 and xp() == 15
+    client.delete(f"/api/measurements/{m['id']}", headers=h)
+    assert xp() == 0 and date.today()

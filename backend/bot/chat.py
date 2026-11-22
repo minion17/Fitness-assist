@@ -32,7 +32,7 @@ from backend.database.db import SessionLocal
 from backend.database.models import (
     BodyMeasurement, FoodLog, Product, Profile, Program, ProgramDay, ProgramExercise, User, WaterIntake, WorkoutLog,
 )
-from backend.database.rewards import award_xp
+from backend.database.rewards import award_xp, settle_meal_xp
 
 router = Router()
 router.message.filter(F.chat.type == "private")
@@ -331,7 +331,7 @@ async def log_food(message: Message, text: str = "", image: dict | None = None) 
                         l.snack_slot = first.snack_slot
                     await session.commit()
             ids = card[2] + ids
-        await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{meal}")
+        await settle_meal_xp(session, user.id, clock.today(), meal)
         await show_card(message, session, user, profile, meal, ids, note, card)
 
 
@@ -368,10 +368,12 @@ async def move_food(call: CallbackQuery) -> None:
             await call.answer("Этих записей уже нет")
             return
         slot = clock.local(min(l.logged_at for l in logs)).strftime("%H:%M") if meal == "snack" else None
+        moved = {(clock.local(l.logged_at).date(), l.meal_type) for l in logs}
         for log in logs:
             log.meal_type, log.snack_slot = meal, slot
         await session.commit()
-        await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{meal}")
+        for day, was in moved | {(clock.today(), meal)}:  # the meal they left may be empty now
+            await settle_meal_xp(session, user.id, day, was)
         text, ids = await card_text(session, user, profile, meal, [l.id for l in logs])
     await call.message.edit_text(text, parse_mode="HTML", reply_markup=logged_keyboard(meal, ids))
     card = open_card(call.message.chat.id)
@@ -384,8 +386,11 @@ async def move_food(call: CallbackQuery) -> None:
 async def undo_food(call: CallbackQuery) -> None:
     async with SessionLocal() as session:
         user, _ = await me(session, call.from_user)
-        await session.execute(delete(FoodLog).where(FoodLog.id.in_(unpack(call.data[3:])), FoodLog.user_id == user.id))
+        gone = (await session.execute(delete(FoodLog).where(FoodLog.id.in_(unpack(call.data[3:])), FoodLog.user_id == user.id)
+                                          .returning(FoodLog.logged_at, FoodLog.meal_type))).all()
         await session.commit()
+        for day, meal in {(clock.local(at).date(), m) for at, m in gone}:  # undone: the meal's XP goes back
+            await settle_meal_xp(session, user.id, day, meal)
     card = open_card(call.message.chat.id)
     if card and card[0] == call.message.message_id:
         _cards.pop(call.message.chat.id, None)

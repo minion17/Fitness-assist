@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.core.config import settings
 from backend.core.search import alternatives, first_words, fuzzy_match, has_word, norm, starts_with_word, typo_pool, word_start
-from backend.core.gamification import MIN_WORKOUT_SETS, level_progress
+from backend.core.gamification import MIN_WORKOUT_MINUTES, MIN_WORKOUT_SETS, level_progress
 from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
@@ -58,7 +58,7 @@ from backend.database.models import (
     WorkoutSet,
 )
 from backend.core import alerts, backup, off_sync
-from backend.database.rewards import award_xp, sync_evolution
+from backend.database.rewards import award_xp, revoke_xp, settle_meal_xp, sync_evolution
 
 
 @asynccontextmanager
@@ -482,10 +482,8 @@ def entry_time(day: date | None, meal_type: str, slot: str | None) -> tuple[dict
 
 
 async def meal_xp(session: AsyncSession, user: User, day: date, meal_type: str) -> int:
-    """Today and yesterday earn XP (a forgotten dinner counts); older back-fills don't, so the diary can't be farmed."""
-    if day < clock.today() - timedelta(days=1):
-        return 0
-    return await award_xp(session, user.id, "meal_logged", f"meal:{day}:{meal_type}")
+    """Today and yesterday earn XP (a forgotten dinner counts), from 50 kcal; see rewards.settle_meal_xp."""
+    return await settle_meal_xp(session, user.id, day, meal_type)
 
 
 def food_log_out(log: FoodLog) -> dict:
@@ -538,13 +536,14 @@ async def get_food_logs(
 
 @app.delete("/api/food-logs/{log_id}")
 async def delete_food_log(log_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    # XP already granted for the meal is kept: it's per meal type per day, not per entry.
     user = await get_or_create_user(tg, session)
     log = await session.get(FoodLog, log_id)
     if log is None or log.user_id != user.id:
         raise HTTPException(404, "Запись не найдена")
+    day, meal = clock.local(log.logged_at).date(), log.meal_type
     await session.delete(log)
     await session.commit()
+    await settle_meal_xp(session, user.id, day, meal)  # the meal emptied: its XP goes back
     return {"ok": True}
 
 
@@ -564,10 +563,15 @@ async def change_food_log(log_id: int, body: FoodLogPatch, tg: dict = Depends(te
         raise HTTPException(404, "Запись не найдена")
     if body.amount_g is not None:
         log.amount_g, log.unit, log.qty = body.amount_g, body.unit, body.qty
+    was = log.meal_type
     if body.meal_type and body.meal_type != log.meal_type:
         # a snack keeps to its day: the slot is the entry's own local time
         log.meal_type, log.snack_slot = body.meal_type, clock.local(log.logged_at).strftime("%H:%M") if body.meal_type == "snack" else None
     await session.commit()
+    day = clock.local(log.logged_at).date()
+    for meal in {was, log.meal_type}:  # grams down to nothing, or moved away: XP follows
+        await settle_meal_xp(session, user.id, day, meal)
+    await session.refresh(log, ["product"])
     return food_log_out(log)
 
 
@@ -643,8 +647,11 @@ async def delete_measurement(
     m = await session.get(BodyMeasurement, measurement_id)
     if m is None or m.user_id != user.id:
         raise HTTPException(404, "Замер не найден")
+    day = m.measured_on
     await session.delete(m)
     await session.commit()
+    if not await session.scalar(select(BodyMeasurement.id).where(BodyMeasurement.user_id == user.id, BodyMeasurement.measured_on == day)):
+        await revoke_xp(session, user.id, f"measure:{day}")  # weigh, delete, weigh again doesn't pay twice
     return {"ok": True}
 
 
@@ -715,9 +722,28 @@ async def delete_set(log_id: int, set_id: int, tg: dict = Depends(telegram_user)
     ws = await session.get(WorkoutSet, set_id)
     if ws is None or ws.workout_log_id != w.id:
         raise HTTPException(404, "Подход не найден")
+    exercise_id = ws.exercise_id
     await session.delete(ws)
     await session.commit()
+    if not await todays_record(session, user, exercise_id):  # a fake heavy set, deleted: its record XP goes too
+        await revoke_xp(session, user.id, f"pr:{exercise_id}:{clock.today()}")
     return {"ok": True}
+
+
+async def todays_record(session: AsyncSession, user: User, exercise_id: int) -> bool:
+    """Does a set logged today still beat everything before today (the same measures as personal_record)?"""
+    today = clock.local_start(clock.today())
+    rows = list(await session.execute(
+        select(WorkoutSet.reps, WorkoutSet.duration_seconds, WorkoutSet.weight_kg, WorkoutLog.started_at >= today)
+        .join(WorkoutLog, WorkoutLog.id == WorkoutSet.workout_log_id)
+        .where(WorkoutLog.user_id == user.id, WorkoutSet.exercise_id == exercise_id)))
+
+    def best(fresh: bool) -> tuple[float, float, int]:
+        sel = [r for r in rows if bool(r[3]) == fresh]
+        return (max((e1rm(w, r) for r, _, w, _ in sel if r and w and r <= 15), default=0),
+                max((d or 0 for _, d, _, _ in sel), default=0), max((r or 0 for r, _, w, _ in sel if not w), default=0))
+    old, new = best(False), best(True)
+    return any(o and n > o * (1.005 if i == 0 else 1) for i, (o, n) in enumerate(zip(old, new)))
 
 
 def e1rm(weight: float, reps: int) -> float:
@@ -787,10 +813,14 @@ async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), sessi
 
         await on_workout(session, user, w)  # "💪 Аня закончила тренировку" in their group chats
     sets = await session.scalar(select(func.count()).where(WorkoutSet.workout_log_id == w.id))
-    xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}") if sets >= MIN_WORKOUT_SETS else 0
+    await session.refresh(w)
+    minutes = (w.completed_at - w.started_at).total_seconds() / 60
+    real = sets >= MIN_WORKOUT_SETS and minutes >= MIN_WORKOUT_MINUTES
+    xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}") if real else 0
     await sync_evolution(session, user.id, "iron_will")
     await session.commit()
     note = (None if xp or not first else f"XP за тренировку — от {MIN_WORKOUT_SETS} подходов" if sets < MIN_WORKOUT_SETS
+            else f"XP за тренировку — от {MIN_WORKOUT_MINUTES} минут" if minutes < MIN_WORKOUT_MINUTES
             else "XP начисляется за две тренировки в сутки — эта сохранена без XP")
     return {"ok": True, "xp_awarded": xp, "xp_note": note}
 

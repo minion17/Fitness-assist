@@ -33,6 +33,7 @@ MAX_INVITE_REWARDS = 10
 ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5, "personal_record": 3,
                 "workout_completed": 2, "body_measurement": 1, "streak_week": 1}  # streak: backfilled days can't pay out weeks at once
 MIN_WORKOUT_SETS = 3
+MIN_WORKOUT_MINUTES = 10  # from start to finish: three sets in a minute is a tap, not a workout
 CAP_WINDOW_HOURS = 20
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...

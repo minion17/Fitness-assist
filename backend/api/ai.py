@@ -25,7 +25,7 @@ from backend.database.models import (
     User,
     WorkoutLog,
 )
-from backend.database.rewards import award_xp
+from backend.database.rewards import settle_meal_xp
 
 router = APIRouter(prefix="/api/ai")
 
@@ -239,7 +239,7 @@ async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), sessi
     user = await get_or_create_user(tg, session)
     logs = await save_draft(session, user, body.meal_type, body.items)
     # same key as the manual diary, so XP stays once per meal type per day
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{body.meal_type}")
+    xp = await settle_meal_xp(session, user.id, clock.today(), body.meal_type)
     return {"added": len(logs), "xp_awarded": xp}
 
 

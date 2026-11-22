@@ -41,6 +41,44 @@ async def award_xp(session: AsyncSession, user_id: int, event_type: str, event_k
     return amount
 
 
+async def revoke_xp(session: AsyncSession, user_id: int, event_key: str, *, commit: bool = True) -> int:
+    """Take back an award whose reason is gone (the meal deleted, the water undone): log-and-delete must not pay.
+    Returns the XP taken back (0 if there was none)."""
+    from sqlalchemy import delete
+
+    xp = await session.scalar(delete(XpEvent).where(XpEvent.user_id == user_id, XpEvent.event_key == event_key).returning(XpEvent.xp))
+    if xp:
+        new_xp = await session.scalar(update(User).where(User.id == user_id).values(xp=func.greatest(0, User.xp - xp)).returning(User.xp))
+        await session.execute(update(User).where(User.id == user_id).values(level=level_progress(new_xp)["level"]))
+    if commit:
+        await session.commit()
+    return xp or 0
+
+
+MIN_MEAL_KCAL = 50  # a meal worth XP: not "1 g of cucumber"
+
+
+async def settle_meal_xp(session: AsyncSession, user_id: int, day, meal_type: str) -> int:
+    """XP for a meal follows what's in it: awarded once it has MIN_MEAL_KCAL (today or yesterday — a forgotten dinner
+    counts, older back-fills don't), taken back if it's emptied. Call after any add / delete / move / edit."""
+    from datetime import timedelta
+
+    from backend.core import clock
+    from backend.database.models import FoodLog, Product
+
+    key = f"meal:{day}:{meal_type}"
+    start = clock.local_start(day)
+    kcal = await session.scalar(select(func.coalesce(func.sum(FoodLog.amount_g * Product.kcal / 100), 0))
+                                .join(Product, Product.id == FoodLog.product_id)
+                                .where(FoodLog.user_id == user_id, FoodLog.meal_type == meal_type,
+                                       FoodLog.logged_at >= start, FoodLog.logged_at < start + timedelta(days=1)))
+    if kcal >= MIN_MEAL_KCAL and day >= clock.today() - timedelta(days=1):
+        return await award_xp(session, user_id, "meal_logged", key)
+    if kcal < MIN_MEAL_KCAL:
+        await revoke_xp(session, user_id, key)
+    return 0
+
+
 async def sync_evolution(session: AsyncSession, user_id: int, code: str) -> dict:
     title, source, thresholds, hint, icon = EVOLUTIONS[code]
     await session.scalar(select(User.id).where(User.id == user_id).with_for_update())

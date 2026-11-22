@@ -17,7 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from backend.core.config import settings
 from backend.core.search import alternatives, first_words, fuzzy_match, has_word, norm, starts_with_word, typo_pool, word_start
-from backend.core.gamification import level_progress
+from backend.core.gamification import MIN_WORKOUT_SETS, level_progress
 from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
@@ -617,7 +617,8 @@ async def save_measurement(
         if profile and (latest is None or day >= latest):
             profile.weight_kg = body.weight_kg
     await session.commit()
-    xp = await award_xp(session, user.id, "body_measurement", f"measure:{day}")
+    # XP for today's weigh-in only: filling in past dates is history, not a daily habit (and would farm XP)
+    xp = await award_xp(session, user.id, "body_measurement", f"measure:{day}") if day == clock.today() else 0
     return {**measurement_out(m), "xp_awarded": xp}
 
 
@@ -778,16 +779,20 @@ async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), sessi
     w = await own_workout(log_id, user, session)
     if not await session.scalar(select(WorkoutSet.id).where(WorkoutSet.workout_log_id == w.id).limit(1)):
         raise HTTPException(400, "Добавь хотя бы один подход")  # no XP for empty workouts
-    if w.completed_at is None:
+    first = w.completed_at is None
+    if first:
         w.completed_at = func.now()
         await session.commit()
         from backend.api.groups import on_workout
 
         await on_workout(session, user, w)  # "💪 Аня закончила тренировку" in their group chats
-    xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}")
+    sets = await session.scalar(select(func.count()).where(WorkoutSet.workout_log_id == w.id))
+    xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}") if sets >= MIN_WORKOUT_SETS else 0
     await sync_evolution(session, user.id, "iron_will")
     await session.commit()
-    return {"ok": True, "xp_awarded": xp}
+    note = (None if xp or not first else f"XP за тренировку — от {MIN_WORKOUT_SETS} подходов" if sets < MIN_WORKOUT_SETS
+            else "XP начисляется за две тренировки в сутки — эта сохранена без XP")
+    return {"ok": True, "xp_awarded": xp, "xp_note": note}
 
 
 class EffortIn(BaseModel):

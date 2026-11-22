@@ -28,7 +28,11 @@ NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80",
 MAX_INVITE_REWARDS = 10
 # Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling
 # 20 hours) stop "travelling" through timezones to collect the same day's XP twice.
-ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5, "personal_record": 3}
+# Workouts: XP for at most 2 a day (and only with MIN_WORKOUT_SETS sets) — otherwise "start, one set, finish" repeated
+# farms 50 XP a go, and group-chat ratings, leagues and quests all run on XP.
+ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5, "personal_record": 3,
+                "workout_completed": 2, "body_measurement": 1, "streak_week": 1}  # streak: backfilled days can't pay out weeks at once
+MIN_WORKOUT_SETS = 3
 CAP_WINDOW_HOURS = 20
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...

@@ -286,7 +286,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
   const [now, setNow] = useState(() => Date.now())
   const [startedAt] = useState(() => kept?.startedAt ?? Date.now())
   const [records, setRecords] = useState<string[]>(kept?.records ?? [])
-  const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number } | null>(null)
+  const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number; note?: string | null } | null>(null)
   useEffect(() => { // the clock in the header ticks every second
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
@@ -441,13 +441,13 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     if (rest) skipRest()
     setBusy(true)
     try {
-      const r = await api<{ xp_awarded: number }>(`/api/workout-logs/${logId}/complete`, { method: 'POST' })
+      const r = await api<{ xp_awarded: number; xp_note?: string | null }>(`/api/workout-logs/${logId}/complete`, { method: 'POST' })
       onChanged(r?.xp_awarded ?? 0)
       const done = sets.flat().filter((x) => x.saved)
       const tonnage = sets.reduce((n, row, ei) => n + (timedExercise(day.exercises[ei]) ? 0
         : row.filter((x) => x.saved).reduce((m, x) => m + Number(x.reps) * (Number(x.weight.replace(',', '.')) || 0), 0)), 0)
       saveActive(null)
-      setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0 })
+      setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0, note: r?.xp_note ?? null })
       setBusy(false)
     } catch {
       setError('Тренировка не завершилась: нет связи. Нажми ещё раз')
@@ -492,6 +492,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       </div>
       {records.length > 0 && <ul className="workout-records">{records.map((r) => <li key={r}>🏆 Личный рекорд: {r}</li>)}</ul>}
       {summary.xp > 0 && <p className="pos">+{summary.xp} XP</p>}
+      {!summary.xp && summary.note && <p className="sub">{summary.note}</p>}
       {logId && <EffortPick logId={logId} />}
       <button className="btn" onClick={onExit}>Готово</button>
     </section>

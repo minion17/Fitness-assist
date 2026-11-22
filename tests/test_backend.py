@@ -75,7 +75,7 @@ def test_award_xp_is_idempotent(client):
 
     async def run():
         async with SessionLocal() as s:
-            granted = [await award_xp(s, before["id"], "workout_completed", key) for _ in range(3)]
+            granted = [await award_xp(s, before["id"], "challenge_done", key) for _ in range(3)]  # no daily cap, no boost
             with pytest.raises(ValueError):
                 await award_xp(s, before["id"], "no_such_rule", "x:1")
         async with SessionLocal() as s:
@@ -192,13 +192,15 @@ def test_workout_flow(client, seeded):
     s = {"exercise_id": ex_id, "set_number": 1, "reps": 8, "weight_kg": 60}
     assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=other, json=s).status_code == 404  # not yours
     assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json=s).status_code == 200
+    for n in (2, 3):  # XP needs MIN_WORKOUT_SETS sets
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={**s, "set_number": n})
 
     assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 50
     assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 0
     assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json=s).status_code == 409
 
     logs = client.get("/api/workout-logs", headers=h).json()
-    assert logs[0]["sets"] == 1 and logs[0]["completed_at"]
+    assert logs[0]["sets"] == 3 and logs[0]["completed_at"]
     assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == 50
     assert client.post("/api/workout-logs", headers=h, json={"program_day_id": 10**9}).status_code == 404
 
@@ -255,7 +257,7 @@ def test_measurements(client):
     assert client.get("/api/profile", headers=h).json()["weight_kg"] == 77.5  # targets follow latest weight
 
     old = client.put("/api/measurements", headers=h, json={"measured_on": yesterday, "weight_kg": 80}).json()
-    assert old["xp_awarded"] == 15
+    assert old["xp_awarded"] == 0  # past dates are history: no XP (else a year backfilled = 5 000 XP)
     assert client.get("/api/profile", headers=h).json()["weight_kg"] == 77.5  # older entry doesn't override
 
     rows = client.get("/api/measurements", headers=h).json()
@@ -2420,11 +2422,25 @@ def test_bot_understands_any_amount_of_water(client):
 def test_workout_evolution_uses_distinct_completions(client, seeded):
     h = new_user_headers()
     ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    from backend.database.db import SessionLocal
+    from backend.database.models import XpEvent
+
+    async def a_day_later():  # the daily cap (2 workouts) would stop five in a row
+        async with SessionLocal() as s:
+            from datetime import timedelta
+
+            from sqlalchemy import func, update
+
+            await s.execute(update(XpEvent).where(XpEvent.event_type == "workout_completed", XpEvent.created_at > func.now() - timedelta(hours=21))
+                            .values(created_at=func.now() - timedelta(hours=21)))
+            await s.commit()
     for _ in range(5):
         log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
-        assert client.post(f"/api/workout-logs/{log}/sets", headers=h, json={
-            "exercise_id": ex, "set_number": 1, "reps": 8}).status_code == 200
-        assert client.post(f"/api/workout-logs/{log}/complete", headers=h).status_code == 200
+        for n in (1, 2, 3):
+            assert client.post(f"/api/workout-logs/{log}/sets", headers=h, json={
+                "exercise_id": ex, "set_number": n, "reps": 8}).status_code == 200
+        assert client.post(f"/api/workout-logs/{log}/complete", headers=h).json()["xp_awarded"] == 50
+        client.portal.call(a_day_later)
     response = client.get("/api/achievements", headers=h).json()
     badge = next(i for i in response["items"] if i["code"] == "iron_will")
     assert (badge["progress"], badge["stage"], badge["target"]) == (5, 1, 25)
@@ -2919,7 +2935,8 @@ def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
     ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
     for _ in range(2):
         w = client.post("/api/workout-logs", headers=hs[0], json={"program_day_id": day_id, "title": "Верх тела"}).json()
-        client.post(f"/api/workout-logs/{w['id']}/sets", headers=hs[0], json={"exercise_id": ex_id, "set_number": 1, "reps": 8, "weight_kg": 40})
+        for n in (1, 2, 3):
+            client.post(f"/api/workout-logs/{w['id']}/sets", headers=hs[0], json={"exercise_id": ex_id, "set_number": n, "reps": 8, "weight_kg": 40})
         client.post(f"/api/workout-logs/{w['id']}/complete", headers=hs[0])
 
     async def posts():
@@ -3029,3 +3046,20 @@ def test_group_feature_is_discoverable(client, monkeypatch):
     assert len(tip) == 1 and tip[0][1][0][1] == "url:https://t.me/SetlyBot?startgroup=setly"
     assert markup(tip[0][1], lambda: None, "").inline_keyboard[0][0].url == "https://t.me/SetlyBot?startgroup=setly"
     assert not any(t.startswith("👥") for t, _ in client.portal.call(run))  # once ever
+
+
+
+def test_workout_xp_cannot_be_farmed(client, seeded):
+    """"Start, one set, finish" again and again: no XP below 3 sets, and XP for at most 2 workouts a day."""
+    h = new_user_headers()
+    ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+
+    def workout(sets):
+        log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
+        for n in range(1, sets + 1):
+            client.post(f"/api/workout-logs/{log}/sets", headers=h, json={"exercise_id": ex, "set_number": n, "reps": 8})
+        return client.post(f"/api/workout-logs/{log}/complete", headers=h).json()
+    one = workout(1)
+    assert one["xp_awarded"] == 0 and "от 3 подходов" in one["xp_note"]
+    assert [workout(3)["xp_awarded"] for _ in range(3)] == [50, 50, 0]
+    assert "две тренировки в сутки" in workout(3)["xp_note"]

@@ -7,7 +7,7 @@ type Energy = {
   ready: boolean; formula: number; days_logged: number; weighins: number; need_days: number; need_weighins: number
   target_weight_kg: number | null; kcal_override: number | null; goal: string
   tdee?: number; intake?: number; kg_per_week?: number; suggest?: number; weight?: number; in_30_days?: number
-  eta?: string | null; plateau?: boolean
+  eta?: string | null; plateau?: boolean; plateau_tips?: string[]; plateau_kcal?: number | null
 }
 
 const fmt = (n: number) => n.toLocaleString('ru-RU')
@@ -41,6 +41,17 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     </label>
   )
 
+  // Two flat weeks while losing or gaining: what to change, in order, and the new norm in one tap
+  const plateau = e.plateau && e.plateau_tips?.length ? (
+    <div className="energy-note">
+      <b>Вес стоит две недели — что поменять:</b>
+      <ol className="plateau-tips">{e.plateau_tips.map((t) => <li key={t}>{t}</li>)}</ol>
+      {e.plateau_kcal && e.plateau_kcal !== calories && (
+        <button className="btn btn-ghost" disabled={busy} onClick={() => applyNorm(e.plateau_kcal!)}>Сделать норму {fmt(e.plateau_kcal)} ккал</button>
+      )}
+    </div>
+  ) : null
+
   if (!e.ready) {
     const done = Math.min(e.days_logged / e.need_days, 1) * 0.7 + Math.min(e.weighins / e.need_weighins, 1) * 0.3
     return (
@@ -49,6 +60,7 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
         <p className="sub">Посчитаем, сколько ты тратишь на самом деле — по твоему дневнику и весу, а не по формуле. Нужно {e.need_days} дней с полным дневником
           (есть {e.days_logged}) и {e.need_weighins} взвешивания за 10+ дней (есть {e.weighins}).</p>
         <Bar value={done * 100} goal={100} />
+        {plateau}
         {goalRow}
       </section>
     )
@@ -61,12 +73,7 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
       <div className="card-head"><h2>Реальный расход</h2><span className="sub">за 4 недели</span></div>
       <div className="energy-main"><b>{fmt(tdee)}</b><span>ккал в день</span></div>
       <p className="sub">По формуле было {fmt(e.formula)}. Ты ел в среднем {fmt(e.intake!)} ккал, вес {perWeek === 0 ? 'не менялся' : `${kg(perWeek)} в неделю`}.</p>
-      {e.plateau && (
-        <div className="energy-note">
-          <b>Вес стоит две недели.</b> Это нормально и часто связано с водой. Если так ещё неделю — снизь норму на 100–150 ккал,
-          добавь шагов или проверь, всё ли попадает в дневник: масло, соусы, перекусы.
-        </div>
-      )}
+      {plateau}
       <p className="energy-forecast">{e.eta ? <>Цель {String(e.target_weight_kg).replace('.', ',')} кг — примерно <b>к {date(e.eta)}</b></>
         : <>Через 30 дней — около <b>{String(e.in_30_days).replace('.', ',')} кг</b></>}</p>
       {goalRow}

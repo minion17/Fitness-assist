@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.api.deps import get_or_create_user, telegram_user
-from backend.core.nutrition import daily_targets
+from backend.core.nutrition import cycle, daily_targets
 from backend.core.gamification import EVOLUTIONS, level_progress
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
@@ -25,6 +25,22 @@ def targets(profile: Profile | None) -> dict | None:
         return None
     return daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity, profile.goal,
                          profile.kcal_override)
+
+
+async def trained_today(session: AsyncSession, user_id: int) -> bool:
+    return bool(await session.scalar(select(WorkoutLog.id).where(
+        WorkoutLog.user_id == user_id, WorkoutLog.completed_at.is_not(None), WorkoutLog.started_at >= local_start(clock.today())).limit(1)))
+
+
+def for_day(profile: Profile | None, t: dict | None, trained: bool) -> dict | None:
+    """Today's norm: more carbs on a training day, a bit less on a rest day (backend.core.nutrition.cycle)."""
+    if profile is None or t is None:
+        return t
+    return cycle(t, profile.height_cm, profile.weight_kg, profile.training_days, clock.today().weekday(), trained)
+
+
+async def today_targets(session: AsyncSession, user: User, profile: Profile | None) -> dict | None:
+    return for_day(profile, targets(profile), profile is not None and await trained_today(session, user.id))
 
 
 async def daily_series(session: AsyncSession, user: User, since: date, until: date) -> list[dict]:

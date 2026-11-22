@@ -1,4 +1,5 @@
-export type Targets = { calories: number; protein: number; fat: number; carbs: number }
+// day / carbs_shift: today's norm from the server — more carbs on a training day, a bit less on a rest day
+export type Targets = { calories: number; protein: number; fat: number; carbs: number; day?: 'training' | 'rest' | null; carbs_shift?: number }
 
 export type Goal = 'weight_loss' | 'fat_loss' | 'maintenance' | 'muscle_gain' | 'mass_gain'
 export type ProfileData = {
@@ -30,6 +31,7 @@ export type ProfileData = {
   training_days?: number[] | null // weekdays, 0 = Mon
   target_date?: string | null // ISO date, optional
   targets?: Targets
+  targets_base?: Targets // the plain norm, the same every day
 }
 
 export type Recommendation = { program_id: number; score: number; reasons: string[] }

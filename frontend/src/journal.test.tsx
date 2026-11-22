@@ -668,12 +668,14 @@ test('recipe: per 100 g from ingredients and the cooked weight, saved to the API
 test('real expenditure: shows the estimate, the forecast and applies the suggested norm', async () => {
   const { default: EnergyCard } = await import('./Energy')
   const e = { ready: true, formula: 2400, days_logged: 21, weighins: 5, need_days: 10, need_weighins: 3, target_weight_kg: 75, kcal_override: null,
-    goal: 'weight_loss', tdee: 2550, intake: 2000, kg_per_week: -0.5, suggest: 2000, weight: 78.5, in_30_days: 76.4, eta: '2027-03-01', plateau: true }
+    goal: 'weight_loss', tdee: 2550, intake: 2000, kg_per_week: -0.5, suggest: 2000, weight: 78.5, in_30_days: 76.4, eta: '2027-03-01', plateau: true,
+    plateau_tips: ['Норму ты держишь, а вес стоит — значит, реальный расход ниже расчёта. Снизь норму до 1750 ккал.'], plateau_kcal: 1750 }
   apiMock.mockImplementation(async (url: string) => (url === '/api/insights/energy' ? e : {}))
   const onNorm = vi.fn()
   render(<EnergyCard calories={1900} onNormChanged={onNorm} />)
   expect(await screen.findByText(/2 550|2 550/)).toBeTruthy()
   expect(screen.getByText(/Вес стоит две недели/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Сделать норму 1.750 ккал/ })).toBeTruthy() // the plateau's own step
   expect(screen.getByText(/к 1 марта/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: /Сделать норму 2.000 ккал/ }))
   await waitFor(() => expect(onNorm).toHaveBeenCalled())

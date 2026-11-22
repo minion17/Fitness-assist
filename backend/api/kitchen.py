@@ -263,11 +263,11 @@ async def meal_suggestions(session: AsyncSession, user: User, meal_type: str) ->
     sets, then plain ideas. Shared by the app's "Что поесть" card and the bot's /eat."""
     from datetime import timedelta
 
-    from backend.api.stats import targets
+    from backend.api.stats import today_targets
     from backend.database.models import Profile
 
     meal_type = meal_type if meal_type in MEALS else "dinner"
-    t = targets(await session.get(Profile, user.id))
+    t = await today_targets(session, user, await session.get(Profile, user.id))
     if not t:
         return {"options": [], "kcal_left": 0, "protein_left": 0}
     today = clock.today()
@@ -398,3 +398,24 @@ async def usual_for(session: AsyncSession, user: User, meal_type: str) -> dict |
     return {"meal_type": meal_type, "title": ", ".join(p.name for _, p in items[:3]) + ("…" if len(items) > 3 else ""),
             "items": [{"product_id": p.id, "name": p.name, "amount_g": log.amount_g, "unit": log.unit, "qty": log.qty} for log, p in items],
             **totals((p, log.amount_g) for log, p in items)}
+
+
+async def protein_picks(session: AsyncSession, user: User, kcal_left: float, n: int = 3) -> list[dict]:
+    """Protein-rich foods from the user's own diary (eaten 2+ times in 30 days), in their usual portion: what they'd
+    really eat to close a protein gap. The most protein per kcal first, each within what's left of the day's calories."""
+    from datetime import timedelta
+    from statistics import median
+
+    rows = await session.execute(
+        select(FoodLog.product_id, FoodLog.amount_g, Product).join(Product, Product.id == FoodLog.product_id)
+        .where(FoodLog.user_id == user.id, FoodLog.logged_at >= local_start(clock.today() - timedelta(days=30))))
+    seen: dict[int, tuple[Product, list[float]]] = {}
+    for pid, grams, p in rows:
+        seen.setdefault(pid, (p, []))[1].append(grams)
+    picks = []
+    for p, grams in seen.values():
+        g = round(median(grams) / 10) * 10 or 10
+        protein, kcal = p.protein_g * g / 100, p.kcal * g / 100
+        if len(grams) >= 2 and protein >= 12 and p.protein_g * 4 >= 0.3 * p.kcal and kcal <= max(kcal_left, 0) + 50:
+            picks.append({"product_id": p.id, "name": p.name, "amount_g": g, "protein": round(protein), "kcal": round(kcal)})
+    return sorted(picks, key=lambda x: -x["protein"] / max(x["kcal"], 1))[:n]

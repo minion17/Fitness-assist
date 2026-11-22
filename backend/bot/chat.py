@@ -23,7 +23,7 @@ from sqlalchemy.orm import selectinload
 from backend.api.ai import DraftItem, recognise, save_draft
 from backend.api.daily import GLASS_ML, WaterIn, add_water, local_start, water_goal
 from backend.api.deps import get_or_create_user
-from backend.api.stats import targets
+from backend.api.stats import today_targets
 from backend.bot import cards
 from backend.core import alerts, clock
 from backend.core.config import Settings
@@ -285,7 +285,7 @@ async def card_text(session, user: User, profile: Profile | None, meal: str, ids
     logs = list(await session.scalars(select(FoodLog).options(selectinload(FoodLog.product))
                                       .where(FoodLog.id.in_(ids or [0]), FoodLog.user_id == user.id).order_by(FoodLog.id)))
     rows = [(l.product.name, l.amount_g, l.product.kcal, l.product.protein_g, l.product.fat_g, l.product.carbs_g) for l in logs]
-    return logged_text(meal, rows, await day_kcal(session, user), profile and targets(profile), note), [l.id for l in logs]
+    return logged_text(meal, rows, await day_kcal(session, user), await today_targets(session, user, profile), note), [l.id for l in logs]
 
 
 async def log_food(message: Message, text: str = "", image: dict | None = None) -> None:
@@ -568,7 +568,7 @@ async def today_text(session, user: User, profile: Profile) -> tuple[str, bool]:
 
     today = clock.today()
     eaten, t = await eaten_today(session, user, local_start(today))
-    goal = targets(profile)
+    goal = await today_targets(session, user, profile)
     ml = await session.scalar(select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)) or 0
     left = goal["calories"] - t["kcal"]
     lines = [f"📊 <b>Сегодня, {today:%d.%m}</b>\n",
@@ -594,8 +594,16 @@ async def today_cmd(message: Message) -> None:
         if profile is None:
             await need_profile(message)
             return
+        from backend.bot.reminders import eaten_today, protein_offer
+
         text, _ = await today_text(session, user, profile)
+        goal = await today_targets(session, user, profile)
+        _, t = await eaten_today(session, user, local_start(clock.today()))
+        short, picks = goal["protein"] - t["protein"], None
+        if t["kcal"] and short >= goal["protein"] * 0.15:  # protein lags: one tap from their own usual foods
+            _, picks = await protein_offer(session, user, short, goal["calories"] - t["kcal"], SHORT[guess_meal(clock.now().hour)])
     await message.answer(text, parse_mode="HTML", reply_markup=kb(
+        *[[InlineKeyboardButton(text=label, callback_data=data[3:])] for label, data in picks or []],
         [InlineKeyboardButton(text="🍽 Что поесть?", callback_data="eat"), InlineKeyboardButton(text="💧 +250 мл", callback_data="w:250")],
         [app_button("Открыть дневник", "open=food")]))
 
@@ -636,7 +644,7 @@ async def day_greeting(session, user: User, profile: Profile, hello_name: str) -
     word, emoji = (("Доброе утро", "☀️") if 5 <= hour < 12 else ("Добрый день", "👋") if hour < 17 else
                    ("Добрый вечер", "🌙") if hour < 23 else ("Привет", "🌙"))
     eaten, t = await eaten_today(session, user, local_start(today))
-    goal = targets(profile)
+    goal = await today_targets(session, user, profile)
     norm, left = goal["calories"], goal["calories"] - t["kcal"]
     ml = await session.scalar(select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)) or 0
     wgoal = water_goal(profile)
@@ -867,6 +875,28 @@ async def eat_pick(call: CallbackQuery) -> None:
         await log_items(call.message, call.from_user, CODE.get(code, "snack"), items)
 
 
+@router.callback_query(F.data.startswith("kc:"))
+async def norm_pick(call: CallbackQuery) -> None:
+    """"Сделать норму 1950 ккал" under a plateau note: the accepted norm, as in the app's Реальный расход."""
+    from backend.core.nutrition import MIN_CALORIES
+
+    kcal = int(call.data[3:]) if call.data[3:].isdigit() else 0
+    async with SessionLocal() as session:
+        _, profile = await me(session, call.from_user)
+        if profile is None or not MIN_CALORIES[profile.sex] <= kcal <= 6000:
+            await call.answer("Не получилось — поменяй норму в приложении: Прогресс → Тело")
+            return
+        profile.kcal_override = kcal
+        await session.commit()
+    await call.answer("Готово")
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await call.message.answer(f"✓ Новая норма — {kcal} ккал. Через две недели посмотрим, как пошёл вес. "
+                              "Вернуть расчётную можно в приложении: Прогресс → Тело → Реальный расход.")
+
+
 @router.callback_query(F.data.startswith("us:"))
 async def usual_pick(call: CallbackQuery) -> None:
     """"↻ Как обычно" under a meal reminder."""
@@ -971,7 +1001,7 @@ async def menu_photo(message: Message, image: dict) -> None:
             return
         meal = guess_meal(clock.now().hour)
         sug = await meal_suggestions(session, user, meal)
-        goal = targets(profile)
+        goal = await today_targets(session, user, profile)
         aim = sug["kcal_left"] if meal == "dinner" else min(sug["kcal_left"], goal["calories"] * 0.4)
     await wait.delete()
     if not menu["items"]:

@@ -1613,6 +1613,9 @@ def test_real_expenditure_forecast_and_plateau(client, seeded):
     e = client.get("/api/insights/energy", headers=h).json()
     assert e["ready"] and e["days_logged"] == 21 and 2000 < e["tdee"] < 3200 and e["kg_per_week"] < 0
     assert e["suggest"] == max(round((e["tdee"] - 550) / 10) * 10, 1500) and e["eta"] and e["plateau"] is True
+    # the diary is full and the intake is at the norm: the norm itself goes down 150 kcal; steps as the last tip
+    norm = client.get("/api/profile", headers=h).json()["targets_base"]["calories"]
+    assert e["plateau_kcal"] == norm - 150 and str(norm - 150) in e["plateau_tips"][0] and "шагов" in e["plateau_tips"][-1]
 
     assert client.post("/api/insights/energy/apply", headers=h, json={"kcal": 900}).status_code == 422  # below the safe floor
     client.post("/api/insights/energy/apply", headers=h, json={"kcal": e["suggest"]})
@@ -2594,3 +2597,64 @@ def test_fasting_plan_timer_and_reminders(client):
     assert any(t.startswith("🍽 Окно питания открылось (до 20:00)") for t in texts((12, 1)))
     assert any("Через 30 минут, в 20:00" in t and "Белка осталось" in t for t in texts((19, 31)))
     assert client.delete("/api/fasting", headers=h).json() == {"plan": None}
+
+
+
+def test_training_day_carbs_protein_from_diary_and_plateau_tips(client):
+    import random
+    from datetime import date, datetime, time, timedelta
+
+    from backend.bot.reminders import collect
+    from backend.core.nutrition import cycle, daily_targets
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, Product, User
+    from conftest import USER, make_init_data
+
+    t = daily_targets("male", 1998, 190, 76, "moderate", "muscle_gain")
+    week = [cycle(t, 190, 76, [0, 2, 4], wd, False) for wd in range(7)]
+    assert [d["carbs_shift"] for d in week] == [57, -43, 57, -43, 57, -43, -43]
+    assert abs(sum(d["calories"] for d in week) - 7 * t["calories"]) <= 7 * 4  # the week's energy unchanged
+    assert cycle(t, 190, 76, None, 3, True)["day"] == "training"  # an unplanned workout done today
+    assert cycle(t, 190, 76, None, 3, False)["day"] is None and cycle(t, 190, 76, list(range(7)), 3, True)["day"] is None
+    low = daily_targets("female", 1998, 165, 60, "light", "weight_loss")  # carbs already ~2 g/kg: nothing to move
+    assert cycle(low, 165, 60, [0, 1, 2, 3, 4], 5, False)["carbs_shift"] == 0
+
+    tg_id = random.randint(6 * 10**9, 7 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    today = date.today()
+    every = [d for d in range(7) if d != today.weekday()]  # today is a rest day
+    p = client.put("/api/profile", headers=h, json={**PROFILE, "training_days": every[:3]}).json()
+    assert p["targets"]["day"] == "rest" and p["targets"]["carbs"] < p["targets_base"]["carbs"]
+    p = client.put("/api/profile", headers=h, json={**PROFILE, "training_days": [today.weekday()]}).json()
+    assert p["targets"]["day"] == "training" and p["targets"]["carbs"] == p["targets_base"]["carbs"] + p["targets"]["carbs_shift"]
+
+    # protein lags in the afternoon: the bot offers the user's own usual protein foods, one tap each
+    async def seed():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            curd = Product(name=f"Творог зернёный {tg_id}", kcal=100, protein_g=17, fat_g=2, carbs_g=3)
+            bread = Product(name=f"Батон {tg_id}", kcal=260, protein_g=8, fat_g=3, carbs_g=50)
+            s.add_all([curd, bread])
+            await s.flush()
+            for i in (2, 3, 5):
+                s.add(FoodLog(user_id=user.id, product_id=curd.id, amount_g=200, meal_type="snack",
+                              logged_at=datetime.combine(today - timedelta(days=i), time(16)).astimezone()))
+            s.add(FoodLog(user_id=user.id, product_id=bread.id, amount_g=400, meal_type="breakfast",  # 1040 kcal, 32 g protein
+                          logged_at=datetime.combine(today, time(9)).astimezone()))
+            await s.commit()
+            return curd.id
+    curd_id = client.portal.call(seed)
+    now = datetime.now().astimezone()
+
+    async def run(at):
+        async with SessionLocal() as s:
+            return await collect(s, now.replace(hour=at[0], minute=at[1], second=0, microsecond=0))
+
+    sent = [(t, b) for chat, t, _, b in client.portal.call(run, (16, 31)) if chat == tg_id]
+    msg, buttons = next((t, b) for t, b in sent if t.startswith("🥩 Белка пока 32 из"))
+    assert f"творог зернёный {tg_id} 200 г (+34 г)" in msg
+    assert buttons[0][1].startswith("cb:ea:s:") and buttons[0][1].endswith("x200") and "34 г белка" in buttons[0][0]
+    from backend.bot.chat import _b36
+    assert _b36(curd_id) in buttons[0][1]

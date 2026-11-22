@@ -9,6 +9,8 @@ Expenditure: Mifflin–St Jeor × activity. On top of it, the goal is a rate of 
 - fat 25 % of energy, at least 0.8 g/kg (0.5–1.5 g/kg and 20–35 % of energy in the reviews and the DRI).
 - carbohydrates take the rest; above ~5 g/kg (enough for strength training: 3–5 g/kg, Iraki et al. 2019) the extra
   goes to fat up to 35 % of energy / 1.5 g/kg, so a big norm isn't all bread and rice.
+- training days get more carbohydrate, rest days a little less, the week's total unchanged ("fuel for the work
+  required": glycogen is what a hard session uses; Impey et al. 2018, Burke et al. 2011).
 """
 from datetime import date
 
@@ -20,6 +22,7 @@ KCAL_PER_KG = 7700  # energy in 1 kg of body weight change (fat + water + some l
 PROTEIN_G_PER_KG = {"weight_loss": 2.0, "fat_loss": 2.2, "maintenance": 1.6, "muscle_gain": 2.0, "mass_gain": 2.0}
 FAT_SHARE, FAT_MIN_G_PER_KG, FAT_MAX_SHARE, FAT_MAX_G_PER_KG = 0.25, 0.8, 0.35, 1.5
 CARBS_ENOUGH_G_PER_KG = 5
+CARB_SHIFT_G_PER_KG, CARBS_FLOOR_G_PER_KG = 0.75, 2.0  # extra carbs on a training day; rest days never below the floor
 MIN_CALORIES = {"male": 1500, "female": 1200}  # safety floor for deficit goals
 GOAL_RU = {
     "weight_loss": "снижение веса", "fat_loss": "снижение процента жира", "maintenance": "поддержание формы",
@@ -69,3 +72,26 @@ def daily_targets(sex: str, birth_year: int, height_cm: int, weight_kg: float, a
     calories = calories or max(goal_calories(maintenance(sex, birth_year, height_cm, weight_kg, activity), weight_kg, goal),
                                MIN_CALORIES[sex])
     return {"calories": calories, **macros(calories, height_cm, weight_kg, goal)}
+
+
+def cycle(t: dict, height_cm: int, weight_kg: float, training_days: list[int] | None, weekday: int, trained: bool) -> dict:
+    """The day's norm: up to +0.75 g/kg carbs on a training day (planned, or a workout done today); planned rest days give
+    the same carbs back, so the week's calories stay as before. A low-carb norm (rest days would drop under 2 g/kg)
+    shifts less or not at all. No plan and no workout: the norm as is."""
+    ref = reference_weight(height_cm, weight_kg)
+    plan = set(training_days or [])
+    if len(plan) == 7:  # training every day: nothing to balance against
+        return {**t, "day": None, "carbs_shift": 0}
+    n = len(plan)
+    room = max(0.0, t["carbs"] - CARBS_FLOOR_G_PER_KG * ref)  # what a rest day can give up
+    up = min(CARB_SHIFT_G_PER_KG * ref, room * (7 - n) / n) if n else CARB_SHIFT_G_PER_KG * ref
+    if trained or weekday in plan and n:
+        day, shift = "training", up
+    elif n:
+        day, shift = "rest", -up * n / (7 - n)
+    else:
+        day, shift = None, 0
+    shift = round(shift)
+    if not shift:
+        return {**t, "day": None, "carbs_shift": 0}
+    return {**t, "calories": t["calories"] + shift * 4, "carbs": t["carbs"] + shift, "day": day, "carbs_shift": shift}

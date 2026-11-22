@@ -326,6 +326,9 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
           </div>
         </div>
         {!targets && <span className="sub">Ориентир по умолчанию — заполни анкету в профиле, чтобы получить свою норму.</span>}
+        {isToday && targets?.day && targets.carbs_shift ? <span className="sub day-kind">{targets.day === 'training'
+          ? `🏋️ День тренировки: углеводов +${targets.carbs_shift} г — топливо для нагрузки.`
+          : `🛋 День отдыха: углеводов ${targets.carbs_shift} г — за неделю норма та же.`}</span> : null}
       </section>
       {editable && onDate && <Tip id="days">Смахни КБЖУ вбок — соседний день. Дата сверху — календарь.</Tip>}
       {canEdit && !editable && <p className="sub">Дописать можно только последние {BACKFILL_DAYS} дней — этот день только для просмотра.</p>}

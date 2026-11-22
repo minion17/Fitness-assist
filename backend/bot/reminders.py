@@ -17,7 +17,7 @@ from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.api.kitchen import usual_for
 from backend.bot import cards
 from backend.core import alerts, clock
-from backend.core.nutrition import daily_targets
+from backend.api.stats import today_targets
 from backend.database.db import SessionLocal
 from backend.database.models import (
     BodyMeasurement, DailyCheckin, FastingPlan, FoodLog, Habit, HabitCheck, Product, Profile, ReminderSent, ReminderSettings, User, WaterIntake,
@@ -33,6 +33,7 @@ NO_CARD = Render(lambda: None)  # text-only message
 Buttons = list[tuple[str, str]] | None
 # (time, share of the daily goal that should be drunk by then)
 WATER_CHECKS = (("12:00", 0.35), ("16:00", 0.6), ("19:00", 0.85))
+PROTEIN_CHECK = "16:30"  # the afternoon protein check (meal reminders on)
 WINDOW = timedelta(minutes=45)  # a reminder missed by a restart is still sent within this window, not hours later
 
 
@@ -81,12 +82,20 @@ async def weekly_summary(session, user: User, today, look: dict) -> tuple[str, s
     ticks = await session.scalar(select(func.count()).where(HabitCheck.user_id == user.id, HabitCheck.day > today - timedelta(days=7)))
     if ticks:
         text += f" Привычки отмечены {ticks} раз."
-    tip = await weekly_tip(session, user)
-    if tip:
-        text = f"{text}\n\n{tip}"[:1000]  # Telegram photo captions are limited to 1024 characters
+    from backend.api.energy import plateau
+
+    buttons: list = [("📸 Неделя в историю", "app:open=story")]
+    stuck = await plateau(session, user, await session.get(Profile, user.id))
+    if stuck["plateau"]:  # more useful than a general tip this week
+        text += "\n\n⚖️ Вес стоит две недели. " + " ".join(stuck["plateau_tips"][:2])
+        if stuck["plateau_kcal"]:
+            buttons.insert(0, (f"Сделать норму {stuck['plateau_kcal']} ккал", f"cb:kc:{stuck['plateau_kcal']}"))
+    elif tip := await weekly_tip(session, user):
+        text = f"{text}\n\n{tip}"
+    text = text[:1000]  # Telegram photo captions are limited to 1024 characters
     card = Render(cards.weekly, [{"date": d["date"], "kcal": d["kcal"]} for d in days], goal and goal["calories"], n,
                   workouts, sum(water) / len(water) if water else 0, delta, **look)
-    return f"{today}:weekly", text, card, [("📸 Неделя в историю", "app:open=story")]
+    return f"{today}:weekly", text, card, buttons
 
 
 async def habit_reminders(session, user: User, now: datetime) -> list[tuple[str, str, Render, Buttons]]:
@@ -127,7 +136,7 @@ async def day_close(session, user: User, today) -> tuple[str, str, Render, Butto
     eaten, t = await eaten_today(session, user, local_start(today))
     if not eaten:
         return None  # water or a workout only: the streak is safe, nothing to sum up
-    goal = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal, p.kcal_override)
+    goal = (await today_targets(session, user, p))
     kcal, norm = round(t["kcal"]), goal["calories"]
     text = f"🌙 Итог дня: {kcal:,} из {norm:,} ккал".replace(",", " ")
     if kcal > norm * 1.1:
@@ -137,13 +146,43 @@ async def day_close(session, user: User, today) -> tuple[str, str, Render, Butto
     else:
         text += "."
     short = goal["protein"] - t["protein"]
+    picks: Buttons = None
     if short >= goal["protein"] * 0.15:
-        text += f" Белка не хватает {round(short)} г — творог, яйца или курица закроют."
+        line, picks = await protein_offer(session, user, short, norm - t["kcal"], "s")
+        text += f" Белка не хватает {round(short)} г{line}"
     ml = await session.scalar(select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)) or 0
     if ml < water_goal(p) * 0.7:
         text += f" Воды {liters(ml)} из {liters(water_goal(p))} л."
     buttons = [("🍽 Записать ужин", "cb:ask:d"), ("Что поесть?", "cbr:eat")] if "dinner" not in eaten else None
-    return f"{today}:close", text, NO_CARD, buttons
+    return f"{today}:close", text, NO_CARD, (picks or []) + (buttons or []) or None
+
+
+async def protein_offer(session, user: User, short: float, kcal_left: float, meal: str) -> tuple[str, Buttons]:
+    """" — из твоего: творог 5% 200 г (+34 г)…" and a one-tap button for each; generic advice without a diary yet."""
+    from backend.api.kitchen import protein_picks
+    from backend.bot.chat import _b36
+
+    picks = await protein_picks(session, user, kcal_left)
+    if not picks:
+        return " — творог, яйца или курица закроют.", None
+    line = " — из того, что ты обычно ешь: " + ", ".join(f"{p['name'].lower()} {p['amount_g']} г (+{p['protein']} г)" for p in picks) + "."
+    return line, [(f"+ {p['name']} {p['amount_g']} г · {p['protein']} г белка", f"cb:ea:{meal}:{_b36(p['product_id'])}x{p['amount_g']}")
+                  for p in picks]
+
+
+async def protein_check(session, user: User, now: datetime) -> tuple[str, str, Render, Buttons] | None:
+    """Afternoon: they've eaten a good part of the day, but protein lags — offer it from their own diary while it's
+    still easy to fit in (in the evening it's a big catch-up)."""
+    today = now.date()
+    p = await session.get(Profile, user.id)
+    eaten, t = await eaten_today(session, user, local_start(today))
+    goal = await today_targets(session, user, p)
+    if not eaten or t["kcal"] < goal["calories"] * 0.35 or t["protein"] >= goal["protein"] * 0.4:
+        return None
+    short = goal["protein"] - t["protein"]
+    line, picks = await protein_offer(session, user, short, goal["calories"] - t["kcal"], "s")
+    return (f"{today}:protein", f"🥩 Белка пока {round(t['protein'])} из {goal['protein']} г, а день уже на середине. "
+            f"Добрать {round(short)} г проще сейчас, чем вечером{line}", NO_CARD, picks)
 
 
 async def day_three_tip(session, user: User) -> tuple[str, str, Render, Buttons]:
@@ -192,7 +231,7 @@ async def fasting_reminders(session, user: User, plan: FastingPlan, now: datetim
     if due(close, now):
         _, t = await eaten_today(session, user, local_start(today))
         p = await session.get(Profile, user.id)
-        left = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal, p.kcal_override)["protein"] - t["protein"]
+        left = (await today_targets(session, user, p))["protein"] - t["protein"]
         out.append((f"{today}:fast_close", f"⏳ Через 30 минут, в {fasting.eat_to(plan)}, окно питания закрывается. "
                     + (f"Белка осталось ~{round(left / 5) * 5} г — успей добрать." if left >= 20 else "Норма белка на сегодня почти добрана 👍"),
                     NO_CARD, None))
@@ -207,6 +246,10 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
     fast = await session.get(FastingPlan, user.id)
     if fast and fast.remind:
         out += await fasting_reminders(session, user, fast, now)
+    if cfg.meals and due(PROTEIN_CHECK, now) and (not fast or fasting.in_window(fast, now)):
+        offer = await protein_check(session, user, now)
+        if offer:
+            out.append(offer)
     if cfg.meals:
         todo = [m for m in MEALS if due(getattr(cfg, f"{m}_at"), now)]
         if fast:  # no "запиши завтрак" at 10:00 when the window opens at 12:00
@@ -214,7 +257,7 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
         if todo:
             eaten, t = await eaten_today(session, user, local_start(today))
             p = await session.get(Profile, user.id)
-            goal = daily_targets(p.sex, p.birth_year, p.height_cm, p.weight_kg, p.activity, p.goal, p.kcal_override)
+            goal = (await today_targets(session, user, p))
             macros = {"Белки": (t["protein"], goal["protein"]), "Жиры": (t["fat"], goal["fat"]), "Углеводы": (t["carbs"], goal["carbs"])}
             yesterday, _ = await eaten_today(session, user, local_start(today - timedelta(days=1)), local_start(today))
             for m in todo:

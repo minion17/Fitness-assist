@@ -37,7 +37,7 @@ from backend.api.feedback import router as feedback_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
-from backend.api.stats import router as stats_router
+from backend.api.stats import for_day, router as stats_router, trained_today
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session, init_db
@@ -112,12 +112,14 @@ async def health(session: AsyncSession = Depends(get_session)):
     return {"status": "ok" if db == "ok" else "degraded", "database": db}
 
 
-def profile_out(profile: Profile | None) -> dict | None:
+def profile_out(profile: Profile | None, trained: bool = False) -> dict | None:
+    """targets: today's norm (more carbs on a training day, a bit less on a rest day); targets_base: the plain one."""
     if profile is None:
         return None
     data = ProfileIn.model_validate(profile, from_attributes=True).model_dump()
+    base = daily_targets(**{k: data[k] for k in BASE_FIELDS}, calories=profile.kcal_override)
     return {**data, "target_weight_kg": profile.target_weight_kg, "kcal_override": profile.kcal_override,
-            "targets": daily_targets(**{k: data[k] for k in BASE_FIELDS}, calories=profile.kcal_override)}
+            "targets": for_day(profile, base, trained), "targets_base": base}
 
 
 async def recommended_program(session: AsyncSession, profile: Profile | None) -> dict | None:
@@ -139,7 +141,7 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
         "first_name": user.first_name,
         "username": user.username,
         "progress": level_progress(user.xp),
-        "profile": profile_out(profile := await session.get(Profile, user.id)),
+        "profile": profile_out(profile := await session.get(Profile, user.id), await trained_today(session, user.id)),
         "recommended_program": await recommended_program(session, profile),
         "settings": settings_out(user),
     }
@@ -222,7 +224,7 @@ class ProfileIn(BaseModel):
 @app.get("/api/profile")
 async def get_profile(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    return profile_out(await session.get(Profile, user.id))
+    return profile_out(await session.get(Profile, user.id), await trained_today(session, user.id))
 
 
 @app.put("/api/profile")
@@ -247,7 +249,7 @@ async def save_profile(
     if existing is None:  # the questionnaire is done for the first time: the bot sends "your plan is ready"
         session.add(Outbox(telegram_id=user.telegram_id, kind="plan", text="", user_id=user.id))
     await session.commit()
-    return profile_out(profile)
+    return profile_out(profile, await trained_today(session, user.id))
 
 
 # ---- Reference data: products, exercises, programs ----

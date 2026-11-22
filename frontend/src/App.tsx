@@ -160,6 +160,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
   canEdit: boolean
 }) {
   const pin = awards.find(a => a.pinned)
+  const norm = data?.targets_base ?? data?.targets // the plain norm, not today's training / rest version
   const title = awards.find(a => a.title_selected)
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
@@ -195,14 +196,14 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <section className="card"><span className="sub">Цель</span><div className="row-title" style={{ marginTop: 6 }}>{shown.goal}</div></section>
       </div>
       </section>
-      {data?.targets && (
+      {norm && (
         <section className="card profile-targets">
           <h2>Дневная норма</h2>
           <div className="list">
-            <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{data.targets.calories} ккал</div></div>
-            <div className="row"><div className="row-main row-title">Белки</div><div className="row-end">{data.targets.protein} г</div></div>
-            <div className="row"><div className="row-main row-title">Жиры</div><div className="row-end">{data.targets.fat} г</div></div>
-            <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{data.targets.carbs} г</div></div>
+            <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{norm.calories} ккал</div></div>
+            <div className="row"><div className="row-main row-title">Белки</div><div className="row-end">{norm.protein} г</div></div>
+            <div className="row"><div className="row-main row-title">Жиры</div><div className="row-end">{norm.fat} г</div></div>
+            <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{norm.carbs} г</div></div>
           </div>
         </section>
       )}
@@ -700,11 +701,11 @@ function SetlyApp() {
             setAch(a => ({ ...a, items: a.items.map(i => ({ ...i, pinned: i.code === pinned, featured: codes.includes(i.code) })) }))
           }} canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             weightGoal={me?.target_weight_kg}
-            top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
-              norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length}
+            top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={(me?.targets_base ?? me?.targets)?.calories ?? 2000}
+              norm={week.days.filter((d) => { const t = me?.targets_base ?? me?.targets; return t && Math.abs(d.kcal - t.calories) <= 0.1 * t.calories }).length}
               onRecap={canEdit ? () => setRecapAsked(true) : undefined} />}
               {aiEnabled && <AiSummary />}</>}
-            bodyTop={canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
+            bodyTop={canEdit && me && <EnergyCard calories={(me.targets_base ?? me.targets)?.calories} onNormChanged={() => {
               api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
             }} />}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
@@ -721,7 +722,7 @@ function SetlyApp() {
       {tab !== 'workouts' && <ActiveWorkoutBar onOpen={() => go('workouts')} />}
       {recap && week.days.length > 0 && (
         <Suspense fallback={null}>
-          <WeekRecap days={week.days} goal={me?.targets?.calories ?? 2000} streak={week.streak} weightDelta={weekWeightDelta(measurements)}
+          <WeekRecap days={week.days} goal={(me?.targets_base ?? me?.targets)?.calories ?? 2000} streak={week.streak} weightDelta={weekWeightDelta(measurements)}
             onClose={() => { markRecapSeen(); setRecapClosed(true); setRecapAsked(false) }} />
         </Suspense>
       )}

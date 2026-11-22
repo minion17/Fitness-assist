@@ -2336,7 +2336,7 @@ def test_tour_flips_with_arrows():
     def arrows(i):
         return [b.callback_data for b in tour_keyboard(i).inline_keyboard[0]]
 
-    assert arrows(0) == ["tour:3", "tour:1"] and arrows(3) == ["tour:2", "tour:0"]  # wraps around
+    assert arrows(0) == ["tour:4", "tour:1"] and arrows(4) == ["tour:3", "tour:0"]  # wraps around
     assert tour_keyboard(0).inline_keyboard[1][0].web_app  # the questionnaire button on every slide
 
 
@@ -2978,3 +2978,54 @@ def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
         async with SessionLocal() as s:
             return (await s.scalar(select(GroupChat).where(GroupChat.chat_id == chat_id))).active
     assert client.portal.call(active) is False
+
+
+def test_group_feature_is_discoverable(client, monkeypatch):
+    """The bot tells about group chats itself: /group, a tour slide, and one message after a settled-in week."""
+    import random
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy import select
+
+    from backend.api import social
+    from backend.bot import cards, chat
+    from backend.bot.reminders import collect, markup
+    from backend.database.db import SessionLocal
+    from backend.database.models import User, XpEvent
+    from conftest import USER, make_init_data
+
+    monkeypatch.setattr(social, "bot_username", lambda: "SetlyBot")
+    msg = SimpleNamespace(from_user=SimpleNamespace(id=1), answer=AsyncMock())
+    client.portal.call(chat.group_command, msg)
+    assert "рейтинг недели" in msg.answer.call_args.args[0]
+    assert msg.answer.call_args.kwargs["reply_markup"].inline_keyboard[0][0].url == "https://t.me/SetlyBot?startgroup=setly"
+    assert cards.TOUR[3][1] == "всем чатом" and len(chat.TOUR_CAPTIONS) == len(cards.TOUR)
+    assert cards.tour(3)[:4] == b"\x89PNG"
+
+    tg_id = random.randint(2 * 10**10, 3 * 10**10)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    now = datetime.now().astimezone()
+    if now.weekday() == 6:
+        now += timedelta(days=1)  # Sunday evening belongs to the week's summary
+
+    async def settle(days_active):
+        async with SessionLocal() as s:
+            u = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            u.created_at = now - timedelta(days=10)
+            for k in range(days_active):
+                s.add(XpEvent(user_id=u.id, event_type="test", event_key=f"g{tg_id}:{k}:{days_active}", xp=5, created_at=now - timedelta(days=k)))
+            await s.commit()
+
+    async def run():
+        async with SessionLocal() as s:
+            return [(t, b) for chat_id, t, _, b in await collect(s, now.replace(hour=19, minute=31)) if chat_id == tg_id]
+    client.portal.call(settle, 2)
+    assert not any(t.startswith("👥") for t, _ in client.portal.call(run))  # 2 active days: not yet
+    client.portal.call(settle, 3)
+    tip = [(t, b) for t, b in client.portal.call(run) if t.startswith("👥")]
+    assert len(tip) == 1 and tip[0][1][0][1] == "url:https://t.me/SetlyBot?startgroup=setly"
+    assert markup(tip[0][1], lambda: None, "").inline_keyboard[0][0].url == "https://t.me/SetlyBot?startgroup=setly"
+    assert not any(t.startswith("👥") for t, _ in client.portal.call(run))  # once ever

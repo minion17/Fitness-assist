@@ -5,7 +5,7 @@ Reminder times are in each user's own timezone (the phone's).
 """
 import asyncio
 import logging
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -185,6 +185,28 @@ async def protein_check(session, user: User, now: datetime) -> tuple[str, str, R
             f"Добрать {round(short)} г проще сейчас, чем вечером{line}", NO_CARD, picks)
 
 
+GROUP_TIP_AT = "19:30"  # not on Sunday: that evening has the week's summary
+
+
+async def group_tip(session, user: User, today: date) -> tuple[str, str, Render, Buttons] | None:
+    """Once ever, when they've settled in (a week with Setly, 3+ active days of the last 7) and aren't in a group
+    chat yet: the bot in their friends' / family / office chat. "onb:group" keeps it to one message."""
+    from backend.api.social import bot_username
+    from backend.database.models import GroupMember, XpEvent
+
+    if await session.scalar(select(GroupMember.user_id).where(GroupMember.user_id == user.id).limit(1)):
+        return None
+    active = await session.scalar(select(func.count(func.distinct(func.date(XpEvent.created_at)))).where(
+        XpEvent.user_id == user.id, XpEvent.created_at >= local_start(today - timedelta(days=6))))
+    bot = bot_username()
+    if active < 3 or not bot:
+        return None
+    return ("onb:group", "👥 Неделя с Setly позади — вдвоём и втроём держаться проще.\n\nДобавь меня в чат друзей, семьи или офиса: "
+            "буду вести рейтинг недели, в понедельник объявлять чемпиона, а в четверг подначивать отстающих. "
+            "Кто ещё не в Setly — присоединится по кнопке прямо из чата.",
+            NO_CARD, [("👥 Добавить в чат", f"url:https://t.me/{bot}?startgroup=setly")])
+
+
 async def day_three_tip(session, user: User) -> tuple[str, str, Render, Buttons]:
     """Day 3: one feature they haven't tried yet."""
     from backend.database.models import AiRequest, Friendship
@@ -316,6 +338,10 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                     [("<6 ч", "cb:sl:1"), ("6–7", "cbr:sl:2"), ("7–8", "cbr:sl:3"), ("8+", "cbr:sl:4")]))
     if clock.local(user.created_at).date() == today - timedelta(days=2) and due("13:00", now):
         out.append(await day_three_tip(session, user))
+    if now.weekday() != 6 and due(GROUP_TIP_AT, now) and clock.local(user.created_at).date() <= today - timedelta(days=7):
+        tip = await group_tip(session, user, today)
+        if tip:
+            out.append(tip)
     out += await habit_reminders(session, user, now)
     return out
 
@@ -358,6 +384,8 @@ def markup(buttons: Buttons, keyboard, app_url: str):
             rows[-1].append(InlineKeyboardButton(text=text, callback_data=value))
         elif kind in ("cb", "cbr"):
             rows.append([InlineKeyboardButton(text=text, callback_data=value)])
+        elif kind == "url":
+            rows.append([InlineKeyboardButton(text=text, url=value)])
         elif app_url.startswith("https://"):
             rows.append([InlineKeyboardButton(text=text, web_app=WebAppInfo(url=f"{app_url}{'&' if '?' in app_url else '?'}{value}"))])
     base = keyboard()

@@ -385,6 +385,7 @@ TOUR = (
     ("Еда —", "за 5 секунд", "Напиши «гречка 150 г» или пришли фото тарелки — посчитаю и запишу"),
     ("Тренировки", "под тебя", "Программа по уровню и инвентарю, таймер отдыха и веса с прошлого раза"),
     ("Вода", "и привычки", "Мягкие напоминания и отметка в одно касание прямо из чата"),
+    ("Соревнуйтесь", "всем чатом", "Добавь меня в чат друзей, семьи или офиса — буду вести рейтинг недели и объявлять чемпиона"),
     ("Прогресс", "виден сразу", "Серии дней, вес, итоги недели и соревнования с друзьями"),
 )
 TW, TH = 1080, 1350
@@ -411,7 +412,7 @@ def check(c: Card, cx: int, cy: int, r: int, color: str = "accent") -> None:
 @lru_cache(maxsize=16)
 def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool = True, text: bool = True) -> bytes:
     title, accent_line, sub = TOUR[i]
-    c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "streak")[i]), size=(TW, TH))
+    c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "accent", "streak")[i]), size=(TW, TH))
     c.brand()
     cx, cy = 540, 480
     if i == 0:  # a message and the bot's answer
@@ -456,6 +457,19 @@ def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool
             else:
                 c.d.ellipse([552 * K, (y + 27) * K, 608 * K, (y + 83) * K], outline=c.p["track"], width=5 * K)
             c.text((630, y + 38), name, 28, "text", 600)
+    elif i == 3:  # a group chat: the bot's weekly rating and a cheer
+        c.rect((110, 190, TW - 110, 620), 44, "card")
+        c.text((150, 222), "Семья · рейтинг недели", 30, "text", 700)
+        for j, (who, xp, color) in enumerate((("Аня", "320 XP", "accent"), ("Борис", "290 XP", "water"), ("Вера", "180 XP", "streak"))):
+            y = 300 + j * 100
+            c.d.ellipse([150 * K, y * K, 214 * K, (y + 64) * K], fill=c.p[color])
+            c.text((182, y + 32), str(j + 1), 30, "on_accent", 700, "Unbounded", anchor="mm")
+            c.text((240, y + 14), who, 32, "text", 600)
+            c.text((TW - 150, y + 14), xp, 32, "accent_text" if j == 0 else "muted", 700, anchor="ra")
+        msg = "Аня закончила тренировку — 3-я за неделю. Кто следующий?"
+        c.rect((110, 660, TW - 110, 800), 40, "accent")
+        for j, line in enumerate(wrap(c, msg, 30, TW - 300)):
+            c.text((150, 686 + j * 42), line, 30, "on_accent", 600)
     else:  # a streak and a weight line going down
         c.text((cx, 250), "12", 150, "streak", 700, "Unbounded", anchor="mm")
         c.text((cx, 350), "дней подряд", 30, "muted", 600, anchor="mm")

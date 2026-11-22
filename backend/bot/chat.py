@@ -718,7 +718,7 @@ async def workout_cmd(message: Message) -> None:
 
 # ---- Tour ----
 
-TOUR_CAPTIONS = ("Листай стрелками →", "", "", "Ответь на пару вопросов — и я соберу твой план: норму КБЖУ, воду и "
+TOUR_CAPTIONS = ("Листай стрелками →", "", "", "", "Ответь на пару вопросов — и я соберу твой план: норму КБЖУ, воду и "
                  "программу тренировок. Это 2 минуты.")
 
 
@@ -1076,8 +1076,26 @@ async def help_cmd(message: Message) -> None:
     from backend.api.social import bot_username
 
     bot = bot_username()
-    group = f"\n\n👥 Соревнуйтесь всем чатом: <a href=\"https://t.me/{bot}?startgroup=setly\">добавь меня в чат</a> друзей, семьи или офиса — буду вести рейтинг недели." if bot else ""
+    group = "\n\n👥 /group — соревнуйтесь всем чатом: добавь меня в чат друзей, семьи или офиса, буду вести рейтинг недели." if bot else ""
     await message.answer(HELP + group, parse_mode="HTML", reply_markup=KEYBOARD)
+
+
+GROUP_TEXT = ("👥 Соревнуйтесь всем чатом!\n\n"
+              "Добавь меня в чат друзей, семьи или офиса — и я буду вести рейтинг недели по очкам Setly: за тренировки, "
+              "записи еды, воду и привычки.\n\n"
+              "• в понедельник утром — итоги и чемпион недели\n"
+              "• в четверг — кто кого догоняет\n"
+              "• когда кто-то закончил тренировку — пишу в чат\n\n"
+              "Кто ещё не в Setly, присоединится по кнопке прямо из чата. Команды в чате: /top, /join, /leave.")
+
+
+@router.message(Command("group"))
+async def group_command(message: Message) -> None:
+    from backend.api.social import bot_username
+
+    bot = bot_username()
+    button = [InlineKeyboardButton(text="👥 Выбрать чат", url=f"https://t.me/{bot}?startgroup=setly")] if bot else None
+    await message.answer(GROUP_TEXT, reply_markup=kb(button or []))
 
 
 @router.message(Command("month"))

@@ -1612,14 +1612,42 @@ def test_real_expenditure_forecast_and_plateau(client, seeded):
         client.put("/api/measurements", headers=h, json={"measured_on": (today - timedelta(days=back)).isoformat(), "weight_kg": kg})
     e = client.get("/api/insights/energy", headers=h).json()
     assert e["ready"] and e["days_logged"] == 21 and 2000 < e["tdee"] < 3200 and e["kg_per_week"] < 0
-    assert e["suggest"] == max(round((e["tdee"] - 550) / 10) * 10, 1500) and e["eta"] and e["plateau"] is True
-    # the diary is full and the intake is at the norm: the norm itself goes down 150 kcal; steps as the last tip
+    from backend.api.energy import recalc, suggestion
+
+    assert e["suggest"] == suggestion(e["tdee"], "weight_loss", "male", 78.5) and e["eta"] and e["plateau"] is True
+    # the diary is full and the intake is at the norm: with the weekly recalculation on, that's its job
+    assert e["kcal_auto"] is True and e["plateau_kcal"] is None and "пересчитается" in e["plateau_tips"][0]
+    assert "шагов" in e["plateau_tips"][-1]
+    # without it: the norm itself goes down 150 kcal
+    client.post("/api/insights/energy/auto", headers=h, json={"on": False})
+    e = client.get("/api/insights/energy", headers=h).json()
     norm = client.get("/api/profile", headers=h).json()["targets_base"]["calories"]
-    assert e["plateau_kcal"] == norm - 150 and str(norm - 150) in e["plateau_tips"][0] and "шагов" in e["plateau_tips"][-1]
+    assert e["plateau_kcal"] == norm - 150 and str(norm - 150) in e["plateau_tips"][0]
+
+    # the weekly recalculation: towards the measured norm, at most 200 kcal a step, then not again for a week
+    async def run_recalc():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            from backend.database.models import Profile
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            return await recalc(s, user, await s.get(Profile, user.id))
+    assert client.portal.call(run_recalc) is None  # switched off
+    client.post("/api/insights/energy/auto", headers=h, json={"on": True})
+    r = client.portal.call(run_recalc)
+    assert r["old"] == norm and abs(r["new"] - norm) <= 200 and (r["new"] - norm) * (e["suggest"] - norm) > 0
+    assert client.get("/api/profile", headers=h).json()["kcal_override"] == r["new"]
+    assert client.portal.call(run_recalc) is None  # a week hasn't passed
+    assert client.get("/api/insights/energy", headers=h).json()["kcal_auto_at"] == today.isoformat()
+    from backend.api.energy import recalc_text
+    assert recalc_text(r).startswith(f"📊 Пересчитал норму по твоим данным: {norm:,} → ".replace(",", " "))
 
     assert client.post("/api/insights/energy/apply", headers=h, json={"kcal": 900}).status_code == 422  # below the safe floor
     client.post("/api/insights/energy/apply", headers=h, json={"kcal": e["suggest"]})
     assert client.get("/api/profile", headers=h).json()["targets"]["calories"] == e["suggest"]
+    # back to the formula on purpose: the recalculation turns off too, so it doesn't undo that next week
+    assert client.post("/api/insights/energy/apply", headers=h, json={"kcal": None}).json() == {"kcal_override": None, "kcal_auto": False}
+    client.post("/api/insights/energy/apply", headers=h, json={"kcal": e["suggest"]})
     client.put("/api/profile", headers=h, json={**PROFILE, "goal": "maintenance"})  # a new goal drops the accepted norm
     assert client.get("/api/profile", headers=h).json()["kcal_override"] is None
 

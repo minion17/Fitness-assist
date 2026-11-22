@@ -73,6 +73,9 @@ class Profile(Base):
     training_days: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))  # weekdays 0 = Mon .. 6 = Sun
     target_date: Mapped[date | None] = mapped_column(Date)  # "к какой дате": optional
     kcal_override: Mapped[int | None] = mapped_column(Integer)  # accepted from the real-expenditure estimate; None = formula
+    # weekly recalculation of the norm from the diary and the weight (energy.recalc); off when they return to the formula
+    kcal_auto: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    kcal_auto_at: Mapped[date | None] = mapped_column(Date)  # the last recalculation
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

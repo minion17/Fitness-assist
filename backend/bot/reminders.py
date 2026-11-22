@@ -278,6 +278,15 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                 if ml < goal * share:
                     out.append((f"{today}:water{at}", f"💧 Выпито {liters(ml)} л из {liters(goal)} л. Стакан воды сейчас — самое время.",
                                 Render(cards.water, ml, goal, at, **look), None))
+    if due(cfg.weekly_at or "19:00", now):  # the norm from their own data, once a week (energy.recalc keeps the pace)
+        # shortcut: users without enough data are re-measured each minute of the window; cache the miss if users grow to thousands
+        from backend.api.energy import recalc, recalc_text
+
+        p = await session.get(Profile, user.id)
+        had = p.kcal_override
+        changed = await recalc(session, user, p)
+        if changed:
+            out.append((f"{today}:norm", recalc_text(changed), NO_CARD, [(f"Вернуть {changed['old']} ккал", f"cb:ka:{had or 0}")]))
     if getattr(cfg, "weekly", True) and now.weekday() == 6 and due(cfg.weekly_at or "19:00", now):
         out.append(await weekly_summary(session, user, today, look))
     first_day = clock.local(user.created_at).date() == today

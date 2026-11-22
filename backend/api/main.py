@@ -243,6 +243,7 @@ async def save_profile(
         data.update(allergies=None, injury=None)
     if existing and existing.goal != body.goal:
         profile.kcal_override = None  # an accepted norm was for the old goal
+        profile.kcal_auto_at = None  # and the data-based one is recalculated for the new goal at the next chance
     for k, v in data.items():
         setattr(profile, k, v)
     session.add(profile)

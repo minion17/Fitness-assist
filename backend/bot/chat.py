@@ -897,6 +897,27 @@ async def norm_pick(call: CallbackQuery) -> None:
                               "Вернуть расчётную можно в приложении: Прогресс → Тело → Реальный расход.")
 
 
+@router.callback_query(F.data.startswith("ka:"))
+async def norm_undo(call: CallbackQuery) -> None:
+    """"Вернуть 2400 ккал" under an automatic recalculation: the previous norm back and no more recalculations."""
+    kcal = int(call.data[3:]) if call.data[3:].isdigit() else 0
+    async with SessionLocal() as session:
+        _, profile = await me(session, call.from_user)
+        if profile is None:
+            await call.answer()
+            return
+        profile.kcal_override = kcal or None  # 0: it was the formula norm
+        profile.kcal_auto = False
+        await session.commit()
+    await call.answer("Вернул")
+    try:
+        await call.message.edit_reply_markup(reply_markup=None)
+    except Exception:
+        pass
+    await call.message.answer("✓ Вернул прежнюю норму и выключил автопересчёт. Включить снова можно в приложении: "
+                              "Прогресс → Тело → Реальный расход.")
+
+
 @router.callback_query(F.data.startswith("us:"))
 async def usual_pick(call: CallbackQuery) -> None:
     """"↻ Как обычно" under a meal reminder."""

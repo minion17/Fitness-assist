@@ -198,7 +198,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
       </section>
       {norm && (
         <section className="card profile-targets">
-          <h2>Дневная норма</h2>
+          <div className="card-head"><h2>Дневная норма</h2>{data?.kcal_override ? <span className="sub">по твоим данным</span> : <span className="sub">по формуле</span>}</div>
           <div className="list">
             <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{norm.calories} ккал</div></div>
             <div className="row"><div className="row-main row-title">Белки</div><div className="row-end">{norm.protein} г</div></div>

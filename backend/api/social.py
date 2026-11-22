@@ -18,7 +18,7 @@ from backend.api.daily import active_days, streak_state
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.core.config import settings
-from backend.core.gamification import BOOST_HOURS, MAX_INVITE_REWARDS, level_progress
+from backend.core.gamification import BOOST_HOURS, BOOST_MAX_BONUS, MAX_INVITE_REWARDS, level_progress
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import Cheer, Duel, Friendship, Outbox, Profile, User, WorkoutLog, WorkoutSet, XpEvent
 from backend.database.rewards import award_xp
@@ -36,7 +36,9 @@ WIN_MIN = {"xp": 25, "workouts": 1}    # per 3 days: the winner must really have
 LOSER_MIN = {"xp": 10, "workouts": 0}  # ...and so must the loser (an idle fake opponent gives no reward)
 WORKOUT_MIN_SETS = 3          # a duel workout counts with 3+ sets, at most one per day
 PAIR_COOLDOWN_DAYS = 14       # one rewarded win per pair of friends per two weeks
-MAX_REWARDED_WINS_PER_WEEK = 2
+MAX_REWARDED_WINS_PER_MONTH = 2  # per winner, in 30 days: a set of second accounts can't make it a weekly income
+FRIENDS_BEFORE_DAYS = 7       # friends for a week before the duel: an account made for the duel doesn't qualify
+REAL_DAYS_BEFORE = 5          # both had 5 real days (a full diary or a workout) in the 14 days before the duel
 MAX_PENDING_CHALLENGES = 3
 
 
@@ -189,9 +191,10 @@ async def reward_invites(session: AsyncSession) -> int:
 # ---- Duels ----
 
 async def score(session: AsyncSession, user_id: int, metric: str, start, end) -> int:
-    if metric == "xp":  # the duel bonus itself doesn't count towards other duels
+    if metric == "xp":  # the duel bonus and its boost don't count towards other duels
         q = select(func.coalesce(func.sum(XpEvent.xp), 0)).where(
-            XpEvent.user_id == user_id, XpEvent.created_at >= start, XpEvent.created_at < end, XpEvent.event_type != "duel_win")
+            XpEvent.user_id == user_id, XpEvent.created_at >= start, XpEvent.created_at < end,
+            XpEvent.event_type.not_in(("duel_win", "boost_bonus")))
     else:  # real workouts only: 3+ sets, at most one counted per day
         real = (select(WorkoutLog.completed_at).join(WorkoutSet, WorkoutSet.workout_log_id == WorkoutLog.id)
                 .where(WorkoutLog.user_id == user_id, WorkoutLog.completed_at >= start, WorkoutLog.completed_at < end)
@@ -210,14 +213,31 @@ async def no_reward_reason(session: AsyncSession, d: Duel, winner: User, loser: 
         return "для награды победителю нужно больше активности"
     if lost < LOSER_MIN[d.metric] * scale:
         return "соперник почти не участвовал"
+    since = await session.scalar(select(Friendship.created_at).where(Friendship.user_id == winner.id, Friendship.friend_id == loser.id))
+    if since is None or since > d.starts_at - timedelta(days=FRIENDS_BEFORE_DAYS):
+        return f"награда — когда вы друзья хотя бы {FRIENDS_BEFORE_DAYS} дней до дуэли"
+    for u in (winner, loser):
+        if await real_days(session, u, d.starts_at) < REAL_DAYS_BEFORE:
+            return "награда — когда оба по-настоящему пользуются Setly: дневник или тренировки хотя бы 5 дней из 14 до дуэли"
     pair = or_((Duel.challenger_id == d.challenger_id) & (Duel.opponent_id == d.opponent_id),
                (Duel.challenger_id == d.opponent_id) & (Duel.opponent_id == d.challenger_id))
     if await session.scalar(select(Duel.id).where(pair, Duel.rewarded, Duel.ends_at > d.ends_at - timedelta(days=PAIR_COOLDOWN_DAYS)).limit(1)):
         return f"с этим другом награда бывает раз в {PAIR_COOLDOWN_DAYS} дней"
     if await session.scalar(select(func.count()).where(Duel.winner_id == winner.id, Duel.rewarded,
-                                                       Duel.ends_at > d.ends_at - timedelta(days=7))) >= MAX_REWARDED_WINS_PER_WEEK:
-        return f"наград за победы — не больше {MAX_REWARDED_WINS_PER_WEEK} в неделю"
+                                                       Duel.ends_at > d.ends_at - timedelta(days=30))) >= MAX_REWARDED_WINS_PER_MONTH:
+        return f"наград за победы — не больше {MAX_REWARDED_WINS_PER_MONTH} в месяц"
     return None
+
+
+async def real_days(session: AsyncSession, user: User, before) -> int:
+    """Days in the 14 before `before` with a full diary (800+ kcal) or a completed workout, in the user's calendar."""
+    clock.use_tz(user.device_tz)
+    try:
+        end = clock.local(before).date()
+        days = await active_days(session, user, end - timedelta(days=14))
+        return sum(1 for d, v in days.items() if d < end and (v["kcal"] >= 800 or v["workouts"]))
+    finally:
+        clock.use_tz(None)
 
 
 def plural_days(n: int) -> str:
@@ -238,7 +258,7 @@ async def finish_duels(session: AsyncSession) -> int:
             d.rewarded = why is None
         for me, other, mine, theirs in ((a, b, sa, sb), (b, a, sb, sa)):
             result = ("Ничья — оба молодцы." if mine == theirs else f"В этот раз победа за {name(other)}. Реванш?" if mine < theirs
-                      else f"🏆 Победа! +40 XP и бустер ×1,5 XP на {BOOST_HOURS} часа." if d.rewarded
+                      else f"🏆 Победа! +40 XP и бустер ×1,5 XP на {BOOST_HOURS} часа (до +{BOOST_MAX_BONUS} XP)." if d.rewarded
                       else f"🏆 Победа! Без награды: {why}.")
             notify(session, me, f"⚔️ Дуэль с {name(other)} окончена: {mine} : {theirs} {METRICS[d.metric]}. {result}")
         await session.commit()

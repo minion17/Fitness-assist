@@ -984,9 +984,16 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     live = client.get("/api/duels", headers=ha).json()[0]
     assert (live["me"], live["them"], live["rival"]) == (10, 30, "Борис")
 
-    async def time_up(s, age_days):  # accounts of a given age; the duel ends now
+    async def time_up(s, age_days):  # accounts of a given age, friends as long, 5 real days before; the duel ends now
+        from backend.database.models import Friendship, WorkoutLog
+
         old = datetime.now(timezone.utc) - timedelta(days=age_days)
         await s.execute(update(User).where(User.id.in_((a_id, b_id))).values(created_at=old))
+        await s.execute(update(Friendship).where(Friendship.user_id.in_((a_id, b_id))).values(created_at=old))
+        for uid in (a_id, b_id):
+            for k in range(2, 8):
+                at = datetime.now(timezone.utc) - timedelta(days=k)
+                s.add(WorkoutLog(user_id=uid, title="Тренировка", started_at=at, completed_at=at + timedelta(minutes=40)))
         await s.execute(update(Duel).where(Duel.id == d["id"]).values(ends_at=datetime.now(timezone.utc)))
         await s.commit()
         return await social.finish_duels(s)
@@ -3113,3 +3120,52 @@ def test_log_and_delete_pays_nothing(client):
     assert m["xp_awarded"] == 15 and xp() == 15
     client.delete(f"/api/measurements/{m['id']}", headers=h)
     assert xp() == 0 and date.today()
+
+
+def test_duel_alts_and_boost_farming(client):
+    """A second account made for duels: no reward unless friends for a week and both really used Setly 5 of 14 days;
+    a won boost adds at most 50 XP in all."""
+    import random
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+
+    from sqlalchemy import select, update
+
+    from backend.api import social
+    from backend.database.db import SessionLocal
+    from backend.database.models import Friendship, User, WorkoutLog
+    from backend.database.rewards import award_xp
+    from conftest import USER, make_init_data
+
+    ids = [random.randint(3 * 10**10, 4 * 10**10) for _ in range(2)]
+    for i in ids:
+        client.put("/api/profile", headers={"Authorization": f"tma {make_init_data({**USER, 'id': i})}"}, json=PROFILE)
+    now = datetime.now(timezone.utc)
+
+    async def check(friend_days, real):
+        async with SessionLocal() as s:
+            a, b = [await s.scalar(select(User).where(User.telegram_id == i)) for i in ids]
+            await s.execute(update(User).where(User.id.in_((a.id, b.id))).values(created_at=now - timedelta(days=30)))
+            for x, y in ((a, b), (b, a)):
+                if not await s.get(Friendship, (x.id, y.id)):
+                    s.add(Friendship(user_id=x.id, friend_id=y.id))
+            await s.flush()
+            await s.execute(update(Friendship).where(Friendship.user_id.in_((a.id, b.id))).values(created_at=now - timedelta(days=friend_days)))
+            for u in (a, b):
+                for k in range(real):
+                    at = now - timedelta(days=k + 2)
+                    s.add(WorkoutLog(user_id=u.id, title="Т", started_at=at, completed_at=at + timedelta(minutes=40)))
+            await s.commit()
+            d = SimpleNamespace(days=3, metric="xp", starts_at=now, ends_at=now + timedelta(days=3), challenger_id=a.id, opponent_id=b.id)
+            return await social.no_reward_reason(s, d, a, b, 100, 50)
+    assert "5 дней из 14" in client.portal.call(check, 10, 0)  # no real activity before
+    assert "друзья хотя бы 7 дней" in client.portal.call(check, 2, 6)  # a fresh alt (workouts are kept from here on)
+    assert client.portal.call(check, 10, 0) is None
+
+    async def boosted():
+        async with SessionLocal() as s:
+            a = await s.scalar(select(User).where(User.telegram_id == ids[0]))
+            a.boost_until = now + timedelta(hours=24)
+            await s.commit()
+            return [await award_xp(s, a.id, "achievement", f"bst:{ids[0]}:{k}") for k in range(5)]
+    assert client.portal.call(boosted) == [37, 37, 37, 37, 27]  # 25 + half while the 50 XP of bonus lasts, then plain

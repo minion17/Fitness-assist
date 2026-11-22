@@ -24,6 +24,7 @@ RULES: dict[str, int] = {
 
 BOOST = 1.5  # XP multiplier after a duel win
 BOOST_HOURS = 24
+BOOST_MAX_BONUS = 50  # the most a boost adds in all: a won duel can't be turned into a day of x1.5 farming
 NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record", "challenge_done", "month_done"}
 MAX_INVITE_REWARDS = 10
 # Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling

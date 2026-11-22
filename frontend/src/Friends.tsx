@@ -130,7 +130,7 @@ export default function Friends() {
       {challenge && (
         <section className="card duel-form" aria-label="Новая дуэль">
           <h2>Дуэль с {challenge.friend.name}</h2>
-          <p className="sub">Без ставок: победитель получает +40 XP и бустер ×1,5 XP на 24 часа. Награда — если оба с Setly больше недели и оба участвовали; с одним другом — раз в 2 недели.</p>
+          <p className="sub">Без ставок: победитель получает +40 XP и бустер ×1,5 XP на 24 часа (до +50 XP). Награда — если вы друзья больше недели, оба по-настоящему пользуетесь Setly (дневник или тренировки 5 дней из последних 14) и оба участвовали; с одним другом — раз в 2 недели, всего — до 2 наград в месяц.</p>
           <div className="seg seg-row" role="group" aria-label="Что считаем">
             {(['xp', 'workouts'] as const).map((m) => <button key={m} aria-pressed={challenge.metric === m} onClick={() => setChallenge({ ...challenge, metric: m })}>{m === 'xp' ? 'XP' : 'Тренировки'}</button>)}
           </div>

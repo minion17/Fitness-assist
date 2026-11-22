@@ -39,13 +39,13 @@ export default function Month() {
   const [b, setB] = useState<MonthBoard | null>(null)
   const [error, setError] = useState('')
   const [scope, setScope] = useState<'all' | 'friends'>('all')
+  const [sent, setSent] = useState(false) // the card was asked for in the chat
   useEffect(() => { api<MonthBoard>('/api/month').then((r) => r && setB(r)).catch(() => setError('Нет связи — челлендж покажем, как только вернётся интернет')) }, [])
   if (error) return <p className="error">{error}</p>
   if (!b) return <p className="sub">Загружаем челлендж…</p>
 
   const join = () => { haptic('success'); api<MonthBoard>('/api/month/join', postJson({})).then((r) => r && setB(r)).catch(() => setError('Не получилось — попробуй ещё раз')) }
   const story = () => shareStory({ kind: 'month' }).catch(() => setError('Не получилось открыть истории'))
-  const [sent, setSent] = useState(false)
   // Stories exist only in the phone app; everywhere the bot can send the same card to the chat to forward or save
   const toChat = () => { haptic('success'); api('/api/share', postJson({ kind: 'month' })).then(() => setSent(true)).catch(() => setError('Не получилось — попробуй ещё раз')) }
   const shareRow = (final: boolean) => (

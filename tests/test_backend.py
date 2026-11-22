@@ -1856,21 +1856,55 @@ def test_pdf_report(client, seeded):
     assert client.post("/api/report", headers=h, json={"days": 14}).status_code == 422
     assert client.post("/api/report", headers=h, json={"days": 30}).json() == {"ok": True}
     assert client.post("/api/report", headers=h, json={"days": 30}).status_code == 429  # one at a time
+    from datetime import datetime, time
+
+    from backend.api.report import gather
+    from backend.database.db import SessionLocal
+    from backend.database.models import BodyMeasurement, FoodLog, Product, User, WorkoutLog, WorkoutSet
+
     today = date.today()
-    data = {"name": "Егор", "since": today - timedelta(days=29), "until": today, "span": 30,
-            "profile": {"goal": "снижение веса", "height": 180, "kcal": 2200, "protein": 160, "fat": 70, "carbs": 230},
-            "nutrition": {"days": 20, "in_norm": 12, "kcal": 2150, "protein": 150, "fat": 70, "carbs": 220, "daily": [2100 + i * 10 for i in range(30)]},
-            "body": {"points": [(0, 82.0), (14, 81.2), (29, 80.4)], "first": {"weight_kg": 82.0, "waist_cm": 90}, "last": {"weight_kg": 80.4, "waist_cm": 88}},
-            "workouts": {"sessions": [{"date": today - timedelta(days=i), "title": "День 1 · Все тело", "sets": 12} for i in range(20)], "sets": 240},
-            "water_ml": 2100}
-    pdf = render(data)
-    assert pdf[:5] == b"%PDF-" and pdf.count(b"/Type /Page") - pdf.count(b"/Type /Pages") == 2  # long workout list -> 2 pages
-    empty = {**data, "profile": None, "nutrition": {**data["nutrition"], "days": 0}, "body": {"points": [], "first": {}, "last": {}},
-             "workouts": {"sessions": [], "sets": 0}, "water_ml": 0}
+    tg_id = __import__("random").randint(7 * 10**9, 8 * 10**9)
+    hh = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id, 'first_name': 'Егор 🦊'})}"}
+    client.put("/api/profile", headers=hh, json=PROFILE)  # 182 cm, 78.4 kg, weight loss
+
+    async def build(seed: bool):
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            if seed:
+                p = Product(name=f"Творог {tg_id}", kcal=120, protein_g=17, fat_g=5, carbs_g=3)
+                s.add(p)
+                await s.flush()
+                for i in range(20):
+                    for hour in (8, 19):
+                        s.add(FoodLog(user_id=user.id, product_id=p.id, amount_g=500, meal_type="breakfast" if hour == 8 else "dinner",
+                                      logged_at=datetime.combine(today - timedelta(days=i), time(hour)).astimezone()))
+                for back, kg, waist in ((28, 80.0, 90), (14, 79.2, None), (1, 78.4, 88)):
+                    s.add(BodyMeasurement(user_id=user.id, measured_on=today - timedelta(days=back), weight_kg=kg, waist_cm=waist))
+                for i in range(12):
+                    st = datetime.combine(today - timedelta(days=2 * i), time(18)).astimezone()
+                    w = WorkoutLog(user_id=user.id, title="День 1 · Всё тело", started_at=st, completed_at=st + timedelta(minutes=50), effort="ok")
+                    s.add(w)
+                    await s.flush()
+                    s.add(WorkoutSet(workout_log_id=w.id, exercise_id=1, set_number=1, reps=10, weight_kg=40))
+                await s.commit()
+            return await gather(s, user, 30)
+    empty = client.portal.call(build, False)
     assert render(empty)[:5] == b"%PDF-"  # a new user still gets a (sparse) report
-    from backend.bot.report import cut, printable
+    data = client.portal.call(build, True)
+    assert data["person"]["age"] == today.year - PROFILE["birth_year"] and data["norms"]["bmr"] > 1500
+    nut, body = data["nutrition"], data["body"]
+    assert nut["days"] == 20 and round(nut["kcal"]) == 1200 and nut["protein_per_kg"] == round(170 / 78.4, 1)
+    assert nut["timing"] == {"first": "08:00", "last": "19:00", "window_h": 11.0} and nut["top"][0]["share"] == 100
+    assert len(nut["diary"]) == 14 and nut["diary"][-1][1][0]["kcal"] == 600  # the itemised diary: the last two weeks
+    assert body["first"]["weight_kg"] == 80.0 and body["last"]["bmi"] == round(78.4 / 1.82 ** 2, 1)
+    assert body["last"]["whtr"] == round(88 / 182, 2)
+    assert data["workouts"]["minutes"] == 600 and data["workouts"]["sessions"][0]["volume"] == 400
+    pdf = render(data)
+    assert pdf[:5] == b"%PDF-" and pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page ") >= 3  # main part + appendices
+    from backend.bot.report import printable
     assert printable("🦊 Егор ✨") == "Егор" and printable("💪") == ""  # emoji-only name -> generic title
-    assert cut("День 1: Верх тела + Кор · Домашняя тренировка для начинающих", 24, 500).endswith("…")
 
 
 def test_diary_past_days(client, seeded):

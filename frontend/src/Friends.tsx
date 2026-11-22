@@ -24,13 +24,14 @@ export default function Friends() {
     api(`/api/friends/${r.id}/cheer`, postJson({ emoji: '👏' })).catch(() => setBoard((b) => b && b.map((x) => (x.id === r.id ? { ...x, cheered: false } : x))))
   }
   const [link, setLink] = useState<string | null>(null)
+  const [groupLink, setGroupLink] = useState<string | null>(null) // t.me/<bot>?startgroup: the bot into a group chat
   const [duels, setDuels] = useState<Duel[]>([])
   const [challenge, setChallenge] = useState<{ friend: Row; metric: 'xp' | 'workouts'; days: 3 | 7 } | null>(null)
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
 
   const load = useCallback(() => Promise.all([
-    api<{ invite_link: string | null; board: Row[] }>('/api/friends').then((r) => { if (r) { setBoard(r.board); setLink(r.invite_link) } }),
+    api<{ invite_link: string | null; group_link?: string | null; board: Row[] }>('/api/friends').then((r) => { if (r) { setBoard(r.board); setLink(r.invite_link); setGroupLink(r.group_link ?? null) } }),
     api<Duel[]>('/api/duels').then((r) => r && setDuels(r)),
   ]).catch(() => setError('Нет связи — друзей покажем, как только вернётся интернет')), [])
   useEffect(() => { load() }, [load])
@@ -68,6 +69,14 @@ export default function Friends() {
         </div>
         {!link && <p className="sub">Ссылка появится, когда бот будет запущен.</p>}
       </section>
+      {groupLink && (
+        <section className="card friends-group">
+          <h2>👥 Рейтинг в вашем чате</h2>
+          <p className="sub">Добавь Setly в чат друзей, семьи или коллег: бот ведёт общий рейтинг недели, по понедельникам объявляет
+            чемпиона, в четверг подначивает отстающих, а когда кто-то закончил тренировку — пишет в чат.</p>
+          <button className="btn btn-ghost" onClick={() => { if (tg?.openTelegramLink) tg.openTelegramLink(groupLink); else window.open(groupLink, '_blank') }}>Добавить в чат</button>
+        </section>
+      )}
       {note && <p className="sub friends-note" role="status">{note}</p>}
       {error && <p className="error" role="alert">{error}</p>}
 

@@ -121,7 +121,8 @@ async def friends(tg: dict = Depends(telegram_user), session: AsyncSession = Dep
     clock.use_tz(user.device_tz)
     board.sort(key=lambda r: (-r["week_xp"], -r["streak"], not r["me"]))
     code, bot = await invite_code(session, user), bot_username()
-    return {"invite_link": f"https://t.me/{bot}?start=f{code}" if bot else None, "board": board}
+    return {"invite_link": f"https://t.me/{bot}?start=f{code}" if bot else None, "board": board,
+            "group_link": f"https://t.me/{bot}?startgroup=setly" if bot else None}  # add the bot to a group chat
 
 
 class CheerIn(BaseModel):

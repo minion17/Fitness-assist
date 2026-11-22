@@ -781,6 +781,9 @@ async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), sessi
     if w.completed_at is None:
         w.completed_at = func.now()
         await session.commit()
+        from backend.api.groups import on_workout
+
+        await on_workout(session, user, w)  # "💪 Аня закончила тренировку" in their group chats
     xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}")
     await sync_evolution(session, user.id, "iron_will")
     await session.commit()

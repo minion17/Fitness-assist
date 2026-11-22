@@ -1,11 +1,12 @@
 """Sends what the API queued in `outbox` (friend joined, duel news, share cards) and closes finished duels."""
 import asyncio
 import logging
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.challenges import finish_challenges
 from backend.api.leagues import finish_leagues
+from backend.api.groups import group_posts
 from backend.api.monthly import finish_months
 from backend.api.social import finish_duels, name, pending_messages, reward_invites, week_numbers
 from backend.bot import cards
@@ -32,6 +33,25 @@ async def month_card(session, user: User) -> bytes:
     m = await story_numbers(session, user)
     theme = user.theme if user.theme in cards.THEMES else None
     return await asyncio.to_thread(cards.story_month, name(user), m, bot_username(), theme, user.accent)
+
+
+async def send_group(bot, session, m) -> None:
+    from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    from backend.api.groups import join_link
+    from backend.database.models import GroupChat
+
+    g = await session.scalar(select(GroupChat).where(GroupChat.chat_id == m.telegram_id))
+    link = g and join_link(g)
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть Setly", url=link)]]) if link else None
+    try:
+        await bot.send_message(m.telegram_id, m.text, reply_markup=markup)
+    except (TelegramForbiddenError, TelegramBadRequest) as e:  # removed from the chat, or the chat is gone
+        log.info("group %s unreachable: %s", m.telegram_id, e)
+        if g:
+            g.active = False
+            await session.commit()
 
 
 async def send_report(bot, session, m) -> None:
@@ -121,6 +141,8 @@ async def send_pending(bot, keyboard) -> None:
                                          reply_markup=keyboard() if m.kind == "month_end" else None)
                     if m.kind == "month_card":
                         await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу или сохрани и выложи в истории.")
+                elif m.kind == "group":  # a group chat: no Mini App buttons there, a link to the bot instead
+                    await send_group(bot, session, m)
                 elif m.kind == "report" and m.user_id:
                     await send_report(bot, session, m)
                 elif m.kind == "export" and m.user_id:
@@ -150,6 +172,7 @@ async def run(bot, keyboard) -> None:
                     await finish_leagues(session)
                     await finish_challenges(session)
                     await finish_months(session)
+                    await group_posts(session)
             await send_pending(bot, keyboard)
         except Exception as e:
             log.warning("outbox loop failed, retrying", exc_info=True)

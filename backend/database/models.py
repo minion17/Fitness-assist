@@ -465,6 +465,31 @@ class MonthEntry(Base):
     total: Mapped[int | None] = mapped_column(Integer)
 
 
+class GroupChat(Base):
+    """A Telegram group the bot was added to: a weekly rating of its members (backend.api.groups)."""
+
+    __tablename__ = "group_chats"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, unique=True)  # changes once if a group becomes a supergroup
+    title: Mapped[str] = mapped_column(String(128), default="")
+    code: Mapped[str] = mapped_column(String(12), unique=True)  # t.me/<bot>?start=g<code>: join from outside the chat
+    tz: Mapped[str | None] = mapped_column(String(64))  # whoever added the bot: the week and the posts follow it
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    results_for: Mapped[date | None] = mapped_column(Date)  # the Monday of the last week whose results were posted
+    teased_for: Mapped[date | None] = mapped_column(Date)  # the Monday of the week with the midweek post done
+
+
+class GroupMember(Base):
+    __tablename__ = "group_members"
+
+    group_id: Mapped[int] = mapped_column(ForeignKey("group_chats.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    cheered_on: Mapped[date | None] = mapped_column(Date)  # one "закончил тренировку" post a day per member
+
+
 class League(Base):
     """A weekly group of up to 20 people of one tier competing by XP (Duolingo-style)."""
 

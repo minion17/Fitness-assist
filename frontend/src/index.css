@@ -2139,3 +2139,5 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .progress-view button { white-space: nowrap; flex-shrink: 0; font-size: 15px; }
 .month-share { display: flex; gap: 8px; flex-wrap: wrap; }
 .month-share .btn { flex: 1 1 140px; }
+.friends-group { display: flex; flex-direction: column; gap: 8px; }
+.friends-group h2, .friends-group p { margin: 0; }

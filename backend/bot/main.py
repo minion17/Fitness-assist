@@ -26,7 +26,7 @@ from sqlalchemy.dialects.postgresql import insert
 from backend.api.account import delete_account
 from backend.api.habits import tick_from_bot
 from backend.api.social import USERNAME_FILE, befriend, name
-from backend.bot import admin, cards, chat, outbox, profile, reminders
+from backend.bot import admin, cards, chat, groups, outbox, profile, reminders
 from backend.core import alerts
 from backend.database.db import SessionLocal
 from backend.database.models import ReminderSent, User
@@ -34,6 +34,7 @@ from backend.core.config import Settings, settings
 
 log = logging.getLogger("bot")
 router = Router()
+router.message.filter(F.chat.type == "private")  # group chats: backend.bot.groups
 
 WELCOME = (
     "Привет, {name}! 👋\n\n"
@@ -91,9 +92,12 @@ async def welcome(message: Message, command: CommandObject | None, as_new: bool 
         async with SessionLocal() as s:
             friend = await befriend(s, command.args[1:64], message.from_user.id, message.from_user.first_name)
     hello_name = clean_name(message.from_user.first_name)
+    group = None
     async with SessionLocal() as s:  # the account exists from the first /start: the onboarding messages need it
         existed = await s.scalar(select(User.id).where(User.telegram_id == message.from_user.id))
         user, prof = await chat.me(s, message.from_user)
+        if command and command.args and command.args.startswith("g"):  # "Открыть Setly" in a group chat: t.me/<bot>?start=g<code>
+            group = await join_by_code(s, command.args[1:13], user)
         day = await chat.day_greeting(s, user, prof, hello_name) if prof and not as_new else None
     theme, accent = user.theme, user.accent
     if day:
@@ -116,8 +120,25 @@ async def welcome(message: Message, command: CommandObject | None, as_new: bool 
     if day and await first_time(user.id, "onb:kb"):  # the quick-action keyboard, once for users from before it existed
         await message.answer(f"Быстрые действия теперь на кнопках внизу 👇 А еду можно просто написать сюда, например {chat.EXAMPLE}.",
                              reply_markup=chat.KEYBOARD)
+    if group:
+        await message.answer(f"✋ Ты в рейтинге чата «{html.escape(group.title)}». Очки — XP за тренировки, еду, воду и привычки; "
+                             "итоги — по понедельникам прямо в чате.")
     if friend:
         await message.answer(f"🤝 Вы с {html.escape(name(friend))} теперь друзья! Рейтинг недели и дуэли — в приложении: Прогресс → Друзья.", parse_mode="HTML")
+
+
+async def join_by_code(s, code: str, user: User):
+    """The group behind the code with this user in its rating (and a hello in the chat); None for a stale code."""
+    from backend.api import groups as group_api
+    from backend.database.models import GroupChat
+
+    g = await s.scalar(select(GroupChat).where(GroupChat.code == code, GroupChat.active.is_(True)))
+    if g is None:
+        return None
+    if await group_api.join(s, g, user):
+        group_api.post(s, g, f"✋ {name(user)} присоединяется к рейтингу чата!")
+    await s.commit()
+    return g
 
 
 @router.message(Command("stats"))
@@ -264,6 +285,7 @@ async def main() -> None:
     if not settings.webapp_url.startswith("https://"):
         log.warning("WEBAPP_URL не HTTPS — Telegram не откроет Mini App")
     dp = Dispatcher()
+    dp.include_router(groups.router)  # group chats only
     dp.include_router(router)
     dp.include_router(chat.owner)
     dp.include_router(chat.router)  # last: it takes any other text as food

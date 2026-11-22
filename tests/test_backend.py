@@ -2864,3 +2864,117 @@ def test_month_themes_count_from_the_logs(client):
     sc = client.portal.call(run)
     assert (sc["veggies"], sc["nosweets"], sc["diary"], sc["norm"]) == (2, 1, 2, 1)  # the candy day is over the norm too
     assert (sc["sleep"], sc["records"], sc["habits"]) == (1, 1, 1)  # two records on one day are one day
+
+
+def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
+    import random
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy import select
+
+    from backend.api import groups
+    from backend.bot import groups as bot_groups
+    from backend.bot.main import join_by_code
+    from backend.database.db import SessionLocal
+    from backend.database.models import GroupChat, Outbox, User, XpEvent
+    from conftest import USER, make_init_data
+
+    monkeypatch.setattr(groups, "bot_username", lambda: "SetlyBot")
+    ids = [random.randint(10**10, 2 * 10**10) for _ in range(3)]
+    hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Борис", "Вера"))]
+    for h in hs[:2]:
+        client.put("/api/profile", headers=h, json=PROFILE)
+    chat_id = -random.randint(10**12, 2 * 10**12)
+
+    async def users(s):
+        return [await s.scalar(select(User).where(User.telegram_id == i)) for i in ids]
+
+    # Аня adds the bot: the group exists with her in it; Борис joins by the button, Вера (no Setly yet) gets the bot link
+    async def add():
+        async with SessionLocal() as s:
+            ann = (await users(s))[0]
+            ann.device_tz = "Asia/Yekaterinburg"
+            return (await groups.added(s, chat_id, "Семья", ann)).code
+    code = client.portal.call(add)
+    chat = SimpleNamespace(id=chat_id, title="Семья", type="group")
+    call = SimpleNamespace(from_user=SimpleNamespace(id=ids[1]), message=SimpleNamespace(chat=chat, answer=AsyncMock()), answer=AsyncMock())
+    client.portal.call(bot_groups.join_button, call)
+    assert call.answer.call_args.args[0] == "Ты в рейтинге! 💪" and "Участников: 2" in call.message.answer.call_args.args[0]
+    stranger = SimpleNamespace(from_user=SimpleNamespace(id=ids[2]), message=SimpleNamespace(chat=chat, answer=AsyncMock()), answer=AsyncMock())
+    client.portal.call(bot_groups.join_button, stranger)
+    assert stranger.answer.call_args.kwargs["url"] == f"https://t.me/SetlyBot?start=g{code}"
+    # Вера opens the bot by that link: /start g<code> joins her (the account is created on /start)
+    client.put("/api/profile", headers=hs[2], json=PROFILE)
+
+    async def vera_joins():
+        async with SessionLocal() as s:
+            return await join_by_code(s, code, (await users(s))[2])
+    assert client.portal.call(vera_joins).title == "Семья"
+
+    # a workout: a cheer in the chat, once a day
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    for _ in range(2):
+        w = client.post("/api/workout-logs", headers=hs[0], json={"program_day_id": day_id, "title": "Верх тела"}).json()
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=hs[0], json={"exercise_id": ex_id, "set_number": 1, "reps": 8, "weight_kg": 40})
+        client.post(f"/api/workout-logs/{w['id']}/complete", headers=hs[0])
+
+    async def posts():
+        async with SessionLocal() as s:
+            return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == chat_id).order_by(Outbox.id)))
+    sent = client.portal.call(posts)
+    assert sum("Аня закончил тренировку «Верх тела» — 1-я за неделю" in t for t in sent) == 1, sent  # PROFILE is male
+    assert any("Вера присоединяется" in t for t in sent)
+
+    # this week: Аня has the workout XP; Борис a little; Вера nothing
+    async def board():
+        async with SessionLocal() as s:
+            u = await users(s)
+            s.add(XpEvent(user_id=u[1].id, event_type="test", event_key=f"t:{ids[1]}", xp=5))
+            await s.commit()
+            g = await s.scalar(select(GroupChat).where(GroupChat.chat_id == chat_id))
+            return await groups.board_text(s, g)
+    text = client.portal.call(board)
+    assert text.splitlines()[2].startswith("🥇 Аня — ") and "трен.: 2" in text and "🥈 Борис — 5 XP" in text and "3. Вера — 0 XP" in text
+
+    rows = [(SimpleNamespace(first_name=n, username=None), xp, w) for n, xp, w in (("Аня", 120, 2), ("Борис", 90, 1), ("Вера", 0, 0))]
+    monkeypatch.setattr(groups, "name", lambda u: u.first_name)
+    r = groups.results_text(SimpleNamespace(title="Семья"), rows)
+    assert "Чемпион недели — Аня: 120 XP и 2 трен.!" in r and "😴 Вера" in r
+    assert groups.results_text(SimpleNamespace(title="Семья"), [(rows[2][0], 0, 0)]) is None  # a quiet week: no post
+    assert "отстаёт всего на 30 XP" in groups.tease_text(rows)
+
+    # the schedule: Monday 10:00 results of the week before, Thursday 19:00 the midweek post — each once
+    class At(datetime):
+        moment = datetime(2030, 1, 7, 10, 5, tzinfo=ZoneInfo("Asia/Yekaterinburg"))  # a Monday
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.moment.astimezone(tz or timezone.utc)
+    monkeypatch.setattr(groups, "datetime", At)
+
+    async def tick():
+        async with SessionLocal() as s:
+            await groups.group_posts(s)
+            g = await s.scalar(select(GroupChat).where(GroupChat.chat_id == chat_id))
+            return g.results_for, g.teased_for
+    assert client.portal.call(tick)[0] == datetime(2029, 12, 31).date()
+    assert client.portal.call(tick)[0] == datetime(2029, 12, 31).date()  # once
+    At.moment += timedelta(days=3, hours=9)  # Thursday 19:05
+    assert client.portal.call(tick)[1] == datetime(2030, 1, 7).date()
+
+    # /leave, and the bot removed from the chat: no more posts
+    msg = SimpleNamespace(chat=chat, from_user=SimpleNamespace(id=ids[1]), reply=AsyncMock())
+    client.portal.call(bot_groups.leave_command, msg)
+    assert msg.reply.call_args.args[0].startswith("Готово")
+    left = SimpleNamespace(chat=chat, from_user=SimpleNamespace(id=ids[0]), new_chat_member=SimpleNamespace(status="left"),
+                           old_chat_member=SimpleNamespace(status="member"), bot=SimpleNamespace(send_message=AsyncMock()))
+    client.portal.call(bot_groups.membership, left)
+
+    async def active():
+        async with SessionLocal() as s:
+            return (await s.scalar(select(GroupChat).where(GroupChat.chat_id == chat_id))).active
+    assert client.portal.call(active) is False

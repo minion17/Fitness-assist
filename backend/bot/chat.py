@@ -1073,7 +1073,11 @@ async def eat_command(message: Message) -> None:
 
 @router.message(Command("help"))
 async def help_cmd(message: Message) -> None:
-    await message.answer(HELP, parse_mode="HTML", reply_markup=KEYBOARD)
+    from backend.api.social import bot_username
+
+    bot = bot_username()
+    group = f"\n\n👥 Соревнуйтесь всем чатом: <a href=\"https://t.me/{bot}?startgroup=setly\">добавь меня в чат</a> друзей, семьи или офиса — буду вести рейтинг недели." if bot else ""
+    await message.answer(HELP + group, parse_mode="HTML", reply_markup=KEYBOARD)
 
 
 @router.message(Command("month"))

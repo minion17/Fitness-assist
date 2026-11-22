@@ -86,7 +86,7 @@ test('questionnaire: selection waits for Continue and all answers are saved', as
   fireEvent.change(screen.getByLabelText('Дата цели'), { target: { value: new Date(Date.now() + 30 * 864e5).toLocaleDateString('sv-SE') } })
   click('Продолжить')
   expect(title()).toBe('Твой ориентир')
-  expect(screen.getByText(/безопасно получится минус 3,2 кг/)).toBeTruthy()
+  expect(screen.getByText(/безопасно получится минус 2,5 кг/)).toBeTruthy()
   expect(screen.getByText('Снизить вес на 6,5 кг')).toBeTruthy()
   expect(screen.getByText('61,5 кг')).toBeTruthy()
   expect(screen.getByText('55 кг')).toBeTruthy()
@@ -145,7 +145,7 @@ test('questionnaire: selection waits for Continue and all answers are saved', as
   click('Продолжить')
 
   expect(title()).toBe('Твой план готов')
-  expect(screen.getByText('8–13 нед.')).toBeTruthy() // 6.5 kg at 0.5–0.8 kg a week
+  expect(screen.getByText('11–21 нед.')).toBeTruthy() // 6.5 kg at 0.5–1 % of 61.5 kg a week
   click('Сохранить и начать')
   expect(await screen.findByText('Твои первые ориентиры')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Вернуться в профиль' }))

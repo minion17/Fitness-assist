@@ -13,7 +13,10 @@ export function nextWeight(last: LastSet[] | undefined, plan: string, effort?: E
   if (!last?.length || !top || effort === 'hard') return null // it was hard: keep the weight one more time
   const weight = Math.max(...last.map((s) => s.weight_kg || 0))
   if (weight <= 0 || last.some((s) => s.duration_seconds != null || (s.reps ?? 0) < top || (s.weight_kg || 0) < weight)) return null
-  return Math.round((weight + (weight >= 20 ? 2.5 : 1)) * 10) / 10 // a barbell goes up by 2.5 kg, dumbbells by 1
+  // +2–10 % when the top reps are reached (ACSM): ~2.5 %, ~5 % if it was easy, rounded to the plate / dumbbell step
+  const step = weight >= 20 ? 2.5 : 1
+  const add = Math.max(step, Math.round((weight * (effort === 'easy' ? 0.05 : 0.025)) / step) * step)
+  return Math.round((weight + add) * 10) / 10
 }
 
 /** One line of coaching for today's exercise beyond "+2,5 кг": a hard last time, a plateau, or more reps

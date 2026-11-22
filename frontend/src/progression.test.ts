@@ -16,3 +16,14 @@ describe('advice', () => {
     expect(advice({ date: '', sets: sets(0, 15) }, '10-15')).toMatch(/на 1–2 повтора больше/)
   })
 })
+
+describe('nextWeight', () => {
+  const sets = (w: number, r: number) => [{ weight_kg: w, reps: r, duration_seconds: null }]
+  it('adds ~2.5 % rounded to the step, ~5 % when it was easy', () => {
+    expect(nextWeight(sets(60, 12), '8-12')).toBe(62.5)
+    expect(nextWeight(sets(140, 12), '8-12')).toBe(142.5)
+    expect(nextWeight(sets(100, 12), '8-12', 'easy')).toBe(105)
+    expect(nextWeight(sets(12, 12), '8-12')).toBe(13)
+    expect(nextWeight(sets(60, 10), '8-12')).toBeNull()
+  })
+})

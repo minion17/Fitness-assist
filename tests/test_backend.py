@@ -96,12 +96,17 @@ def test_daily_targets():
     from backend.core.nutrition import daily_targets
 
     t = daily_targets(**{**PROFILE, "birth_year": date.today().year - 30})
-    # BMR = 784 + 1137.5 - 150 + 5 = 1776.5; *1.55*0.80 = 2202.9
-    assert t == {"calories": 2203, "protein": 157, "fat": 71, "carbs": 234}
+    # BMR = 784 + 1137.5 - 150 + 5 = 1776.5; *1.55 = 2754; -0.75 % of 78.4 kg a week = -647 kcal a day
+    assert t == {"calories": 2107, "protein": 157, "fat": 63, "carbs": 229}
     assert daily_targets(**{**PROFILE, "goal": "lose"}) == daily_targets(**PROFILE)  # old saved goal still works
     # tiny woman, sedentary, aggressive deficit -> safety floor
     floor = daily_targets("female", date.today().year - 60, 150, 42, "low", "weight_loss")
     assert floor["calories"] == 1200
+    # 190 cm / 76 kg on a mass gain: +0.5 % a week, not +15 %; carbs ~5 g/kg instead of 540 g
+    gain = daily_targets("male", date.today().year - 28, 190, 76, "moderate", "mass_gain")
+    assert gain == {"calories": 3227, "protein": 152, "fat": 114, "carbs": 398}
+    # obese: protein on the adjusted weight (BMI 25 + a quarter of the excess), not 2 g × 120 kg
+    assert daily_targets("male", 1998, 175, 120, "moderate", "weight_loss")["protein"] == 175
 
 
 def test_profile_save_and_read(client):

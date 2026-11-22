@@ -2720,3 +2720,90 @@ def test_training_day_carbs_protein_from_diary_and_plateau_tips(client):
     assert buttons[0][1].startswith("cb:ea:s:") and buttons[0][1].endswith("x200") and "34 г белка" in buttons[0][0]
     from backend.bot.chat import _b36
     assert _b36(curd_id) in buttons[0][1]
+
+
+def test_month_challenge_board_finish_and_story(client, monkeypatch):
+    import random
+    from datetime import datetime, time, timedelta, timezone
+
+    from backend.api import monthly
+    from backend.database.db import SessionLocal
+    from backend.database.models import MonthEntry, Outbox, User, WaterIntake, WorkoutLog, XpEvent
+    from conftest import USER, make_init_data
+
+    assert len({monthly.theme(monthly.month_of(datetime(2026, k, 5).date()))["key"] for k in range(1, 5)}) == 4  # changes monthly
+    assert monthly.places([(0, 0, 5), (0, 0, 3), (0, 0, 3), (0, 0, 1)]) == [1, 2, 2, 4]  # a tie shares the place
+    monkeypatch.setattr(monthly, "theme", lambda m: monthly.THEMES[0])  # workouts: days with a completed workout
+    ids = [random.randint(8 * 10**9, 9 * 10**9) for _ in range(3)]
+    hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Борис", "Вера"))]
+    for h in hs:
+        client.put("/api/profile", headers=h, json=PROFILE)
+    b = client.get("/api/month", headers=hs[0]).json()
+    assert b["joined"] is False and b["title"] == "Месяц тренировок" and b["me"] is None
+    for h in hs[:2]:
+        assert client.post("/api/month/join", headers=h).json()["joined"] is True
+    from datetime import date
+
+    this = monthly.month_of(monthly.utc_today())
+    real_prev = monthly.month_of(this - timedelta(days=1))
+    prev = date(random.randint(1990, 2020), random.randint(1, 12), 1)  # a month of its own: the test DB keeps earlier runs
+
+    async def seed():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            users = [await s.scalar(select(User).where(User.telegram_id == i)) for i in ids]
+            for u, n in zip(users[:2], (2, 1)):  # Аня trains 2 days this month, Борис 1 (twice the same day counts once)
+                for k in range(n):
+                    at = datetime.combine(this + timedelta(days=k), time(12), tzinfo=timezone.utc)
+                    s.add(WorkoutLog(user_id=u.id, title="Тренировка", started_at=at, completed_at=at))
+                    s.add(WorkoutLog(user_id=u.id, title="Ещё", started_at=at, completed_at=at + timedelta(minutes=5)))
+            s.add(WaterIntake(user_id=users[0].id, day=this, ml=3000))  # another theme's data doesn't count
+            # last month: Аня made the goal (12 days), Вера didn't
+            for u, n in ((users[0], 12), (users[2], 3)):
+                s.add(MonthEntry(user_id=u.id, month=prev, joined_at=datetime.combine(prev, time(0), tzinfo=timezone.utc)))
+                for k in range(n):
+                    at = datetime.combine(prev + timedelta(days=k), time(12), tzinfo=timezone.utc)
+                    s.add(WorkoutLog(user_id=u.id, title="Тренировка", started_at=at, completed_at=at))
+            s.add(MonthEntry(user_id=users[0].id, month=real_prev, closed=True, score=12, rank=1, total=2))
+            await s.commit()
+            return [u.id for u in users]
+    uids = client.portal.call(seed)
+    b = client.get("/api/month", headers=hs[0]).json()
+    boris = client.get("/api/month", headers=hs[1]).json()["me"]  # the board is shared with earlier test runs: compare places
+    assert b["me"]["score"] == 2 and boris["score"] == 1 and b["me"]["rank"] < boris["rank"] and b["total"] >= 2
+    assert all(r["name"] != "Борис" or not r["me"] for r in b["top"]) and (not any(r["me"] for r in b["top"]) or b["me"]["rank"] <= 10)
+
+    async def finish():
+        async with SessionLocal() as s:
+            return await monthly.finish_months(s)
+    assert client.portal.call(finish) >= 1
+    assert client.portal.call(finish) == 0  # closed once
+
+    async def check():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            a = await s.get(MonthEntry, (uids[0], prev))
+            v = await s.get(MonthEntry, (uids[2], prev))
+            texts = list(await s.scalars(select(Outbox.text).where(Outbox.user_id.in_([uids[0], uids[2]]))))
+            xp = await s.scalar(select(XpEvent.xp).where(XpEvent.user_id == uids[0], XpEvent.event_key == f"month:{prev.isoformat()}"))
+            return a, v, texts, xp
+    a, v, texts, xp = client.portal.call(check)
+    assert (a.closed, a.score, a.rank, v.score, v.rank) == (True, 12, 1, 3, 2) and xp == 100
+    assert any("12 дней с тренировкой, 1-е место из 2" in t and "+100 XP" in t and "Новый челлендж" in t for t in texts)
+    assert any("3 дня с тренировкой, 2-е место из 2" in t and "XP" not in t for t in texts)
+    last = client.get("/api/month", headers=hs[0]).json()["last"]
+    assert last["score"] == 12 and last["done"] is True
+    r = client.post("/api/story", headers=hs[0], json={"kind": "month"}).json()
+    assert client.get(r["url"]).content[:4] == b"\x89PNG" and "Месяц тренировок" in r["text"]
+    assert client.post("/api/story", headers=hs[2], json={"kind": "month"}).status_code in (200, 404)
+    # the bot's /month: the theme, the goal and the user's place
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from backend.bot.chat import month_command
+    msg = SimpleNamespace(from_user=SimpleNamespace(id=ids[0], first_name="Аня", username=None, language_code="ru"), answer=AsyncMock())
+    client.portal.call(month_command, msg)
+    text = msg.answer.call_args.args[0]
+    assert text.startswith("🏋️ Челлендж месяца — «Месяц тренировок». Цель: 12 дней с тренировкой") and "2 дня с тренировкой" in text

@@ -357,6 +357,28 @@ def story_duel(name: str, rival: str, me: int, them: int, metric: str, days: int
     return c.png()
 
 
+def story_month(name: str, m: dict, bot: str = "", theme=None, accent=None) -> bytes:
+    """The challenge of the month: days counted against the goal, the place among everyone. m: monthly.story_numbers."""
+    c = _story_base(theme, accent, (540, 880, "accent"))
+    c.text((90, 380), name[:24], 44, "muted", 600)
+    c.text((90, 440), "Челлендж" if not m["final"] else "Итог месяца", 92, "text", 700, "Unbounded")
+    c.text((90, 560), m["title"][:26], 46, "accent_text", 700)
+    cx, cy = SW // 2, 900
+    c.ring(cx, cy, 250, 44, min(1, m["score"] / m["goal"]), "accent")
+    c.text((cx, cy - 30), str(m["score"]), 170, "accent_text", 700, "Unbounded", anchor="mm")
+    c.text((cx, cy + 90), f"цель — {m['goal']} {plural_days(m['goal'])}", 40, "muted", 600, anchor="mm")
+    place = f"{m['rank']}-е место"
+    top = max(1, round(m["rank"] / m["total"] * 100)) if m["total"] else 100
+    for i, (value, label) in enumerate(((place, f"из {m['total']} участников"), (f"топ-{top} %" if m["total"] >= 10 else "✓" if m["score"] >= m["goal"] else "в пути",
+                                         "среди всех" if m["total"] >= 10 else "цель взята" if m["score"] >= m["goal"] else "до цели"))):
+        x = 90 + i * 460
+        c.rect((x, 1230, x + 440, 1450), 44, "card")
+        c.text((x + 40, 1262), value, 60 if len(value) > 4 else 84, "text", 700, "Unbounded")
+        c.text((x + 40, 1380), label, 34, "muted", 600)
+    _footer(c, bot)
+    return c.png()
+
+
 # ---- Tour: the slides a new user flips with ← → on "Сначала покажи, что умеешь" (one message, 4:5) ----
 
 TOUR = (

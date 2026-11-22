@@ -2128,3 +2128,12 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .energy-auto { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .energy-auto > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .energy-auto small { color: var(--muted); font-size: 12px; }
+.month-me { display: flex; align-items: baseline; gap: 10px; }
+.month-me b { font-size: 34px; line-height: 1; font-variant-numeric: tabular-nums; }
+.month-me span { color: var(--muted); font-size: 14px; }
+.month-final { display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+.month-final h2, .month-final p { margin: 0; }
+/* four sections in one row on a 360px phone: no wrapping, scroll sideways if a font is bigger */
+.progress-view { gap: 16px; overflow-x: auto; scrollbar-width: none; }
+.progress-view::-webkit-scrollbar { display: none; }
+.progress-view button { white-space: nowrap; flex-shrink: 0; font-size: 15px; }

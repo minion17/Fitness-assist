@@ -62,7 +62,8 @@ HELP = (
     "🧾 <b>Меню ресторана</b> — пришли фото с подписью «меню», подскажу, что взять.\n"
     "📊 /today — сколько съедено и сколько осталось.\n"
     "💪 /workout — тренировка на сегодня.\n"
-    "⏱ /fast — интервальное голодание: сколько прошло и когда окно.\n\n"
+    "⏱ /fast — интервальное голодание: сколько прошло и когда окно.\n"
+    "🏆 /month — челлендж месяца: твоё место среди всех.\n\n"
     "Всё остальное — в приложении: кнопка «Setly» слева от поля ввода."
 )
 
@@ -1073,6 +1074,25 @@ async def eat_command(message: Message) -> None:
 @router.message(Command("help"))
 async def help_cmd(message: Message) -> None:
     await message.answer(HELP, parse_mode="HTML", reply_markup=KEYBOARD)
+
+
+@router.message(Command("month"))
+async def month_command(message: Message) -> None:
+    from backend.api import monthly
+
+    async with SessionLocal() as session:
+        user, _ = await me(session, message.from_user)
+        m = monthly.month_of(monthly.utc_today())
+        t, rows = monthly.theme(m), await monthly.board(session, m)
+    place = next((i for i, (u, _, _) in enumerate(rows) if u.id == user.id), None)
+    head = f"{t['emoji']} Челлендж месяца — «{t['title']}». Цель: {monthly.days(t['goal'], t)}, за неё +100 XP.\n{t['hint']}"
+    if place is None:
+        text = f"{head}\n\nУчастников уже {len(rows)}. Присоединяйся — считается само, по дневнику." if rows else f"{head}\n\nПрисоединяйся первым."
+        button = "Участвовать"
+    else:
+        text = f"{head}\n\nУ тебя {monthly.days(rows[place][2], t)} — {monthly.places(rows)[place]}-е место из {len(rows)}."
+        button = "Открыть рейтинг"
+    await message.answer(text, reply_markup=kb([app_button(button, "open=month")]))
 
 
 @router.message(Command("fast"))

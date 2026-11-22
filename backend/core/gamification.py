@@ -18,12 +18,13 @@ RULES: dict[str, int] = {
     "quests_all": 50,  # all three of the week done
     "personal_record": 15,  # a set better than every earlier one of that exercise (capped: 3 a day)
     "challenge_done": 50,  # a group challenge with friends finished with 80%+ of the days ticked
+    "month_done": 100,  # the challenge of the month: its goal reached
     "product_shared": 25,  # a product you added was confirmed by 2+ other people and joined the shared catalog  # when the invited friend fills the profile (not on the click: no farming with empty accounts)
 }
 
 BOOST = 1.5  # XP multiplier after a duel win
 BOOST_HOURS = 24
-NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record", "challenge_done"}
+NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record", "challenge_done", "month_done"}
 MAX_INVITE_REWARDS = 10
 # Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling
 # 20 hours) stop "travelling" through timezones to collect the same day's XP twice.

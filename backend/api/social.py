@@ -369,7 +369,7 @@ _stories: dict[str, tuple[float, bytes]] = {}
 
 
 class StoryIn(BaseModel):
-    kind: Literal["week", "duel"]
+    kind: Literal["week", "duel", "month"]
     duel_id: int | None = None
 
 
@@ -388,6 +388,12 @@ async def story(body: StoryIn, tg: dict = Depends(telegram_user), session: Async
         png = await asyncio.to_thread(cards.story_duel, name(user), out["rival"], out["me"], out["them"], d.metric, d.days,
                                       d.rewarded, bot, theme, user.accent)
         text = f"Победа в дуэли в Setly 🏆 {out['me']} : {out['them']}"
+    elif body.kind == "month":
+        from backend.api.monthly import days, story_numbers
+
+        m = await story_numbers(session, user)
+        png = await asyncio.to_thread(cards.story_month, name(user), m, bot, theme, user.accent)
+        text = f"{m['emoji']} {m['title']} в Setly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
     else:
         w = await week_numbers(session, user)
         png = await asyncio.to_thread(cards.story_week, name(user), w["streak"], w["week_xp"], w["workouts"], w["level"], bot,

@@ -7,6 +7,7 @@ import { BarChart, LineChart } from './charts'
 import Empty from './Empty'
 import Friends from './Friends'
 import League from './League'
+import Month from './Month'
 import MuscleWeek from './MuscleWeek'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar, Chevron } from './ui'
@@ -48,7 +49,8 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
   const [error, setError] = useState('')
   const [ex, setEx] = useState<number | null>(null)
   const [chart, setChart] = useState<'calories' | 'water'>('calories')
-  const [view, setView] = useState<'me' | 'friends' | 'league'>('me')
+  // the bot's month-end message opens ?open=month
+  const [view, setView] = useState<'me' | 'friends' | 'league' | 'month'>(() => new URLSearchParams(window.location.search).get('open') === 'month' ? 'month' : 'me')
 
   useEffect(() => {
     if (!canEdit) return
@@ -75,11 +77,12 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       {canEdit && (
         <div className="tabs progress-view" role="tablist" aria-label="Раздел">
           <button role="tab" aria-selected={view === 'me'} onClick={() => setView('me')}>Мой прогресс</button>
+          <button role="tab" aria-selected={view === 'month'} onClick={() => setView('month')}>Челлендж</button>
           <button role="tab" aria-selected={view === 'league'} onClick={() => setView('league')}>Лига</button>
           <button role="tab" aria-selected={view === 'friends'} onClick={() => setView('friends')}>Друзья</button>
         </div>
       )}
-      {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : <>
+      {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : view === 'month' ? <Month /> : <>
       {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроешь приложение из Telegram и начнёшь вести дневник.</p>}
       <div className="progress-filters">
       <div className="progress-picker" role="group" aria-label="Что смотреть">

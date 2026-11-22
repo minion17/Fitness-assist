@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.challenges import finish_challenges
 from backend.api.leagues import finish_leagues
+from backend.api.monthly import finish_months
 from backend.api.social import finish_duels, name, pending_messages, reward_invites, week_numbers
 from backend.bot import cards
 from backend.core import alerts, clock
@@ -127,6 +128,7 @@ async def run(bot, keyboard) -> None:
                     await reward_invites(session)
                     await finish_leagues(session)
                     await finish_challenges(session)
+                    await finish_months(session)
             await send_pending(bot, keyboard)
         except Exception as e:
             log.warning("outbox loop failed, retrying", exc_info=True)

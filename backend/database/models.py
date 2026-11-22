@@ -449,6 +449,21 @@ class ChallengeCheck(Base):
     day: Mapped[date] = mapped_column(Date, primary_key=True)
 
 
+class MonthEntry(Base):
+    """Taking part in the challenge of the month (one theme for everyone, backend.api.monthly). The result is kept
+    when the month is closed: for the final message and the Stories card."""
+
+    __tablename__ = "month_entries"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    month: Mapped[date] = mapped_column(Date, primary_key=True, index=True)  # the 1st
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    score: Mapped[int | None] = mapped_column(Integer)
+    rank: Mapped[int | None] = mapped_column(Integer)
+    total: Mapped[int | None] = mapped_column(Integer)
+
+
 class League(Base):
     """A weekly group of up to 20 people of one tier competing by XP (Duolingo-style)."""
 

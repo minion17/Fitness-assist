@@ -2149,3 +2149,6 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .unverified-note { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--card-2); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
 .unverified-note p { margin: 0; }
 .attach-note { margin: 0 0 8px; }
+.share-list, .share-list-to { margin-top: 10px; }
+.share-list-to { display: flex; flex-direction: column; gap: 8px; }
+.share-list-to p { margin: 0; }

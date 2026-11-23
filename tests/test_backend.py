@@ -3315,3 +3315,69 @@ def test_barcode_products_checked_corrected_attached_and_missed(client, monkeypa
             return sent, (await s.scalars(select(Outbox.text).where(Outbox.telegram_id == 555).order_by(Outbox.id.desc()))).first()
     (first, second), text = client.portal.call(report)
     assert (first, second) == (True, False) and text.startswith("🔎 Штрихкоды, которых нет в базе")
+
+
+def test_shopping_list_shared_in_family_chat(client):
+    """The plan's list in the family group: one message, a button per item, whoever buys it ticks it off for all."""
+    import random
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy import select
+
+    from backend.api import groups
+    from backend.bot import chat, outbox
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox, ShoppingList, User
+    from conftest import USER, make_init_data
+
+    ids = [random.randint(5 * 10**10, 6 * 10**10) for _ in range(2)]
+    hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Мама", "Папа"))]
+    for h in hs:
+        client.put("/api/profile", headers=h, json=PROFILE)
+    chat_id = -random.randint(10**12, 2 * 10**12)
+
+    async def family():
+        async with SessionLocal() as s:
+            mom = await s.scalar(select(User).where(User.telegram_id == ids[0]))
+            return (await groups.added(s, chat_id, "Семья", mom)).id
+    gid = client.portal.call(family)
+    assert client.get("/api/shopping/chats", headers=hs[0]).json() == [{"id": gid, "title": "Семья"}]
+    assert client.get("/api/shopping/chats", headers=hs[1]).json() == []
+    items = [{"name": "Гречка", "qty": "1,2 кг"}, {"name": "Куриное филе", "qty": "900 г"}, {"name": "Кефир 2,5%", "qty": "2 л"}]
+    assert client.post("/api/shopping/share", headers=hs[1], json={"group_id": gid, "items": items}).status_code == 404  # not her chat
+    r = client.post("/api/shopping/share", headers=hs[0], json={"group_id": gid, "title": "Покупки на 7 дней", "items": items}).json()
+
+    # the bot sends it and keeps the message id
+    bot = SimpleNamespace(send_message=AsyncMock(return_value=SimpleNamespace(message_id=77)))
+
+    async def send():
+        async with SessionLocal() as s:
+            m = await s.scalar(select(Outbox).where(Outbox.kind == "shoplist", Outbox.text == str(r["id"])))
+            await outbox.send_shopping(bot, s, m)
+            return (await s.get(ShoppingList, r["id"])).message_id
+    assert client.portal.call(send) == 77
+    args, kw = bot.send_message.call_args
+    assert args[0] == chat_id and "🛒 <b>Покупки на 7 дней</b> · от Мама" in args[1] and "⬜ Гречка — 1,2 кг" in args[1]
+    assert [b.callback_data for row in kw["reply_markup"].inline_keyboard for b in row] == [f"sl:{r['id']}:{k}" for k in range(3)]
+
+    # Папа buys the chicken in the shop: ticked for everyone, with his name
+    call = SimpleNamespace(data=f"sl:{r['id']}:1", from_user=SimpleNamespace(first_name="Папа"),
+                           message=SimpleNamespace(chat=SimpleNamespace(id=chat_id), edit_text=AsyncMock()), answer=AsyncMock())
+    client.portal.call(chat.shopping_tick, call)
+    assert call.answer.call_args.args[0] == "✅ Куриное филе — куплено"
+    text = call.message.edit_text.call_args.args[0]
+    assert "Осталось купить (2)" in text and "✅ <s>Куриное филе — 900 г</s> · Папа" in text
+    client.portal.call(chat.shopping_tick, call)  # tapped again: back on the list
+    assert "Осталось купить (3)" in call.message.edit_text.call_args.args[0]
+    stranger = SimpleNamespace(**{**call.__dict__, "message": SimpleNamespace(chat=SimpleNamespace(id=123), edit_text=AsyncMock()), "answer": AsyncMock()})
+    client.portal.call(chat.shopping_tick, stranger)
+    assert stranger.answer.call_args.args[0] == "Этот список уже не найти"  # a button from another chat can't touch it
+
+    # to the user's own chat with the bot
+    own = client.post("/api/shopping/share", headers=hs[1], json={"items": items[:1]}).json()
+
+    async def target():
+        async with SessionLocal() as s:
+            return (await s.get(ShoppingList, own["id"])).chat_id
+    assert client.portal.call(target) == ids[1]

@@ -246,7 +246,7 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
             <span className="plan-arrow" aria-hidden="true">›</span>
           </button>
         })}</div>
-        <PlanShopping items={plan.shopping} />
+        <PlanShopping items={plan.shopping} canShare={canEdit} days={plan.days.length} />
       </>}
     </section>
     {error && <p role="alert">{error}</p>}

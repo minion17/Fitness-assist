@@ -35,6 +35,25 @@ async def month_card(session, user: User) -> bytes:
     return await asyncio.to_thread(cards.story_month, name(user), m, bot_username(), theme, user.accent)
 
 
+def shopping_markup(rows):
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text=t, callback_data=d) for t, d in row] for row in rows])
+
+
+async def send_shopping(bot, session, m) -> None:
+    from backend.api.shopping import render
+    from backend.database.models import ShoppingList
+
+    sl = await session.get(ShoppingList, int(m.text))
+    if sl is None:
+        return
+    text, rows = render(sl, name(await session.get(User, sl.user_id)))
+    sent = await bot.send_message(m.telegram_id, text, parse_mode="HTML", reply_markup=shopping_markup(rows))
+    sl.message_id = sent.message_id
+    await session.commit()
+
+
 async def send_group(bot, session, m) -> None:
     from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
     from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
@@ -141,6 +160,8 @@ async def send_pending(bot, keyboard) -> None:
                                          reply_markup=keyboard() if m.kind == "month_end" else None)
                     if m.kind == "month_card":
                         await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу или сохрани и выложи в истории.")
+                elif m.kind == "shoplist":  # a shopping list with a button per item; its message id is kept to redraw it
+                    await send_shopping(bot, session, m)
                 elif m.kind == "group":  # a group chat: no Mini App buttons there, a link to the bot instead
                     await send_group(bot, session, m)
                 elif m.kind == "report" and m.user_id:

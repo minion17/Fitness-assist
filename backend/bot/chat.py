@@ -881,6 +881,30 @@ async def eat_pick(call: CallbackQuery) -> None:
         await log_items(call.message, call.from_user, CODE.get(code, "snack"), items)
 
 
+@router.callback_query(F.data.startswith("sl:"))
+async def shopping_tick(call: CallbackQuery) -> None:
+    """A tap on an item of a shared shopping list (a family group or the private chat): bought / not bought, redrawn."""
+    from backend.api.shopping import render, toggle
+    from backend.api.social import name
+    from backend.bot.outbox import shopping_markup
+    from backend.database.models import ShoppingList
+
+    _, list_id, index = (call.data.split(":") + ["", ""])[:3]
+    async with SessionLocal() as session:
+        sl = await session.get(ShoppingList, int(list_id)) if list_id.isdigit() else None
+        if sl is None or sl.chat_id != call.message.chat.id or not index.isdigit() or not toggle(sl, int(index), (call.from_user.first_name or "кто-то")[:30]):
+            await call.answer("Этот список уже не найти")
+            return
+        await session.commit()
+        text, rows = render(sl, name(await session.get(User, sl.user_id)))
+    item = sl.items[int(index)]
+    await call.answer(f"✅ {item['name']} — куплено" if item["done"] else f"↩️ {item['name']} — снова в списке")
+    try:
+        await call.message.edit_text(text, parse_mode="HTML", reply_markup=shopping_markup(rows))
+    except Exception:  # "message is not modified" after a double tap, or too old to edit
+        pass
+
+
 @router.callback_query(F.data.startswith("kc:"))
 async def norm_pick(call: CallbackQuery) -> None:
     """"Сделать норму 1950 ккал" under a plateau note: the accepted norm, as in the app's Реальный расход."""

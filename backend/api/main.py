@@ -24,6 +24,7 @@ from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
 from backend.api.monthly import router as monthly_router
 from backend.api.fasting import router as fasting_router
+from backend.api.shopping import router as shopping_router
 from backend.api.account import router as account_router
 from backend.api.meal_preferences import router as meal_preferences_router
 from backend.api.saved_meal_plan import router as saved_meal_plan_router
@@ -951,6 +952,7 @@ app.include_router(feedback_router)
 app.include_router(daily_router)
 app.include_router(monthly_router)
 app.include_router(fasting_router)
+app.include_router(shopping_router)
 app.include_router(quick_food_router)
 app.include_router(stats_router)
 app.include_router(social_router)

@@ -512,6 +512,20 @@ class GroupMember(Base):
     cheered_on: Mapped[date | None] = mapped_column(Date)  # one "закончил тренировку" post a day per member
 
 
+class ShoppingList(Base):
+    """A shopping list sent to a chat (a family group or the user's own chat with the bot): anyone there ticks items
+    off with the buttons under the message, which is redrawn for everybody (backend.api.shopping)."""
+    __tablename__ = "shopping_lists"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger)  # a group's chat id, or the user's own telegram id
+    title: Mapped[str] = mapped_column(String(100))
+    items: Mapped[list] = mapped_column(JSON)  # [{"name", "qty", "done": bool, "by": first name or null}]
+    message_id: Mapped[int | None] = mapped_column(BigInteger)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class League(Base):
     """A weekly group of up to 20 people of one tier competing by XP (Duolingo-style)."""
 

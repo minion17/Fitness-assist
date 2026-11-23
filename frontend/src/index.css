@@ -826,8 +826,8 @@ button:not(:disabled):active, .btn:not(:disabled):active, summary:active { trans
 .water-value small { color: var(--muted); }
 .home-actions .water-quick { flex: 0 0 auto; padding: 0 16px; color: var(--water); font-weight: 800; }
 .repeat-link { display: block; margin: -4px auto 12px; font-size: 14px; }
-.home-rows { padding: 4px 16px; }
-.home-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.card.home-rows, [data-theme='light'] .card.home-rows { padding: 2px 16px; gap: 0; }
+.home-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .home-rows > .home-row + .home-row, .home-rows > .quest-list + .home-row { border-top: 1px solid var(--line); }
 .home-rows .quest-list { margin: 0 0 8px; }
 .home-row-icon { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; background: var(--card-2); }
@@ -1363,7 +1363,7 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .weight-stepper input { text-align: center; font-size: 22px; font-weight: 700; }
 .weight-stepper .icon-btn { width: 48px; height: 48px; font-size: 24px; color: var(--text); background: var(--card-2); border-radius: 14px; }
 .fold[open] > summary { margin-bottom: 12px; }
-.card.quick-weight:not(.open) { flex-direction: row; align-items: center; text-align: left; justify-content: flex-start; }
+.card.quick-weight:not(.open), [data-theme='light'] .card.quick-weight:not(.open) { padding: 10px 16px; flex-direction: row; align-items: center; text-align: left; justify-content: flex-start; }
 .card.quick-weight:not(.open) .step-text { align-items: flex-start; }
 body:has(.added-bar) .toast { display: none; } /* the sheet's own bar already says what was added */
 .chev { display: block; flex-shrink: 0; color: var(--muted); transition: transform .2s ease; }

@@ -8,7 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.daily import is_active, local_start, streak_state, water_goal
 from backend.api.deps import get_or_create_user, telegram_user
-from backend.core.nutrition import cycle, daily_targets
+from backend.core.nutrition import cycle, daily_targets, day_goals
 from backend.core.gamification import EVOLUTIONS, level_progress
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
@@ -125,8 +125,10 @@ async def stats(
         ({**e, "points": list(e["points"].values())} for e in best.values()), key=lambda e: -len(e["points"])
     )[:12]
 
+    series = await daily_series(session, user, since, today)
+    day_goals(t, profile, series)
     return {
-        "days": await daily_series(session, user, since, today),
+        "days": series,
         "goal": {"calories": t["calories"], "protein": t["protein"], "fat": t["fat"], "carbs": t["carbs"],
                  "water_ml": water_goal(profile)} if t else None,
         "weight": [{"date": d.isoformat(), "kg": kg} for d, kg in weight],

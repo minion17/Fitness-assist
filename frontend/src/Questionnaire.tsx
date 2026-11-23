@@ -312,7 +312,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
     <OptionSlider label={label} options={options} value={d[key] as string | undefined} onChange={set(key)} />
   function body() {
     switch (screen.key) {
-      case 'sex': return <Cards label="Пол" options={SEX} value={d.sex} onChange={set('sex')} grid />
+      case 'sex': return <Cards label="Пол" options={SEX} value={d.sex} onChange={(v) => { set('sex')(v); setTimeout(() => go(1), 200) }} grid /> // one of two: no extra «Продолжить»
       case 'about': return <>{numField('birth_year')}<div className="grid2">{numField('height_cm')}{numField('weight_kg', true)}</div></>
       case 'goal': return <Cards label="Основная цель" options={GOALS} value={d.goal} onChange={goal => {
         setError('')

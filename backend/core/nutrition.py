@@ -95,3 +95,15 @@ def cycle(t: dict, height_cm: int, weight_kg: float, training_days: list[int] | 
     if not shift:
         return {**t, "day": None, "carbs_shift": 0}
     return {**t, "calories": t["calories"] + shift * 4, "carbs": t["carbs"] + shift, "day": day, "carbs_shift": shift}
+
+
+def day_goals(t: dict | None, profile, rows: list[dict]) -> None:
+    """Each day's own calorie norm into rows ({"date", "workouts", ...} → "goal"): a training day eaten to its norm
+    is in the norm, not 12 % over the plain one."""
+    if not t or profile is None:
+        return
+    from datetime import date
+
+    for r in rows:
+        d = date.fromisoformat(r["date"])
+        r["goal"] = cycle(t, profile.height_cm, profile.weight_kg, profile.training_days, d.weekday(), r["workouts"] > 0)["calories"]

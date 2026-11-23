@@ -2183,3 +2183,7 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .past-set label { white-space: nowrap; font-size: 14px }
 .past-entry { display: block; margin: 10px auto 0 }
 .past-workout .chip[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); border-color: var(--accent) }
+
+/* Профиль → Настройки: one row instead of the settings at the profile's tail */
+.profile-settings-entry { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer }
+.profile-settings-entry span { display: flex; flex-direction: column; gap: 2px }

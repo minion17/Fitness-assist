@@ -247,7 +247,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       )}
 
       <section className="card">
-        <h2>История</h2>
+        <div className="card-head"><h2>История</h2>{canEdit && <button className="link" onClick={() => setPast(next.id)}>+ Добавить тренировку</button>}</div>
         {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведи первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
           <div className="list">
             {logs.slice(0, 10).map((l) => (

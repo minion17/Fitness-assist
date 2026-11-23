@@ -8,6 +8,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import body_facts, clock
+from backend.core.nutrition import daily_targets, day_goals
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import DailyCheckin, FoodLog, FrozenDay, HabitCheck, Outbox, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
 from backend.database.rewards import award_xp, revoke_xp, sync_evolution
@@ -146,12 +147,13 @@ async def week(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
     n, days = await streak_state(session, user, today)
     last7 = [today - timedelta(days=i) for i in range(6, -1, -1)]
     empty = {"kcal": 0.0, "water_ml": 0, "workouts": 0}
-    return {
-        "streak": n,
-        "freezes": user.streak_freezes,
-        "days": [{"date": d.isoformat(), **{**empty, **days.get(d, {})}, "kcal": round(days.get(d, empty)["kcal"]),
-                  "frozen": bool(days.get(d, {}).get("frozen"))} for d in last7],
-    }
+    rows = [{"date": d.isoformat(), **{**empty, **days.get(d, {})}, "kcal": round(days.get(d, empty)["kcal"]),
+             "frozen": bool(days.get(d, {}).get("frozen"))} for d in last7]
+    profile = await session.get(Profile, user.id)
+    if profile:
+        day_goals(daily_targets(profile.sex, profile.birth_year, profile.height_cm, profile.weight_kg, profile.activity,
+                                profile.goal, profile.kcal_override), profile, rows)
+    return {"streak": n, "freezes": user.streak_freezes, "days": rows}
 
 
 # ---- Reminder settings (the bot sends them, see backend/bot/reminders.py) ----

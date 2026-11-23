@@ -154,8 +154,9 @@ function Avatar() {
   return <div className="avatar">{src ? <img src={src} alt="" onError={() => setSrc(null)} /> : name[0]}</div>
 }
 
-function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards = [], onAwards }: {
-  synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void; body: React.ReactNode
+function Profile({ synced, progress, data, onEdit, top, share, help, privacy, theme, canEdit, awards = [], onAwards }: {
+  synced: string; progress: Progress; data: ProfileData | null; onEdit: () => void
+  top?: React.ReactNode; share?: React.ReactNode; help?: React.ReactNode; privacy?: React.ReactNode // coach board; coach + PDF; feedback; data
   awards?: Achievement[]; onAwards?: () => void // unlocked badges as medals; the full list is in Прогресс → Награды
   theme: ReturnType<typeof useTheme>
   canEdit: boolean
@@ -166,8 +167,19 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
     : profile
+  const [settings, setSettings] = useState(false) // reminders, look, data: a screen of their own, not the profile's tail
+  if (settings) return (
+    <>
+      <div className="card-head"><h1>Настройки</h1><button className="link" onClick={() => setSettings(false)}>← Профиль</button></div>
+      {canEdit && <Reminders />}
+      <ThemeCard t={theme} />
+      {privacy}
+      <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Setly.</p>
+    </>
+  )
   return (
     <>
+      {top}
       <section className="card profile-identity">
         <div className="profile-person">
         <Avatar />
@@ -206,14 +218,17 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
             <div className="row"><div className="row-main row-title">Жиры</div><div className="row-end">{norm.fat} г</div></div>
             <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{norm.carbs} г</div></div>
           </div>
+          {data?.targets?.day && data.targets.calories !== norm.calories && <p className="sub">
+            {data.targets.day === 'training' ? '🏋️ Сегодня день тренировки' : '😌 Сегодня день отдыха'}: {data.targets.calories.toLocaleString('ru-RU')} ккал,
+            углеводы {data.targets.carbs} г — это норма в «Питании» на сегодня.</p>}
         </section>
       )}
-      <h3 className="profile-group">Уведомления и вид</h3>
-      {canEdit && <Reminders />}
-      <ThemeCard t={theme} />
-      {body && <h3 className="profile-group">Данные и помощь</h3>}
-      {body}
-      <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Setly.</p>
+      {share && <h3 className="profile-group">Поделиться прогрессом</h3>}
+      {share}
+      <button className="card profile-settings-entry" onClick={() => setSettings(true)}>
+        <span><b>⚙️ Настройки</b><small className="sub">Напоминания, оформление, данные и конфиденциальность</small></span><Chevron dir="right" />
+      </button>
+      {help}
     </>
   )
 }
@@ -707,7 +722,7 @@ function SetlyApp() {
           }} canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             weightGoal={me?.target_weight_kg}
             top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={(me?.targets_base ?? me?.targets)?.calories ?? 2000}
-              norm={week.days.filter((d) => { const t = me?.targets_base ?? me?.targets; return t && Math.abs(d.kcal - t.calories) <= 0.1 * t.calories }).length}
+              norm={week.days.filter((d) => { const g = d.goal ?? (me?.targets_base ?? me?.targets)?.calories; return g && Math.abs(d.kcal - g) <= 0.1 * g }).length}
               onRecap={canEdit ? () => setRecapAsked(true) : undefined} />}
               {aiEnabled && <AiSummary />}</>}
             bodyTop={canEdit && me && <EnergyCard calories={(me.targets_base ?? me.targets)?.calories} onNormChanged={() => {
@@ -718,10 +733,11 @@ function SetlyApp() {
         {tab === 'profile' && (
           <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
             awards={ach.items} onAwards={() => { try { sessionStorage.setItem('setly-progress-part', 'awards') } catch { /* private mode */ } go('progress') }}
-            body={canEdit && consent && <><CoachClients /><CoachAccess /><ReportCard /><FeedbackCard /><PrivacyCard consent={consent} onHealth={(health) => {
+            top={canEdit && <CoachClients />} share={canEdit && <><CoachAccess /><ReportCard /></>} help={canEdit && <FeedbackCard />}
+            privacy={canEdit && consent && <PrivacyCard consent={consent} onHealth={(health) => {
               setConsent({ ...consent, health })
               if (!health && me) setMe({ ...me, allergies: [], injury: null })
-            }} /></>} />
+            }} />} />
         )}
       </main>
       {tab !== 'workouts' && <ActiveWorkoutBar onOpen={() => go('workouts')} />}

@@ -2,7 +2,7 @@
 import { cache, cached } from './snapshot'
 import { api } from './telegram'
 
-export type Day = { date: string; kcal: number; protein: number; fat: number; carbs: number; water_ml: number; workouts: number }
+export type Day = { date: string; kcal: number; protein: number; fat: number; carbs: number; water_ml: number; workouts: number; goal?: number } // goal: that day's own calorie norm (training / rest)
 export type Stats = {
   days: Day[]
   goal: { calories: number; protein: number; fat: number; carbs: number; water_ml: number } | null

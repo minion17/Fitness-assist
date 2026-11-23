@@ -252,7 +252,7 @@ async def idea_options(session: AsyncSession, meal_type: str) -> list[dict]:
                 break
             items.append((p, grams))
         if len(items) == len(combo):
-            out.append({"title": "Идея: " + ", ".join(p.name for p, _ in items),
+            out.append({"title": ", ".join(p.name for p, _ in items), "idea": True,  # the card says «пара идей»
                         "items": [{"product_id": p.id, "name": p.name, "amount_g": g} for p, g in items],
                         **totals(items)})
     return out

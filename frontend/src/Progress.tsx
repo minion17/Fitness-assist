@@ -63,7 +63,10 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
 
   const logged = s?.days.filter((d) => d.kcal > 0) ?? []
   const avg = (k: keyof Day) => (logged.length ? logged.reduce((a, d) => a + (d[k] as number), 0) / logged.length : 0)
-  const inNorm = s?.goal ? logged.filter((d) => Math.abs(d.kcal - s.goal!.calories) <= 0.1 * s.goal!.calories).length : 0
+  const goalOf = (d: Day) => d.goal ?? s?.goal?.calories ?? 0
+  const inNorm = s?.goal ? logged.filter((d) => Math.abs(d.kcal - goalOf(d)) <= 0.1 * goalOf(d)).length : 0
+  const goals = new Set(logged.map(goalOf)) // differs on training / rest days: the average of the days' own norms
+  const avgGoal = logged.length ? logged.reduce((a, d) => a + goalOf(d), 0) / logged.length : s?.goal?.calories ?? 0
   const waterDays = s?.days.filter((d) => d.water_ml > 0) ?? []
   const workouts = s?.days.reduce((a, d) => a + d.workouts, 0) ?? 0
   const w = s?.weight ?? []
@@ -108,14 +111,16 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
 
       {part === 'food' && <>
         {top}
-        {s && <>
+        {s && !logged.length && !waterDays.length && <Empty art="chart" title="Здесь появится твоё питание по дням"
+          text="Запиши еду хотя бы 3 дня — покажем средние калории, дни в норме и как ты ешь по сравнению с нормой." />}
+        {s && (logged.length > 0 || waterDays.length > 0) && <>
           <section className="card progress-overview">
             <div className="card-head"><h2>Итоги периода</h2><span className="sub">{PERIODS.find(([n]) => n === days)?.[1]}</span></div>
             <div className="grid2 progress-summary">
               <section className="card tile-stat">
                 <span className="sub">Калории в среднем</span>
                 <div className="stat">{fmt(avg('kcal'))}<small>ккал</small></div>
-                {s.goal && <span className="sub">норма {fmt(s.goal.calories)}</span>}
+                {s.goal && <span className="sub">{goals.size > 1 ? 'норма в среднем' : 'норма'} {fmt(avgGoal)}</span>}
               </section>
               <section className="card tile-stat">
                 <span className="sub">Дней в норме</span>
@@ -165,7 +170,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       </>}
 
       {part === 'training' && s && <>
-        <section className="card progress-overview">
+        {workouts > 0 && <section className="card progress-overview">
           <div className="grid2 progress-summary">
             <section className="card tile-stat">
               <span className="sub">Тренировок</span>
@@ -178,7 +183,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               <span className="sub">прогресс ниже</span>
             </section>
           </div>
-        </section>
+        </section>}
         {canEdit && <MuscleWeek />}
         {exercise ? (
           <section className="card">

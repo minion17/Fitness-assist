@@ -163,6 +163,7 @@ test('home water tracker, food shortcut and theme picker work in demo mode', asy
   expect(screen.getByRole('button', { name: 'Вода: подробнее' }).textContent).toContain('0 / 2 л') // nothing drunk yet
 
   fireEvent.click(screen.getByRole('button', { name: 'Профиль' }))
+  fireEvent.click(screen.getByRole('button', { name: /Настройки/ })) // the look lives in Профиль → Настройки
   fireEvent.click(screen.getByRole('button', { name: 'Салатовая' }))
   expect(document.documentElement.dataset.theme).toBe('green')
   expect(screen.queryByRole('group', { name: 'Акцентный цвет' })).toBeNull()

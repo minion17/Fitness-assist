@@ -2523,7 +2523,7 @@ def test_what_to_eat_has_ideas_for_a_new_user_and_follows_history(client, seeded
     client.put("/api/profile", headers=h, json=PROFILE)
     r = client.get("/api/suggest/meal", params={"meal_type": "breakfast"}, headers=h).json()
     assert r["meal_type"] == "breakfast" and r["kcal_left"] > 1500
-    assert r["options"] and all(o["title"].startswith("Идея: ") for o in r["options"])  # no history yet: plain ideas
+    assert r["options"] and all(o.get("idea") for o in r["options"])  # no history yet: plain ideas
     assert all(o["kcal"] <= r["kcal_left"] for o in r["options"])
 
 
@@ -3550,3 +3550,16 @@ def test_workout_written_in_afterwards(client, seeded):
             return await score(s, me["user"]["id"] if "user" in me else me["id"], "xp", start, clock.now() + timedelta(hours=1)), \
                 await score(s, me["user"]["id"] if "user" in me else me["id"], "workouts", start, clock.now() + timedelta(hours=1))
     assert client.portal.call(duel) == (0, 0)  # not in duels
+
+
+def test_each_day_has_its_own_norm():
+    from types import SimpleNamespace
+
+    from backend.core.nutrition import daily_targets, day_goals
+
+    p = SimpleNamespace(height_cm=180, weight_kg=80, training_days=[0, 2, 4])
+    t = daily_targets("male", 1995, 180, 80, "moderate", "maintenance")
+    rows = [{"date": "2026-11-23", "workouts": 0}, {"date": "2026-11-24", "workouts": 0}, {"date": "2026-11-25", "workouts": 1}]
+    day_goals(t, p, rows)  # Mon planned, Tue rest, Wed trained
+    assert rows[0]["goal"] > t["calories"] > rows[1]["goal"] and rows[2]["goal"] == rows[0]["goal"]
+    day_goals(None, p, rows)  # no profile norm: rows untouched

@@ -11,7 +11,7 @@ import { haptic } from './haptics'
 import { hello, insight } from './greeting'
 
 export type Water = { ml: number; goal_ml: number }
-export type WeekDay = { date: string; kcal: number; water_ml: number; workouts: number }
+export type WeekDay = { date: string; kcal: number; water_ml: number; workouts: number; goal?: number } // goal: that day's norm
 export type FoodIntent = 'photo' | 'text' | 'search'
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU')
@@ -347,8 +347,8 @@ export default function Home(props: {
             <button key={b} className="home-row" onClick={props.onWorkouts}>
               <span className="home-row-icon" aria-hidden="true"><Icon name="dumbbell" /></span>
               {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /><span className="skeleton skeleton-line" style={{ width: 90, height: 14, marginTop: 6 }} /></span> // not "choose a program" before the program has loaded
-                : <span className="step-text"><b>{restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выбери программу тренировок'}</b>
-                <span className="sub">{restDay ? `Следующая тренировка — ${nextTraining}: ${next!.day_name}` : next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}
+                : <span className="step-text"><b>{trained && next ? 'Тренировка сегодня сделана ✓' : restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выбери программу тренировок'}</b>
+                <span className="sub">{trained && next ? `Следующая: ${next.day_name}` : restDay ? `Следующая тренировка — ${nextTraining}: ${next!.day_name}` : next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}
               <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
             </button>
           ) : <Fragment key={b}>{b === 'habits' ? props.habits : props.quests}</Fragment>)}

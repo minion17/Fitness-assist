@@ -19,11 +19,12 @@ export default function Quests({ week }: { week: QuestWeek }) {
     <>
       <button className="home-row" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className="home-row-icon" aria-hidden="true"><Icon name="trophy" /></span>
-        <span className="step-text"><b>Задания недели · {done} из {week.items.length}</b>
-          <span className="sub">{done === week.items.length ? `Все выполнены, бонус +${week.bonus} XP получен` : `${left(week.days_left)} · все три — ещё +${week.bonus} XP`}</span></span>
+        <span className="step-text"><b>Задания недели · {done} из {week.items.length}</b></span>
         <span className={open ? 'step-go open' : 'step-go'} aria-hidden="true"><Chevron dir="right" /></span>
       </button>
       {open && (
+        <>
+        <p className="sub">{done === week.items.length ? `Все выполнены, бонус +${week.bonus} XP получен` : `${left(week.days_left)} · все три — ещё +${week.bonus} XP`}</p>
         <ul className="quest-list" aria-label="Задания недели">
           {week.items.map((q) => (
             <li key={q.code} className={q.done ? 'done' : ''}>
@@ -35,6 +36,7 @@ export default function Quests({ week }: { week: QuestWeek }) {
             </li>
           ))}
         </ul>
+        </>
       )}
     </>
   )

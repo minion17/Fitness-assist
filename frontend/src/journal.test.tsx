@@ -444,10 +444,10 @@ test('weekly tasks: one row on Home that opens the list', () => {
     { code: 'workouts', title: 'Проведи 3 тренировки', progress: 1, target: 3, xp: 80, done: false },
   ] }} />)
   expect(screen.getByText('Задания недели · 1 из 2')).toBeTruthy()
-  expect(screen.getByText('ещё 3 дня · все три — ещё +50 XP')).toBeTruthy()
   expect(screen.queryByText('1 из 3')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: /Задания недели/ }))
   expect(screen.getByText('1 из 3')).toBeTruthy()
+  expect(screen.getByText('ещё 3 дня · все три — ещё +50 XP')).toBeTruthy()
 })
 
 test('workout player: one exercise at a time, moves on when its sets are done', async () => {
@@ -817,7 +817,7 @@ test('home: hide and reorder the blocks, kept on the phone', async () => {
   const { unmount } = render(<Home {...props} />)
   const order = () => [...document.querySelectorAll('.home-rows > *')].map((e) => e.textContent?.slice(0, 12))
   expect(order()).toEqual(['Выбери прогр', 'Блок привыче', 'Блок заданий'])
-  fireEvent.click(screen.getByRole('button', { name: '⚙ Настроить главный экран' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Настроить главный экран' }))
   fireEvent.click(screen.getByRole('button', { name: 'Задания недели: выше' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Тренировка на сегодня' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Вес' }))

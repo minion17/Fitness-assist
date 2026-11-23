@@ -57,7 +57,7 @@ export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]
     return (
       <button className="home-row" onClick={() => { setEditing(true); setExpanded(true) }}>
         <span className="home-row-icon" aria-hidden="true"><Icon name="check" /></span>
-        <span className="step-text"><b>Привычки</b><span className="sub">Сон, шаги, без сладкого — отметка продлевает серию</span></span>
+        <span className="step-text"><b>Привычки</b></span>
         <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
       </button>
     )
@@ -67,8 +67,7 @@ export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]
     <div className="habits">
       <button className="home-row habits-head" type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
         <span className="home-row-icon" aria-hidden="true"><Icon name="check" /></span>
-        <span className="step-text"><b>Привычки{habits.length ? ` · ${done} из ${habits.length}` : ''}</b>
-          <span className="sub">{habits.length && done === habits.length ? 'Все отмечены сегодня' : 'Отметка за сегодня продлевает серию'}</span></span>
+        <span className="step-text"><b>Привычки{habits.length ? ` · ${done} из ${habits.length}` : ''}</b></span>
         <span className={`step-go${expanded ? ' open' : ''}`} aria-hidden="true"><Chevron dir="right" /></span>
       </button>
 

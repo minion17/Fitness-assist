@@ -16,7 +16,6 @@ export type FoodIntent = 'photo' | 'text' | 'search'
 
 const fmt = (n: number) => Math.round(n).toLocaleString('ru-RU')
 const liters = (ml: number) => (ml / 1000).toLocaleString('ru-RU', { maximumFractionDigits: 2 })
-const exercisesLabel = (n: number) => `${n} ${n % 100 >= 11 && n % 100 <= 14 ? 'упражнений' : n % 10 === 1 ? 'упражнение' : n % 10 >= 2 && n % 10 <= 4 ? 'упражнения' : 'упражнений'}`
 
 const PORTIONS = [150, 250, 330, 500]
 
@@ -260,13 +259,14 @@ export default function Home(props: {
           <h1 className="home-title">{hello(hour, props.name)}</h1>
           {!props.loading && line && <p className="home-insight">{line}</p>}
         </div>
-        <div className="home-chips" style={props.loading ? { visibility: 'hidden' } : undefined}>
+        <div className="home-chips">
+          {props.canEdit && <button className="home-arrange" aria-label="Настроить главный экран" title="Настроить главный экран" onClick={() => setArranging(true)}><Icon name="settings" size={21} /></button>}
           {props.boostUntil && ( // the server sends it only while the boost lasts
             <span className="pill pill-boost" title={`Бустер за победу в дуэли: ×1,5 XP до ${new Date(props.boostUntil).toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`}>
               ⚡ ×1,5<span className="sr-only"> XP: бустер за победу в дуэли</span>
             </span>
           )}
-          <span className="pill" title="Дней подряд">
+          <span className="pill" title="Дней подряд" style={props.loading ? { visibility: 'hidden' } : undefined}>
             <svg className={props.streak > 0 ? 'flame lit' : 'flame'} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--streak)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3c1 3 4 4.5 4 8.5A4 4 0 0 1 8 12c0-1.5.7-2.6 1.5-3.5C10 10 11 10.5 11 10.5 11 7 12 3 12 3z" /></svg>
             <span className="bump" key={props.streak}>{props.streak}</span><span className="sr-only"> дней подряд</span>
           </span>
@@ -342,17 +342,15 @@ export default function Home(props: {
       }, []).map((g) => g[0] === 'weight' ? <Fragment key="weight">{props.weight}</Fragment> : (
         <div className="card home-rows" key={g.join()}>
           {g.map((b) => b === 'workout' ? (
-            <button key={b} className="home-row" onClick={props.onWorkouts}>
+            <button key={b} className="home-row" onClick={props.onWorkouts} aria-label={restDay ? `Сегодня отдых. Следующая тренировка — ${nextTraining}: ${next!.day_name}` : undefined}>
               <span className="home-row-icon" aria-hidden="true"><Icon name="dumbbell" /></span>
-              {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /><span className="skeleton skeleton-line" style={{ width: 90, height: 14, marginTop: 6 }} /></span> // not "choose a program" before the program has loaded
-                : <span className="step-text"><b>{restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выбери программу тренировок'}</b>
-                <span className="sub">{restDay ? `Следующая тренировка — ${nextTraining}: ${next!.day_name}` : next ? exercisesLabel(next.exercises.length) : 'Готовую или свою'}</span></span>}
+              {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /></span> // not "choose a program" before the program has loaded
+                : <span className="step-text"><b>{restDay ? 'Сегодня отдых 😌' : next ? `Сегодня: ${next.day_name}` : 'Выбери программу тренировок'}</b></span>}
               <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
             </button>
           ) : <Fragment key={b}>{b === 'habits' ? props.habits : props.quests}</Fragment>)}
         </div>
       ))}
-      {props.canEdit && <button className="link home-arrange" onClick={() => setArranging(true)}>⚙ Настроить главный экран</button>}
       {arranging && <HomeSettings layout={layout} onChange={changeLayout} onClose={() => setArranging(false)} />}
     </>
   )

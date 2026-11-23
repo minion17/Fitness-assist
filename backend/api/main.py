@@ -841,6 +841,57 @@ class EffortIn(BaseModel):
     effort: str = Field(pattern=r"^(easy|ok|hard)$")
 
 
+class PastWorkoutIn(BaseModel):
+    program_day_id: int | None = None
+    title: str = Field(default="Тренировка", min_length=1, max_length=200)
+    day: date  # today or yesterday, the user's local date
+    start: str = Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
+    minutes: int = Field(ge=5, le=300)
+    sets: list[WorkoutSetIn] = Field(min_length=1, max_length=100)
+
+
+@app.post("/api/workout-logs/past")
+async def past_workout(body: PastWorkoutIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """A workout written in afterwards, whole: today or yesterday, one a day. It counts for progress, the coach and the
+    training-day norm; XP is half and it stays out of duels and group ratings (nothing proves it happened)."""
+    user = await get_or_create_user(tg, session)
+    today = clock.today()
+    if body.day not in (today, today - timedelta(days=1)):
+        raise HTTPException(422, "Записать можно тренировку за сегодня или вчера")
+    h, m = map(int, body.start.split(":"))
+    started = clock.local_start(body.day) + timedelta(hours=h, minutes=m)
+    completed = started + timedelta(minutes=body.minutes)
+    if completed > clock.now() + timedelta(minutes=5):
+        raise HTTPException(422, "Эта тренировка ещё не закончилась — проверь время")
+    if await session.scalar(select(WorkoutLog.id).where(WorkoutLog.user_id == user.id, WorkoutLog.after.is_(True),
+                                                        WorkoutLog.started_at >= clock.local_start(body.day),
+                                                        WorkoutLog.started_at < clock.local_start(body.day + timedelta(days=1)))):
+        raise HTTPException(409, "За этот день тренировка уже записана после — следующую отметь в плеере во время занятия")
+    if body.program_day_id is not None:
+        program = await session.scalar(select(Program).join(ProgramDay, ProgramDay.program_id == Program.id).where(ProgramDay.id == body.program_day_id))
+        if program is None or program.owner_user_id not in (None, user.id):
+            raise HTTPException(404, "День программы не найден")
+    for s in body.sets:
+        exercise = await session.get(Exercise, s.exercise_id)
+        if exercise is None or exercise.owner_user_id not in (None, user.id):
+            raise HTTPException(404, "Упражнение не найдено")
+        if (s.reps is None) == (s.duration_seconds is None):
+            raise HTTPException(422, "Укажи повторы или время")
+    w = WorkoutLog(user_id=user.id, program_day_id=body.program_day_id, title=body.title, started_at=started, completed_at=completed, after=True)
+    w.sets = [WorkoutSet(**s.model_dump()) for s in body.sets]
+    session.add(w)
+    await session.commit()
+    real = len(body.sets) >= MIN_WORKOUT_SETS and body.minutes >= MIN_WORKOUT_MINUTES
+    xp = await award_xp(session, user.id, "workout_logged", f"workout:{w.id}") if real else 0
+    await sync_evolution(session, user.id, "iron_will")
+    await session.commit()
+    note = None if xp else (f"XP — от {MIN_WORKOUT_SETS} подходов и {MIN_WORKOUT_MINUTES} минут" if not real
+                            else "XP за запись после — одна тренировка в сутки. Эта сохранена без XP")
+    profile = await session.get(Profile, user.id)
+    tip = profile and body_facts.workout_tip(profile.sex, w.id, profile.weight_kg, profile.height_cm)
+    return {"id": w.id, "xp_awarded": xp, "xp_note": note, "tip": tip}
+
+
 @app.post("/api/workout-logs/{log_id}/effort")
 async def workout_effort(log_id: int, body: EffortIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """How the workout felt: next time an easy one goes heavier sooner, a hard one keeps the weight."""
@@ -866,7 +917,7 @@ async def list_workout_logs(tg: dict = Depends(telegram_user), session: AsyncSes
             "id": w.id, "title": w.title, "program_day_id": w.program_day_id,
             "started_at": w.started_at.isoformat(),
             "completed_at": w.completed_at.isoformat() if w.completed_at else None,
-            "sets": len(w.sets),
+            "sets": len(w.sets), "after": w.after,
         }
         for w in rows
     ]

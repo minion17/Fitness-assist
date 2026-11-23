@@ -13,7 +13,7 @@ type Client = {
 type Detail = Client & {
   targets: { calories: number; protein: number; fat: number; carbs: number } | null
   days: { date: string; kcal: number; protein: number; fat: number; carbs: number; water_ml: number; workouts: number }[]
-  workouts: { date: string; title: string; minutes: number; sets: number; tonnage: number; effort: string | null }[]
+  workouts: { date: string; title: string; minutes: number; sets: number; tonnage: number; effort: string | null; after?: boolean }[]
 }
 
 const n = (x: number) => x.toLocaleString('ru-RU')
@@ -86,7 +86,7 @@ export function CoachClients() {
       <h3>Тренировки за 2 недели</h3>
       {open.workouts.length ? open.workouts.map((w, i) => (
         <div className="row" key={i}><div className="row-main"><span className="row-title">{w.title}</span>
-          <small className="sub"> {dm(w.date)} · {w.minutes} мин · {w.sets} подх.{w.tonnage ? ` · ${n(w.tonnage)} кг` : ''}{w.effort ? ` · ${{ easy: 'легко', ok: 'нормально', hard: 'тяжело' }[w.effort] ?? ''}` : ''}</small></div></div>
+          <small className="sub"> {dm(w.date)} · {w.minutes} мин · {w.sets} подх.{w.tonnage ? ` · ${n(w.tonnage)} кг` : ''}{w.effort ? ` · ${{ easy: 'легко', ok: 'нормально', hard: 'тяжело' }[w.effort] ?? ''}` : ''}{w.after ? ' · записано после' : ''}</small></div></div>
       )) : <p className="sub">Не было.</p>}
       <button className="btn btn-ghost" onClick={() => { haptic('success'); api(`/api/coach/clients/${open.id}/report`, postJson({ days: 30 })).then(() => setNote('PDF-отчёт за 30 дней придёт тебе в чат с ботом')).catch(() => setNote('Не получилось — попробуй ещё раз')) }}>📄 PDF-отчёт за 30 дней</button>
       {note && <p className="sub" role="status">{note}</p>}

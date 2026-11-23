@@ -78,9 +78,10 @@ async def week(session: AsyncSession, g: GroupChat, monday: date, until: datetim
                                        .where(GroupMember.group_id == g.id).order_by(GroupMember.joined_at)))
     ids = [u.id for u in users]
     xp = dict((await session.execute(select(XpEvent.user_id, func.sum(XpEvent.xp)).where(
-        XpEvent.user_id.in_(ids), XpEvent.created_at >= start, XpEvent.created_at < end).group_by(XpEvent.user_id))).all()) if ids else {}
+        XpEvent.user_id.in_(ids), XpEvent.created_at >= start, XpEvent.created_at < end,
+        XpEvent.event_type != "workout_logged").group_by(XpEvent.user_id))).all()) if ids else {}
     wk = dict((await session.execute(select(WorkoutLog.user_id, func.count()).where(
-        WorkoutLog.user_id.in_(ids), WorkoutLog.completed_at >= start, WorkoutLog.completed_at < end).group_by(WorkoutLog.user_id))).all()) if ids else {}
+        WorkoutLog.user_id.in_(ids), WorkoutLog.completed_at >= start, WorkoutLog.completed_at < end, WorkoutLog.after.is_(False)).group_by(WorkoutLog.user_id))).all()) if ids else {}
     return sorted(((u, int(xp.get(u.id) or 0), int(wk.get(u.id) or 0)) for u in users), key=lambda r: -r[1])
 
 

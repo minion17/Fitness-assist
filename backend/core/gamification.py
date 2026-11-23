@@ -5,6 +5,7 @@ RULES: dict[str, int] = {
     "meal_logged": 10,
     "daily_nutrition_goal": 30,
     "workout_completed": 50,
+    "workout_logged": 25,  # written in afterwards: nothing proves it happened, so half, once a day, not in duels/group ratings
     "body_measurement": 15,
     "water_goal": 10,
     "streak_week": 20,  # every 7 days in a row (also earns a streak freeze)
@@ -25,14 +26,14 @@ RULES: dict[str, int] = {
 BOOST = 1.5  # XP multiplier after a duel win
 BOOST_HOURS = 24
 BOOST_MAX_BONUS = 50  # the most a boost adds in all: a won duel can't be turned into a day of x1.5 farming
-NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record", "challenge_done", "month_done"}
+NOT_BOOSTED = {"workout_logged", "duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record", "challenge_done", "month_done"}
 MAX_INVITE_REWARDS = 10
 # Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling
 # 20 hours) stop "travelling" through timezones to collect the same day's XP twice.
 # Workouts: XP for at most 2 a day (and only with MIN_WORKOUT_SETS sets) — otherwise "start, one set, finish" repeated
 # farms 50 XP a go, and group-chat ratings, leagues and quests all run on XP.
 ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5, "personal_record": 3,
-                "workout_completed": 2, "body_measurement": 1, "streak_week": 1}  # streak: backfilled days can't pay out weeks at once
+                "workout_completed": 2, "workout_logged": 1, "body_measurement": 1, "streak_week": 1}  # streak: backfilled days can't pay out weeks at once
 MIN_WORKOUT_SETS = 3
 MIN_WORKOUT_MINUTES = 10  # from start to finish: three sets in a minute is a tap, not a workout
 CAP_WINDOW_HOURS = 20

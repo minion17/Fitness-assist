@@ -26,6 +26,7 @@ export type Program = {
 
 export type WorkoutLog = {
   id: number; title: string; program_day_id: number | null; started_at: string; completed_at: string | null; sets: number
+  after?: boolean // written in afterwards, not in the player
 }
 
 /** Meal that fits the current time of day — preselected when adding food. */

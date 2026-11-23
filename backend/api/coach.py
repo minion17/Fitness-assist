@@ -182,7 +182,7 @@ async def client_detail(client_id: int, tg: dict = Depends(telegram_user), sessi
             "days": [{"date": (since + timedelta(days=i)).isoformat(), **{k: round(v) if isinstance(v, (int, float)) else v for k, v in d.items()}} for i, d in enumerate(days)],
             "workouts": [{"date": clock.local(w.completed_at).date().isoformat(), "title": w.title,
                           "minutes": round((w.completed_at - w.started_at).total_seconds() / 60),
-                          "sets": sets.get(w.id, (0, 0))[0], "tonnage": sets.get(w.id, (0, 0))[1], "effort": w.effort} for w in logs],
+                          "sets": sets.get(w.id, (0, 0))[0], "tonnage": sets.get(w.id, (0, 0))[1], "effort": w.effort, "after": w.after} for w in logs],
         }
     finally:
         clock.use_tz(None)

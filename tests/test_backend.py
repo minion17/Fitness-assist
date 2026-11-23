@@ -3514,3 +3514,39 @@ def test_body_facts_by_sex_and_only_where_research_says():
     assert not any("тестостерон" in x and "перекачаться" not in x for x in women)
     assert any("гормональный баланс" in t.workout_tip("female", n, 90, 165) for n in range(5))
     assert "10–15 %" in t.sleep_tip("male", 1) and "385 ккал" in t.sleep_tip("female", 1) and t.sleep_tip("male", 3) is None
+
+
+def test_workout_written_in_afterwards(client, seeded):
+    from datetime import timedelta
+
+    from conftest import new_user_headers
+
+    from backend.api.social import score
+    from backend.core import clock
+    from backend.database.db import SessionLocal
+
+    h = new_user_headers()
+    me = client.post("/api/auth", headers=h).json()
+    client.put("/api/profile", headers=h, json={"sex": "female", "birth_year": 1995, "height_cm": 168, "weight_kg": 62, "activity": "light", "goal": "maintenance"})
+    ex = client.get("/api/exercises", headers=h).json()[0]["id"]
+    today = clock.today()
+    body = {"title": "Ноги", "day": (today - timedelta(days=1)).isoformat(), "start": "18:00", "minutes": 50,
+            "sets": [{"exercise_id": ex, "set_number": i, "reps": 10, "weight_kg": 40} for i in (1, 2, 3)]}
+    r = client.post("/api/workout-logs/past", headers=h, json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["xp_awarded"] == 25 and r.json()["tip"].startswith("Молодец!")
+    log = next(w for w in client.get("/api/workout-logs", headers=h).json() if w["id"] == r.json()["id"])
+    assert log["after"] and log["sets"] == 3 and log["completed_at"]
+    assert client.post("/api/workout-logs/past", headers=h, json=body).status_code == 409  # one a day
+    assert client.post("/api/workout-logs/past", headers=h, json={**body, "day": (today - timedelta(days=2)).isoformat()}).status_code == 422
+    assert client.post("/api/workout-logs/past", headers=h, json={**body, "day": today.isoformat(), "start": "23:59", "minutes": 300}).status_code == 422
+    # a second day: saved, but the daily XP cap for written-in workouts is spent
+    r2 = client.post("/api/workout-logs/past", headers=h, json={**body, "day": today.isoformat(), "start": "00:00", "minutes": 10})
+    assert r2.status_code == 200 and r2.json()["xp_awarded"] == 0 and "одна тренировка в сутки" in r2.json()["xp_note"]
+
+    async def duel():
+        async with SessionLocal() as s:
+            start = clock.local_start(today - timedelta(days=3))
+            return await score(s, me["user"]["id"] if "user" in me else me["id"], "xp", start, clock.now() + timedelta(hours=1)), \
+                await score(s, me["user"]["id"] if "user" in me else me["id"], "workouts", start, clock.now() + timedelta(hours=1))
+    assert client.portal.call(duel) == (0, 0)  # not in duels

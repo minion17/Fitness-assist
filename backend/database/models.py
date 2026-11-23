@@ -361,6 +361,8 @@ class WorkoutLog(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     effort: Mapped[str | None] = mapped_column(String(5))  # how it felt: easy / ok / hard
+    # written in afterwards (no phone in the gym): counts for progress and the coach, half XP, not in duels or group ratings
+    after: Mapped[bool] = mapped_column(default=False, server_default="false")
     sets: Mapped[list["WorkoutSet"]] = relationship(cascade="all, delete-orphan", order_by="WorkoutSet.id")
 
 

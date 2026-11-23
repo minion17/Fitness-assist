@@ -194,10 +194,10 @@ async def score(session: AsyncSession, user_id: int, metric: str, start, end) ->
     if metric == "xp":  # the duel bonus and its boost don't count towards other duels
         q = select(func.coalesce(func.sum(XpEvent.xp), 0)).where(
             XpEvent.user_id == user_id, XpEvent.created_at >= start, XpEvent.created_at < end,
-            XpEvent.event_type.not_in(("duel_win", "boost_bonus")))
+            XpEvent.event_type.not_in(("duel_win", "boost_bonus", "workout_logged")))
     else:  # real workouts only: 3+ sets, at most one counted per day
         real = (select(WorkoutLog.completed_at).join(WorkoutSet, WorkoutSet.workout_log_id == WorkoutLog.id)
-                .where(WorkoutLog.user_id == user_id, WorkoutLog.completed_at >= start, WorkoutLog.completed_at < end)
+                .where(WorkoutLog.user_id == user_id, WorkoutLog.completed_at >= start, WorkoutLog.completed_at < end, WorkoutLog.after.is_(False))
                 .group_by(WorkoutLog.id).having(func.count(WorkoutSet.id) >= WORKOUT_MIN_SETS).subquery())
         q = select(func.count(func.distinct(func.date(real.c.completed_at))))
     return int(await session.scalar(q) or 0)

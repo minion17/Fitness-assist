@@ -2170,3 +2170,16 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 /* testosterone facts: Home card and the workout summary line */
 .t-tip p { margin: 0; line-height: 1.45 }
 .workout-tip { margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--card-2); text-align: left; line-height: 1.45; font-size: 14px }
+
+/* a workout written in afterwards (PastWorkout.tsx) */
+.past-workout { display: flex; flex-direction: column; gap: 12px }
+.past-row { display: flex; gap: 12px }
+.past-field { display: flex; flex-direction: column; gap: 4px; flex: 1 }
+.past-field span { font-size: 13px; color: var(--muted) }
+.past-field input, .past-field select { width: 100%; min-height: 44px; border-radius: 12px; border: 1px solid var(--card-border); background: var(--card); color: inherit; padding: 0 12px; font: inherit }
+.past-exercise { display: flex; flex-direction: column; gap: 8px }
+.past-set { display: grid; grid-template-columns: 18px 1fr 1fr 32px; align-items: center; gap: 8px }
+.past-set input { width: 56px; min-height: 40px; border-radius: 10px; border: 1px solid var(--card-border); background: var(--card-2); color: inherit; text-align: center; font: inherit }
+.past-set label { white-space: nowrap; font-size: 14px }
+.past-entry { display: block; margin: 10px auto 0 }
+.past-workout .chip[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); border-color: var(--accent) }

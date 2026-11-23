@@ -15,6 +15,7 @@ import { Icon } from './icons'
 import { workoutMinutes } from './workoutTime'
 import { loadActive, saveActive } from './activeWorkout'
 import MuscleMap from './MuscleMap'
+import PastWorkout from './PastWorkout'
 import { MUSCLES, type Muscle } from './muscles'
 import { haptic, sound } from './haptics'
 import { morph } from './motion'
@@ -50,6 +51,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   const [historySets, setHistorySets] = useState<{ id: number; name: string; set_number: number; reps: number | null; duration_seconds: number | null; weight_kg: number }[] | null>(null)
   const [historyError, setHistoryError] = useState(false)
   const [personalList, setPersonalList] = useState(false)
+  const [past, setPast] = useState<number | null>(null) // a program day being written in afterwards
   useEffect(() => {
     if (!historyLog) return
     let active = true
@@ -131,6 +133,8 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
   if (session && program) {
     return <Session program={program} day={session} onExit={() => morph(() => { saveActive(null); setSession(null) })} onChanged={onChanged} onRecord={onRecord} onMinimize={onMinimize} />
   }
+
+  if (past !== null && program) return <PastWorkout program={program} dayId={past} onDone={onChanged} onClose={() => setPast(null)} />
 
   if (personalList && previewProgramId !== null) {
     const preview = programs.find(item => item.id === previewProgramId)
@@ -223,7 +227,8 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
           ))}
         </div>
         {canEdit
-          ? <button className="btn" onClick={() => morph(() => setSession(next))}>Начать тренировку</button>
+          ? <><button className="btn" onClick={() => morph(() => setSession(next))}>Начать тренировку</button>
+            <button className="link past-entry" onClick={() => setPast(next.id)}>Тренировался без телефона? Записать после</button></>
           : <p className="sub">Демо-режим: чтобы записывать тренировки, открой приложение из Telegram.</p>}
       </section>
 
@@ -247,7 +252,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
           <div className="list">
             {logs.slice(0, 10).map((l) => (
               <button className="row row-btn history-entry" key={l.id} onClick={() => setHistoryLog(l)}>
-                <div className="row-main"><div className="row-title">{l.title.replace(/^(День\s+\d+)\s*:[^·]+·\s*/i, '$1 · ')}</div><div className="row-sub">{dateRu(l.started_at)} · подходов: {l.sets}</div></div>
+                <div className="row-main"><div className="row-title">{l.title.replace(/^(День\s+\d+)\s*:[^·]+·\s*/i, '$1 · ')}</div><div className="row-sub">{dateRu(l.started_at)} · подходов: {l.sets}{l.after ? ' · записано после' : ''}</div></div>
                 <div className="row-end">{l.completed_at ? '✓' : 'не завершена'}</div>
               </button>
             ))}

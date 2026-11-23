@@ -128,6 +128,7 @@ ADDED_COLUMNS = [
     # products saved from Open Food Facts before HTML entities were decoded
     *(f"""UPDATE products SET {c} = replace(replace(replace({c}, '&quot;', '"'), '&#39;', ''''), '&amp;', '&')
           WHERE {c} LIKE '%&%;%'""" for c in ("name", "brand", "search_text")),
+    "ALTER TABLE workout_logs ADD COLUMN IF NOT EXISTS after BOOLEAN NOT NULL DEFAULT false",
 ]
 
 

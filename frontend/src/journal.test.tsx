@@ -494,6 +494,8 @@ test('habits: one tap ticks today, a server error puts it back', async () => {
   const onChange = vi.fn()
   apiMock.mockResolvedValueOnce([{ ...sleep, done: true, streak: 4 }])
   render(<Habits habits={[sleep]} onChange={onChange} />)
+  expect(screen.queryByRole('button', { name: /Сон 8 часов/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: /Привычки/ }))
   fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
   expect(onChange).toHaveBeenNthCalledWith(1, [{ ...sleep, done: true }]) // instantly, before the server answers
   expect(apiMock).toHaveBeenCalledWith('/api/habits/1/check', expect.objectContaining({ body: JSON.stringify({ done: true }) }))

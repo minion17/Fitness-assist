@@ -837,9 +837,8 @@ button:not(:disabled):active, .btn:not(:disabled):active, summary:active { trans
 .crash { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px; } .crash-icon { font-size: 44px; } .crash .btn { width: auto; padding: 12px 28px; margin-top: 8px; }
 
 .home-rows > .habits + .home-row, .home-rows > .home-row + .habits, .home-rows > .quest-list + .habits { border-top: 1px solid var(--line); }
-.habits { padding-bottom: 10px; }
-.habits-head { cursor: default; }
-.habits-head .link { flex: none; font-size: 14px; }
+.habits:has(.habit-today), .habits:has(.habit-edit) { padding-bottom: 10px; }
+.habits-edit-toggle { display: block; margin: 0 0 10px auto; font-size: 14px; }
 .habit-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .habit-chip { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-2); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s ease, transform .1s ease; }
 .habit-chip:active { transform: scale(.96); }

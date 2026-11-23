@@ -1,0 +1,15 @@
+.fasting-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  text-align: left;
+  font-weight: inherit;
+}
+
+.fasting-toggle .chev {
+  flex: none;
+  transform: rotate(180deg);
+}

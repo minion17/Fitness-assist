@@ -33,6 +33,7 @@ export type ProfileData = {
   targets?: Targets
   targets_base?: Targets // the plain norm, the same every day
   kcal_override?: number | null // a norm from their own data (accepted or recalculated weekly) instead of the formula
+  t_tip?: string | null // a testosterone fact for this weight (men only, backend/core/testosterone.py)
 }
 
 export type Recommendation = { program_id: number; score: number; reasons: string[] }

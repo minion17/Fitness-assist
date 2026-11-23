@@ -2166,3 +2166,7 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .coach-days th:first-child, .coach-days td:first-child { text-align: left; }
 .coach-days tr.coach-day-empty td { color: var(--muted); }
 .coach-detail h3 { margin: 6px 0 0; font-size: 15px; }
+
+/* testosterone facts: Home card and the workout summary line */
+.t-tip p { margin: 0; line-height: 1.45 }
+.workout-tip { margin: 4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--card-2); text-align: left; line-height: 1.45; font-size: 14px }

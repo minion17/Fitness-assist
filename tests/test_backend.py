@@ -3499,3 +3499,16 @@ def test_coach_sees_clients_by_invite_only(client, monkeypatch):
         async with SessionLocal() as s:
             return await s.scalar(select(CoachLink.id).where(CoachLink.id == link_id))
     assert client.portal.call(links) is None and timedelta
+
+
+def test_testosterone_tips_only_for_men_and_only_where_research_says():
+    from backend.core import testosterone as t
+    assert "≈12 кг" in t.weight_tip("male", 120, 180)  # BMI 37: 10 % of weight
+    assert "≈8 кг" in t.weight_tip("male", 89, 180)  # BMI 27.5: to BMI 25
+    assert t.weight_tip("male", 80, 180) is None  # normal weight: nothing to promise
+    assert "не хватает веса" in t.weight_tip("male", 55, 180)
+    assert t.weight_tip("female", 120, 170) is None
+    tips = {t.workout_tip("male", n, 80, 180) for n in range(6)}
+    assert len(tips) == 3 and all(x.startswith("Молодец!") for x in tips)
+    assert "10 % веса" in t.workout_tip("male", 3, 120, 180) and t.workout_tip("female", 1) is None
+    assert "10–15 %" in t.sleep_tip("male", 1) and t.sleep_tip("male", 3) is None and t.sleep_tip("female", 1) is None

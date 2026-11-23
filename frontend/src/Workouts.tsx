@@ -287,7 +287,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
   const [now, setNow] = useState(() => Date.now())
   const [startedAt] = useState(() => kept?.startedAt ?? Date.now())
   const [records, setRecords] = useState<string[]>(kept?.records ?? [])
-  const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number; note?: string | null } | null>(null)
+  const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number; note?: string | null; tip?: string | null } | null>(null)
   useEffect(() => { // the clock in the header ticks every second
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
@@ -455,7 +455,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     if (rest) skipRest()
     setBusy(true)
     try {
-      const sent = await sendOrQueue<{ xp_awarded: number; xp_note?: string | null }>({ path: `/api/workout-logs/${logId}/complete`, kind: 'workout',
+      const sent = await sendOrQueue<{ xp_awarded: number; xp_note?: string | null; tip?: string | null }>({ path: `/api/workout-logs/${logId}/complete`, kind: 'workout',
         name: day.day_name, body: { completed_at: new Date().toISOString() } }, send)
       const r = sent.queued ? { xp_awarded: 0, xp_note: 'Нет связи — тренировка сохранена на телефоне и отправится сама, XP придёт тогда же' } : sent.value
       if (!sent.queued) onChanged(r?.xp_awarded ?? 0)
@@ -463,7 +463,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       const tonnage = sets.reduce((n, row, ei) => n + (timedExercise(day.exercises[ei]) ? 0
         : row.filter((x) => x.saved).reduce((m, x) => m + Number(x.reps) * (Number(x.weight.replace(',', '.')) || 0), 0)), 0)
       saveActive(null)
-      setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0, note: r?.xp_note ?? null })
+      setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0, note: r?.xp_note ?? null, tip: sent.queued ? null : sent.value?.tip ?? null })
       setBusy(false)
     } catch (e) {
       setError(e instanceof Error && e.message ? e.message : 'Тренировка не завершилась — попробуй ещё раз')
@@ -509,6 +509,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       {records.length > 0 && <ul className="workout-records">{records.map((r) => <li key={r}>🏆 Личный рекорд: {r}</li>)}</ul>}
       {summary.xp > 0 && <p className="pos">+{summary.xp} XP</p>}
       {!summary.xp && summary.note && <p className="sub">{summary.note}</p>}
+      {summary.tip && <p className="workout-tip">⚡ {summary.tip}</p>}
       {logId && <EffortPick logId={logId} />}
       <button className="btn" onClick={onExit}>Готово</button>
     </section>

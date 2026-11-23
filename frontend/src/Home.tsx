@@ -196,6 +196,7 @@ export default function Home(props: {
   onNutrition: () => void
   onWorkouts: () => void
   onWater: (delta: number) => void
+  tTip?: string | null
   intro?: React.ReactNode
   quests?: React.ReactNode
   habits?: React.ReactNode
@@ -295,6 +296,7 @@ export default function Home(props: {
       </section>
 
       {props.canEdit && !props.loading && <Checkin />}
+      {props.canEdit && !props.loading && props.tTip && <TestosteroneTip text={props.tTip} />}
       {props.canEdit && !props.loading && <Fasting home refresh={day.totals.kcal} />}
 
       {whyOpen && !props.loading && (
@@ -355,5 +357,19 @@ export default function Home(props: {
       {props.canEdit && <button className="link home-arrange" onClick={() => setArranging(true)}>⚙ Настроить главный экран</button>}
       {arranging && <HomeSettings layout={layout} onChange={changeLayout} onClose={() => setArranging(false)} />}
     </>
+  )
+}
+
+/** The weight fact once a week: closed, it comes back next week (and changes with the weight). */
+function TestosteroneTip({ text }: { text: string }) {
+  const week = `t-tip:${Math.floor(Date.now() / 604_800_000)}`
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(week) === '1' } catch { return false } })
+  if (hidden) return null
+  return (
+    <section className="card t-tip" aria-label="Совет">
+      <div className="card-head"><h2>⚡ Вес и тестостерон</h2>
+        <button className="link" aria-label="Скрыть" onClick={() => { try { localStorage.setItem(week, '1') } catch { /* private mode */ } setHidden(true) }}>✕</button></div>
+      <p>{text}</p>
+    </section>
   )
 }

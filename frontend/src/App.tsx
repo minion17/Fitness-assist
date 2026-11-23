@@ -670,7 +670,7 @@ function SetlyApp() {
       <main className="screen" key={tab} style={{ '--dir': dir } as React.CSSProperties}>
         {tab === 'home' && (
           <Home loading={loading} name={name} level={xp.level} boostUntil={boostUntil} streak={week.streak} targets={me?.targets} day={foodDay} program={program} trainingDays={me?.training_days} yesterday={week.days.length > 1 ? week.days[week.days.length - 2] : null} logs={logs}
-            water={water} aiEnabled={aiEnabled} canEdit={canEdit}
+            water={water} aiEnabled={aiEnabled} canEdit={canEdit} tTip={me?.t_tip}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
             habits={canEdit && <Habits habits={habits} onChange={habitsChanged} onQueued={() => setQueued(pending().length)} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}

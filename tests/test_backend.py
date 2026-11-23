@@ -3169,3 +3169,35 @@ def test_duel_alts_and_boost_farming(client):
             await s.commit()
             return [await award_xp(s, a.id, "achievement", f"bst:{ids[0]}:{k}") for k in range(5)]
     assert client.portal.call(boosted) == [37, 37, 37, 37, 27]  # 25 + half while the 50 XP of bonus lasts, then plain
+
+
+def test_offline_records_keep_their_time(client):
+    """Sent later from the phone's queue: a workout keeps the time it really happened (so the 10 minutes count),
+    a glass of water and a habit tick keep yesterday. Times are clamped, never refused: a record isn't lost."""
+    from datetime import date, datetime, timedelta, timezone
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(hours=3)
+    w = client.post("/api/workout-logs", headers=h, json={"title": "В подвале", "started_at": start.isoformat()}).json()
+    for n in (1, 2, 3):
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={"exercise_id": ex, "set_number": n, "reps": 8})
+    done = client.post(f"/api/workout-logs/{w['id']}/complete", headers=h, json={"completed_at": (start + timedelta(minutes=45)).isoformat()}).json()
+    assert done["xp_awarded"] == 50  # 45 minutes, three hours ago
+    log = next(x for x in client.get("/api/workout-logs", headers=h).json() if x["id"] == w["id"])
+    assert abs(datetime.fromisoformat(log["started_at"]) - start) < timedelta(seconds=1)
+    assert abs(datetime.fromisoformat(log["completed_at"]) - (start + timedelta(minutes=45))) < timedelta(seconds=1)
+    # a phone clock years off: clamped to the last 48 hours / to now
+    odd = client.post("/api/workout-logs", headers=h, json={"title": "Часы", "started_at": "2001-01-01T00:00:00Z"}).json()
+    log = next(x for x in client.get("/api/workout-logs", headers=h).json() if x["id"] == odd["id"])
+    assert now - timedelta(hours=49) < datetime.fromisoformat(log["started_at"]) <= datetime.now(timezone.utc)
+
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    assert client.post("/api/water", headers=h, json={"delta_ml": 250, "day": yesterday}).json()["ml"] == 250
+    assert client.get("/api/water", headers=h).json()["ml"] == 0  # today untouched
+    assert client.post("/api/water", headers=h, json={"delta_ml": 250, "day": "2020-01-01"}).json()["ml"] == 250  # too old: today
+    habit = client.post("/api/habits", headers=h, json={"emoji": "🧘", "title": "Растяжка"}).json()[0]
+    after = client.post(f"/api/habits/{habit['id']}/check", headers=h, json={"done": True, "day": yesterday}).json()
+    assert after[0]["done"] is False  # ticked for yesterday, today is still open

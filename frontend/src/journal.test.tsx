@@ -496,14 +496,25 @@ test('habits: one tap ticks today, a server error puts it back', async () => {
   render(<Habits habits={[sleep]} onChange={onChange} />)
   fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
   expect(onChange).toHaveBeenNthCalledWith(1, [{ ...sleep, done: true }]) // instantly, before the server answers
-  expect(apiMock).toHaveBeenCalledWith('/api/habits/1/check', expect.objectContaining({ body: JSON.stringify({ done: true }) }))
+  expect(apiMock).toHaveBeenCalledWith('/api/habits/1/check', expect.objectContaining({ body: JSON.stringify({ done: true, day: new Date().toLocaleDateString('sv') }) }))
   await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([{ ...sleep, done: true, streak: 4 }]))
 
   onChange.mockReset()
-  apiMock.mockRejectedValueOnce(new ApiError(500, 'Нет связи'))
+  apiMock.mockRejectedValueOnce(new ApiError(500, 'Сервер упал'))
   fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
   await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([sleep]))
-  expect((await screen.findByRole('alert')).textContent).toBe('Нет связи')
+  expect((await screen.findByRole('alert')).textContent).toBe('Сервер упал')
+
+  // no connection at all: the tick stays and waits in the offline queue
+  onChange.mockReset()
+  const onQueued = vi.fn()
+  localStorage.removeItem('setly-offline-queue')
+  apiMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+  render(<Habits habits={[{ ...sleep, title: 'Растяжка', id: 5 }]} onChange={onChange} onQueued={onQueued} />)
+  fireEvent.click(screen.getByRole('button', { name: /Растяжка/ }))
+  await waitFor(() => expect(onQueued).toHaveBeenCalled())
+  expect(onChange).toHaveBeenCalledTimes(1) // only the instant tick, not taken back
+  expect(JSON.parse(localStorage.getItem('setly-offline-queue')!)[0].path).toBe('/api/habits/5/check')
 })
 
 test('habits: empty list offers to set them up with presets', async () => {

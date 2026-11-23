@@ -3,7 +3,7 @@ import AchievementBadge from './AchievementBadge'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
-import { enqueue, flush, pending, unreachable } from './offline'
+import { CHANGED, enqueue, flush, pending, unreachable } from './offline'
 import { known, syncCatalog } from './catalog'
 import Body, { QuickWeight, type MeasurementInput } from './Body'
 import Food from './Food'
@@ -415,7 +415,7 @@ function SetlyApp() {
           throw e
         }
         // keep the day and the snack's time as of now: it may be sent tomorrow
-        enqueue({ name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
+        enqueue({ path: '/api/food-logs', kind: 'food', name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
         setQueued(pending().length)
         flash('Нет связи — запишем, как только она появится')
         return
@@ -507,14 +507,16 @@ function SetlyApp() {
     const send = async () => {
       if (busy || !pending().length) return
       busy = true
-      const n = await flush((body) => api('/api/food-logs', postJson(body))).finally(() => { busy = false })
+      const n = await flush((path, init) => api(path, init)).finally(() => { busy = false })
       setQueued(pending().length)
       if (n) { await refreshJournal().catch(() => {}); flash(`Отправлено записей: ${n}`) }
     }
     send()
+    const count = () => setQueued(pending().length)
+    window.addEventListener(CHANGED, count)
     window.addEventListener('online', send)
     const timer = setInterval(send, 30_000)
-    return () => { window.removeEventListener('online', send); clearInterval(timer) }
+    return () => { window.removeEventListener(CHANGED, count); window.removeEventListener('online', send); clearInterval(timer) }
   }, [canEdit, refreshJournal])
 
   useEffect(() => {
@@ -567,9 +569,11 @@ function SetlyApp() {
     let r: (Water & { xp_awarded: number }) | null
     try {
       r = await api<Water & { xp_awarded: number }>('/api/water', postJson({ delta_ml: delta }))
-    } catch {
-      setWater(before)
-      flash('Вода не отметилась: нет связи')
+    } catch (e) {
+      if (!unreachable(e)) { setWater(before); flash('Вода не отметилась — попробуй ещё раз'); return }
+      enqueue({ path: '/api/water', kind: 'water', name: `${delta > 0 ? '+' : ''}${delta} мл воды`, body: { delta_ml: delta, day: localDay() } })
+      setQueued(pending().length)
+      flash('Нет связи — вода отметится, как только она появится')
       return
     }
     if (!r) return // demo mode: local only
@@ -668,7 +672,7 @@ function SetlyApp() {
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
-            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
+            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} onQueued={() => setQueued(pending().length)} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
             weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} goal={me?.target_weight_kg} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
             usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуй ещё раз')) } : null}
@@ -720,6 +724,7 @@ function SetlyApp() {
         )}
       </main>
       {tab !== 'workouts' && <ActiveWorkoutBar onOpen={() => go('workouts')} />}
+      {queued > 0 && tab !== 'food' && <p className="queued offline-bar" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
       {recap && week.days.length > 0 && (
         <Suspense fallback={null}>
           <WeekRecap days={week.days} goal={(me?.targets_base ?? me?.targets)?.calories ?? 2000} streak={week.streak} weightDelta={weekWeightDelta(measurements)}

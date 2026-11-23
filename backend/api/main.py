@@ -661,6 +661,11 @@ async def delete_measurement(
 class WorkoutLogIn(BaseModel):
     program_day_id: int | None = None
     title: str = Field(default="Тренировка", min_length=1, max_length=200)
+    started_at: datetime | None = None  # started offline: the phone's time, sent later (clock.client_time)
+
+
+class CompleteIn(BaseModel):
+    completed_at: datetime | None = None
 
 
 class WorkoutSetIn(BaseModel):
@@ -685,7 +690,7 @@ async def start_workout(body: WorkoutLogIn, tg: dict = Depends(telegram_user), s
         program = await session.scalar(select(Program).join(ProgramDay, ProgramDay.program_id == Program.id).where(ProgramDay.id == body.program_day_id))
         if program is None or program.owner_user_id not in (None, user.id):
             raise HTTPException(404, "День программы не найден")
-    w = WorkoutLog(user_id=user.id, **body.model_dump())
+    w = WorkoutLog(user_id=user.id, **body.model_dump(exclude={"started_at"}), started_at=clock.client_time(body.started_at))
     session.add(w)
     await session.commit()
     return {"id": w.id, "title": w.title}
@@ -800,14 +805,15 @@ async def cancel_rest_timer(tg: dict = Depends(telegram_user), session: AsyncSes
 
 
 @app.post("/api/workout-logs/{log_id}/complete")
-async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+async def complete_workout(log_id: int, body: CompleteIn | None = None, tg: dict = Depends(telegram_user),
+                           session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     w = await own_workout(log_id, user, session)
     if not await session.scalar(select(WorkoutSet.id).where(WorkoutSet.workout_log_id == w.id).limit(1)):
         raise HTTPException(400, "Добавь хотя бы один подход")  # no XP for empty workouts
     first = w.completed_at is None
     if first:
-        w.completed_at = func.now()
+        w.completed_at = clock.client_time(body and body.completed_at, w.started_at)
         await session.commit()
         from backend.api.groups import on_workout
 

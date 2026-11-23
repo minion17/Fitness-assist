@@ -38,12 +38,13 @@ async def get_water(tg: dict = Depends(telegram_user), session: AsyncSession = D
 
 class WaterIn(BaseModel):
     delta_ml: int = Field(ge=-1000, le=1000)  # +250 a glass, -250 to undo
+    day: date | None = None  # a glass logged offline goes to the day it was drunk (today or yesterday)
 
 
 @router.post("/water")
 async def add_water(body: WaterIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    today = clock.today()
+    today = clock.recent_day(body.day)
     # atomic upsert so two quick taps can't lose a glass; result clamped to 0..MAX_ML
     ml = await session.scalar(
         insert(WaterIntake)

@@ -1,7 +1,7 @@
 """The current user's local time. Days in the diary, streaks and reminders follow the user's timezone,
 not the server's: the request (or the reminder loop) sets it once with `use_tz`, everything else just calls today()/local()."""
 from contextvars import ContextVar
-from datetime import date, datetime, time, tzinfo
+from datetime import date, datetime, time, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo, available_timezones
 
 _tz: ContextVar[tzinfo | None] = ContextVar("user_tz", default=None)  # None: the server's own zone
@@ -33,6 +33,25 @@ def tz() -> tzinfo | None:
 
 def now() -> datetime:
     return datetime.now(tz()).astimezone(tz())
+
+
+def client_time(at: datetime | None, earliest: datetime | None = None) -> datetime:
+    """A moment the app recorded offline (a workout's start or end), sent later: trusted within the last 48 hours and
+    not after now — a phone with a wrong clock or a stale queue can't move it further (it's clamped, not refused,
+    so the record isn't lost)."""
+    current = now()
+    if at is None:
+        return current
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=timezone.utc)
+    at = min(max(at, current - timedelta(hours=48), earliest or at), current)
+    return at
+
+
+def recent_day(day: date | None) -> date:
+    """The day an offline record was made (a glass of water, a habit tick), if it's today or yesterday; else today."""
+    t = today()
+    return day if day in (t, t - timedelta(days=1)) else t
 
 
 def today() -> date:

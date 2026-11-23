@@ -18,6 +18,7 @@ import MuscleMap from './MuscleMap'
 import { MUSCLES, type Muscle } from './muscles'
 import { haptic, sound } from './haptics'
 import { morph } from './motion'
+import { cancel, localId, real, sendOrQueue } from './offline'
 
 const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -368,11 +369,19 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
   const update = (ei: number, si: number, patch: Partial<SetState>) =>
     setSets((prev) => prev.map((row, i) => (i !== ei ? row : row.map((s, j) => (j === si ? { ...s, ...patch } : s)))))
 
+  // Without a connection the workout goes on: it gets a local id, and it and its sets wait on the phone (offline.ts)
+  const [offline, setOffline] = useState(false)
+  const send = <T,>(path: string, init: RequestInit) => api<T>(path, init)
+
   async function ensureLog(): Promise<number> {
-    if (logId) return logId
-    const w = await api<{ id: number }>('/api/workout-logs', postJson({ program_day_id: day.id, title: `${day.day_name} · ${program.name}` }))
-    setLogId(w!.id)
-    return w!.id
+    if (logId) return real(logId)
+    const local = localId()
+    const body = { program_day_id: day.id, title: `${day.day_name} · ${program.name}`, started_at: new Date(startedAt).toISOString() }
+    const r = await sendOrQueue<{ id: number }>({ path: '/api/workout-logs', body, local, kind: 'workout', name: day.day_name }, send)
+    const id = r.queued ? local : r.value!.id
+    if (r.queued) setOffline(true)
+    setLogId(id)
+    return id
   }
 
   async function saveSet(ei: number, si: number, measuredSeconds?: number) {
@@ -387,8 +396,12 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     setBusy(true)
     try {
       const id = await ensureLog()
-      const r = await api<{ id: number; record: { kind: string } | null }>(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
-      update(ei, si, { saved: true, reps: String(reps), id: r?.id })
+      const local = localId()
+      const sent = await sendOrQueue<{ id: number; record: { kind: string } | null }>({ path: `/api/workout-logs/${id}/sets`, local, kind: 'workout',
+        name: day.exercises[ei].name, body: { exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight } }, send)
+      const r = sent.queued ? null : sent.value
+      setOffline(sent.queued)
+      update(ei, si, { saved: true, reps: String(reps), id: sent.queued ? local : r?.id })
       const rest = day.exercises[ei].rest_seconds
       const time = Date.now()
       setNow(time)
@@ -408,8 +421,8 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       } else if (!list && ei === cur && cur < day.exercises.length - 1 && sets[ei].every((x, j) => j === si || x.saved)) {
         setCur(ei + 1)
       }
-    } catch {
-      setError('Подход не сохранился: нет связи. Нажми ещё раз')
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'Подход не сохранился — попробуй ещё раз')
     } finally {
       setBusy(false)
     }
@@ -421,7 +434,8 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     if (!logId || !id || busy) return
     setBusy(true)
     try {
-      await api(`/api/workout-logs/${logId}/sets/${id}`, { method: 'DELETE' })
+      // still on the phone: just taken out of the queue; otherwise deleted (or queued to be)
+      if (!(id < 0 && real(id) === id && cancel(id))) await sendOrQueue({ path: `/api/workout-logs/${logId}/sets/${id}`, method: 'DELETE', kind: 'workout' }, send)
       update(ei, si, { saved: false, id: undefined })
       if (rest) skipRest()
       setTimer(null)
@@ -441,16 +455,18 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     if (rest) skipRest()
     setBusy(true)
     try {
-      const r = await api<{ xp_awarded: number; xp_note?: string | null }>(`/api/workout-logs/${logId}/complete`, { method: 'POST' })
-      onChanged(r?.xp_awarded ?? 0)
+      const sent = await sendOrQueue<{ xp_awarded: number; xp_note?: string | null }>({ path: `/api/workout-logs/${logId}/complete`, kind: 'workout',
+        name: day.day_name, body: { completed_at: new Date().toISOString() } }, send)
+      const r = sent.queued ? { xp_awarded: 0, xp_note: 'Нет связи — тренировка сохранена на телефоне и отправится сама, XP придёт тогда же' } : sent.value
+      if (!sent.queued) onChanged(r?.xp_awarded ?? 0)
       const done = sets.flat().filter((x) => x.saved)
       const tonnage = sets.reduce((n, row, ei) => n + (timedExercise(day.exercises[ei]) ? 0
         : row.filter((x) => x.saved).reduce((m, x) => m + Number(x.reps) * (Number(x.weight.replace(',', '.')) || 0), 0)), 0)
       saveActive(null)
       setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0, note: r?.xp_note ?? null })
       setBusy(false)
-    } catch {
-      setError('Тренировка не завершилась: нет связи. Нажми ещё раз')
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'Тренировка не завершилась — попробуй ещё раз')
       setBusy(false)
     }
   }
@@ -624,6 +640,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       )}
       {guideExercise && <KettlebellExercise exercise={guideExercise} onClose={() => setGuideExercise(null)} />}
       {error && <p className="error" role="alert">{error}</p>}
+      {offline && <p className="queued" role="status">📴 Нет связи — подходы сохраняются на телефоне и отправятся сами</p>}
       {savedCount > 0 && <button className="btn btn-ghost" disabled={busy || timer?.phase === 'work'} onClick={finish}>
         Завершить тренировку · {savedCount} подх.
       </button>}
@@ -657,7 +674,7 @@ function EffortPick({ logId }: { logId: number }) {
   const choose = (e: Effort) => {
     setPicked(e)
     haptic('select')
-    api(`/api/workout-logs/${logId}/effort`, postJson({ effort: e })).catch(() => setPicked(null))
+    sendOrQueue({ path: `/api/workout-logs/${logId}/effort`, body: { effort: e }, kind: 'workout' }, (p, i) => api(p, i)).catch(() => setPicked(null))
   }
   if (picked) return <p className="sub effort-done">{{ easy: 'Понял: в следующий раз прибавим.', ok: 'Отлично, держим темп.', hard: 'Понял: в следующий раз держим вес.' }[picked]}</p>
   return (

@@ -131,13 +131,14 @@ async def tick_from_bot(session: AsyncSession, telegram_id: int, habit_id: int) 
 
 class CheckIn(BaseModel):
     done: bool  # a state, not a toggle: a double tap can't undo itself
+    day: date | None = None  # ticked offline: the day it was ticked (today or yesterday)
 
 
 @router.post("/habits/{habit_id}/check")
 async def check(habit_id: int, body: CheckIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     await own(session, habit_id, user)
-    today = clock.today()
+    today = clock.recent_day(body.day)
     if body.done:
         await session.execute(insert(HabitCheck).values(habit_id=habit_id, day=today, user_id=user.id).on_conflict_do_nothing())
     else:

@@ -75,7 +75,8 @@ function Setup({ plan, open, onOpen, onSave, onCancel }: { plan: Plan | null; op
   const [safe, setSafe] = useState(!!plan)
   if (!open) return (
     <button className="card fasting-entry" aria-expanded="false" onClick={onOpen}>
-      <strong>⏱ Интервальное голодание</strong><small>Схема 16:8 и другие, таймер и напоминания в боте</small>
+      <span className="fasting-entry-text"><strong>⏱ Интервальное голодание</strong><small>Схема 16:8 и другие, таймер и напоминания в боте</small></span>
+      <Chevron />
     </button>
   )
   return (

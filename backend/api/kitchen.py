@@ -307,7 +307,7 @@ async def meal_suggestions(session: AsyncSession, user: User, meal_type: str) ->
     if len(fit) < 3:  # little history yet: plain ideas fill the rest
         ideas = [c for c in await idea_options(session, meal_type) if c["kcal"] <= 1.15 * aim]
         fit += sorted(ideas, key=lambda c: score(c, aim, protein_left))[:3 - len(fit)]
-    out["options"] = [{k: c[k] for k in ("title", "items", *MACROS)} for c in fit]
+    out["options"] = [{**{k: c[k] for k in ("title", "items", *MACROS)}, "idea": c.get("idea", False)} for c in fit]
     return out
 
 

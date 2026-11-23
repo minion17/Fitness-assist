@@ -18,16 +18,23 @@ RULES: dict[str, int] = {
     "quests_all": 50,  # all three of the week done
     "personal_record": 15,  # a set better than every earlier one of that exercise (capped: 3 a day)
     "challenge_done": 50,  # a group challenge with friends finished with 80%+ of the days ticked
+    "month_done": 100,  # the challenge of the month: its goal reached
     "product_shared": 25,  # a product you added was confirmed by 2+ other people and joined the shared catalog  # when the invited friend fills the profile (not on the click: no farming with empty accounts)
 }
 
 BOOST = 1.5  # XP multiplier after a duel win
 BOOST_HOURS = 24
-NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record", "challenge_done"}
+BOOST_MAX_BONUS = 50  # the most a boost adds in all: a won duel can't be turned into a day of x1.5 farming
+NOT_BOOSTED = {"duel_win", "friend_invited", "quest_30", "quest_50", "quest_80", "quests_all", "product_shared", "personal_record", "challenge_done", "month_done"}
 MAX_INVITE_REWARDS = 10
 # Daily rewards are keyed by the user's local date, and the timezone can be changed: these caps (per rolling
 # 20 hours) stop "travelling" through timezones to collect the same day's XP twice.
-ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5, "personal_record": 3}
+# Workouts: XP for at most 2 a day (and only with MIN_WORKOUT_SETS sets) — otherwise "start, one set, finish" repeated
+# farms 50 XP a go, and group-chat ratings, leagues and quests all run on XP.
+ROLLING_CAPS = {"meal_logged": 4, "water_goal": 1, "daily_nutrition_goal": 1, "product_shared": 5, "personal_record": 3,
+                "workout_completed": 2, "body_measurement": 1, "streak_week": 1}  # streak: backfilled days can't pay out weeks at once
+MIN_WORKOUT_SETS = 3
+MIN_WORKOUT_MINUTES = 10  # from start to finish: three sets in a minute is a tap, not a workout
 CAP_WINDOW_HOURS = 20
 
 # XP needed to go from level n to n+1: 100, 150, 200, ...

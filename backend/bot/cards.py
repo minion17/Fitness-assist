@@ -117,23 +117,52 @@ class Card:
 
 @lru_cache(maxsize=8)
 def welcome(theme: str | None = None, accent: str | None = None) -> bytes:
-    c = Card(theme, accent, glow=(925, 330, "accent"))
+    """New user: how the bot is used, shown as a tiny dialog — a message and the bot's answer."""
+    c = Card(theme, accent, glow=(870, 360, "accent"))
     c.brand()
-    c.text((64, 170), "Питание,", 66, "text", 700, "Unbounded")
-    c.text((64, 252), "тренировки", 66, "text", 700, "Unbounded")
-    c.text((64, 334), "и вода —", 66, "text", 700, "Unbounded")
-    c.text((64, 416), "в одном месте", 66, "accent_text", 700, "Unbounded")
-    y = 548
-    x = 64
-    for label in ("Сканер штрихкодов", "Еда по фото с AI", "Напоминания"):
+    c.text((64, 170), "Напиши,", 64, "text", 700, "Unbounded")
+    c.text((64, 250), "что съел, —", 64, "text", 700, "Unbounded")
+    c.text((64, 330), "остальное", 64, "accent_text", 700, "Unbounded")
+    c.text((64, 410), "посчитаю я", 64, "accent_text", 700, "Unbounded")
+    c.text((64, 560), "Калории, тренировки и вода —", 28, "muted", 500)
+    c.text((64, 600), "прямо в Telegram", 28, "muted", 500)
+    msg = "гречка 150 г, курица 120 г"
+    w = c.width(msg, 26, 600) + 52
+    c.rect((W - 64 - w, 150, W - 64, 214), 32, "accent")
+    c.text((W - 64 - w + 26, 168), msg, 26, "on_accent", 600)
+    x0, x1 = 640, W - 64
+    c.rect((x0, 250, x1, 610), 36, "card")
+    check(c, x0 + 52, 306, 22)
+    c.text((x0 + 90, 290), "Записал в обед", 28, "text", 700)
+    c.text((x0 + 36, 352), "365", 76, "text", 700, "Unbounded")
+    c.text((x0 + 36 + c.width("365", 76, 700, "Unbounded") + 14, 392), "ккал", 26, "muted", 600)
+    for j, (label, color, frac, g) in enumerate((("Белки", "protein", .62, "41 г"), ("Жиры", "fat", .3, "9 г"), ("Углеводы", "carbs", .5, "33 г"))):
+        y = 474 + j * 42
+        c.text((x0 + 36, y), label, 22, "muted", 600)
+        c.text((x1 - 36, y), g, 22, "text", 700, anchor="ra")
+        c.bar((x0 + 180, y + 8, x1 - 100, y + 20), frac, color)
+    return c.png()
+
+
+def today(title: str, accent_line: str, eaten: float, goal: float, chips: list[str], date: str,
+          theme: str | None = None, accent: str | None = None) -> bytes:
+    """Returning user: their real day — calories ring and what else matters today (water, streak, workout)."""
+    over = goal and eaten > goal * 1.1
+    c = Card(theme, accent, glow=(925, 360, "fat" if over else "accent"))
+    c.brand(date)
+    c.text((64, 200), title, 60, "text", 700, "Unbounded")
+    c.text((64, 280), accent_line, 60, "accent_text", 700, "Unbounded")
+    y, x = 470, 64
+    for label in chips[:3]:
         w = c.width(label, 24, 700) + 44
+        if x + w > 640:
+            y, x = y + 66, 64
         c.rect((x, y, x + w, y + 54), 27, "card")
         c.text((x + 22, y + 14), label, 24, "text", 700)
         x += w + 12
-    c.text((64, 640), "Норма КБЖУ под вашу цель за 2 минуты", 26, "muted", 500)
-    c.ring(925, 330, 190, 34, 0.72)
-    c.text((925, 300), "1 712", 64, "text", 700, "Unbounded", anchor="mm")
-    c.text((925, 370), "из 2 375 ккал", 24, "muted", 600, anchor="mm")
+    c.ring(925, 360, 190, 34, eaten / goal if goal else 0, "fat" if over else "accent")
+    c.text((925, 330), num(eaten), 64, "text", 700, "Unbounded", anchor="mm")
+    c.text((925, 400), f"из {num(goal)} ккал", 24, "muted", 600, anchor="mm")
     return c.png()
 
 
@@ -185,7 +214,7 @@ def streak(days: int, week: list[bool], theme=None, accent=None) -> bytes:
     c.text((64, 150), n, 230, "streak", 800, "Unbounded")
     c.text((64 + c.width(n, 230, 800, "Unbounded") + 28, 300), "дней", 56, "text", 700, "Unbounded")
     c.text((64 + c.width(n, 230, 800, "Unbounded") + 28, 370), "подряд", 56, "text", 700, "Unbounded")
-    c.text((64, 470), "Сегодня ещё ничего не записано — запишите еду,", 30, "muted", 600)
+    c.text((64, 470), "Сегодня ещё ничего не записано — запиши еду,", 30, "muted", 600)
     c.text((64, 512), "воду или тренировку, и серия продолжится.", 30, "muted", 600)
     names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     today = date.today().weekday()
@@ -241,58 +270,6 @@ def weekly(days: list[dict], goal: float | None, streak_days: int, workouts: int
     return c.png()
 
 
-# Returning users get one of several welcomes (text in bot/main.py BACK); each has its own picture.
-BACK_KINDS = ("ring", "streak", "water", "workout", "food", "comeback")
-
-
-@lru_cache(maxsize=32)
-def welcome_back(kind: str, theme: str | None = None, accent: str | None = None) -> bytes:
-    title, accent_line, art = {
-        "ring": ("Снова здесь —", "продолжаем", "ring"),
-        "streak": ("Серия", "ждёт тебя", "streak"),
-        "water": ("Стакан воды —", "лучший старт", "water"),
-        "workout": ("Тренировка", "уже в плане", "workout"),
-        "food": ("Сфоткай —", "посчитаю сам", "food"),
-        "comeback": ("Вернулся —", "уже молодец", "comeback"),
-    }[kind]
-    c = Card(theme, accent, glow=(925, 390, "water" if art == "water" else "streak" if art == "streak" else "accent"))
-    c.brand()
-    c.text((64, 300), title, 58, "text", 700, "Unbounded")
-    c.text((64, 378), accent_line, 58, "accent_text", 700, "Unbounded")
-    c.text((64, 640), "Дневник, тренировки и вода — всё на месте", 26, "muted", 500)
-    cx, cy = 925, 390
-    if art == "ring":
-        c.ring(cx, cy, 170, 32, 0.62)
-        c.text((cx, cy - 18), "сегодня", 44, "text", 700, "Unbounded", anchor="mm")
-        c.text((cx, cy + 38), "новый день", 24, "muted", 600, anchor="mm")
-    elif art == "streak":
-        for i, on in enumerate((1, 1, 1, 1, 1, 0, 0)):
-            x = 760 + i * 56
-            c.rect((x, cy + 70, x + 44, cy + 114), 22, "streak" if on else "track")
-        c.text((cx, cy - 60), "+1", 130, "streak", 700, "Unbounded", anchor="mm")
-        c.text((cx, cy + 30), "день к серии", 26, "muted", 600, anchor="mm")
-    elif art == "water":
-        c.rect((cx - 95, cy - 190, cx + 95, cy + 190), 46, "water_soft")
-        c.rect((cx - 95, cy + 10, cx + 95, cy + 190), 46, "water")
-        c.rect((cx - 95, cy + 10, cx + 95, cy + 60), 0, "water")
-        c.text((cx, cy - 90), "+250", 48, "water", 700, "Unbounded", anchor="mm")
-        c.text((cx, cy - 40), "мл", 24, "muted", 600, anchor="mm")
-    elif art == "workout":
-        for i, h in enumerate((120, 165, 150, 210, 255)):
-            x = 770 + i * 64
-            c.rect((x, cy + 150 - h, x + 44, cy + 150), 14, "accent" if i == 4 else "track")
-        c.text((cx, cy - 190), "+2,5 кг", 38, "text", 700, "Unbounded", anchor="mm")
-    elif art == "food":
-        c.rect((cx - 190, cy - 170, cx + 190, cy + 170), 40, "card")
-        for i, (label, color, frac) in enumerate((("Белки", "protein", .7), ("Жиры", "fat", .45), ("Углеводы", "carbs", .6))):
-            y = cy - 110 + i * 85
-            c.text((cx - 150, y), label, 24, "muted", 600)
-            c.bar((cx - 150, y + 38, cx + 150, y + 54), frac, color)
-    else:  # comeback: a big check mark in a ring
-        c.ring(cx, cy, 160, 30, 1)
-        c.d.line([((cx - 70) * K, (cy + 5) * K), ((cx - 15) * K, (cy + 60) * K), ((cx + 80) * K, (cy - 55) * K)],
-                 fill=c.p["accent"], width=30 * K, joint="curve")
-    return c.png()
 
 
 def share(name: str, streak: int, week_xp: int, workouts: int, level: int, theme=None, accent=None) -> bytes:
@@ -380,12 +357,35 @@ def story_duel(name: str, rival: str, me: int, them: int, metric: str, days: int
     return c.png()
 
 
+def story_month(name: str, m: dict, bot: str = "", theme=None, accent=None) -> bytes:
+    """The challenge of the month: days counted against the goal, the place among everyone. m: monthly.story_numbers."""
+    c = _story_base(theme, accent, (540, 880, "accent"))
+    c.text((90, 380), name[:24], 44, "muted", 600)
+    c.text((90, 440), "Челлендж" if not m["final"] else "Итог месяца", 92, "text", 700, "Unbounded")
+    c.text((90, 560), m["title"][:26], 46, "accent_text", 700)
+    cx, cy = SW // 2, 900
+    c.ring(cx, cy, 250, 44, min(1, m["score"] / m["goal"]), "accent")
+    c.text((cx, cy - 30), str(m["score"]), 170, "accent_text", 700, "Unbounded", anchor="mm")
+    c.text((cx, cy + 90), f"цель — {m['goal']} {plural_days(m['goal'])}", 40, "muted", 600, anchor="mm")
+    place = f"{m['rank']}-е место"
+    top = max(1, round(m["rank"] / m["total"] * 100)) if m["total"] else 100
+    for i, (value, label) in enumerate(((place, f"из {m['total']} участников"), (f"топ-{top} %" if m["total"] >= 10 else "✓" if m["score"] >= m["goal"] else "в пути",
+                                         "среди всех" if m["total"] >= 10 else "цель взята" if m["score"] >= m["goal"] else "до цели"))):
+        x = 90 + i * 460
+        c.rect((x, 1230, x + 440, 1450), 44, "card")
+        c.text((x + 40, 1262), value, 60 if len(value) > 4 else 84, "text", 700, "Unbounded")
+        c.text((x + 40, 1380), label, 34, "muted", 600)
+    _footer(c, bot)
+    return c.png()
+
+
 # ---- Tour: the slides a new user flips with ← → on "Сначала покажи, что умеешь" (one message, 4:5) ----
 
 TOUR = (
     ("Еда —", "за 5 секунд", "Напиши «гречка 150 г» или пришли фото тарелки — посчитаю и запишу"),
     ("Тренировки", "под тебя", "Программа по уровню и инвентарю, таймер отдыха и веса с прошлого раза"),
     ("Вода", "и привычки", "Мягкие напоминания и отметка в одно касание прямо из чата"),
+    ("Соревнуйтесь", "всем чатом", "Добавь меня в чат друзей, семьи или офиса — буду вести рейтинг недели и объявлять чемпиона"),
     ("Прогресс", "виден сразу", "Серии дней, вес, итоги недели и соревнования с друзьями"),
 )
 TW, TH = 1080, 1350
@@ -412,7 +412,7 @@ def check(c: Card, cx: int, cy: int, r: int, color: str = "accent") -> None:
 @lru_cache(maxsize=16)
 def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool = True, text: bool = True) -> bytes:
     title, accent_line, sub = TOUR[i]
-    c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "streak")[i]), size=(TW, TH))
+    c = Card(theme, accent, glow=(540, 470, ("accent", "accent", "water", "accent", "streak")[i]), size=(TW, TH))
     c.brand()
     cx, cy = 540, 480
     if i == 0:  # a message and the bot's answer
@@ -457,6 +457,19 @@ def tour(i: int, theme: str | None = None, accent: str | None = None, dots: bool
             else:
                 c.d.ellipse([552 * K, (y + 27) * K, 608 * K, (y + 83) * K], outline=c.p["track"], width=5 * K)
             c.text((630, y + 38), name, 28, "text", 600)
+    elif i == 3:  # a group chat: the bot's weekly rating and a cheer
+        c.rect((110, 190, TW - 110, 620), 44, "card")
+        c.text((150, 222), "Семья · рейтинг недели", 30, "text", 700)
+        for j, (who, xp, color) in enumerate((("Аня", "320 XP", "accent"), ("Борис", "290 XP", "water"), ("Вера", "180 XP", "streak"))):
+            y = 300 + j * 100
+            c.d.ellipse([150 * K, y * K, 214 * K, (y + 64) * K], fill=c.p[color])
+            c.text((182, y + 32), str(j + 1), 30, "on_accent", 700, "Unbounded", anchor="mm")
+            c.text((240, y + 14), who, 32, "text", 600)
+            c.text((TW - 150, y + 14), xp, 32, "accent_text" if j == 0 else "muted", 700, anchor="ra")
+        msg = "Аня закончила тренировку — 3-я за неделю. Кто следующий?"
+        c.rect((110, 660, TW - 110, 800), 40, "accent")
+        for j, line in enumerate(wrap(c, msg, 30, TW - 300)):
+            c.text((150, 686 + j * 42), line, 30, "on_accent", 600)
     else:  # a streak and a weight line going down
         c.text((cx, 250), "12", 150, "streak", 700, "Unbounded", anchor="mm")
         c.text((cx, 350), "дней подряд", 30, "muted", 600, anchor="mm")

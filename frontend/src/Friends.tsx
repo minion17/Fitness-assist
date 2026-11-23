@@ -4,8 +4,9 @@ import Empty from './Empty'
 import Challenges from './Challenges'
 import { canStory, shareStory } from './story'
 import { api, postJson, tg } from './telegram'
+import { haptic } from './haptics'
 
-type Row = { id: number; name: string; me: boolean; level: number; week_xp: number; streak: number; registered: boolean }
+type Row = { id: number; name: string; me: boolean; level: number; week_xp: number; streak: number; registered: boolean; trained_today?: boolean; cheered?: boolean }
 type Duel = {
   id: number; metric: 'xp' | 'workouts'; days: number; status: 'pending' | 'active' | 'done'; incoming: boolean
   rival: string; rival_id: number; ends_at: string | null; result: 'win' | 'loss' | 'draw' | null; me?: number; them?: number
@@ -16,21 +17,28 @@ const dayWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'день' : [2
 
 export default function Friends() {
   const [board, setBoard] = useState<Row[] | null>(null)
+  // 👏 for a friend's workout today: they get it in the bot, once a day per friend
+  const cheer = (r: Row) => {
+    haptic('success')
+    setBoard((b) => b && b.map((x) => (x.id === r.id ? { ...x, cheered: true } : x)))
+    api(`/api/friends/${r.id}/cheer`, postJson({ emoji: '👏' })).catch(() => setBoard((b) => b && b.map((x) => (x.id === r.id ? { ...x, cheered: false } : x))))
+  }
   const [link, setLink] = useState<string | null>(null)
+  const [groupLink, setGroupLink] = useState<string | null>(null) // t.me/<bot>?startgroup: the bot into a group chat
   const [duels, setDuels] = useState<Duel[]>([])
   const [challenge, setChallenge] = useState<{ friend: Row; metric: 'xp' | 'workouts'; days: 3 | 7 } | null>(null)
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
 
   const load = useCallback(() => Promise.all([
-    api<{ invite_link: string | null; board: Row[] }>('/api/friends').then((r) => { if (r) { setBoard(r.board); setLink(r.invite_link) } }),
+    api<{ invite_link: string | null; group_link?: string | null; board: Row[] }>('/api/friends').then((r) => { if (r) { setBoard(r.board); setLink(r.invite_link); setGroupLink(r.group_link ?? null) } }),
     api<Duel[]>('/api/duels').then((r) => r && setDuels(r)),
   ]).catch(() => setError('Нет связи — друзей покажем, как только вернётся интернет')), [])
   useEffect(() => { load() }, [load])
 
   async function act(run: () => Promise<unknown>, done = '') {
     setError(''); setNote('')
-    try { await run(); if (done) setNote(done); await load() } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуйте ещё раз.') }
+    try { await run(); if (done) setNote(done); await load() } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуй ещё раз.') }
   }
 
   function invite() {
@@ -52,15 +60,23 @@ export default function Friends() {
         <h2>{friends.length ? 'Друзья' : 'Вместе проще не бросить'}</h2>
         <p className="sub">{friends.length
           ? 'Рейтинг недели, дуэли и общий азарт.'
-          : 'Отправьте другу ссылку. Когда он её откроет, вы появитесь друг у друга в списке: будет общий рейтинг недели и дуэли.'}
+          : 'Отправь другу ссылку. Когда он её откроет, ты появишься друг у друга в списке: будет общий рейтинг недели и дуэли.'}
           {' '}+50 XP за каждого нового друга, который пользуется Setly хотя бы 3 дня.</p>
         <div className="friends-actions">
           <button className="btn" disabled={!link} onClick={invite}>Пригласить друга</button>
           {canStory() && <button className="btn btn-ghost" onClick={() => act(() => shareStory({ kind: 'week' }))}>Неделя в историю</button>}
-          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешлите её кому угодно.')}>{canStory() ? 'Карточкой в чат' : 'Поделиться неделей'}</button>
+          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешли её кому угодно.')}>{canStory() ? 'Карточкой в чат' : 'Поделиться неделей'}</button>
         </div>
         {!link && <p className="sub">Ссылка появится, когда бот будет запущен.</p>}
       </section>
+      {groupLink && (
+        <section className="card friends-group">
+          <h2>👥 Рейтинг в вашем чате</h2>
+          <p className="sub">Добавь Setly в чат друзей, семьи или коллег: бот ведёт общий рейтинг недели, по понедельникам объявляет
+            чемпиона, в четверг подначивает отстающих, а когда кто-то закончил тренировку — пишет в чат.</p>
+          <button className="btn btn-ghost" onClick={() => { if (tg?.openTelegramLink) tg.openTelegramLink(groupLink); else window.open(groupLink, '_blank') }}>Добавить в чат</button>
+        </section>
+      )}
       {note && <p className="sub friends-note" role="status">{note}</p>}
       {error && <p className="error" role="alert">{error}</p>}
 
@@ -94,9 +110,12 @@ export default function Friends() {
               <li key={r.id} className={r.me ? 'me' : ''}>
                 <span className="board-place">{i + 1}</span>
                 <div className="board-who">
-                  <b>{r.me ? 'Вы' : r.name}</b>
-                  <span className="sub">Ур. {r.level} · 🔥 {r.streak}</span>
+                  <b>{r.me ? 'Ты' : r.name}</b>
+                  <span className="sub">Ур. {r.level} · 🔥 {r.streak}{r.trained_today ? ' · 💪 тренировался сегодня' : ''}</span>
                 </div>
+                {!r.me && r.trained_today && (r.cheered
+                  ? <span className="cheer-sent" aria-label="Ты уже поддержал">👏</span>
+                  : <button className="cheer-btn" aria-label={`Похвалить ${r.name} за тренировку`} onClick={() => cheer(r)}>👏</button>)}
                 <span className="board-xp">{r.week_xp.toLocaleString('ru-RU')} XP</span>
                 {!r.me && !r.registered && <span className="sub">без анкеты</span>}
                 {!r.me && r.registered && !open.some((d) => d.rival_id === r.id) && (
@@ -111,7 +130,7 @@ export default function Friends() {
       {challenge && (
         <section className="card duel-form" aria-label="Новая дуэль">
           <h2>Дуэль с {challenge.friend.name}</h2>
-          <p className="sub">Без ставок: победитель получает +40 XP и бустер ×1,5 XP на 24 часа. Награда — если оба с Setly больше недели и оба участвовали; с одним другом — раз в 2 недели.</p>
+          <p className="sub">Без ставок: победитель получает +40 XP и бустер ×1,5 XP на 24 часа (до +50 XP). Награда — если вы друзья больше недели, оба по-настоящему пользуетесь Setly (дневник или тренировки 5 дней из последних 14) и оба участвовали; с одним другом — раз в 2 недели, всего — до 2 наград в месяц.</p>
           <div className="seg seg-row" role="group" aria-label="Что считаем">
             {(['xp', 'workouts'] as const).map((m) => <button key={m} aria-pressed={challenge.metric === m} onClick={() => setChallenge({ ...challenge, metric: m })}>{m === 'xp' ? 'XP' : 'Тренировки'}</button>)}
           </div>

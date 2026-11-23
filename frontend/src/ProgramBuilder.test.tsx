@@ -31,7 +31,7 @@ test('does not save a different exercise while typed text is unconfirmed', () =>
   fireEvent.change(screen.getByLabelText('Упражнение 1'), { target: { value: 'Моё упражнение' } })
   fireEvent.click(screen.getByRole('button', { name: 'Добавить' }))
   expect(save).not.toHaveBeenCalled()
-  expect(screen.getByRole('alert').textContent).toContain('Выберите упражнение')
+  expect(screen.getByRole('alert').textContent).toContain('Выбери упражнение')
 })
 test('creates a day with an exercise and saves the chosen settings', async () => {
   const save = vi.fn().mockResolvedValue(undefined)

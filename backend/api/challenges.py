@@ -32,7 +32,7 @@ async def challenge_out(session: AsyncSession, c: Challenge, me: User) -> dict:
     for uid, d in await session.execute(select(ChallengeCheck.user_id, ChallengeCheck.day).where(ChallengeCheck.challenge_id == c.id)):
         checks.setdefault(uid, set()).add(d)
     day_n = min(max((today - c.start_day).days + 1, 0), c.days)
-    members = sorted(({"name": "Вы" if u.id == me.id else name(u), "me": u.id == me.id, "joined": joined,
+    members = sorted(({"name": "Ты" if u.id == me.id else name(u), "me": u.id == me.id, "joined": joined,
                        "done": len(checks.get(u.id, ())), "today": today in checks.get(u.id, ())} for u, joined in rows),
                      key=lambda m: (not m["joined"], -m["done"], not m["me"]))
     mine = next((m for m in members if m["me"]), None)
@@ -78,14 +78,14 @@ async def create_challenge(body: ChallengeIn, tg: dict = Depends(telegram_user),
     friends = {f.id: f for f in await friends_of(session, user)}
     invited = [friends[i] for i in dict.fromkeys(body.friend_ids) if i in friends]
     if not invited:
-        raise HTTPException(422, "Позовите хотя бы одного друга")
+        raise HTTPException(422, "Позови хотя бы одного друга")
     c = Challenge(creator_id=user.id, title=body.title.strip(), emoji=body.emoji.strip() or "🔥", days=body.days, start_day=clock.today())
     session.add(c)
     await session.flush()
     session.add(ChallengeMember(challenge_id=c.id, user_id=user.id, joined=True))
     for f in invited:
         session.add(ChallengeMember(challenge_id=c.id, user_id=f.id, joined=False))
-        notify(session, f, f"{c.emoji} {name(user)} зовёт вас в челлендж «{c.title}» на {c.days} дней. Принять — в Setly: Прогресс → Друзья.")
+        notify(session, f, f"{c.emoji} {name(user)} зовёт тебя в челлендж «{c.title}» на {c.days} дней. Принять — в Setly: Прогресс → Друзья.")
     await session.commit()
     return await challenge_out(session, c, user)
 
@@ -137,7 +137,7 @@ async def tick(cid: int, body: TickIn, tg: dict = Depends(telegram_user), sessio
     c, m = await membership(session, cid, user)
     today = clock.today()
     if not m.joined:
-        raise HTTPException(409, "Сначала примите челлендж")
+        raise HTTPException(409, "Сначала прими челлендж")
     if c.closed or not c.start_day <= today <= end_day(c):
         raise HTTPException(409, "Челлендж уже закончился")
     if body.done:
@@ -164,7 +164,7 @@ async def finish_challenges(session: AsyncSession) -> int:
         for u, n in rows:
             if n >= DONE_SHARE * c.days:
                 xp = await award_xp(session, u.id, "challenge_done", f"challenge:{c.id}")
-                notify(session, u, f"{c.emoji} Челлендж «{c.title}» завершён — вы справились: {n} из {c.days} дней! +{xp} XP\nИтоги: {board}")
+                notify(session, u, f"{c.emoji} Челлендж «{c.title}» завершён — ты справился: {n} из {c.days} дней! +{xp} XP\nИтоги: {board}")
             else:
                 notify(session, u, f"{c.emoji} Челлендж «{c.title}» завершён: {n} из {c.days} дней. Итоги: {board}. Попробуем ещё раз?")
         c.closed = True

@@ -57,6 +57,12 @@ ADDED_COLUMNS = [
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS theme VARCHAR(8)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS streak_freezes INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE reminder_settings ADD COLUMN IF NOT EXISTS weekly BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE reminder_settings ADD COLUMN IF NOT EXISTS checkin BOOLEAN NOT NULL DEFAULT false",
+    "ALTER TABLE reminder_settings ADD COLUMN IF NOT EXISTS checkin_at VARCHAR(5) NOT NULL DEFAULT '09:00'",
+    "ALTER TABLE workout_logs ADD COLUMN IF NOT EXISTS effort VARCHAR(5)",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS kcal_auto BOOLEAN NOT NULL DEFAULT true",
+    "ALTER TABLE profiles ADD COLUMN IF NOT EXISTS kcal_auto_at DATE",
+    "ALTER TABLE month_entries ADD COLUMN IF NOT EXISTS theme VARCHAR(20)",
     "ALTER TABLE reminder_settings ADD COLUMN IF NOT EXISTS weekly_at VARCHAR(5) NOT NULL DEFAULT '19:00'",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS accent VARCHAR(7)",
     "ALTER TABLE users DROP COLUMN IF EXISTS timezone",  # was a manual choice; now always the phone's zone

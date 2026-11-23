@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { ProfileData, Recommendation } from './profile'
 import Library from './Library'
 import { api, postJson, publicGet } from './telegram'
-import { lastLabel, nextDay, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
+import { lastLabel, nextDay, type Effort, type Last, type Program, type ProgramDay, type PlannedExercise, type WorkoutLog } from './types'
 import Empty from './Empty'
 import translatedCatalog from '../../content/exercises/translated_exercises.json'
 import exerciseCatalog from '../../content/exercises/exercises.json'
 import KettlebellExercise, { getExerciseGuideImage, hasExerciseGuide } from './KettlebellExercise'
 import ProgramBuilder, { type ExerciseOption, type ProgramDraft } from './ProgramBuilder'
-import { nextWeight } from './progression'
+import { advice, nextWeight } from './progression'
 import { Chevron, Sheet } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
@@ -18,6 +18,7 @@ import MuscleMap from './MuscleMap'
 import { MUSCLES, type Muscle } from './muscles'
 import { haptic, sound } from './haptics'
 import { morph } from './motion'
+import { cancel, localId, real, sendOrQueue } from './offline'
 
 const draftNames = new Map<number, string>() // demo mode: names of library exercises put into a local program
 const LEVEL: Record<string, string> = { beginner: 'Новичок', intermediate: 'Средний', advanced: 'Продвинутый' }
@@ -156,7 +157,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
     <div className="card-head programs-page-head"><h1>Программы</h1><button className="link" onClick={() => setPersonalList(false)}>Назад</button></div>
     <div className="personal-programs-list">
       <div className="programs-section-title"><h2>Мои программы</h2><span className="sub">{programs.filter(p => p.is_personal).length}</span></div>
-      {!programs.some(p => p.is_personal) && <div className="programs-empty"><p>У вас пока нет своих программ</p><span className="sub">Создайте программу под свои тренировки</span></div>}
+      {!programs.some(p => p.is_personal) && <div className="programs-empty"><p>У тебя пока нет своих программ</p><span className="sub">Создай программу под свои тренировки</span></div>}
       {programs.filter(p => p.is_personal).map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
         <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
         <span className="sub">Тренировок: {p.days.length}</span>
@@ -181,7 +182,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
               {items.length === 0 && <p className="sub">Программ пока нет</p>}
               {items.map(p => <section className={p.id === programId ? 'card program-card is-selected' : 'card program-card'} key={p.id}>
                 <div className="card-head"><h2>{p.name}</h2>{p.id === programId && <span className="program-selected">✓ Выбрана</span>}</div>
-                {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит вам</span>}
+                {p.id === recommended?.program_id && <span className="chip chip-accent">★ Подходит тебе</span>}
                 <div className="program-card-actions"><button className="link" onClick={() => setPreviewProgramId(p.id)}>Посмотреть тренировки</button><button className="program-select" onClick={() => { onSelectProgram(p.id); setPersonalList(false) }}>{p.id === programId ? 'Открыть' : 'Выбрать'}</button></div>
               </section>)}
             </div>
@@ -199,7 +200,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         <button className="card lib-entry" onClick={() => setLibrary('build')}><span className="lib-entry-icon" aria-hidden="true"><Icon name="target" size={22} /></span><b>Собрать тренировку</b><small>На нужные мышцы</small></button>
       </div>
 
-  if (!program) return <><h1>Тренировки</h1>{programsButton}{libraryEntries}<p className="sub">Выберите программу, чтобы начать тренировки.</p></>
+  if (!program) return <><h1>Тренировки</h1>{programsButton}{libraryEntries}<p className="sub">Выбери программу, чтобы начать тренировки.</p></>
 
   const next = nextDay(program, logs)
   return (
@@ -223,7 +224,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         </div>
         {canEdit
           ? <button className="btn" onClick={() => morph(() => setSession(next))}>Начать тренировку</button>
-          : <p className="sub">Демо-режим: чтобы записывать тренировки, откройте приложение из Telegram.</p>}
+          : <p className="sub">Демо-режим: чтобы записывать тренировки, открой приложение из Telegram.</p>}
       </section>
 
       {canEdit && program.days.length > 1 && (
@@ -242,7 +243,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
       <section className="card">
         <h2>История</h2>
-        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведите первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
+        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведи первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
           <div className="list">
             {logs.slice(0, 10).map((l) => (
               <button className="row row-btn history-entry" key={l.id} onClick={() => setHistoryLog(l)}>
@@ -286,7 +287,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
   const [now, setNow] = useState(() => Date.now())
   const [startedAt] = useState(() => kept?.startedAt ?? Date.now())
   const [records, setRecords] = useState<string[]>(kept?.records ?? [])
-  const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number } | null>(null)
+  const [summary, setSummary] = useState<{ minutes: number; sets: number; tonnage: number; xp: number; note?: string | null } | null>(null)
   useEffect(() => { // the clock in the header ticks every second
     const t = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(t)
@@ -355,7 +356,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       // empty weight fields take last time's weight for the same set (or the last set done)
       setSets((prev) => prev.map((row, ei) => {
         const done = r[day.exercises[ei].exercise_id]?.sets
-        const up = nextWeight(done, day.exercises[ei].reps) // every set hit the top of the plan last time: a bit heavier
+        const up = nextWeight(done, day.exercises[ei].reps, r[day.exercises[ei].exercise_id]?.effort) // every set hit the top last time: a bit heavier
         return !done?.length ? row : row.map((x, si) => x.saved || x.weight !== '' ? x
           : { ...x, weight: String(up ?? ((done[si] ?? done[done.length - 1]).weight_kg || '')) })
       }))
@@ -368,11 +369,19 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
   const update = (ei: number, si: number, patch: Partial<SetState>) =>
     setSets((prev) => prev.map((row, i) => (i !== ei ? row : row.map((s, j) => (j === si ? { ...s, ...patch } : s)))))
 
+  // Without a connection the workout goes on: it gets a local id, and it and its sets wait on the phone (offline.ts)
+  const [offline, setOffline] = useState(false)
+  const send = <T,>(path: string, init: RequestInit) => api<T>(path, init)
+
   async function ensureLog(): Promise<number> {
-    if (logId) return logId
-    const w = await api<{ id: number }>('/api/workout-logs', postJson({ program_day_id: day.id, title: `${day.day_name} · ${program.name}` }))
-    setLogId(w!.id)
-    return w!.id
+    if (logId) return real(logId)
+    const local = localId()
+    const body = { program_day_id: day.id, title: `${day.day_name} · ${program.name}`, started_at: new Date(startedAt).toISOString() }
+    const r = await sendOrQueue<{ id: number }>({ path: '/api/workout-logs', body, local, kind: 'workout', name: day.day_name }, send)
+    const id = r.queued ? local : r.value!.id
+    if (r.queued) setOffline(true)
+    setLogId(id)
+    return id
   }
 
   async function saveSet(ei: number, si: number, measuredSeconds?: number) {
@@ -381,14 +390,18 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     const reps = measuredSeconds ?? Number(s.reps)
     const timed = timedExercise(day.exercises[ei])
     const weight = s.weight ? Number(s.weight.replace(',', '.')) : 0
-    if (!Number.isInteger(reps) || reps <= 0 || reps > (timed ? 86400 : 500)) return setError(timed ? 'Время: укажите секунды' : 'Повторы: целое число от 1 до 500')
+    if (!Number.isInteger(reps) || reps <= 0 || reps > (timed ? 86400 : 500)) return setError(timed ? 'Время: укажи секунды' : 'Повторы: целое число от 1 до 500')
     if (!Number.isFinite(weight) || weight < 0 || weight > 500) return setError('Вес: от 0 до 500 кг')
     setError('')
     setBusy(true)
     try {
       const id = await ensureLog()
-      const r = await api<{ id: number; record: { kind: string } | null }>(`/api/workout-logs/${id}/sets`, postJson({ exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight }))
-      update(ei, si, { saved: true, reps: String(reps), id: r?.id })
+      const local = localId()
+      const sent = await sendOrQueue<{ id: number; record: { kind: string } | null }>({ path: `/api/workout-logs/${id}/sets`, local, kind: 'workout',
+        name: day.exercises[ei].name, body: { exercise_id: day.exercises[ei].exercise_id, set_number: si + 1, ...(timed ? { duration_seconds: reps } : { reps }), weight_kg: weight } }, send)
+      const r = sent.queued ? null : sent.value
+      setOffline(sent.queued)
+      update(ei, si, { saved: true, reps: String(reps), id: sent.queued ? local : r?.id })
       const rest = day.exercises[ei].rest_seconds
       const time = Date.now()
       setNow(time)
@@ -408,8 +421,8 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       } else if (!list && ei === cur && cur < day.exercises.length - 1 && sets[ei].every((x, j) => j === si || x.saved)) {
         setCur(ei + 1)
       }
-    } catch {
-      setError('Подход не сохранился: нет связи. Нажмите ещё раз')
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'Подход не сохранился — попробуй ещё раз')
     } finally {
       setBusy(false)
     }
@@ -421,12 +434,13 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     if (!logId || !id || busy) return
     setBusy(true)
     try {
-      await api(`/api/workout-logs/${logId}/sets/${id}`, { method: 'DELETE' })
+      // still on the phone: just taken out of the queue; otherwise deleted (or queued to be)
+      if (!(id < 0 && real(id) === id && cancel(id))) await sendOrQueue({ path: `/api/workout-logs/${logId}/sets/${id}`, method: 'DELETE', kind: 'workout' }, send)
       update(ei, si, { saved: false, id: undefined })
       if (rest) skipRest()
       setTimer(null)
       setCur(ei)
-    } catch { setError('Не получилось отменить подход — попробуйте ещё раз') }
+    } catch { setError('Не получилось отменить подход — попробуй ещё раз') }
     setBusy(false)
   }
 
@@ -441,16 +455,18 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     if (rest) skipRest()
     setBusy(true)
     try {
-      const r = await api<{ xp_awarded: number }>(`/api/workout-logs/${logId}/complete`, { method: 'POST' })
-      onChanged(r?.xp_awarded ?? 0)
+      const sent = await sendOrQueue<{ xp_awarded: number; xp_note?: string | null }>({ path: `/api/workout-logs/${logId}/complete`, kind: 'workout',
+        name: day.day_name, body: { completed_at: new Date().toISOString() } }, send)
+      const r = sent.queued ? { xp_awarded: 0, xp_note: 'Нет связи — тренировка сохранена на телефоне и отправится сама, XP придёт тогда же' } : sent.value
+      if (!sent.queued) onChanged(r?.xp_awarded ?? 0)
       const done = sets.flat().filter((x) => x.saved)
       const tonnage = sets.reduce((n, row, ei) => n + (timedExercise(day.exercises[ei]) ? 0
         : row.filter((x) => x.saved).reduce((m, x) => m + Number(x.reps) * (Number(x.weight.replace(',', '.')) || 0), 0)), 0)
       saveActive(null)
-      setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0 })
+      setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0, note: r?.xp_note ?? null })
       setBusy(false)
-    } catch {
-      setError('Тренировка не завершилась: нет связи. Нажмите ещё раз')
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : 'Тренировка не завершилась — попробуй ещё раз')
       setBusy(false)
     }
   }
@@ -492,6 +508,8 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       </div>
       {records.length > 0 && <ul className="workout-records">{records.map((r) => <li key={r}>🏆 Личный рекорд: {r}</li>)}</ul>}
       {summary.xp > 0 && <p className="pos">+{summary.xp} XP</p>}
+      {!summary.xp && summary.note && <p className="sub">{summary.note}</p>}
+      {logId && <EffortPick logId={logId} />}
       <button className="btn" onClick={onExit}>Готово</button>
     </section>
   )
@@ -576,9 +594,9 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
             {last[e.exercise_id]?.sets.length ? (
               <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
             ) : null}
-            {nextWeight(last[e.exercise_id]?.sets, e.reps) && (
-              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуйте {String(nextWeight(last[e.exercise_id]?.sets, e.reps)).replace('.', ',')} кг</div>
-            )}
+            {nextWeight(last[e.exercise_id]?.sets, e.reps, last[e.exercise_id]?.effort) ? (
+              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуй {String(nextWeight(last[e.exercise_id]?.sets, e.reps, last[e.exercise_id]?.effort)).replace('.', ',')} кг</div>
+            ) : advice(last[e.exercise_id], e.reps) && <div className="session-up">💡 {advice(last[e.exercise_id], e.reps)}</div>}
           </div>
           {timed ? <>
             {nextSet >= 0 && timer?.phase !== 'work' &&
@@ -622,6 +640,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       )}
       {guideExercise && <KettlebellExercise exercise={guideExercise} onClose={() => setGuideExercise(null)} />}
       {error && <p className="error" role="alert">{error}</p>}
+      {offline && <p className="queued" role="status">📴 Нет связи — подходы сохраняются на телефоне и отправятся сами</p>}
       {savedCount > 0 && <button className="btn btn-ghost" disabled={busy || timer?.phase === 'work'} onClick={finish}>
         Завершить тренировку · {savedCount} подх.
       </button>}
@@ -645,6 +664,27 @@ function WorkoutPreview({ day }: { day: ProgramDay }) {
         {primary.length > 0 && <span>{primary.slice(0, 3).map((m) => MUSCLES[m as Muscle] ?? m).join(', ')}{primary.length > 3 ? '…' : ''}</span>}
       </div>
       {primary.length > 0 && <MuscleMap primary={primary} compact />}
+    </div>
+  )
+}
+
+/** "Как ощущения?" after a workout: next time an easy one goes up sooner, a hard one keeps the weight. */
+function EffortPick({ logId }: { logId: number }) {
+  const [picked, setPicked] = useState<Effort | null>(null)
+  const choose = (e: Effort) => {
+    setPicked(e)
+    haptic('select')
+    sendOrQueue({ path: `/api/workout-logs/${logId}/effort`, body: { effort: e }, kind: 'workout' }, (p, i) => api(p, i)).catch(() => setPicked(null))
+  }
+  if (picked) return <p className="sub effort-done">{{ easy: 'Понял: в следующий раз прибавим.', ok: 'Отлично, держим темп.', hard: 'Понял: в следующий раз держим вес.' }[picked]}</p>
+  return (
+    <div className="effort">
+      <p className="sub">Как ощущения?</p>
+      <div className="effort-row">
+        <button className="chip" onClick={() => choose('easy')}>😌 Легко</button>
+        <button className="chip" onClick={() => choose('ok')}>🙂 Норм</button>
+        <button className="chip" onClick={() => choose('hard')}>😮‍💨 Тяжело</button>
+      </div>
     </div>
   )
 }

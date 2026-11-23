@@ -4,7 +4,7 @@ const RULES: [RegExp, string][] = [
   [/кофе|капучино|латте|эспрессо|американо/, '☕'], [/чай/, '🍵'], [/сок|морс|компот|лимонад|кола|газиров/, '🧃'], [/пиво|вино/, '🍷'],
   [/шоколад|конфет|печень|торт|пирожн|вафл|мороженое|десерт|пончик/, '🍫'], [/мёд|мед\b|варень|сахар/, '🍯'],
   // dishes first ("овсянка на молоке" is porridge, not milk)
-  [/овсян|каш|мюсли|гранол|хлопь/, '🥣'], [/рис|гречк|киноа|булгур|пшен|перлов|кускус/, '🍚'], [/макарон|паст|спагет|лапш/, '🍝'],
+  [/овсян|каш|мюсли|гранол|хлопь|гречк|киноа|булгур|пшен|перлов|кускус/, '🥣'], [/рис/, '🍚'], [/макарон|паст|спагет|лапш/, '🍝'],
   [/яйц|омлет|яичниц/, '🥚'], [/сыр/, '🧀'], [/йогурт|кефир|молок|ряженк|творог|сметан|сливк/, '🥛'],
   [/рыб|лосос|семг|тунец|треск|форел|сельд|кревет|кальмар|краб/, '🐟'],
   [/кур|индейк|утк|грудк|бедр|крыл/, '🍗'], [/говя|свин|баран|телят|фарш|котлет|стейк|колбас|сосиск|ветчин|бекон|мяс/, '🥩'],
@@ -18,4 +18,11 @@ const RULES: [RegExp, string][] = [
 export function foodIcon(name: string, category?: string | null): string {
   const text = `${name} ${category ?? ''}`.toLowerCase().replace(/ё/g, 'е')
   return RULES.find(([re]) => re.test(text))?.[1] ?? '🍽'
+}
+
+// The emoji as a picture (Twemoji, public/emoji): Windows, Android and iOS each draw emoji their own way,
+// and some of them look odd as food icons (rice on Windows is a white dome on red). One set looks the same everywhere.
+export function emojiSrc(emoji: string): string {
+  const code = [...emoji].filter((c) => c !== '\ufe0f').map((c) => c.codePointAt(0)!.toString(16)).join('-')
+  return `${import.meta.env.BASE_URL}emoji/${code}.svg`
 }

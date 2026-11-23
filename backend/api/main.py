@@ -17,11 +17,13 @@ from sqlalchemy.orm import selectinload
 
 from backend.core.config import settings
 from backend.core.search import alternatives, first_words, fuzzy_match, has_word, norm, starts_with_word, typo_pool, word_start
-from backend.core.gamification import level_progress
+from backend.core.gamification import MIN_WORKOUT_MINUTES, MIN_WORKOUT_SETS, level_progress
 from backend.core.nutrition import daily_targets
 from backend.core.programs import recommend
 from backend.api.ai import router as ai_router
 from backend.api.daily import router as daily_router
+from backend.api.monthly import router as monthly_router
+from backend.api.fasting import router as fasting_router
 from backend.api.account import router as account_router
 from backend.api.meal_preferences import router as meal_preferences_router
 from backend.api.saved_meal_plan import router as saved_meal_plan_router
@@ -36,7 +38,7 @@ from backend.api.feedback import router as feedback_router
 from backend.api.quick_food import product_out, router as quick_food_router
 from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
-from backend.api.stats import router as stats_router
+from backend.api.stats import for_day, router as stats_router, trained_today
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session, init_db
@@ -56,7 +58,7 @@ from backend.database.models import (
     WorkoutSet,
 )
 from backend.core import alerts, backup, off_sync
-from backend.database.rewards import award_xp, sync_evolution
+from backend.database.rewards import award_xp, revoke_xp, settle_meal_xp, sync_evolution
 
 
 @asynccontextmanager
@@ -111,12 +113,14 @@ async def health(session: AsyncSession = Depends(get_session)):
     return {"status": "ok" if db == "ok" else "degraded", "database": db}
 
 
-def profile_out(profile: Profile | None) -> dict | None:
+def profile_out(profile: Profile | None, trained: bool = False) -> dict | None:
+    """targets: today's norm (more carbs on a training day, a bit less on a rest day); targets_base: the plain one."""
     if profile is None:
         return None
     data = ProfileIn.model_validate(profile, from_attributes=True).model_dump()
+    base = daily_targets(**{k: data[k] for k in BASE_FIELDS}, calories=profile.kcal_override)
     return {**data, "target_weight_kg": profile.target_weight_kg, "kcal_override": profile.kcal_override,
-            "targets": daily_targets(**{k: data[k] for k in BASE_FIELDS}, calories=profile.kcal_override)}
+            "targets": for_day(profile, base, trained), "targets_base": base}
 
 
 async def recommended_program(session: AsyncSession, profile: Profile | None) -> dict | None:
@@ -138,7 +142,7 @@ async def auth(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
         "first_name": user.first_name,
         "username": user.username,
         "progress": level_progress(user.xp),
-        "profile": profile_out(profile := await session.get(Profile, user.id)),
+        "profile": profile_out(profile := await session.get(Profile, user.id), await trained_today(session, user.id)),
         "recommended_program": await recommended_program(session, profile),
         "settings": settings_out(user),
     }
@@ -221,7 +225,7 @@ class ProfileIn(BaseModel):
 @app.get("/api/profile")
 async def get_profile(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    return profile_out(await session.get(Profile, user.id))
+    return profile_out(await session.get(Profile, user.id), await trained_today(session, user.id))
 
 
 @app.put("/api/profile")
@@ -240,13 +244,14 @@ async def save_profile(
         data.update(allergies=None, injury=None)
     if existing and existing.goal != body.goal:
         profile.kcal_override = None  # an accepted norm was for the old goal
+        profile.kcal_auto_at = None  # and the data-based one is recalculated for the new goal at the next chance
     for k, v in data.items():
         setattr(profile, k, v)
     session.add(profile)
     if existing is None:  # the questionnaire is done for the first time: the bot sends "your plan is ready"
         session.add(Outbox(telegram_id=user.telegram_id, kind="plan", text="", user_id=user.id))
     await session.commit()
-    return profile_out(profile)
+    return profile_out(profile, await trained_today(session, user.id))
 
 
 # ---- Reference data: products, exercises, programs ----
@@ -327,7 +332,7 @@ async def create_custom_exercise(body: CustomExerciseIn, tg: dict = Depends(tele
     user = await get_or_create_user(tg, session)
     name = body.name.strip()
     if not name:
-        raise HTTPException(422, "Введите название упражнения")
+        raise HTTPException(422, "Введи название упражнения")
     exercise = await session.scalar(select(Exercise).where(Exercise.name == name, Exercise.owner_user_id == user.id))
     if exercise is None:
         exercise = Exercise(name=name, owner_user_id=user.id, muscle_groups=[], equipment=[], difficulty="beginner", is_bodyweight=False)
@@ -394,11 +399,11 @@ class PersonalProgramIn(BaseModel):
 
 async def save_personal_program(body: PersonalProgramIn, user: User, session: AsyncSession, tg: dict, program: Program | None = None):
     if any(e.planned_weights is not None and (len(e.planned_weights) != e.sets or any(w is not None and not 0 <= w <= 500 for w in e.planned_weights)) for d in body.days for e in d.exercises):
-        raise HTTPException(422, "Проверьте веса подходов")
+        raise HTTPException(422, "Проверь веса подходов")
     ids = {item.exercise_id for day in body.days for item in day.exercises}
     existing = set((await session.scalars(select(Exercise.id).where(Exercise.id.in_(ids), (Exercise.owner_user_id.is_(None)) | (Exercise.owner_user_id == user.id)))).all())
     if ids != existing or not body.name.strip() or any(not d.name.strip() or any(not e.reps.strip() for e in d.exercises) for d in body.days):
-        raise HTTPException(422, "Проверьте название, упражнения и повторения")
+        raise HTTPException(422, "Проверь название, упражнения и повторения")
     if program is None:
         program = Program(name=body.name.strip(), owner_user_id=user.id, goal="Своя программа", level="beginner", days_per_week=len(body.days), days=[])
         session.add(program)
@@ -477,10 +482,8 @@ def entry_time(day: date | None, meal_type: str, slot: str | None) -> tuple[dict
 
 
 async def meal_xp(session: AsyncSession, user: User, day: date, meal_type: str) -> int:
-    """Today and yesterday earn XP (a forgotten dinner counts); older back-fills don't, so the diary can't be farmed."""
-    if day < clock.today() - timedelta(days=1):
-        return 0
-    return await award_xp(session, user.id, "meal_logged", f"meal:{day}:{meal_type}")
+    """Today and yesterday earn XP (a forgotten dinner counts), from 50 kcal; see rewards.settle_meal_xp."""
+    return await settle_meal_xp(session, user.id, day, meal_type)
 
 
 def food_log_out(log: FoodLog) -> dict:
@@ -533,13 +536,14 @@ async def get_food_logs(
 
 @app.delete("/api/food-logs/{log_id}")
 async def delete_food_log(log_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
-    # XP already granted for the meal is kept: it's per meal type per day, not per entry.
     user = await get_or_create_user(tg, session)
     log = await session.get(FoodLog, log_id)
     if log is None or log.user_id != user.id:
         raise HTTPException(404, "Запись не найдена")
+    day, meal = clock.local(log.logged_at).date(), log.meal_type
     await session.delete(log)
     await session.commit()
+    await settle_meal_xp(session, user.id, day, meal)  # the meal emptied: its XP goes back
     return {"ok": True}
 
 
@@ -559,10 +563,15 @@ async def change_food_log(log_id: int, body: FoodLogPatch, tg: dict = Depends(te
         raise HTTPException(404, "Запись не найдена")
     if body.amount_g is not None:
         log.amount_g, log.unit, log.qty = body.amount_g, body.unit, body.qty
+    was = log.meal_type
     if body.meal_type and body.meal_type != log.meal_type:
         # a snack keeps to its day: the slot is the entry's own local time
         log.meal_type, log.snack_slot = body.meal_type, clock.local(log.logged_at).strftime("%H:%M") if body.meal_type == "snack" else None
     await session.commit()
+    day = clock.local(log.logged_at).date()
+    for meal in {was, log.meal_type}:  # grams down to nothing, or moved away: XP follows
+        await settle_meal_xp(session, user.id, day, meal)
+    await session.refresh(log, ["product"])
     return food_log_out(log)
 
 
@@ -590,7 +599,7 @@ async def save_measurement(
     body: MeasurementIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
     if all(getattr(body, k) is None for k in MEASURE_FIELDS):
-        raise HTTPException(422, "Укажите хотя бы одно значение")
+        raise HTTPException(422, "Укажи хотя бы одно значение")
     day = body.measured_on or clock.today()
     if day > clock.today() + timedelta(days=1):  # +1: client may be ahead of the server's timezone
         raise HTTPException(422, "Дата в будущем")
@@ -612,7 +621,8 @@ async def save_measurement(
         if profile and (latest is None or day >= latest):
             profile.weight_kg = body.weight_kg
     await session.commit()
-    xp = await award_xp(session, user.id, "body_measurement", f"measure:{day}")
+    # XP for today's weigh-in only: filling in past dates is history, not a daily habit (and would farm XP)
+    xp = await award_xp(session, user.id, "body_measurement", f"measure:{day}") if day == clock.today() else 0
     return {**measurement_out(m), "xp_awarded": xp}
 
 
@@ -637,8 +647,11 @@ async def delete_measurement(
     m = await session.get(BodyMeasurement, measurement_id)
     if m is None or m.user_id != user.id:
         raise HTTPException(404, "Замер не найден")
+    day = m.measured_on
     await session.delete(m)
     await session.commit()
+    if not await session.scalar(select(BodyMeasurement.id).where(BodyMeasurement.user_id == user.id, BodyMeasurement.measured_on == day)):
+        await revoke_xp(session, user.id, f"measure:{day}")  # weigh, delete, weigh again doesn't pay twice
     return {"ok": True}
 
 
@@ -648,6 +661,11 @@ async def delete_measurement(
 class WorkoutLogIn(BaseModel):
     program_day_id: int | None = None
     title: str = Field(default="Тренировка", min_length=1, max_length=200)
+    started_at: datetime | None = None  # started offline: the phone's time, sent later (clock.client_time)
+
+
+class CompleteIn(BaseModel):
+    completed_at: datetime | None = None
 
 
 class WorkoutSetIn(BaseModel):
@@ -672,7 +690,7 @@ async def start_workout(body: WorkoutLogIn, tg: dict = Depends(telegram_user), s
         program = await session.scalar(select(Program).join(ProgramDay, ProgramDay.program_id == Program.id).where(ProgramDay.id == body.program_day_id))
         if program is None or program.owner_user_id not in (None, user.id):
             raise HTTPException(404, "День программы не найден")
-    w = WorkoutLog(user_id=user.id, **body.model_dump())
+    w = WorkoutLog(user_id=user.id, **body.model_dump(exclude={"started_at"}), started_at=clock.client_time(body.started_at))
     session.add(w)
     await session.commit()
     return {"id": w.id, "title": w.title}
@@ -690,7 +708,7 @@ async def log_set(
     if exercise is None or exercise.owner_user_id not in (None, user.id):
         raise HTTPException(404, "Упражнение не найдено")
     if (body.reps is None) == (body.duration_seconds is None):
-        raise HTTPException(422, "Укажите повторы или время")
+        raise HTTPException(422, "Укажи повторы или время")
     record = await personal_record(session, user, body)  # before adding: compare with what was there
     ws = WorkoutSet(workout_log_id=w.id, **body.model_dump())
     session.add(ws)
@@ -709,9 +727,28 @@ async def delete_set(log_id: int, set_id: int, tg: dict = Depends(telegram_user)
     ws = await session.get(WorkoutSet, set_id)
     if ws is None or ws.workout_log_id != w.id:
         raise HTTPException(404, "Подход не найден")
+    exercise_id = ws.exercise_id
     await session.delete(ws)
     await session.commit()
+    if not await todays_record(session, user, exercise_id):  # a fake heavy set, deleted: its record XP goes too
+        await revoke_xp(session, user.id, f"pr:{exercise_id}:{clock.today()}")
     return {"ok": True}
+
+
+async def todays_record(session: AsyncSession, user: User, exercise_id: int) -> bool:
+    """Does a set logged today still beat everything before today (the same measures as personal_record)?"""
+    today = clock.local_start(clock.today())
+    rows = list(await session.execute(
+        select(WorkoutSet.reps, WorkoutSet.duration_seconds, WorkoutSet.weight_kg, WorkoutLog.started_at >= today)
+        .join(WorkoutLog, WorkoutLog.id == WorkoutSet.workout_log_id)
+        .where(WorkoutLog.user_id == user.id, WorkoutSet.exercise_id == exercise_id)))
+
+    def best(fresh: bool) -> tuple[float, float, int]:
+        sel = [r for r in rows if bool(r[3]) == fresh]
+        return (max((e1rm(w, r) for r, _, w, _ in sel if r and w and r <= 15), default=0),
+                max((d or 0 for _, d, _, _ in sel), default=0), max((r or 0 for r, _, w, _ in sel if not w), default=0))
+    old, new = best(False), best(True)
+    return any(o and n > o * (1.005 if i == 0 else 1) for i, (o, n) in enumerate(zip(old, new)))
 
 
 def e1rm(weight: float, reps: int) -> float:
@@ -768,18 +805,44 @@ async def cancel_rest_timer(tg: dict = Depends(telegram_user), session: AsyncSes
 
 
 @app.post("/api/workout-logs/{log_id}/complete")
-async def complete_workout(log_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+async def complete_workout(log_id: int, body: CompleteIn | None = None, tg: dict = Depends(telegram_user),
+                           session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     w = await own_workout(log_id, user, session)
     if not await session.scalar(select(WorkoutSet.id).where(WorkoutSet.workout_log_id == w.id).limit(1)):
-        raise HTTPException(400, "Добавьте хотя бы один подход")  # no XP for empty workouts
-    if w.completed_at is None:
-        w.completed_at = func.now()
+        raise HTTPException(400, "Добавь хотя бы один подход")  # no XP for empty workouts
+    first = w.completed_at is None
+    if first:
+        w.completed_at = clock.client_time(body and body.completed_at, w.started_at)
         await session.commit()
-    xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}")
+        from backend.api.groups import on_workout
+
+        await on_workout(session, user, w)  # "💪 Аня закончила тренировку" in their group chats
+    sets = await session.scalar(select(func.count()).where(WorkoutSet.workout_log_id == w.id))
+    await session.refresh(w)
+    minutes = (w.completed_at - w.started_at).total_seconds() / 60
+    real = sets >= MIN_WORKOUT_SETS and minutes >= MIN_WORKOUT_MINUTES
+    xp = await award_xp(session, user.id, "workout_completed", f"workout:{w.id}") if real else 0
     await sync_evolution(session, user.id, "iron_will")
     await session.commit()
-    return {"ok": True, "xp_awarded": xp}
+    note = (None if xp or not first else f"XP за тренировку — от {MIN_WORKOUT_SETS} подходов" if sets < MIN_WORKOUT_SETS
+            else f"XP за тренировку — от {MIN_WORKOUT_MINUTES} минут" if minutes < MIN_WORKOUT_MINUTES
+            else "XP начисляется за две тренировки в сутки — эта сохранена без XP")
+    return {"ok": True, "xp_awarded": xp, "xp_note": note}
+
+
+class EffortIn(BaseModel):
+    effort: str = Field(pattern=r"^(easy|ok|hard)$")
+
+
+@app.post("/api/workout-logs/{log_id}/effort")
+async def workout_effort(log_id: int, body: EffortIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """How the workout felt: next time an easy one goes heavier sooner, a hard one keeps the weight."""
+    user = await get_or_create_user(tg, session)
+    w = await own_workout(log_id, user, session)
+    w.effort = body.effort
+    await session.commit()
+    return {"ok": True}
 
 
 @app.get("/api/workout-logs")
@@ -820,21 +883,28 @@ async def workout_log_detail(log_id: int, tg: dict = Depends(telegram_user), ses
 async def last_sets(
     ids: str = Query(..., max_length=500), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
-    """For each exercise id: the sets from the latest workout where the user did it ("в прошлый раз 60 кг × 8")."""
+    """For each exercise id: the sets from the latest workout where the user did it ("в прошлый раз 60 кг × 8"), how
+    that workout felt, and the best set of each of the last 4 workouts (a plateau: the weight stopped growing)."""
     user = await get_or_create_user(tg, session)
     wanted = {int(x) for x in ids.split(",") if x.strip().isdigit()}
     rows = await session.execute(
-        select(WorkoutSet, WorkoutLog.id, WorkoutLog.started_at)
+        select(WorkoutSet, WorkoutLog.id, WorkoutLog.started_at, WorkoutLog.effort)
         .join(WorkoutLog, WorkoutLog.id == WorkoutSet.workout_log_id)
         .where(WorkoutLog.user_id == user.id, WorkoutSet.exercise_id.in_(wanted))
         .order_by(WorkoutLog.started_at.desc(), WorkoutSet.set_number)
     )
     out: dict[int, dict] = {}
-    for ws, log_id, at in rows:
-        last = out.setdefault(ws.exercise_id, {"log_id": log_id, "date": at.astimezone(clock.tz()).date().isoformat(), "sets": []})
+    for ws, log_id, at, effort in rows:
+        last = out.setdefault(ws.exercise_id, {"log_id": log_id, "date": at.astimezone(clock.tz()).date().isoformat(), "sets": [],
+                                               "effort": effort, "history": {}})
         if last["log_id"] == log_id:
             last["sets"].append({"reps": ws.reps, "duration_seconds": ws.duration_seconds, "weight_kg": ws.weight_kg})
-    return {str(k): {"date": v["date"], "sets": v["sets"]} for k, v in out.items()}
+        best = last["history"].get(log_id)
+        if (log_id in last["history"] or len(last["history"]) < 4) and (
+                best is None or ((ws.weight_kg or 0), (ws.reps or 0)) > (best["weight_kg"], best["reps"])):
+            last["history"][log_id] = {"weight_kg": ws.weight_kg or 0, "reps": ws.reps or 0}
+    return {str(k): {"date": v["date"], "sets": v["sets"], "effort": v["effort"], "history": list(v["history"].values())}
+            for k, v in out.items()}
 
 
 @app.post("/api/bootstrap")
@@ -878,6 +948,8 @@ async def yesterday_meals(tg: dict, session: AsyncSession) -> dict:
 app.include_router(ai_router)
 app.include_router(feedback_router)
 app.include_router(daily_router)
+app.include_router(monthly_router)
+app.include_router(fasting_router)
 app.include_router(quick_food_router)
 app.include_router(stats_router)
 app.include_router(social_router)

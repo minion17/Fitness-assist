@@ -1,11 +1,13 @@
 """Sends what the API queued in `outbox` (friend joined, duel news, share cards) and closes finished duels."""
 import asyncio
 import logging
-from sqlalchemy import func
+from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.challenges import finish_challenges
 from backend.api.leagues import finish_leagues
+from backend.api.groups import group_posts
+from backend.api.monthly import finish_months
 from backend.api.social import finish_duels, name, pending_messages, reward_invites, week_numbers
 from backend.bot import cards
 from backend.core import alerts, clock
@@ -23,6 +25,35 @@ async def share_card(session, user: User) -> bytes:
     return await asyncio.to_thread(cards.share, name(user), w["streak"], w["week_xp"], w["workouts"], w["level"], theme, user.accent)
 
 
+async def month_card(session, user: User) -> bytes:
+    """The challenge-of-the-month card (the same picture as for Stories): for desktop, where Stories don't exist."""
+    from backend.api.monthly import story_numbers
+    from backend.api.social import bot_username
+
+    m = await story_numbers(session, user)
+    theme = user.theme if user.theme in cards.THEMES else None
+    return await asyncio.to_thread(cards.story_month, name(user), m, bot_username(), theme, user.accent)
+
+
+async def send_group(bot, session, m) -> None:
+    from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
+    from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
+    from backend.api.groups import join_link
+    from backend.database.models import GroupChat
+
+    g = await session.scalar(select(GroupChat).where(GroupChat.chat_id == m.telegram_id))
+    link = g and join_link(g)
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть Setly", url=link)]]) if link else None
+    try:
+        await bot.send_message(m.telegram_id, m.text, reply_markup=markup)
+    except (TelegramForbiddenError, TelegramBadRequest) as e:  # removed from the chat, or the chat is gone
+        log.info("group %s unreachable: %s", m.telegram_id, e)
+        if g:
+            g.active = False
+            await session.commit()
+
+
 async def send_report(bot, session, m) -> None:
     from aiogram.types import BufferedInputFile
 
@@ -36,8 +67,10 @@ async def send_report(bot, session, m) -> None:
     finally:
         clock.use_tz(None)
     pdf = await asyncio.to_thread(render, data)
-    await bot.send_document(m.telegram_id, BufferedInputFile(pdf, f"setly-{data['until']:%Y-%m-%d}.pdf"),
-                            caption=f"📄 Отчёт за {m.text} дней: питание, вес и замеры, тренировки. Можно переслать тренеру или врачу.")
+    await bot.send_document(m.telegram_id, BufferedInputFile(pdf, f"setly-report-{data['since']:%Y-%m-%d}-{data['until']:%Y-%m-%d}.pdf"),
+                            caption=f"📄 Отчёт за {m.text} дней для врача, диетолога или тренера: масса тела и обхваты с ориентирами, "
+                                    "нормы и реальный расход, питание по дням и дневник за последние 2 недели, тренировки, вода и сон. "
+                                    "Перешли этот файл специалисту.")
 
 
 async def send_export(bot, session, m) -> None:
@@ -52,7 +85,7 @@ async def send_export(bot, session, m) -> None:
     finally:
         clock.use_tz(None)
     await bot.send_document(m.telegram_id, BufferedInputFile(data, f"setly-{clock.today():%Y-%m-%d}.zip"),
-                            caption="📦 Все ваши записи: питание, вес и замеры, вода, тренировки — в таблицах CSV (открываются в Excel и Google Таблицах).")
+                            caption="📦 Все твои записи: питание, вес и замеры, вода, тренировки — в таблицах CSV (открываются в Excel и Google Таблицах).")
 
 
 async def send_plan(bot, session, m) -> None:
@@ -71,14 +104,14 @@ async def send_plan(bot, session, m) -> None:
     program_id = user.program_id or ((await recommended_program(session, profile)) or {}).get("program_id")
     program = program_id and await session.get(Program, program_id)
     days = ", ".join(chat.DAYS[d] for d in sorted(profile.training_days or []))
-    lines = ["🎯 <b>Ваш план готов</b>\n",
+    lines = ["🎯 <b>Твой план готов</b>\n",
              f"Калории: <b>{chat.n(goal['calories'])} ккал</b> в день",
              f"Белки {chat.n(goal['protein'])} г · Жиры {chat.n(goal['fat'])} г · Углеводы {chat.n(goal['carbs'])} г",
              f"Вода: {chat.liters(water_goal(profile))} л"]
     if program or days:
         lines.append("Тренировки: " + " — ".join(x for x in (days, program and f"«{program.name}»") if x))
     lines.append(f"\nЕду можно писать мне прямо сюда, например {chat.EXAMPLE}, — посчитаю и запишу. "
-                 "Или пришлите фото тарелки. Быстрые действия — на кнопках внизу 👇")
+                 "Или пришли фото тарелки. Быстрые действия — на кнопках внизу 👇")
     await bot.send_message(m.telegram_id, "\n".join(lines), parse_mode="HTML", reply_markup=chat.KEYBOARD)
     await session.execute(insert(ReminderSent).values(user_id=user.id, key="onb:kb").on_conflict_do_nothing())  # they have the keyboard: no "кнопки внизу" on the next /start
     await session.commit()
@@ -96,7 +129,20 @@ async def send_pending(bot, keyboard) -> None:
                 if m.kind == "share" and m.user_id:
                     png = await share_card(session, await session.get(User, m.user_id))
                     await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly.png"), caption=m.text)
-                    await bot.send_message(m.telegram_id, "☝️ Перешлите карточку другу — по ссылке в подписи он сразу попадёт к вам в друзья.")
+                    await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу — по ссылке в подписи он сразу попадёт к тебе в друзья.")
+                elif m.kind in ("month_card", "month_end") and m.user_id:
+                    try:
+                        png = await month_card(session, await session.get(User, m.user_id))
+                    except Exception:  # no card (they left the challenge?): the final still arrives as text
+                        log.warning("month card for %s failed", m.user_id, exc_info=True)
+                        await bot.send_message(m.telegram_id, m.text, reply_markup=keyboard())
+                        continue
+                    await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly-month.png"), caption=m.text[:1024],
+                                         reply_markup=keyboard() if m.kind == "month_end" else None)
+                    if m.kind == "month_card":
+                        await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу или сохрани и выложи в истории.")
+                elif m.kind == "group":  # a group chat: no Mini App buttons there, a link to the bot instead
+                    await send_group(bot, session, m)
                 elif m.kind == "report" and m.user_id:
                     await send_report(bot, session, m)
                 elif m.kind == "export" and m.user_id:
@@ -125,6 +171,8 @@ async def run(bot, keyboard) -> None:
                     await reward_invites(session)
                     await finish_leagues(session)
                     await finish_challenges(session)
+                    await finish_months(session)
+                    await group_posts(session)
             await send_pending(bot, keyboard)
         except Exception as e:
             log.warning("outbox loop failed, retrying", exc_info=True)

@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import ARRAY, BigInteger, Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, JSON, SmallInteger, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.database.db import Base
@@ -73,6 +73,9 @@ class Profile(Base):
     training_days: Mapped[list[int] | None] = mapped_column(ARRAY(Integer))  # weekdays 0 = Mon .. 6 = Sun
     target_date: Mapped[date | None] = mapped_column(Date)  # "к какой дате": optional
     kcal_override: Mapped[int | None] = mapped_column(Integer)  # accepted from the real-expenditure estimate; None = formula
+    # weekly recalculation of the norm from the diary and the weight (energy.recalc); off when they return to the formula
+    kcal_auto: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    kcal_auto_at: Mapped[date | None] = mapped_column(Date)  # the last recalculation
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -276,6 +279,28 @@ class ReminderSettings(Base):
     weekly_at: Mapped[str] = mapped_column(String(5), default="19:00", server_default="19:00")
     workout: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")  # morning of a training day
     workout_at: Mapped[str] = mapped_column(String(5), default="09:00", server_default="09:00")
+    checkin: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")  # "Как спалось?" in the morning
+    checkin_at: Mapped[str] = mapped_column(String(5), default="09:00", server_default="09:00")
+
+
+class DailyCheckin(Base):
+    """A morning check-in: sleep and energy, for "в дни с 7+ часами сна ты…" insights."""
+    __tablename__ = "daily_checkins"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    sleep: Mapped[int | None] = mapped_column(SmallInteger)  # 1: <6 h, 2: 6–7, 3: 7–8, 4: 8+
+    energy: Mapped[int | None] = mapped_column(SmallInteger)  # 1 low, 2 ok, 3 high
+
+
+class FastingPlan(Base):
+    """Intermittent fasting: a daily eating window of 24 - hours, opening at eat_from (user's local time)."""
+    __tablename__ = "fasting_plans"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    hours: Mapped[int] = mapped_column(SmallInteger)  # 12 | 14 | 16 | 18
+    eat_from: Mapped[str] = mapped_column(String(5))
+    remind: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
 class FrozenDay(Base):
@@ -313,6 +338,7 @@ class WorkoutLog(Base):
     title: Mapped[str] = mapped_column(String(200))
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    effort: Mapped[str | None] = mapped_column(String(5))  # how it felt: easy / ok / hard
     sets: Mapped[list["WorkoutSet"]] = relationship(cascade="all, delete-orphan", order_by="WorkoutSet.id")
 
 
@@ -423,6 +449,47 @@ class ChallengeCheck(Base):
     day: Mapped[date] = mapped_column(Date, primary_key=True)
 
 
+class MonthEntry(Base):
+    """Taking part in the challenge of the month (one theme for everyone, backend.api.monthly). The result is kept
+    when the month is closed: for the final message and the Stories card."""
+
+    __tablename__ = "month_entries"
+
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    month: Mapped[date] = mapped_column(Date, primary_key=True, index=True)  # the 1st
+    theme: Mapped[str | None] = mapped_column(String(20))  # monthly.THEMES key, kept so a reordered list can't rename the past
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    closed: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    score: Mapped[int | None] = mapped_column(Integer)
+    rank: Mapped[int | None] = mapped_column(Integer)
+    total: Mapped[int | None] = mapped_column(Integer)
+
+
+class GroupChat(Base):
+    """A Telegram group the bot was added to: a weekly rating of its members (backend.api.groups)."""
+
+    __tablename__ = "group_chats"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    chat_id: Mapped[int] = mapped_column(BigInteger, unique=True)  # changes once if a group becomes a supergroup
+    title: Mapped[str] = mapped_column(String(128), default="")
+    code: Mapped[str] = mapped_column(String(12), unique=True)  # t.me/<bot>?start=g<code>: join from outside the chat
+    tz: Mapped[str | None] = mapped_column(String(64))  # whoever added the bot: the week and the posts follow it
+    active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    results_for: Mapped[date | None] = mapped_column(Date)  # the Monday of the last week whose results were posted
+    teased_for: Mapped[date | None] = mapped_column(Date)  # the Monday of the week with the midweek post done
+
+
+class GroupMember(Base):
+    __tablename__ = "group_members"
+
+    group_id: Mapped[int] = mapped_column(ForeignKey("group_chats.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True, index=True)
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    cheered_on: Mapped[date | None] = mapped_column(Date)  # one "закончил тренировку" post a day per member
+
+
 class League(Base):
     """A weekly group of up to 20 people of one tier competing by XP (Duolingo-style)."""
 
@@ -509,6 +576,16 @@ class Visit(Base):
 
 
 # ---- Social: friends, duels, and messages the bot should send ----
+
+class Cheer(Base):
+    """👏 / 🔥 for a friend's workout: once per friend a day."""
+    __tablename__ = "cheers"
+
+    from_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    to_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    emoji: Mapped[str] = mapped_column(String(8))
+
 
 class Friendship(Base):
     """Stored both ways (a->b and b->a), so "my friends" is one simple query."""

@@ -1,4 +1,5 @@
-export type Targets = { calories: number; protein: number; fat: number; carbs: number }
+// day / carbs_shift: today's norm from the server — more carbs on a training day, a bit less on a rest day
+export type Targets = { calories: number; protein: number; fat: number; carbs: number; day?: 'training' | 'rest' | null; carbs_shift?: number }
 
 export type Goal = 'weight_loss' | 'fat_loss' | 'maintenance' | 'muscle_gain' | 'mass_gain'
 export type ProfileData = {
@@ -30,6 +31,8 @@ export type ProfileData = {
   training_days?: number[] | null // weekdays, 0 = Mon
   target_date?: string | null // ISO date, optional
   targets?: Targets
+  targets_base?: Targets // the plain norm, the same every day
+  kcal_override?: number | null // a norm from their own data (accepted or recalculated weekly) instead of the formula
 }
 
 export type Recommendation = { program_id: number; score: number; reasons: string[] }
@@ -44,15 +47,29 @@ export const GOALS: Record<Goal, string> = {
 
 export const YEAR = new Date().getFullYear()
 
-// Matches the server's daily_targets calculation for an offline profile.
+// Matches the server's daily_targets (backend/core/nutrition.py) for an offline profile: the goal is a weekly rate of
+// weight change (% of body weight), protein on a reference weight, fat 25 % of energy, carbs capped near 5 g/kg.
+const WEEKLY_RATE = { weight_loss: -0.75, fat_loss: -0.5, maintenance: 0, muscle_gain: 0.25, mass_gain: 0.5 }
+const MAX_SHIFT = { weight_loss: 0.25, fat_loss: 0.2, maintenance: 0, muscle_gain: 0.1, mass_gain: 0.15 }
+const PROTEIN_PER_KG = { weight_loss: 2, fat_loss: 2.2, maintenance: 1.6, muscle_gain: 2, mass_gain: 2 }
+
 export function calculateTargets(profile: ProfileData, goal: Goal = profile.goal): Targets {
   const activity = { low: 1.2, light: 1.375, moderate: 1.55, high: 1.725, very_high: 1.9 }
-  const factors = { weight_loss: .8, fat_loss: .85, maintenance: 1, muscle_gain: 1.15, mass_gain: 1.2 }
-  const proteinPerKg = { weight_loss: 2, fat_loss: 2, maintenance: 1.6, muscle_gain: 2, mass_gain: 2 }
   const age = new Date().getFullYear() - profile.birth_year
-  const bmr = 10 * profile.weight_kg + 6.25 * profile.height_cm - 5 * age + (profile.sex === 'male' ? 5 : -161)
-  const calories = Math.max(Math.round(bmr * activity[profile.activity] * factors[goal]), profile.sex === 'male' ? 1500 : 1200)
-  const protein = Math.round(profile.weight_kg * proteinPerKg[goal])
-  const fat = Math.round(profile.weight_kg * .9)
-  return { calories, protein, fat, carbs: Math.max(0, Math.round((calories - protein * 4 - fat * 9) / 4)) }
+  const w = profile.weight_kg
+  const bmr = 10 * w + 6.25 * profile.height_cm - 5 * age + (profile.sex === 'male' ? 5 : -161)
+  const expenditure = Math.round(bmr * activity[profile.activity])
+  const cap = expenditure * MAX_SHIFT[goal]
+  const shift = Math.max(-cap, Math.min(cap, (w * WEEKLY_RATE[goal]) / 100 * 7700 / 7))
+  const calories = Math.max(Math.round(expenditure + shift), profile.sex === 'male' ? 1500 : 1200)
+  const lean = 25 * (profile.height_cm / 100) ** 2
+  const ref = w <= lean ? w : lean + 0.25 * (w - lean)
+  const protein = Math.round(ref * PROTEIN_PER_KG[goal])
+  let fat = Math.max(0.8 * ref, (0.25 * calories) / 9)
+  let carbs = (calories - protein * 4 - fat * 9) / 4
+  if (carbs > 5 * ref) {
+    fat += Math.min(Math.max(0, Math.min((0.35 * calories) / 9, 1.5 * ref) - fat), ((carbs - 5 * ref) * 4) / 9)
+    carbs = (calories - protein * 4 - fat * 9) / 4
+  }
+  return { calories, protein, fat: Math.round(fat), carbs: Math.max(0, Math.round(carbs)) }
 }

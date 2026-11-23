@@ -1,6 +1,7 @@
 // Home: the user's own daily checks (sleep, steps, no sweets...). One tap ticks today; a tick keeps the streak.
 import { useEffect, useState } from 'react'
 import { api, postJson } from './telegram'
+import { enqueue, unreachable } from './offline'
 import { Chevron } from './ui'
 import { Icon } from './icons'
 import { haptic } from './haptics'
@@ -13,7 +14,7 @@ const PRESETS = [
 ]
 const MAX = 8
 
-export default function Habits({ habits, onChange }: { habits: Habit[]; onChange: (list: Habit[]) => void }) {
+export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]; onChange: (list: Habit[]) => void; onQueued?: () => void }) {
   const [editing, setEditing] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [title, setTitle] = useState('')
@@ -32,7 +33,7 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
       if (list) onChange(list)
       return true
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуйте ещё раз.')
+      setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуй ещё раз.')
       return false
     }
   }
@@ -40,7 +41,12 @@ export default function Habits({ habits, onChange }: { habits: Habit[]; onChange
   function tick(h: Habit) {
     haptic('light')
     onChange(habits.map((x) => (x.id === h.id ? { ...x, done: !h.done } : x))) // instant; the server answer replaces it
-    send(`/api/habits/${h.id}/check`, postJson({ done: !h.done })).then((ok) => { if (!ok) onChange(habits) })
+    const body = { done: !h.done, day: new Date().toLocaleDateString('sv') } // the day it was ticked, even if sent tomorrow
+    api<Habit[]>(`/api/habits/${h.id}/check`, postJson(body)).then((list) => { if (list) onChange(list) }).catch((e) => {
+      if (!unreachable(e)) { onChange(habits); setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуй ещё раз.'); return }
+      enqueue({ path: `/api/habits/${h.id}/check`, kind: 'habit', name: h.title, body }) // no network: the tick stays and goes out later
+      onQueued?.()
+    })
   }
 
   const add = async (emoji: string, t: string) => { if (await send('/api/habits', postJson({ emoji, title: t }))) setTitle('') }

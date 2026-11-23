@@ -3,7 +3,7 @@ import { api, postJson, tg, tgUser } from './telegram'
 
 export const canStory = () => Boolean(tg?.shareToStory && tg.isVersionAtLeast?.('7.8'))
 
-export async function shareStory(body: { kind: 'week' } | { kind: 'duel'; duel_id: number }) {
+export async function shareStory(body: { kind: 'week' } | { kind: 'month' } | { kind: 'duel'; duel_id: number }) {
   const r = await api<{ url: string; text: string; link: string | null }>('/api/story', postJson(body))
   if (!r || !tg?.shareToStory) return
   // a link sticker is for Premium only; others get the invite link in the caption

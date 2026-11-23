@@ -85,7 +85,7 @@ function readTags(text: string, strict: boolean) {
     if (matches.length === 0) unknown.push(word)
     for (const match of matches) tags.add(match)
   }
-  if (strict && (unknown.length || !tags.size)) throw new Error(`Не удалось распознать ограничение «${unknown.join(' ') || value}». Уточните название продукта.`)
+  if (strict && (unknown.length || !tags.size)) throw new Error(`Не удалось распознать ограничение «${unknown.join(' ') || value}». Уточни название продукта.`)
   return tags
 }
 
@@ -132,18 +132,18 @@ function totals(meals: Meal[]) {
   return sum
 }
 function setup(input: PlanInput) {
-  if (![1, 3, 7, 14].includes(input.days)) throw new Error('Выберите срок 1, 3, 7 или 14 дней.')
-  if (!Number.isFinite(input.calories) || input.calories < 1200 || input.calories > 6000) throw new Error('Укажите ориентир от 1200 до 6000 ккал.')
-  if (input.budget != null && (!Number.isFinite(input.budget) || input.budget < 0)) throw new Error('Проверьте недельный бюджет.')
-  if (input.macros && macroKeys.some(k => !(Number.isFinite(input.macros![k]) && input.macros![k] > 0))) throw new Error('Проверьте ориентиры БЖУ.')
-  if (input.persons !== undefined && (!Number.isInteger(input.persons) || input.persons < 1)) throw new Error('Укажите число человек не меньше одного.')
+  if (![1, 3, 7, 14].includes(input.days)) throw new Error('Выбери срок 1, 3, 7 или 14 дней.')
+  if (!Number.isFinite(input.calories) || input.calories < 1200 || input.calories > 6000) throw new Error('Укажи ориентир от 1200 до 6000 ккал.')
+  if (input.budget != null && (!Number.isFinite(input.budget) || input.budget < 0)) throw new Error('Проверь недельный бюджет.')
+  if (input.macros && macroKeys.some(k => !(Number.isFinite(input.macros![k]) && input.macros![k] > 0))) throw new Error('Проверь ориентиры БЖУ.')
+  if (input.persons !== undefined && (!Number.isInteger(input.persons) || input.persons < 1)) throw new Error('Укажи число человек не меньше одного.')
   const selected = input.selectedMeals ?? slots
-  if (!selected.length || selected.some(s => !slots.includes(s)) || new Set(selected).size !== selected.length) throw new Error('Выберите хотя бы один приём пищи.')
-  if (input.sharedMeals?.some(s => !slots.includes(s))) throw new Error('Проверьте общие приёмы пищи.')
-  if (input.cookingMode && !['daily', 'batch', 'varied'].includes(input.cookingMode)) throw new Error('Проверьте частоту готовки.')
-  if (input.batchDays !== undefined && input.batchDays !== 2 && input.batchDays !== 7) throw new Error('Проверьте срок партии.')
+  if (!selected.length || selected.some(s => !slots.includes(s)) || new Set(selected).size !== selected.length) throw new Error('Выбери хотя бы один приём пищи.')
+  if (input.sharedMeals?.some(s => !slots.includes(s))) throw new Error('Проверь общие приёмы пищи.')
+  if (input.cookingMode && !['daily', 'batch', 'varied'].includes(input.cookingMode)) throw new Error('Проверь частоту готовки.')
+  if (input.batchDays !== undefined && input.batchDays !== 2 && input.batchDays !== 7) throw new Error('Проверь срок партии.')
   const dietaryTags: Record<Dietary, string[]> = { omnivore: [], pescatarian: ['meat'], vegetarian: ['meat', 'fish'], vegan: ['meat', 'fish', 'dairy', 'egg'] }
-  if (input.dietary && !dietaryTags[input.dietary]) throw new Error('Проверьте тип питания.')
+  if (input.dietary && !dietaryTags[input.dietary]) throw new Error('Проверь тип питания.')
   const excluded = new Set([...readTags(input.allergies, true), ...readTags(input.disliked, true), ...dietaryTags[input.dietary ?? 'omnivore']])
   const liked = readTags(input.liked, false)
   const choices = slots.map((slot, index) => RECIPES.flatMap(r => {
@@ -197,7 +197,7 @@ function compile(input: PlanInput, days: Day[]): MealPlan {
   if (basketCostRub === null) warnings.push('Для части продуктов цена неизвестна. Стоимость корзины и соответствие бюджету не определены.')
   else if (budgetRub !== null && basketCostRub > budgetRub) warnings.push(`Подобранная корзина превышает бюджет на ${rub(basketCostRub - budgetRub)} ₽. Учтены целые упаковки на выбранный срок.`)
   const selectedShare = fraction.reduce((sum, f, i) => sum + ((input.selectedMeals ?? slots).includes(slots[i]) ? f : 0), 0)
-  if (days.some(d => Math.abs(d.totals.kcal - input.calories * selectedShare) > input.calories * selectedShare * .10)) warnings.push('В отдельные дни калорийность отличается от вашего ориентира более чем на 10%.')
+  if (days.some(d => Math.abs(d.totals.kcal - input.calories * selectedShare) > input.calories * selectedShare * .10)) warnings.push('В отдельные дни калорийность отличается от твоего ориентира более чем на 10%.')
   if (input.macros && days.some(d => macroKeys.some(k => Math.abs(d.totals[k] - input.macros![k] * selectedShare) > input.macros![k] * selectedShare * .20))) warnings.push('В отдельные дни количество белков, жиров или углеводов отличается от ориентира более чем на 20%.')
   return { days, shopping, warnings, budgetRub, basketCostRub, portionCostRub, persons: input.persons ?? 1, sharedMeals: input.sharedMeals ?? [] }
 }
@@ -275,7 +275,7 @@ export function replaceMeal(input: PlanInput, plan: MealPlan, dayIndex: number, 
   if (plan.days.length !== input.days || !day?.meals[mealIndex]) throw new Error('Выбранное блюдо не найдено.')
   const otherMeals = day.meals.filter((_, i) => i !== mealIndex)
   const slotIndex = slots.indexOf(day.meals[mealIndex].meal)
-  if (!selected.includes(day.meals[mealIndex].meal)) throw new Error('Приёмы пищи изменились. Составьте рацион заново.')
+  if (!selected.includes(day.meals[mealIndex].meal)) throw new Error('Приёмы пищи изменились. Составь рацион заново.')
   if (input.cookingMode === 'batch' && slotIndex > 0) {
     const batchLength = input.batchDays ?? 2
     const batchStart = Math.floor(dayIndex / batchLength) * batchLength
@@ -283,7 +283,7 @@ export function replaceMeal(input: PlanInput, plan: MealPlan, dayIndex: number, 
     const weights: Weights = new Map()
     const uses = new Map<string, number>()
     for (const [d, current] of plan.days.entries()) for (const meal of current.meals) {
-      if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составьте рацион заново.')
+      if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составь рацион заново.')
       if (d >= batchStart && d < batchEnd && meal.meal !== 'breakfast') continue
       addMeal(weights, meal)
       uses.set(meal.id, (uses.get(meal.id) ?? 0) + 1)
@@ -322,7 +322,7 @@ export function replaceMeal(input: PlanInput, plan: MealPlan, dayIndex: number, 
   const uses = new Map<string, number>()
   for (const [d, current] of plan.days.entries()) for (const [s, meal] of current.meals.entries()) {
     if (d === dayIndex && s === mealIndex) continue
-    if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составьте рацион заново.')
+    if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составь рацион заново.')
     addMeal(weights, meal)
     uses.set(meal.id, (uses.get(meal.id) ?? 0) + 1)
   }

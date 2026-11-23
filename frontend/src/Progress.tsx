@@ -1,3 +1,4 @@
+import { forecast, forecastText } from './pace'
 import AchievementBadge from './AchievementBadge'
 import { AchievementUnlocked } from './Reward'
 // "Прогресс": period summary, charts (calories, weight, water, macros, exercise records) and achievements.
@@ -6,6 +7,7 @@ import { BarChart, LineChart } from './charts'
 import Empty from './Empty'
 import Friends from './Friends'
 import League from './League'
+import Month from './Month'
 import MuscleWeek from './MuscleWeek'
 import { cachedStats, loadStats, type Day, type Stats } from './stats'
 import { Bar, Chevron } from './ui'
@@ -37,7 +39,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
   async function saveDisplay(codes: string[], pin: string | null) {
     setSaving(true); setSaveError('')
     try { await onShowcase?.(codes, pin) }
-    catch { setSaveError('Не удалось сохранить. Попробуйте ещё раз.') }
+    catch { setSaveError('Не удалось сохранить. Попробуй ещё раз.') }
     finally { setSaving(false) }
   }
   const [partsOpen, setPartsOpen] = useState(false)
@@ -47,7 +49,8 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
   const [error, setError] = useState('')
   const [ex, setEx] = useState<number | null>(null)
   const [chart, setChart] = useState<'calories' | 'water'>('calories')
-  const [view, setView] = useState<'me' | 'friends' | 'league'>('me')
+  // the bot's month-end message opens ?open=month
+  const [view, setView] = useState<'me' | 'friends' | 'league' | 'month'>(() => new URLSearchParams(window.location.search).get('open') === 'month' ? 'month' : 'me')
 
   useEffect(() => {
     if (!canEdit) return
@@ -74,12 +77,13 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       {canEdit && (
         <div className="tabs progress-view" role="tablist" aria-label="Раздел">
           <button role="tab" aria-selected={view === 'me'} onClick={() => setView('me')}>Мой прогресс</button>
+          <button role="tab" aria-selected={view === 'month'} onClick={() => setView('month')}>Челлендж</button>
           <button role="tab" aria-selected={view === 'league'} onClick={() => setView('league')}>Лига</button>
           <button role="tab" aria-selected={view === 'friends'} onClick={() => setView('friends')}>Друзья</button>
         </div>
       )}
-      {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : <>
-      {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроете приложение из Telegram и начнёте вести дневник.</p>}
+      {view === 'friends' ? <Friends /> : view === 'league' ? <League /> : view === 'month' ? <Month /> : <>
+      {!canEdit && <p className="sub">Демо-режим: графики появятся, когда откроешь приложение из Telegram и начнёшь вести дневник.</p>}
       <div className="progress-filters">
       <div className="progress-picker" role="group" aria-label="Что смотреть">
         <button className="progress-picker-current" aria-expanded={partsOpen} aria-controls="progress-parts-menu" onClick={() => { setPartsOpen(!partsOpen); setPeriodOpen(false) }}>
@@ -151,8 +155,9 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               {delta !== null && <span className={delta <= 0 ? 'sub pos' : 'sub'}>{delta > 0 ? '+' : ''}{fmt(delta, 1)} кг за {PERIODS.find(([n]) => n === days)?.[1].toLowerCase()}</span>}</div>
             {w.length
               ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={170} goal={weightGoal} />
-              : <Empty art="chart" title="Пока нет записей веса" text="Запишите вес на Главной — здесь появится линия, как он меняется, и ваша цель." />}
+              : <Empty art="chart" title="Пока нет записей веса" text="Запиши вес на Главной — здесь появится линия, как он меняется, и твоя цель." />}
             {weightGoal && w.length > 0 && <p className="sub">До цели {fmt(Math.abs(w[w.length - 1].kg - weightGoal), 1)} кг</p>}
+            {(() => { const f = forecast(w, weightGoal); return f && weightGoal ? <p className="sub forecast">📅 {forecastText(f, weightGoal)}</p> : null })()}
           </section>
         )}
         {bodyTop}
@@ -187,7 +192,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               ? <LineChart points={exercise.points.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={140} />
               : <p className="sub">Упражнение с собственным весом: лучший подход — {Math.max(...exercise.points.map((p) => p.reps))} повт.</p>}
           </section>
-        ) : <Empty art="workouts" title="Пока нет тренировок за период" text="Проведите тренировку — здесь появятся рабочие веса и нагрузка на мышцы." />}
+        ) : <Empty art="workouts" title="Пока нет тренировок за период" text="Проведи тренировку — здесь появятся рабочие веса и нагрузка на мышцы." />}
       </>}
 
       {part === 'awards' && (
@@ -221,11 +226,11 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           onClick={() => saveDisplay(featured, pinned === selectedAward.code ? null : selectedAward.code)}>
           {pinned === selectedAward.code ? 'Убрать у имени' : 'Закрепить с именем'}
         </button>
-        <span role="status">{!selectedAward.unlocked_at ? 'Получите награду, чтобы закрепить её в профиле.' : featured.length === 3 && !featured.includes(selectedAward.code) ? 'Витрина заполнена. Снимите один из трёх значков.' : `На витрине: ${featured.length} из 3`}</span>
+        <span role="status">{!selectedAward.unlocked_at ? 'Получи награду, чтобы закрепить её в профиле.' : featured.length === 3 && !featured.includes(selectedAward.code) ? 'Витрина заполнена. Сними один из трёх значков.' : `На витрине: ${featured.length} из 3`}</span>
         {selectedAward.unlocked_at && onTitle && <button className="btn btn-ghost" disabled={saving} onClick={async () => {
           setSaving(true); setSaveError('')
           try { await onTitle(selectedAward.title_selected ? null : selectedAward.code); setSelectedAward({ ...selectedAward, title_selected: !selectedAward.title_selected }) }
-          catch { setSaveError('Не удалось сохранить. Попробуйте ещё раз.') }
+          catch { setSaveError('Не удалось сохранить. Попробуй ещё раз.') }
           finally { setSaving(false) }
         }}>{selectedAward.title_selected ? 'Убрать титул' : 'Выбрать титул'}</button>}
         {saveError && <span role="alert">{saveError}</span>}

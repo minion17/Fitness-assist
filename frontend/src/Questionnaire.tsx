@@ -57,7 +57,7 @@ const NUM = {
   height_cm: { label: 'Рост', unit: 'см', min: 120, max: 230 },
   weight_kg: { label: 'Вес', unit: 'кг', min: 30, max: 300 },
   target_weight_kg: { label: 'Желаемый вес', unit: 'кг', min: 30, max: 300 },
-  sleep_hours: { label: 'Сколько часов вы спите в среднем?', unit: 'ч', min: 3, max: 12 },
+  sleep_hours: { label: 'Сколько часов ты спишь в среднем?', unit: 'ч', min: 3, max: 12 },
 } as const
 type NumKey = keyof typeof NUM
 
@@ -109,8 +109,8 @@ function suggestTarget(d: Draft): string | undefined {
 function goalConflict(d: Draft): string | null {
   const w = num(d.weight_kg), t = num(d.target_weight_kg)
   if (!w || !t) return null
-  if ((d.goal === 'weight_loss' || d.goal === 'fat_loss') && t > w) return 'Цель — снизить вес, а желаемый вес больше текущего. Проверьте.'
-  if ((d.goal === 'muscle_gain' || d.goal === 'mass_gain') && t < w) return 'Цель — набрать, а желаемый вес меньше текущего. Проверьте.'
+  if ((d.goal === 'weight_loss' || d.goal === 'fat_loss') && t > w) return 'Цель — снизить вес, а желаемый вес больше текущего. Проверь.'
+  if ((d.goal === 'muscle_gain' || d.goal === 'mass_gain') && t < w) return 'Цель — набрать, а желаемый вес меньше текущего. Проверь.'
   return null
 }
 
@@ -124,29 +124,29 @@ type Screen = {
 }
 
 const SCREENS: Screen[] = [
-  { key: 'sex', title: 'Давайте знакомиться', check: (d) => (!d.sex ? 'Выберите пол' : null) },
-  { key: 'about', title: 'Немного о вас', check: (d) => checkNum(d, 'birth_year') ?? checkNum(d, 'height_cm') ?? checkNum(d, 'weight_kg') },
-  { key: 'goal', title: 'Какая у вас цель?', check: (d) => (!d.goal ? 'Выберите цель' : null) },
-  { key: 'body_now', title: 'Каково ваше телосложение?', hint: 'Сдвиньте ползунок, чтобы фигура была похожа на вашу.', check: (d) => (!d.body_now ? 'Сдвиньте ползунок' : null) },
-  { key: 'body_target', title: 'Какое телосложение — цель?', check: (d) => (!d.body_target ? 'Сдвиньте ползунок' : null) },
+  { key: 'sex', title: 'Давай знакомиться', check: (d) => (!d.sex ? 'Выбери пол' : null) },
+  { key: 'about', title: 'Немного о тебе', check: (d) => checkNum(d, 'birth_year') ?? checkNum(d, 'height_cm') ?? checkNum(d, 'weight_kg') },
+  { key: 'goal', title: 'Какая у тебя цель?', check: (d) => (!d.goal ? 'Выбери цель' : null) },
+  { key: 'body_now', title: 'Каково твоё телосложение?', hint: 'Сдвинь ползунок, чтобы фигура была похожа на твою.', check: (d) => (!d.body_now ? 'Сдвинь ползунок' : null) },
+  { key: 'body_target', title: 'Какое телосложение — цель?', check: (d) => (!d.body_target ? 'Сдвинь ползунок' : null) },
   { key: 'target', title: 'Желаемый вес', check: (d) => checkNum(d, 'target_weight_kg') },
-  { key: 'body_summary', title: 'Ваш ориентир' },
-  { key: 'experience', title: 'Как давно тренируетесь?', check: (d) => (!d.experience ? 'Выберите уровень подготовки' : null) },
-  { key: 'squats', title: 'Сколько приседаний подряд вы сделаете?', check: (d) => (!d.squats ? 'Выберите ответ' : null) },
-  { key: 'pushups', title: 'А отжиманий?', check: (d) => (!d.pushups ? 'Выберите ответ' : null) },
-  { key: 'pullups', title: 'Сколько раз подтянетесь?', check: (d) => (!d.pullups ? 'Выберите ответ' : null) },
-  { key: 'activity', title: 'Сколько вы двигаетесь в обычные дни?', check: (d) => (!d.activity ? 'Выберите уровень активности' : null) },
-  { key: 'place', title: 'Где будете тренироваться?', check: (d) => (!d.place ? 'Выберите место' : null) },
-  { key: 'equipment', title: 'Что есть под рукой?', check: (d) => (!d.equipment.length ? 'Отметьте доступное оборудование' : null) },
-  { key: 'schedule', title: 'Когда будете тренироваться?', hint: 'Отметьте дни — в эти дни утром бот напомнит о тренировке, а отдых не будет считаться пропуском.',
-    check: (d) => (!d.training_days.length ? 'Отметьте хотя бы один день' : !d.session_minutes ? 'Выберите длительность' : null) },
+  { key: 'body_summary', title: 'Твой ориентир' },
+  { key: 'experience', title: 'Как давно тренируешься?', check: (d) => (!d.experience ? 'Выбери уровень подготовки' : null) },
+  { key: 'squats', title: 'Сколько приседаний подряд ты сделаешь?', check: (d) => (!d.squats ? 'Выбери ответ' : null) },
+  { key: 'pushups', title: 'А отжиманий?', check: (d) => (!d.pushups ? 'Выбери ответ' : null) },
+  { key: 'pullups', title: 'Сколько раз подтянешься?', check: (d) => (!d.pullups ? 'Выбери ответ' : null) },
+  { key: 'activity', title: 'Сколько ты двигаешься в обычные дни?', check: (d) => (!d.activity ? 'Выбери уровень активности' : null) },
+  { key: 'place', title: 'Где будешь тренироваться?', check: (d) => (!d.place ? 'Выбери место' : null) },
+  { key: 'equipment', title: 'Что есть под рукой?', check: (d) => (!d.equipment.length ? 'Отметь доступное оборудование' : null) },
+  { key: 'schedule', title: 'Когда будешь тренироваться?', hint: 'Отметь дни — в эти дни утром бот напомнит о тренировке, а отдых не будет считаться пропуском.',
+    check: (d) => (!d.training_days.length ? 'Отметь хотя бы один день' : !d.session_minutes ? 'Выбери длительность' : null) },
   { key: 'focus', title: 'На что сделать упор?', hint: 'Можно выбрать несколько или пропустить.' },
   { key: 'recovery', title: 'Сон и стресс', hint: 'Необязательно: поможет точнее подобрать нагрузку.', check: (d) => (d.sleep_hours ? checkNum(d, 'sleep_hours') : null) },
   {
     key: 'health', title: 'Здоровье', skip: (d) => !d.health,
-    check: (d) => (!d.has_injury ? 'Укажите, есть ли травмы' : d.has_injury === 'yes' && !d.injury ? 'Выберите зону ограничения' : null),
+    check: (d) => (!d.has_injury ? 'Укажи, есть ли травмы' : d.has_injury === 'yes' && !d.injury ? 'Выбери зону ограничения' : null),
   },
-  { key: 'plan', title: 'Ваш план готов' },
+  { key: 'plan', title: 'Твой план готов' },
 ]
 
 function Cards({ label, options, value, onChange, multi, grid }: {
@@ -179,7 +179,7 @@ function OptionSlider({ label, options, value, onChange }: {
 }) {
   const entries = Object.entries(options)
   const cursor = entries.findIndex(([key]) => key === value)
-  const caption = entries[cursor]?.[1] ?? 'Сдвиньте ползунок'
+  const caption = entries[cursor]?.[1] ?? 'Сдвинь ползунок'
   return <div className="q-slider">
     <strong>{caption}</strong>
     <MealRange label={label} min={0} max={entries.length - 1} step={1} value={Math.max(0, cursor)}
@@ -213,7 +213,7 @@ function BodySummary({ draft, sex }: { draft: Draft; sex: 'male' | 'female' }) {
     </div>
     {goalConflict(draft) && <p className="q-warn">{goalConflict(draft)}</p>}
     {(() => { const pace = datePace(weight, target, draft.target_date); return pace && <p className={pace.ok ? 'q-pace' : 'q-warn'}>{pace.text}</p> })()}
-    <p className="sub">Дальше уточним вашу подготовку, чтобы подобрать тренировки под эту цель.</p>
+    <p className="sub">Дальше уточним твою подготовку, чтобы подобрать тренировки под эту цель.</p>
   </>
 }
 
@@ -284,7 +284,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       await onSave(build())
       try { localStorage.removeItem(DRAFT_KEY) } catch { /* private mode */ }
     } catch {
-      setError('Не сохранилось: нет связи. Попробуйте ещё раз')
+      setError('Не сохранилось: нет связи. Попробуй ещё раз')
       setBusy(false)
     }
   }
@@ -383,7 +383,7 @@ export default function Questionnaire({ initial, health = false, onSave, onCance
       case 'health': return <>
         <fieldset className="field">
           <legend>Аллергии и непереносимость</legend>
-          <p className="q-allergy-help">Если их нет, пропустите этот вопрос.</p>
+          <p className="q-allergy-help">Если их нет, пропусти этот вопрос.</p>
           <Cards label="Аллергии" options={ALLERGIES} value={d.allergies} onChange={toggle('allergies')} multi grid />
         </fieldset>
         <fieldset className="field"><legend>Есть ли травмы или ограничения?</legend><Cards label="Травмы" options={YES_NO} value={d.has_injury} onChange={set('has_injury')} grid /></fieldset>
@@ -435,7 +435,7 @@ function Plan({ d }: { d: Draft }) {
       <div className="card q-plan-goal">
         <div className="q-plan-row"><span className="sub">Цель</span><b>{goal}</b></div>
         {weeks && <div className="q-plan-row"><span className="sub">Срок при безопасном темпе</span><b>{weeks[0] === weeks[1] ? weeks[0] : `${weeks[0]}–${weeks[1]}`} нед.</b></div>}
-        {d.target_date && <div className="q-plan-row"><span className="sub">Ваша дата</span><b>{dateRu(d.target_date)}</b></div>}
+        {d.target_date && <div className="q-plan-row"><span className="sub">Твоя дата</span><b>{dateRu(d.target_date)}</b></div>}
         <svg viewBox="0 0 300 100" className="q-plan-curve" aria-hidden="true">
           <path d={curve} />
           <circle cx="14" cy={pathY(0)} r="6" className="from" /><circle cx="286" cy={pathY(1)} r="6" className="to" />
@@ -449,11 +449,11 @@ function Plan({ d }: { d: Draft }) {
       </div>
       <div className="card q-plan-list">
         <b>Что дальше</b>
-        <span>✓ Подберём программу под вашу форму и место</span>
+        <span>✓ Подберём программу под твою форму и место</span>
         <span>✓ Рассчитаем калории и белок под цель</span>
         <span>✓ Будем вести вес и замеры, подстроим норму по факту</span>
       </div>
-      <p className="sub">Сроки — ориентир при снижении 0,5–0,8 кг или наборе 0,25–0,5 кг в неделю, а не обещание.</p>
+      <p className="sub">Сроки — ориентир при снижении на 0,5–1 % веса или наборе на 0,25–0,5 % в неделю, а не обещание.</p>
     </div>
   )
 }

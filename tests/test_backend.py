@@ -75,7 +75,7 @@ def test_award_xp_is_idempotent(client):
 
     async def run():
         async with SessionLocal() as s:
-            granted = [await award_xp(s, before["id"], "workout_completed", key) for _ in range(3)]
+            granted = [await award_xp(s, before["id"], "challenge_done", key) for _ in range(3)]  # no daily cap, no boost
             with pytest.raises(ValueError):
                 await award_xp(s, before["id"], "no_such_rule", "x:1")
         async with SessionLocal() as s:
@@ -96,12 +96,17 @@ def test_daily_targets():
     from backend.core.nutrition import daily_targets
 
     t = daily_targets(**{**PROFILE, "birth_year": date.today().year - 30})
-    # BMR = 784 + 1137.5 - 150 + 5 = 1776.5; *1.55*0.80 = 2202.9
-    assert t == {"calories": 2203, "protein": 157, "fat": 71, "carbs": 234}
+    # BMR = 784 + 1137.5 - 150 + 5 = 1776.5; *1.55 = 2754; -0.75 % of 78.4 kg a week = -647 kcal a day
+    assert t == {"calories": 2107, "protein": 157, "fat": 63, "carbs": 229}
     assert daily_targets(**{**PROFILE, "goal": "lose"}) == daily_targets(**PROFILE)  # old saved goal still works
     # tiny woman, sedentary, aggressive deficit -> safety floor
     floor = daily_targets("female", date.today().year - 60, 150, 42, "low", "weight_loss")
     assert floor["calories"] == 1200
+    # 190 cm / 76 kg on a mass gain: +0.5 % a week, not +15 %; carbs ~5 g/kg instead of 540 g
+    gain = daily_targets("male", date.today().year - 28, 190, 76, "moderate", "mass_gain")
+    assert gain == {"calories": 3227, "protein": 152, "fat": 114, "carbs": 398}
+    # obese: protein on the adjusted weight (BMI 25 + a quarter of the excess), not 2 g × 120 kg
+    assert daily_targets("male", 1998, 175, 120, "moderate", "weight_loss")["protein"] == 175
 
 
 def test_profile_save_and_read(client):
@@ -187,13 +192,17 @@ def test_workout_flow(client, seeded):
     s = {"exercise_id": ex_id, "set_number": 1, "reps": 8, "weight_kg": 60}
     assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=other, json=s).status_code == 404  # not yours
     assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json=s).status_code == 200
+    for n in (2, 3):  # XP needs MIN_WORKOUT_SETS sets
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={**s, "set_number": n})
 
+    from conftest import long_workout
+    long_workout(client, w["id"])
     assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 50
     assert client.post(f"/api/workout-logs/{w['id']}/complete", headers=h).json()["xp_awarded"] == 0
     assert client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json=s).status_code == 409
 
     logs = client.get("/api/workout-logs", headers=h).json()
-    assert logs[0]["sets"] == 1 and logs[0]["completed_at"]
+    assert logs[0]["sets"] == 3 and logs[0]["completed_at"]
     assert client.post("/api/auth", headers=h).json()["progress"]["xp"] == 50
     assert client.post("/api/workout-logs", headers=h, json={"program_day_id": 10**9}).status_code == 404
 
@@ -250,7 +259,7 @@ def test_measurements(client):
     assert client.get("/api/profile", headers=h).json()["weight_kg"] == 77.5  # targets follow latest weight
 
     old = client.put("/api/measurements", headers=h, json={"measured_on": yesterday, "weight_kg": 80}).json()
-    assert old["xp_awarded"] == 15
+    assert old["xp_awarded"] == 0  # past dates are history: no XP (else a year backfilled = 5 000 XP)
     assert client.get("/api/profile", headers=h).json()["weight_kg"] == 77.5  # older entry doesn't override
 
     rows = client.get("/api/measurements", headers=h).json()
@@ -287,7 +296,7 @@ def test_extended_questionnaire_and_program_recommendation(client, seeded):
            "equipment": ["barbell", "bench", "pullup_bar", "dumbbells", "machine"]}
     client.put("/api/profile", headers=h, json={**PROFILE, **gym})
     rec = client.post("/api/auth", headers=h).json()["recommended_program"]
-    assert programs[rec["program_id"]] == "Тяни-Толкай-Ноги (PPL)" and "всё оборудование у вас есть" in rec["reasons"]
+    assert programs[rec["program_id"]] == "Тяни-Толкай-Ноги (PPL)" and "всё оборудование у тебя есть" in rec["reasons"]
 
     # the self-test caps a stated level: "advanced" who can't do 10 push-ups gets a program for today's form
     weak = {**gym, "experience": "advanced", "squats": "lt15", "pushups": "lt10", "pullups": "none", "body_now": 6,
@@ -672,7 +681,8 @@ def test_cards_render_in_every_theme():
             cards.water(0, 2500, "12:00", theme),
             cards.water(3000, 2500, "19:00", theme),
             cards.streak(365, [True] * 6 + [False], theme),
-            *(cards.welcome_back(kind, theme, "#a98bff") for kind in cards.BACK_KINDS),
+            cards.today("Осталось", "874 ккал", 1240, 2114, ["Вода 1,2 из 2,3 л", "Серия 12 дн.", "Тренировка сегодня"], "22 ноября", theme),
+            cards.today("Норма", "набрана", 2900, 2114, ["Вода 0 из 2,3 л"], "1 января", theme, "#a98bff"),
             cards.share("Егор", 21, 1340, 4, 7, theme, "#a98bff"),
             cards.story_week("Константин Константинопольский", 365, 123456, 21, 40, "setly_bot", theme, "#a98bff"),
             cards.story_duel("Егор", "Александра", 12345, 9999, "xp", 7, True, "", theme),
@@ -682,25 +692,39 @@ def test_cards_render_in_every_theme():
 
 
 def test_bot_greeting_handles_empty_and_invisible_names():
-    from backend.bot.main import greeting
+    from backend.bot.main import UNFINISHED, WELCOME, clean_name
 
-    assert greeting("Егор", False).startswith("Привет, Егор! 👋")
-    assert greeting("­", False).startswith("Привет! 👋")  # soft hyphen only: Telegram shows it as blank
-    assert greeting("​ ⁣", False).startswith("Привет! 👋")
-    assert greeting(None, False).startswith("Привет! 👋")
-    assert greeting("<b>Хакер</b>", False).startswith("Привет, &lt;b&gt;Хакер&lt;/b&gt;!")  # HTML caption
-    assert greeting("Анна Мария", True).startswith("С возвращением, Анна Мария!")
+    assert clean_name("Егор") == "Егор" and clean_name("Анна Мария") == "Анна Мария"
+    assert clean_name("\u00ad") == "друг"  # soft hyphen only: Telegram shows it as blank
+    assert clean_name("\u200b \u2063") == "друг" and clean_name(None) == "друг"
+    assert clean_name("<b>Хакер</b>") == "&lt;b&gt;Хакер&lt;/b&gt;"  # HTML caption
+    assert WELCOME.format(name="Егор").startswith("Привет, Егор! 👋") and "Анкета ещё ждёт" in UNFINISHED
 
 
-def test_welcome_back_varies_and_never_repeats_in_a_row():
-    from backend.bot import cards
-    from backend.bot.main import BACK, greeting, pick_back
+def test_bot_greets_a_returning_user_with_their_day(client, seeded):
+    import random
 
-    assert {b[3] for b in BACK} <= set(cards.BACK_KINDS)
-    picks = [pick_back(42) for _ in range(60)]
-    assert all(a != b for a, b in zip(picks, picks[1:])) and len(set(picks)) == len(BACK)
-    for i, (word, emoji, body, _) in enumerate(BACK):
-        assert greeting("Егор", True, i) == f"{word}, Егор! {emoji}\n\n{body}"
+    from backend.bot import chat
+    from backend.database.db import SessionLocal
+    from backend.database.models import Profile, User
+    from sqlalchemy import select
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+
+    async def greet():
+        async with SessionLocal() as s:
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            return await chat.day_greeting(s, user, await s.get(Profile, user.id), "Егор")
+
+    text, card, _ = client.portal.call(greet)
+    assert ", Егор! " in text and "Сегодня пока пусто" in text and card["accent_line"] == "пока пусто"
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
+    client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "lunch"})
+    text, card, _ = client.portal.call(greet)
+    assert "Сегодня 242 из" in text and "Осталось" in text and card["eaten"] == 242 and card["title"] == "Осталось"
+    assert card["chips"][0].startswith("Вода 0 из")
 
 
 def test_stats_for_charts(client, seeded):
@@ -922,13 +946,22 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     assert client.post("/api/duels", headers=ha, json={"friend_id": b_id, "metric": "xp", "days": 3}).status_code == 403
     client.put("/api/profile", headers=hb, json=PROFILE)
 
-    # invite XP only after the invited friend is active on 3 days (an empty fake account earns nothing)
-    async def invite_check(s, active_days):
+    # invite XP only after the invited friend really used Setly on 3 days: a glass of water a day from a second
+    # account is not that; a workout (or a full diary) is
+    async def invite_check(s, active_days, water=False):
+        from backend.database.models import WorkoutLog
+
         await s.execute(update(User).where(User.id == b_id).values(created_at=datetime.now(timezone.utc) - timedelta(days=10)))
         for i in range(active_days):
-            await s.execute(insert(WaterIntake).values(user_id=b_id, day=date.today() - timedelta(days=i + 1), ml=250).on_conflict_do_nothing())
+            day = date.today() - timedelta(days=i + 1)
+            if water:
+                await s.execute(insert(WaterIntake).values(user_id=b_id, day=day, ml=250).on_conflict_do_nothing())
+            else:
+                at = datetime.combine(day, datetime.min.time()).astimezone() + timedelta(hours=12)
+                s.add(WorkoutLog(user_id=b_id, title="Тренировка", started_at=at, completed_at=at + timedelta(minutes=40)))
         await s.commit()
         return await social.reward_invites(s)
+    assert db(invite_check, 5, True) == 0 and xp(ha) == 0
     assert db(invite_check, 2) == 0 and xp(ha) == 0
     assert db(invite_check, 3) == 1 and xp(ha) == 50
     assert db(social.reward_invites) == 0  # once
@@ -951,9 +984,16 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     live = client.get("/api/duels", headers=ha).json()[0]
     assert (live["me"], live["them"], live["rival"]) == (10, 30, "Борис")
 
-    async def time_up(s, age_days):  # accounts of a given age; the duel ends now
+    async def time_up(s, age_days):  # accounts of a given age, friends as long, 5 real days before; the duel ends now
+        from backend.database.models import Friendship, WorkoutLog
+
         old = datetime.now(timezone.utc) - timedelta(days=age_days)
         await s.execute(update(User).where(User.id.in_((a_id, b_id))).values(created_at=old))
+        await s.execute(update(Friendship).where(Friendship.user_id.in_((a_id, b_id))).values(created_at=old))
+        for uid in (a_id, b_id):
+            for k in range(2, 8):
+                at = datetime.now(timezone.utc) - timedelta(days=k)
+                s.add(WorkoutLog(user_id=uid, title="Тренировка", started_at=at, completed_at=at + timedelta(minutes=40)))
         await s.execute(update(Duel).where(Duel.id == d["id"]).values(ends_at=datetime.now(timezone.utc)))
         await s.commit()
         return await social.finish_duels(s)
@@ -975,7 +1015,7 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     async def texts(s):
         return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id.in_(ids))))
     t = db(texts)
-    assert any("+40 XP и бустер ×1,5" in x for x in t) and any("Реванш" in x for x in t) and any("вызывает вас на дуэль" in x for x in t)
+    assert any("+40 XP и бустер ×1,5" in x for x in t) and any("Реванш" in x for x in t) and any("вызывает тебя на дуэль" in x for x in t)
     assert any("+50 XP" in x for x in t)
 
     # the winner's boost: x1.5 for a day (water goal 10 -> 15)
@@ -1127,7 +1167,7 @@ def test_weekly_quests_assigned_once_and_paid_once(client, seeded):
         client.post("/api/water", headers=h, json={"delta_ml": 1000})
     r = client.get("/api/quests", headers=h).json()
     assert all(q["done"] for q in r["items"]) and r["xp_awarded"] == 30 + 50 + 50  # two tasks + the all-three bonus
-    assert r["items"][1]["title"] == "Взвесьтесь 1 раз"
+    assert r["items"][1]["title"] == "Взвесься 1 раз"
 
 
 def test_bootstrap_has_the_whole_first_screen(client, seeded):
@@ -1592,11 +1632,42 @@ def test_real_expenditure_forecast_and_plateau(client, seeded):
         client.put("/api/measurements", headers=h, json={"measured_on": (today - timedelta(days=back)).isoformat(), "weight_kg": kg})
     e = client.get("/api/insights/energy", headers=h).json()
     assert e["ready"] and e["days_logged"] == 21 and 2000 < e["tdee"] < 3200 and e["kg_per_week"] < 0
-    assert e["suggest"] == max(round((e["tdee"] - 550) / 10) * 10, 1500) and e["eta"] and e["plateau"] is True
+    from backend.api.energy import recalc, suggestion
+
+    assert e["suggest"] == suggestion(e["tdee"], "weight_loss", "male", 78.5) and e["eta"] and e["plateau"] is True
+    # the diary is full and the intake is at the norm: with the weekly recalculation on, that's its job
+    assert e["kcal_auto"] is True and e["plateau_kcal"] is None and "пересчитается" in e["plateau_tips"][0]
+    assert "шагов" in e["plateau_tips"][-1]
+    # without it: the norm itself goes down 150 kcal
+    client.post("/api/insights/energy/auto", headers=h, json={"on": False})
+    e = client.get("/api/insights/energy", headers=h).json()
+    norm = client.get("/api/profile", headers=h).json()["targets_base"]["calories"]
+    assert e["plateau_kcal"] == norm - 150 and str(norm - 150) in e["plateau_tips"][0]
+
+    # the weekly recalculation: towards the measured norm, at most 200 kcal a step, then not again for a week
+    async def run_recalc():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            from backend.database.models import Profile
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            return await recalc(s, user, await s.get(Profile, user.id))
+    assert client.portal.call(run_recalc) is None  # switched off
+    client.post("/api/insights/energy/auto", headers=h, json={"on": True})
+    r = client.portal.call(run_recalc)
+    assert r["old"] == norm and abs(r["new"] - norm) <= 200 and (r["new"] - norm) * (e["suggest"] - norm) > 0
+    assert client.get("/api/profile", headers=h).json()["kcal_override"] == r["new"]
+    assert client.portal.call(run_recalc) is None  # a week hasn't passed
+    assert client.get("/api/insights/energy", headers=h).json()["kcal_auto_at"] == today.isoformat()
+    from backend.api.energy import recalc_text
+    assert recalc_text(r).startswith(f"📊 Пересчитал норму по твоим данным: {norm:,} → ".replace(",", " "))
 
     assert client.post("/api/insights/energy/apply", headers=h, json={"kcal": 900}).status_code == 422  # below the safe floor
     client.post("/api/insights/energy/apply", headers=h, json={"kcal": e["suggest"]})
     assert client.get("/api/profile", headers=h).json()["targets"]["calories"] == e["suggest"]
+    # back to the formula on purpose: the recalculation turns off too, so it doesn't undo that next week
+    assert client.post("/api/insights/energy/apply", headers=h, json={"kcal": None}).json() == {"kcal_override": None, "kcal_auto": False}
+    client.post("/api/insights/energy/apply", headers=h, json={"kcal": e["suggest"]})
     client.put("/api/profile", headers=h, json={**PROFILE, "goal": "maintenance"})  # a new goal drops the accepted norm
     assert client.get("/api/profile", headers=h).json()["kcal_override"] is None
 
@@ -1718,7 +1789,7 @@ def test_weekly_leagues(client, seeded):
     assert boards[0]["tier_name"] == "Бронза" and boards[0]["promote"] == 5 and boards[0]["demote"] == 0  # nowhere below Bronze
     assert len(boards[0]["members"]) == 1 and len(boards[19]["members"]) == 20 and len(boards[20]["members"]) == 1  # 20 per group
     b = client.get("/api/league", headers=heads[0]).json()
-    assert [m["name"] for m in b["members"][:2]] == ["Вы", "Игрок1"] and b["members"][0]["xp"] == 100  # strangers: first name only
+    assert [m["name"] for m in b["members"][:2]] == ["Ты", "Игрок1"] and b["members"][0]["xp"] == 100  # strangers: first name only
 
     async def close_week():
         async with SessionLocal() as s:
@@ -1765,7 +1836,7 @@ def test_group_challenges(client, seeded):
     assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 5, "friend_ids": [boris]}).status_code == 422
     assert client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "days": 7, "friend_ids": [vera]}).status_code == 422
     ch = client.post("/api/challenges", headers=a, json={"title": "Без сладкого", "emoji": "🍬", "days": 7, "friend_ids": [boris, vera]}).json()
-    assert [m["name"] for m in ch["members"]] == ["Вы", "Боря"] and ch["members"][1]["joined"] is False  # Vera wasn't added
+    assert [m["name"] for m in ch["members"]] == ["Ты", "Боря"] and ch["members"][1]["joined"] is False  # Vera wasn't added
     cid = ch["id"]
     assert client.post(f"/api/challenges/{cid}/check", headers=b, json={"done": True}).status_code == 409  # accept first
     got = client.get("/api/challenges", headers=b).json()[0]
@@ -1790,7 +1861,7 @@ def test_group_challenges(client, seeded):
             xa = await s.scalar(select(User.xp).where(User.id == ua))
             return n, texts, xa
     n, texts, xp = client.portal.call(finish)
-    assert n >= 1 and "справились: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
+    assert n >= 1 and "справился: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
     assert "1 из 7" in texts[ids[1]][0] and "Аня 6/7" in texts[ids[1]][0]
     assert client.get("/api/challenges", headers=a).json()[0]["finished"] is True
 
@@ -1805,21 +1876,55 @@ def test_pdf_report(client, seeded):
     assert client.post("/api/report", headers=h, json={"days": 14}).status_code == 422
     assert client.post("/api/report", headers=h, json={"days": 30}).json() == {"ok": True}
     assert client.post("/api/report", headers=h, json={"days": 30}).status_code == 429  # one at a time
+    from datetime import datetime, time
+
+    from backend.api.report import gather
+    from backend.database.db import SessionLocal
+    from backend.database.models import BodyMeasurement, FoodLog, Product, User, WorkoutLog, WorkoutSet
+
     today = date.today()
-    data = {"name": "Егор", "since": today - timedelta(days=29), "until": today, "span": 30,
-            "profile": {"goal": "снижение веса", "height": 180, "kcal": 2200, "protein": 160, "fat": 70, "carbs": 230},
-            "nutrition": {"days": 20, "in_norm": 12, "kcal": 2150, "protein": 150, "fat": 70, "carbs": 220, "daily": [2100 + i * 10 for i in range(30)]},
-            "body": {"points": [(0, 82.0), (14, 81.2), (29, 80.4)], "first": {"weight_kg": 82.0, "waist_cm": 90}, "last": {"weight_kg": 80.4, "waist_cm": 88}},
-            "workouts": {"sessions": [{"date": today - timedelta(days=i), "title": "День 1 · Все тело", "sets": 12} for i in range(20)], "sets": 240},
-            "water_ml": 2100}
-    pdf = render(data)
-    assert pdf[:5] == b"%PDF-" and pdf.count(b"/Type /Page") - pdf.count(b"/Type /Pages") == 2  # long workout list -> 2 pages
-    empty = {**data, "profile": None, "nutrition": {**data["nutrition"], "days": 0}, "body": {"points": [], "first": {}, "last": {}},
-             "workouts": {"sessions": [], "sets": 0}, "water_ml": 0}
+    tg_id = __import__("random").randint(7 * 10**9, 8 * 10**9)
+    hh = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id, 'first_name': 'Егор 🦊'})}"}
+    client.put("/api/profile", headers=hh, json=PROFILE)  # 182 cm, 78.4 kg, weight loss
+
+    async def build(seed: bool):
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            if seed:
+                p = Product(name=f"Творог {tg_id}", kcal=120, protein_g=17, fat_g=5, carbs_g=3)
+                s.add(p)
+                await s.flush()
+                for i in range(20):
+                    for hour in (8, 19):
+                        s.add(FoodLog(user_id=user.id, product_id=p.id, amount_g=500, meal_type="breakfast" if hour == 8 else "dinner",
+                                      logged_at=datetime.combine(today - timedelta(days=i), time(hour)).astimezone()))
+                for back, kg, waist in ((28, 80.0, 90), (14, 79.2, None), (1, 78.4, 88)):
+                    s.add(BodyMeasurement(user_id=user.id, measured_on=today - timedelta(days=back), weight_kg=kg, waist_cm=waist))
+                for i in range(12):
+                    st = datetime.combine(today - timedelta(days=2 * i), time(18)).astimezone()
+                    w = WorkoutLog(user_id=user.id, title="День 1 · Всё тело", started_at=st, completed_at=st + timedelta(minutes=50), effort="ok")
+                    s.add(w)
+                    await s.flush()
+                    s.add(WorkoutSet(workout_log_id=w.id, exercise_id=1, set_number=1, reps=10, weight_kg=40))
+                await s.commit()
+            return await gather(s, user, 30)
+    empty = client.portal.call(build, False)
     assert render(empty)[:5] == b"%PDF-"  # a new user still gets a (sparse) report
-    from backend.bot.report import cut, printable
+    data = client.portal.call(build, True)
+    assert data["person"]["age"] == today.year - PROFILE["birth_year"] and data["norms"]["bmr"] > 1500
+    nut, body = data["nutrition"], data["body"]
+    assert nut["days"] == 20 and round(nut["kcal"]) == 1200 and nut["protein_per_kg"] == round(170 / 78.4, 1)
+    assert nut["timing"] == {"first": "08:00", "last": "19:00", "window_h": 11.0} and nut["top"][0]["share"] == 100
+    assert len(nut["diary"]) == 14 and nut["diary"][-1][1][0]["kcal"] == 600  # the itemised diary: the last two weeks
+    assert body["first"]["weight_kg"] == 80.0 and body["last"]["bmi"] == round(78.4 / 1.82 ** 2, 1)
+    assert body["last"]["whtr"] == round(88 / 182, 2)
+    assert data["workouts"]["minutes"] == 600 and data["workouts"]["sessions"][0]["volume"] == 400
+    pdf = render(data)
+    assert pdf[:5] == b"%PDF-" and pdf.count(b"/Type /Page\n") + pdf.count(b"/Type /Page ") >= 3  # main part + appendices
+    from backend.bot.report import printable
     assert printable("🦊 Егор ✨") == "Егор" and printable("💪") == ""  # emoji-only name -> generic title
-    assert cut("День 1: Верх тела + Кор · Домашняя тренировка для начинающих", 24, 500).endswith("…")
 
 
 def test_diary_past_days(client, seeded):
@@ -2081,7 +2186,7 @@ class FakeMsg:
     async def edit_text(self, text, reply_markup=None, parse_mode=None):  # noqa
         self.log.append((text, reply_markup))
 
-    async def delete(self):
+    async def delete(self, *a, **kw):
         pass
 
 
@@ -2182,7 +2287,7 @@ def test_bot_plan_message_after_first_questionnaire(client):
             return len(rows)
 
     assert client.portal.call(run) == 1
-    assert "Ваш план готов" in sent[0][1] and "ккал" in sent[0][1] and sent[0][2].keyboard
+    assert "Твой план готов" in sent[0][1] and "ккал" in sent[0][1] and sent[0][2].keyboard
 
 
 def test_bot_onboarding_chain(client, seeded):
@@ -2228,7 +2333,7 @@ def test_bot_onboarding_chain(client, seeded):
     if evening.date() == now.date() and now.hour < 21:  # the entry is "today" only when the test runs before 21:00
         text, buttons = client.portal.call(run, evening, tg_id)[0]
         assert text.startswith("🌙 Итог дня: 363 из") and "Белка не хватает" in text
-        assert buttons == [("🍽 Записать ужин", "cb:ask:d")]
+        assert buttons == [("🍽 Записать ужин", "cb:ask:d"), ("Что поесть?", "cbr:eat")]
     client.portal.call(age, tg_id, now - timedelta(days=2))
     assert client.portal.call(run, now.replace(hour=13, minute=2, second=0, microsecond=0), tg_id)[0][0].startswith("📸 Совет")
 
@@ -2251,7 +2356,7 @@ def test_tour_flips_with_arrows():
     def arrows(i):
         return [b.callback_data for b in tour_keyboard(i).inline_keyboard[0]]
 
-    assert arrows(0) == ["tour:3", "tour:1"] and arrows(3) == ["tour:2", "tour:0"]  # wraps around
+    assert arrows(0) == ["tour:4", "tour:1"] and arrows(4) == ["tour:3", "tour:0"]  # wraps around
     assert tour_keyboard(0).inline_keyboard[1][0].web_app  # the questionnaire button on every slide
 
 
@@ -2335,11 +2440,27 @@ def test_bot_understands_any_amount_of_water(client):
 def test_workout_evolution_uses_distinct_completions(client, seeded):
     h = new_user_headers()
     ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    from backend.database.db import SessionLocal
+    from backend.database.models import XpEvent
+
+    async def a_day_later():  # the daily cap (2 workouts) would stop five in a row
+        async with SessionLocal() as s:
+            from datetime import timedelta
+
+            from sqlalchemy import func, update
+
+            await s.execute(update(XpEvent).where(XpEvent.event_type == "workout_completed", XpEvent.created_at > func.now() - timedelta(hours=21))
+                            .values(created_at=func.now() - timedelta(hours=21)))
+            await s.commit()
     for _ in range(5):
         log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
-        assert client.post(f"/api/workout-logs/{log}/sets", headers=h, json={
-            "exercise_id": ex, "set_number": 1, "reps": 8}).status_code == 200
-        assert client.post(f"/api/workout-logs/{log}/complete", headers=h).status_code == 200
+        for n in (1, 2, 3):
+            assert client.post(f"/api/workout-logs/{log}/sets", headers=h, json={
+                "exercise_id": ex, "set_number": n, "reps": 8}).status_code == 200
+        from conftest import long_workout
+        long_workout(client, log)
+        assert client.post(f"/api/workout-logs/{log}/complete", headers=h).json()["xp_awarded"] == 50
+        client.portal.call(a_day_later)
     response = client.get("/api/achievements", headers=h).json()
     badge = next(i for i in response["items"] if i["code"] == "iron_will")
     assert (badge["progress"], badge["stage"], badge["target"]) == (5, 1, 25)
@@ -2376,3 +2497,707 @@ def test_achievement_title_requires_ownership_and_persists(client, seeded):
     assert next(a for a in items if a["code"] == "first_water")["title_selected"]
     client.put(endpoint, headers=user, json={"code": None}).raise_for_status()
     assert not any(a["title_selected"] for a in client.get("/api/achievements", headers=user).json()["items"])
+
+
+# ---- Coaching features: what to eat, effort and plateaus, check-in, cheers, corrections, menu advice ----
+
+def test_what_to_eat_has_ideas_for_a_new_user_and_follows_history(client, seeded):
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    r = client.get("/api/suggest/meal", params={"meal_type": "breakfast"}, headers=h).json()
+    assert r["meal_type"] == "breakfast" and r["kcal_left"] > 1500
+    assert r["options"] and all(o["title"].startswith("Идея: ") for o in r["options"])  # no history yet: plain ideas
+    assert all(o["kcal"] <= r["kcal_left"] for o in r["options"])
+
+
+def test_effort_and_plateau_history_for_the_next_workout(client, seeded):
+    h = new_user_headers()
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    for reps in (9, 10, 9):  # three workouts at the same weight
+        w = client.post("/api/workout-logs", headers=h, json={"program_day_id": day_id, "title": "День 1"}).json()
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={"exercise_id": ex_id, "set_number": 1, "reps": reps, "weight_kg": 60})
+        client.post(f"/api/workout-logs/{w['id']}/complete", headers=h)
+    assert client.post(f"/api/workout-logs/{w['id']}/effort", headers=h, json={"effort": "hard"}).status_code == 200
+    assert client.post(f"/api/workout-logs/{w['id']}/effort", headers=h, json={"effort": "meh"}).status_code == 422
+    last = client.get("/api/exercises/last", params={"ids": str(ex_id)}, headers=h).json()[str(ex_id)]
+    assert last["effort"] == "hard" and [x["reps"] for x in last["history"]] == [9, 10, 9]  # newest first
+    assert client.post(f"/api/workout-logs/{w['id']}/effort", headers=new_user_headers(), json={"effort": "easy"}).status_code == 404
+
+
+def test_morning_checkin_and_its_insight(client):
+    import random
+    from datetime import timedelta
+
+    from backend.api.daily import checkin_insight
+    from backend.core import clock
+    from backend.database.db import SessionLocal
+    from backend.database.models import DailyCheckin, FoodLog, Product, User
+    from sqlalchemy import select
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    assert client.post("/api/checkin", headers=h, json={"sleep": 3}).json()["sleep"] == 3
+    r = client.post("/api/checkin", headers=h, json={"energy": 2}).json()
+    assert (r["sleep"], r["energy"], r["insight"]) == (3, 2, None)  # sleep kept, too early for insights
+    assert client.post("/api/checkin", headers=h, json={"sleep": 5}).status_code == 422
+
+    async def history():  # 5 good nights with light days, 5 short nights with heavy days
+        async with SessionLocal() as s:
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            p = Product(name="Еда для теста сна", kcal=100, protein_g=5, fat_g=5, carbs_g=10)
+            s.add(p)
+            await s.flush()
+            for i in range(1, 11):
+                d = clock.today() - timedelta(days=i)
+                s.add(DailyCheckin(user_id=user.id, day=d, sleep=4 if i <= 5 else 1, energy=2))
+                s.add(FoodLog(user_id=user.id, product_id=p.id, amount_g=1800 if i <= 5 else 2400, meal_type="lunch",
+                              logged_at=clock.local_start(d) + timedelta(hours=13)))
+            await s.commit()
+            return await checkin_insight(s, user)
+
+    assert client.portal.call(history) == "В дни после сна 7+ часов ты съедаешь на 600 ккал меньше."
+
+
+def test_cheer_a_friend_for_a_workout(client, seeded):
+    import random
+
+    from backend.database.db import SessionLocal
+    from backend.database.models import Outbox
+    from sqlalchemy import select
+
+    a, b = (random.randint(3 * 10**9, 4 * 10**9) for _ in range(2))
+    ha = {"Authorization": f"tma {make_init_data({**USER, 'id': a, 'first_name': 'Аня'})}"}
+    hb = {"Authorization": f"tma {make_init_data({**USER, 'id': b, 'first_name': 'Боря'})}"}
+    link = client.get("/api/friends", headers=ha).json()["invite_link"] or ""
+    code = link.rsplit("=f", 1)[-1] if link else client.portal.call(_invite_code, a)
+    from backend.api.social import befriend
+
+    async def make_friends():
+        async with SessionLocal() as s:
+            await befriend(s, code, b, "Боря")
+    client.portal.call(make_friends)
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    w = client.post("/api/workout-logs", headers=hb, json={"program_day_id": day_id, "title": "День 1"}).json()
+    client.post(f"/api/workout-logs/{w['id']}/sets", headers=hb, json={"exercise_id": ex_id, "set_number": 1, "reps": 8, "weight_kg": 40})
+    client.post(f"/api/workout-logs/{w['id']}/complete", headers=hb)
+    boris = next(r for r in client.get("/api/friends", headers=ha).json()["board"] if not r["me"])
+    assert boris["trained_today"] and not boris["cheered"]
+    assert client.post(f"/api/friends/{boris['id']}/cheer", headers=ha, json={"emoji": "👏"}).json()["sent"] is True
+    assert client.post(f"/api/friends/{boris['id']}/cheer", headers=ha, json={"emoji": "🔥"}).json()["sent"] is False  # once a day
+    assert next(r for r in client.get("/api/friends", headers=ha).json()["board"] if not r["me"])["cheered"]
+    assert client.post(f"/api/friends/{boris['id']}/cheer", headers=new_user_headers(), json={"emoji": "👏"}).status_code == 404
+
+    async def sent():
+        async with SessionLocal() as s:
+            return [m.text for m in await s.scalars(select(Outbox).where(Outbox.telegram_id == b))]
+    assert any(t.startswith("👏 Аня отмечает твою тренировку") for t in client.portal.call(sent))
+
+
+async def _invite_code(tg_id):
+    from backend.api.social import invite_code
+    from backend.database.db import SessionLocal
+    from backend.database.models import User
+    from sqlalchemy import select
+
+    async with SessionLocal() as s:
+        return await invite_code(s, await s.scalar(select(User).where(User.telegram_id == tg_id)))
+
+
+def test_bot_fixes_the_open_card_in_words_and_suggests_food(client, seeded):
+    import random
+
+    from backend.bot import chat
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    log: list = []
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог 5% 200 г", log))
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "тестовый творог обезжиренный 100 г", log))
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "творога было 150", log))  # the first one that matches
+    items = client.get("/api/food-logs", headers=h).json()["items"]
+    assert sorted(i["amount_g"] for i in items) == [100, 150]
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "это был ужин", log))
+    assert {i["meal_type"] for i in client.get("/api/food-logs", headers=h).json()["items"]} == {"dinner"}
+    assert "Ужин" in log[-1][0]
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "убери обезжиренный", log))
+    assert [i["amount_g"] for i in client.get("/api/food-logs", headers=h).json()["items"]] == [150]
+
+    client.portal.call(chat.any_text, FakeMsg(tg_id, "что поесть?", log))
+    text, markup = log[-1]
+    assert text.startswith("🍽 <b>Что поесть на") and "Осталось" in text
+    pick = next(b.callback_data for row in markup.inline_keyboard for b in row if b.callback_data and b.callback_data.startswith("ea:"))
+    before = len(client.get("/api/food-logs", headers=h).json()["items"])
+    call = FakeCall(tg_id, pick, log)
+    call.message.edit_reply_markup = FakeMsg(tg_id).delete  # accepts reply_markup=None like aiogram's
+    client.portal.call(chat.eat_pick, call)
+    assert len(client.get("/api/food-logs", headers=h).json()["items"]) > before
+
+
+def test_menu_advice_picks_what_fits():
+    from backend.bot.chat import menu_advice
+
+    dishes = [
+        {"name": "Цезарь с курицей", "kcal": 180, "protein_g": 12, "fat_g": 10, "carbs_g": 8, "portion_g": 250, "estimated": True},
+        {"name": "Паста карбонара", "kcal": 300, "protein_g": 11, "fat_g": 15, "carbs_g": 30, "portion_g": 350, "estimated": True},
+        {"name": "Морс", "kcal": 40, "protein_g": 0, "fat_g": 0, "carbs_g": 10, "portion_g": None},
+    ]
+    text = menu_advice(dishes, kcal_left=900, protein_left=40, aim=700)
+    assert "✅ Цезарь с курицей — ≈450 ккал" in text
+    assert "⚠️ Паста карбонара — ≈1 050 ккал, это 117% остатка" in text and "≈ — оценка" in text
+
+
+def test_fasting_plan_timer_and_reminders(client):
+    import random
+    from datetime import datetime, timedelta
+
+    from backend.api import fasting
+    from backend.bot.reminders import collect
+    from backend.database.db import SessionLocal
+    from backend.database.models import FastingPlan
+    from conftest import USER, make_init_data
+
+    plan = FastingPlan(hours=16, eat_from="12:00")
+    assert fasting.eat_to(plan) == "20:00" and fasting.eat_to(FastingPlan(hours=18, eat_from="20:00")) == "02:00"
+    day = datetime(2026, 3, 2, tzinfo=datetime.now().astimezone().tzinfo)
+    assert fasting.in_window(plan, day.replace(hour=12)) and not fasting.in_window(plan, day.replace(hour=20))
+    assert fasting.in_window(FastingPlan(hours=18, eat_from="20:00"), day.replace(hour=1))  # a window past midnight
+    # last meal at 19:30 -> at 9:30 the fast is 14 h, the window opens in 150 minutes
+    st = fasting.state(plan, day.replace(hour=19, minute=30), day.replace(hour=9, minute=30) + timedelta(days=1))
+    assert (st["eating"], st["fasted_h"], st["change_in"]) == (False, 14.0, 150)
+    assert "14 ч из 16" in fasting.text(plan, st)
+    # nothing logged for days: counted from the last window close, not from a week ago
+    old = fasting.state(plan, day - timedelta(days=5), day.replace(hour=10))
+    assert old["fasted_h"] == 14.0
+
+    tg_id = random.randint(3 * 10**9, 4 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    assert client.get("/api/fasting", headers=h).json() == {"plan": None}
+    body = {"hours": 16, "eat_from": "12:00", "remind": True, "safe": True}
+    assert client.put("/api/fasting", headers=h, json={**body, "safe": False}).status_code == 422  # contraindications not confirmed
+    assert client.put("/api/fasting", headers=h, json={**body, "hours": 20}).status_code == 422
+    r = client.put("/api/fasting", headers=h, json=body).json()
+    assert r["plan"] == {"hours": 16, "eat_from": "12:00", "eat_to": "20:00", "remind": True} and "fast_start" in r
+
+    now = datetime.now().astimezone()
+
+    async def run(at):
+        async with SessionLocal() as s:
+            return await collect(s, now.replace(hour=at[0], minute=at[1], second=0, microsecond=0))
+
+    def texts(at):
+        return [t for chat, t, _, _ in client.portal.call(run, at) if chat == tg_id]
+
+    assert not any("завтрак" in t for t in texts((10, 5)))  # breakfast at 10:00 is outside the 12–20 window
+    assert any(t.startswith("🍽 Окно питания открылось (до 20:00)") for t in texts((12, 1)))
+    assert any("Через 30 минут, в 20:00" in t and "Белка осталось" in t for t in texts((19, 31)))
+    assert client.delete("/api/fasting", headers=h).json() == {"plan": None}
+
+
+
+def test_training_day_carbs_protein_from_diary_and_plateau_tips(client):
+    import random
+    from datetime import date, datetime, time, timedelta
+
+    from backend.bot.reminders import collect
+    from backend.core.nutrition import cycle, daily_targets
+    from backend.database.db import SessionLocal
+    from backend.database.models import FoodLog, Product, User
+    from conftest import USER, make_init_data
+
+    t = daily_targets("male", 1998, 190, 76, "moderate", "muscle_gain")
+    week = [cycle(t, 190, 76, [0, 2, 4], wd, False) for wd in range(7)]
+    assert [d["carbs_shift"] for d in week] == [57, -43, 57, -43, 57, -43, -43]
+    assert abs(sum(d["calories"] for d in week) - 7 * t["calories"]) <= 7 * 4  # the week's energy unchanged
+    assert cycle(t, 190, 76, None, 3, True)["day"] == "training"  # an unplanned workout done today
+    assert cycle(t, 190, 76, None, 3, False)["day"] is None and cycle(t, 190, 76, list(range(7)), 3, True)["day"] is None
+    low = daily_targets("female", 1998, 165, 60, "light", "weight_loss")  # carbs already ~2 g/kg: nothing to move
+    assert cycle(low, 165, 60, [0, 1, 2, 3, 4], 5, False)["carbs_shift"] == 0
+
+    tg_id = random.randint(6 * 10**9, 7 * 10**9)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    today = date.today()
+    every = [d for d in range(7) if d != today.weekday()]  # today is a rest day
+    p = client.put("/api/profile", headers=h, json={**PROFILE, "training_days": every[:3]}).json()
+    assert p["targets"]["day"] == "rest" and p["targets"]["carbs"] < p["targets_base"]["carbs"]
+    p = client.put("/api/profile", headers=h, json={**PROFILE, "training_days": [today.weekday()]}).json()
+    assert p["targets"]["day"] == "training" and p["targets"]["carbs"] == p["targets_base"]["carbs"] + p["targets"]["carbs_shift"]
+
+    # protein lags in the afternoon: the bot offers the user's own usual protein foods, one tap each
+    async def seed():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            user = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            curd = Product(name=f"Творог зернёный {tg_id}", kcal=100, protein_g=17, fat_g=2, carbs_g=3)
+            bread = Product(name=f"Батон {tg_id}", kcal=260, protein_g=8, fat_g=3, carbs_g=50)
+            s.add_all([curd, bread])
+            await s.flush()
+            for i in (2, 3, 5):
+                s.add(FoodLog(user_id=user.id, product_id=curd.id, amount_g=200, meal_type="snack",
+                              logged_at=datetime.combine(today - timedelta(days=i), time(16)).astimezone()))
+            s.add(FoodLog(user_id=user.id, product_id=bread.id, amount_g=400, meal_type="breakfast",  # 1040 kcal, 32 g protein
+                          logged_at=datetime.combine(today, time(9)).astimezone()))
+            await s.commit()
+            return curd.id
+    curd_id = client.portal.call(seed)
+    now = datetime.now().astimezone()
+
+    async def run(at):
+        async with SessionLocal() as s:
+            return await collect(s, now.replace(hour=at[0], minute=at[1], second=0, microsecond=0))
+
+    sent = [(t, b) for chat, t, _, b in client.portal.call(run, (16, 31)) if chat == tg_id]
+    msg, buttons = next((t, b) for t, b in sent if t.startswith("🥩 Белка пока 32 из"))
+    assert f"творог зернёный {tg_id} 200 г (+34 г)" in msg
+    assert buttons[0][1].startswith("cb:ea:s:") and buttons[0][1].endswith("x200") and "34 г белка" in buttons[0][0]
+    from backend.bot.chat import _b36
+    assert _b36(curd_id) in buttons[0][1]
+
+
+def test_month_challenge_board_finish_and_story(client, monkeypatch):
+    import random
+    from datetime import datetime, time, timedelta, timezone
+
+    from backend.api import monthly
+    from backend.database.db import SessionLocal
+    from backend.database.models import MonthEntry, Outbox, User, WaterIntake, WorkoutLog, XpEvent
+    from conftest import USER, make_init_data
+
+    assert len({monthly.theme(monthly.month_of(datetime(2026, k, 5).date()))["key"] for k in range(1, 5)}) == 4  # changes monthly
+    assert monthly.places([(0, 0, 5), (0, 0, 3), (0, 0, 3), (0, 0, 1)]) == [1, 2, 2, 4]  # a tie shares the place
+    monkeypatch.setattr(monthly, "theme", lambda m: monthly.BY_KEY["workouts"])  # days with a completed workout
+    ids = [random.randint(8 * 10**9, 9 * 10**9) for _ in range(3)]
+    hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Борис", "Вера"))]
+    for h in hs:
+        client.put("/api/profile", headers=h, json=PROFILE)
+    b = client.get("/api/month", headers=hs[0]).json()
+    assert b["joined"] is False and b["title"] == "Месяц тренировок" and b["me"] is None
+    for h in hs[:2]:
+        assert client.post("/api/month/join", headers=h).json()["joined"] is True
+    from datetime import date
+
+    this = monthly.month_of(monthly.utc_today())
+    real_prev = monthly.month_of(this - timedelta(days=1))
+    prev = date(random.randint(1990, 2020), random.randint(1, 12), 1)  # a month of its own: the test DB keeps earlier runs
+
+    async def seed():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            users = [await s.scalar(select(User).where(User.telegram_id == i)) for i in ids]
+            for u, n in zip(users[:2], (2, 1)):  # Аня trains 2 days this month, Борис 1 (twice the same day counts once)
+                for k in range(n):
+                    at = datetime.combine(this + timedelta(days=k), time(12), tzinfo=timezone.utc)
+                    s.add(WorkoutLog(user_id=u.id, title="Тренировка", started_at=at, completed_at=at))
+                    s.add(WorkoutLog(user_id=u.id, title="Ещё", started_at=at, completed_at=at + timedelta(minutes=5)))
+            s.add(WaterIntake(user_id=users[0].id, day=this, ml=3000))  # another theme's data doesn't count
+            # last month: Аня made the goal (12 days), Вера didn't
+            for u, n in ((users[0], 12), (users[2], 3)):
+                s.add(MonthEntry(user_id=u.id, month=prev, joined_at=datetime.combine(prev, time(0), tzinfo=timezone.utc)))
+                for k in range(n):
+                    at = datetime.combine(prev + timedelta(days=k), time(12), tzinfo=timezone.utc)
+                    s.add(WorkoutLog(user_id=u.id, title="Тренировка", started_at=at, completed_at=at))
+            s.add(MonthEntry(user_id=users[0].id, month=real_prev, closed=True, score=12, rank=1, total=2))
+            await s.commit()
+            return [u.id for u in users]
+    uids = client.portal.call(seed)
+    b = client.get("/api/month", headers=hs[0]).json()
+    boris = client.get("/api/month", headers=hs[1]).json()["me"]  # the board is shared with earlier test runs: compare places
+    assert b["me"]["score"] == 2 and boris["score"] == 1 and b["me"]["rank"] < boris["rank"] and b["total"] >= 2
+    assert all(r["name"] != "Борис" or not r["me"] for r in b["top"]) and (not any(r["me"] for r in b["top"]) or b["me"]["rank"] <= 10)
+
+    async def finish():
+        async with SessionLocal() as s:
+            return await monthly.finish_months(s)
+    assert client.portal.call(finish) >= 1
+    assert client.portal.call(finish) == 0  # closed once
+
+    async def check():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            a = await s.get(MonthEntry, (uids[0], prev))
+            v = await s.get(MonthEntry, (uids[2], prev))
+            texts = list(await s.scalars(select(Outbox.text).where(Outbox.user_id.in_([uids[0], uids[2]]))))
+            xp = await s.scalar(select(XpEvent.xp).where(XpEvent.user_id == uids[0], XpEvent.event_key == f"month:{prev.isoformat()}"))
+            return a, v, texts, xp
+    a, v, texts, xp = client.portal.call(check)
+    assert (a.closed, a.score, a.rank, v.score, v.rank, v.total) == (True, 12, 1, 3, 2, 2) and xp == 100
+    assert any("12 дней с тренировкой, 1-е место из 2" in t and "+100 XP" in t and "Новый челлендж" in t for t in texts)
+    assert any("3 дня с тренировкой, 2-е место из 2" in t and "XP" not in t for t in texts)
+    last = client.get("/api/month", headers=hs[0]).json()["last"]
+    assert last["score"] == 12 and last["done"] is True
+    final = [t for t in texts if "12 дней с тренировкой" in t]
+    assert final  # sent as a photo with the card (Outbox kind month_end)
+    assert client.post("/api/share", headers=hs[0], json={"kind": "month"}).json() == {"ok": True}  # desktop: the card to the chat
+    assert client.post("/api/share", headers=hs[2], json={"kind": "month"}).status_code in (200, 404)
+    r = client.post("/api/story", headers=hs[0], json={"kind": "month"}).json()
+    assert client.get(r["url"]).content[:4] == b"\x89PNG" and "Месяц тренировок" in r["text"]
+    assert client.post("/api/story", headers=hs[2], json={"kind": "month"}).status_code in (200, 404)
+    # the bot's /month: the theme, the goal and the user's place
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from backend.bot.chat import month_command
+    msg = SimpleNamespace(from_user=SimpleNamespace(id=ids[0], first_name="Аня", username=None, language_code="ru"), answer=AsyncMock())
+    client.portal.call(month_command, msg)
+    text = msg.answer.call_args.args[0]
+    assert text.startswith("🏋️ Челлендж месяца — «Месяц тренировок». Цель: 12 дней с тренировкой") and "2 дня с тренировкой" in text
+
+
+
+def test_month_themes_count_from_the_logs(client):
+    """Every theme of the rotation counts days from what's already logged."""
+    import random
+    from datetime import date, datetime, time, timedelta, timezone
+
+    from backend.api import monthly
+    from backend.database.db import SessionLocal
+    from backend.database.models import DailyCheckin, FoodLog, Habit, HabitCheck, Product, User, XpEvent
+    from conftest import USER, make_init_data
+
+    assert len(monthly.THEMES) == 10 and monthly.theme(date(2026, 11, 1))["key"] == "protein"  # November stays as it was
+    assert {monthly.theme(date(2027, k, 1))["key"] for k in range(1, 11)} == set(monthly.BY_KEY)  # each once in 10 months
+    tg_id = random.randint(9 * 10**9, 10**10 - 1)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    m = date(random.randint(1990, 2020), random.randint(1, 12), 1)  # a month of its own in the shared test DB
+
+    async def run():
+        async with SessionLocal() as s:
+            from sqlalchemy import select
+
+            from backend.api.stats import targets
+            from backend.database.models import Profile
+            u = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            norm = targets(await s.get(Profile, u.id))["calories"]
+            veg = Product(name=f"Огурец {tg_id}", kcal=15, protein_g=1, fat_g=0, carbs_g=3, category="Овощи")
+            bun = Product(name=f"Булка {tg_id}", kcal=300, protein_g=8, fat_g=10, carbs_g=45, category="Хлеб и выпечка")
+            candy = Product(name=f"Конфета {tg_id}", kcal=500, protein_g=3, fat_g=25, carbs_g=60, category="Сладости")
+            s.add_all([veg, bun, candy])
+            await s.flush()
+            at = lambda k: datetime.combine(m + timedelta(days=k), time(12), tzinfo=timezone.utc)  # noqa: E731
+            # day 0: 500 g veg + a norm of buns, no sweets; day 1: the same plus a candy; day 2: buns only, too little
+            for k in (0, 1):
+                s.add(FoodLog(user_id=u.id, product_id=veg.id, amount_g=500, meal_type="lunch", logged_at=at(k)))
+                s.add(FoodLog(user_id=u.id, product_id=bun.id, amount_g=round((norm - 75) / 3), meal_type="lunch", logged_at=at(k)))
+            s.add(FoodLog(user_id=u.id, product_id=candy.id, amount_g=60, meal_type="snack", logged_at=at(1)))
+            s.add(FoodLog(user_id=u.id, product_id=bun.id, amount_g=100, meal_type="lunch", logged_at=at(2)))
+            s.add_all([DailyCheckin(user_id=u.id, day=m, sleep=3), DailyCheckin(user_id=u.id, day=m + timedelta(days=1), sleep=2)])
+            s.add_all([XpEvent(user_id=u.id, event_type="personal_record", event_key=f"pr:1:{m + timedelta(days=4)}", xp=15, created_at=at(4)),
+                       XpEvent(user_id=u.id, event_type="personal_record", event_key=f"pr:2:{m + timedelta(days=4)}", xp=15, created_at=at(4))])
+            h1, h2 = Habit(user_id=u.id, title="Шаги"), Habit(user_id=u.id, title="Растяжка")
+            s.add_all([h1, h2])
+            await s.flush()
+            s.add_all([HabitCheck(habit_id=h1.id, user_id=u.id, day=m), HabitCheck(habit_id=h2.id, user_id=u.id, day=m),
+                       HabitCheck(habit_id=h1.id, user_id=u.id, day=m + timedelta(days=1))])
+            await s.commit()
+            return {k: (await monthly.scores(s, m, [u], k))[u.id] for k in monthly.BY_KEY}
+    sc = client.portal.call(run)
+    assert (sc["veggies"], sc["nosweets"], sc["diary"], sc["norm"]) == (2, 1, 2, 1)  # the candy day is over the norm too
+    assert (sc["sleep"], sc["records"], sc["habits"]) == (1, 1, 1)  # two records on one day are one day
+
+
+def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
+    import random
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from zoneinfo import ZoneInfo
+
+    from sqlalchemy import select
+
+    from backend.api import groups
+    from backend.bot import groups as bot_groups
+    from backend.bot.main import join_by_code
+    from backend.database.db import SessionLocal
+    from backend.database.models import GroupChat, Outbox, User, XpEvent
+    from conftest import USER, make_init_data
+
+    monkeypatch.setattr(groups, "bot_username", lambda: "SetlyBot")
+    ids = [random.randint(10**10, 2 * 10**10) for _ in range(3)]
+    hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Борис", "Вера"))]
+    for h in hs[:2]:
+        client.put("/api/profile", headers=h, json=PROFILE)
+    chat_id = -random.randint(10**12, 2 * 10**12)
+
+    async def users(s):
+        return [await s.scalar(select(User).where(User.telegram_id == i)) for i in ids]
+
+    # Аня adds the bot: the group exists with her in it; Борис joins by the button, Вера (no Setly yet) gets the bot link
+    async def add():
+        async with SessionLocal() as s:
+            ann = (await users(s))[0]
+            ann.device_tz = "Asia/Yekaterinburg"
+            return (await groups.added(s, chat_id, "Семья", ann)).code
+    code = client.portal.call(add)
+    chat = SimpleNamespace(id=chat_id, title="Семья", type="group")
+    call = SimpleNamespace(from_user=SimpleNamespace(id=ids[1]), message=SimpleNamespace(chat=chat, answer=AsyncMock()), answer=AsyncMock())
+    client.portal.call(bot_groups.join_button, call)
+    assert call.answer.call_args.args[0] == "Ты в рейтинге! 💪" and "Участников: 2" in call.message.answer.call_args.args[0]
+    stranger = SimpleNamespace(from_user=SimpleNamespace(id=ids[2]), message=SimpleNamespace(chat=chat, answer=AsyncMock()), answer=AsyncMock())
+    client.portal.call(bot_groups.join_button, stranger)
+    assert stranger.answer.call_args.kwargs["url"] == f"https://t.me/SetlyBot?start=g{code}"
+    # Вера opens the bot by that link: /start g<code> joins her (the account is created on /start)
+    client.put("/api/profile", headers=hs[2], json=PROFILE)
+
+    async def vera_joins():
+        async with SessionLocal() as s:
+            return await join_by_code(s, code, (await users(s))[2])
+    assert client.portal.call(vera_joins).title == "Семья"
+
+    # a workout: a cheer in the chat, once a day
+    day_id = client.get("/api/programs").json()[0]["days"][0]["id"]
+    ex_id = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    for _ in range(2):
+        w = client.post("/api/workout-logs", headers=hs[0], json={"program_day_id": day_id, "title": "Верх тела"}).json()
+        for n in (1, 2, 3):
+            client.post(f"/api/workout-logs/{w['id']}/sets", headers=hs[0], json={"exercise_id": ex_id, "set_number": n, "reps": 8, "weight_kg": 40})
+        from conftest import long_workout
+        long_workout(client, w["id"])
+        client.post(f"/api/workout-logs/{w['id']}/complete", headers=hs[0])
+
+    async def posts():
+        async with SessionLocal() as s:
+            return list(await s.scalars(select(Outbox.text).where(Outbox.telegram_id == chat_id).order_by(Outbox.id)))
+    sent = client.portal.call(posts)
+    assert sum("Аня закончил тренировку «Верх тела» — 1-я за неделю" in t for t in sent) == 1, sent  # PROFILE is male
+    assert any("Вера присоединяется" in t for t in sent)
+
+    # this week: Аня has the workout XP; Борис a little; Вера nothing
+    async def board():
+        async with SessionLocal() as s:
+            u = await users(s)
+            s.add(XpEvent(user_id=u[1].id, event_type="test", event_key=f"t:{ids[1]}", xp=5))
+            await s.commit()
+            g = await s.scalar(select(GroupChat).where(GroupChat.chat_id == chat_id))
+            return await groups.board_text(s, g)
+    text = client.portal.call(board)
+    assert text.splitlines()[2].startswith("🥇 Аня — ") and "трен.: 2" in text and "🥈 Борис — 5 XP" in text and "3. Вера — 0 XP" in text
+
+    rows = [(SimpleNamespace(first_name=n, username=None), xp, w) for n, xp, w in (("Аня", 120, 2), ("Борис", 90, 1), ("Вера", 0, 0))]
+    monkeypatch.setattr(groups, "name", lambda u: u.first_name)
+    r = groups.results_text(SimpleNamespace(title="Семья"), rows)
+    assert "Чемпион недели — Аня: 120 XP и 2 трен.!" in r and "😴 Вера" in r
+    assert groups.results_text(SimpleNamespace(title="Семья"), [(rows[2][0], 0, 0)]) is None  # a quiet week: no post
+    assert "отстаёт всего на 30 XP" in groups.tease_text(rows)
+
+    # the schedule: Monday 10:00 results of the week before, Thursday 19:00 the midweek post — each once
+    class At(datetime):
+        moment = datetime(2030, 1, 7, 10, 5, tzinfo=ZoneInfo("Asia/Yekaterinburg"))  # a Monday
+
+        @classmethod
+        def now(cls, tz=None):
+            return cls.moment.astimezone(tz or timezone.utc)
+    monkeypatch.setattr(groups, "datetime", At)
+
+    async def tick():
+        async with SessionLocal() as s:
+            await groups.group_posts(s)
+            g = await s.scalar(select(GroupChat).where(GroupChat.chat_id == chat_id))
+            return g.results_for, g.teased_for
+    assert client.portal.call(tick)[0] == datetime(2029, 12, 31).date()
+    assert client.portal.call(tick)[0] == datetime(2029, 12, 31).date()  # once
+    At.moment += timedelta(days=3, hours=9)  # Thursday 19:05
+    assert client.portal.call(tick)[1] == datetime(2030, 1, 7).date()
+
+    # /leave, and the bot removed from the chat: no more posts
+    msg = SimpleNamespace(chat=chat, from_user=SimpleNamespace(id=ids[1]), reply=AsyncMock())
+    client.portal.call(bot_groups.leave_command, msg)
+    assert msg.reply.call_args.args[0].startswith("Готово")
+    left = SimpleNamespace(chat=chat, from_user=SimpleNamespace(id=ids[0]), new_chat_member=SimpleNamespace(status="left"),
+                           old_chat_member=SimpleNamespace(status="member"), bot=SimpleNamespace(send_message=AsyncMock()))
+    client.portal.call(bot_groups.membership, left)
+
+    async def active():
+        async with SessionLocal() as s:
+            return (await s.scalar(select(GroupChat).where(GroupChat.chat_id == chat_id))).active
+    assert client.portal.call(active) is False
+
+
+def test_group_feature_is_discoverable(client, monkeypatch):
+    """The bot tells about group chats itself: /group, a tour slide, and one message after a settled-in week."""
+    import random
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from sqlalchemy import select
+
+    from backend.api import social
+    from backend.bot import cards, chat
+    from backend.bot.reminders import collect, markup
+    from backend.database.db import SessionLocal
+    from backend.database.models import User, XpEvent
+    from conftest import USER, make_init_data
+
+    monkeypatch.setattr(social, "bot_username", lambda: "SetlyBot")
+    msg = SimpleNamespace(from_user=SimpleNamespace(id=1), answer=AsyncMock())
+    client.portal.call(chat.group_command, msg)
+    assert "рейтинг недели" in msg.answer.call_args.args[0]
+    assert msg.answer.call_args.kwargs["reply_markup"].inline_keyboard[0][0].url == "https://t.me/SetlyBot?startgroup=setly"
+    assert cards.TOUR[3][1] == "всем чатом" and len(chat.TOUR_CAPTIONS) == len(cards.TOUR)
+    assert cards.tour(3)[:4] == b"\x89PNG"
+
+    tg_id = random.randint(2 * 10**10, 3 * 10**10)
+    h = {"Authorization": f"tma {make_init_data({**USER, 'id': tg_id})}"}
+    client.put("/api/profile", headers=h, json=PROFILE)
+    now = datetime.now().astimezone()
+    if now.weekday() == 6:
+        now += timedelta(days=1)  # Sunday evening belongs to the week's summary
+
+    async def settle(days_active):
+        async with SessionLocal() as s:
+            u = await s.scalar(select(User).where(User.telegram_id == tg_id))
+            u.created_at = now - timedelta(days=10)
+            for k in range(days_active):
+                s.add(XpEvent(user_id=u.id, event_type="test", event_key=f"g{tg_id}:{k}:{days_active}", xp=5, created_at=now - timedelta(days=k)))
+            await s.commit()
+
+    async def run():
+        async with SessionLocal() as s:
+            return [(t, b) for chat_id, t, _, b in await collect(s, now.replace(hour=19, minute=31)) if chat_id == tg_id]
+    client.portal.call(settle, 2)
+    assert not any(t.startswith("👥") for t, _ in client.portal.call(run))  # 2 active days: not yet
+    client.portal.call(settle, 3)
+    tip = [(t, b) for t, b in client.portal.call(run) if t.startswith("👥")]
+    assert len(tip) == 1 and tip[0][1][0][1] == "url:https://t.me/SetlyBot?startgroup=setly"
+    assert markup(tip[0][1], lambda: None, "").inline_keyboard[0][0].url == "https://t.me/SetlyBot?startgroup=setly"
+    assert not any(t.startswith("👥") for t, _ in client.portal.call(run))  # once ever
+
+
+
+def test_workout_xp_cannot_be_farmed(client, seeded):
+    """"Start, one set, finish" again and again: no XP below 3 sets, and XP for at most 2 workouts a day."""
+    h = new_user_headers()
+    ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+
+    def workout(sets, aged=True):
+        log = client.post("/api/workout-logs", headers=h, json={"title": "Тест"}).json()["id"]
+        for n in range(1, sets + 1):
+            client.post(f"/api/workout-logs/{log}/sets", headers=h, json={"exercise_id": ex, "set_number": n, "reps": 8})
+        if aged:
+            from conftest import long_workout
+            long_workout(client, log)
+        return client.post(f"/api/workout-logs/{log}/complete", headers=h).json()
+    one = workout(1)
+    assert one["xp_awarded"] == 0 and "от 3 подходов" in one["xp_note"]
+    quick = workout(3, aged=False)  # three sets tapped in a minute
+    assert quick["xp_awarded"] == 0 and "от 10 минут" in quick["xp_note"]
+    assert [workout(3)["xp_awarded"] for _ in range(3)] == [50, 50, 0]
+    assert "две тренировки в сутки" in workout(3)["xp_note"]
+
+
+
+def test_log_and_delete_pays_nothing(client):
+    """XP follows what's really there: a meal from 50 kcal, taken back when it's emptied; the same for water and weigh-ins."""
+    from datetime import date
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    xp = lambda: client.post("/api/auth", headers=h).json()["progress"]["xp"]  # noqa: E731
+    p = client.post("/api/products", headers=h, json={"name": "Творог тест", "kcal": 120, "protein_g": 17, "fat_g": 5, "carbs_g": 3}).json()
+    tiny = client.post("/api/food-logs", headers=h, json={"product_id": p["id"], "amount_g": 10, "meal_type": "breakfast"}).json()
+    assert tiny["xp_awarded"] == 0  # 12 kcal is not a meal
+    real = client.post("/api/food-logs", headers=h, json={"product_id": p["id"], "amount_g": 200, "meal_type": "breakfast"}).json()
+    assert real["xp_awarded"] == 10 and xp() == 10
+    client.delete(f"/api/food-logs/{real['id']}", headers=h)
+    assert xp() == 0  # the meal is empty again
+    again = client.post("/api/food-logs", headers=h, json={"product_id": p["id"], "amount_g": 200, "meal_type": "lunch"}).json()
+    client.patch(f"/api/food-logs/{again['id']}", headers=h, json={"amount_g": 5})
+    assert xp() == 0  # cut to 5 g: no meal
+
+    got = [client.post("/api/water", headers=h, json={"delta_ml": 1000}).json()["xp_awarded"] for _ in range(3)]
+    assert got == [0, 0, 10] and xp() == 10  # 3 l: the goal (~2.5 l for 78 kg)
+    client.post("/api/water", headers=h, json={"delta_ml": -1000})
+    assert xp() == 0
+
+    m = client.put("/api/measurements", headers=h, json={"weight_kg": 78}).json()
+    assert m["xp_awarded"] == 15 and xp() == 15
+    client.delete(f"/api/measurements/{m['id']}", headers=h)
+    assert xp() == 0 and date.today()
+
+
+def test_duel_alts_and_boost_farming(client):
+    """A second account made for duels: no reward unless friends for a week and both really used Setly 5 of 14 days;
+    a won boost adds at most 50 XP in all."""
+    import random
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+
+    from sqlalchemy import select, update
+
+    from backend.api import social
+    from backend.database.db import SessionLocal
+    from backend.database.models import Friendship, User, WorkoutLog
+    from backend.database.rewards import award_xp
+    from conftest import USER, make_init_data
+
+    ids = [random.randint(3 * 10**10, 4 * 10**10) for _ in range(2)]
+    for i in ids:
+        client.put("/api/profile", headers={"Authorization": f"tma {make_init_data({**USER, 'id': i})}"}, json=PROFILE)
+    now = datetime.now(timezone.utc)
+
+    async def check(friend_days, real):
+        async with SessionLocal() as s:
+            a, b = [await s.scalar(select(User).where(User.telegram_id == i)) for i in ids]
+            await s.execute(update(User).where(User.id.in_((a.id, b.id))).values(created_at=now - timedelta(days=30)))
+            for x, y in ((a, b), (b, a)):
+                if not await s.get(Friendship, (x.id, y.id)):
+                    s.add(Friendship(user_id=x.id, friend_id=y.id))
+            await s.flush()
+            await s.execute(update(Friendship).where(Friendship.user_id.in_((a.id, b.id))).values(created_at=now - timedelta(days=friend_days)))
+            for u in (a, b):
+                for k in range(real):
+                    at = now - timedelta(days=k + 2)
+                    s.add(WorkoutLog(user_id=u.id, title="Т", started_at=at, completed_at=at + timedelta(minutes=40)))
+            await s.commit()
+            d = SimpleNamespace(days=3, metric="xp", starts_at=now, ends_at=now + timedelta(days=3), challenger_id=a.id, opponent_id=b.id)
+            return await social.no_reward_reason(s, d, a, b, 100, 50)
+    assert "5 дней из 14" in client.portal.call(check, 10, 0)  # no real activity before
+    assert "друзья хотя бы 7 дней" in client.portal.call(check, 2, 6)  # a fresh alt (workouts are kept from here on)
+    assert client.portal.call(check, 10, 0) is None
+
+    async def boosted():
+        async with SessionLocal() as s:
+            a = await s.scalar(select(User).where(User.telegram_id == ids[0]))
+            a.boost_until = now + timedelta(hours=24)
+            await s.commit()
+            return [await award_xp(s, a.id, "achievement", f"bst:{ids[0]}:{k}") for k in range(5)]
+    assert client.portal.call(boosted) == [37, 37, 37, 37, 27]  # 25 + half while the 50 XP of bonus lasts, then plain
+
+
+def test_offline_records_keep_their_time(client):
+    """Sent later from the phone's queue: a workout keeps the time it really happened (so the 10 minutes count),
+    a glass of water and a habit tick keep yesterday. Times are clamped, never refused: a record isn't lost."""
+    from datetime import date, datetime, timedelta, timezone
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    ex = client.get("/api/programs").json()[0]["days"][0]["exercises"][0]["exercise_id"]
+    now = datetime.now(timezone.utc)
+    start = now - timedelta(hours=3)
+    w = client.post("/api/workout-logs", headers=h, json={"title": "В подвале", "started_at": start.isoformat()}).json()
+    for n in (1, 2, 3):
+        client.post(f"/api/workout-logs/{w['id']}/sets", headers=h, json={"exercise_id": ex, "set_number": n, "reps": 8})
+    done = client.post(f"/api/workout-logs/{w['id']}/complete", headers=h, json={"completed_at": (start + timedelta(minutes=45)).isoformat()}).json()
+    assert done["xp_awarded"] == 50  # 45 minutes, three hours ago
+    log = next(x for x in client.get("/api/workout-logs", headers=h).json() if x["id"] == w["id"])
+    assert abs(datetime.fromisoformat(log["started_at"]) - start) < timedelta(seconds=1)
+    assert abs(datetime.fromisoformat(log["completed_at"]) - (start + timedelta(minutes=45))) < timedelta(seconds=1)
+    # a phone clock years off: clamped to the last 48 hours / to now
+    odd = client.post("/api/workout-logs", headers=h, json={"title": "Часы", "started_at": "2001-01-01T00:00:00Z"}).json()
+    log = next(x for x in client.get("/api/workout-logs", headers=h).json() if x["id"] == odd["id"])
+    assert now - timedelta(hours=49) < datetime.fromisoformat(log["started_at"]) <= datetime.now(timezone.utc)
+
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    assert client.post("/api/water", headers=h, json={"delta_ml": 250, "day": yesterday}).json()["ml"] == 250
+    assert client.get("/api/water", headers=h).json()["ml"] == 0  # today untouched
+    assert client.post("/api/water", headers=h, json={"delta_ml": 250, "day": "2020-01-01"}).json()["ml"] == 250  # too old: today
+    habit = client.post("/api/habits", headers=h, json={"emoji": "🧘", "title": "Растяжка"}).json()[0]
+    after = client.post(f"/api/habits/{habit['id']}/check", headers=h, json={"done": True, "day": yesterday}).json()
+    assert after[0]["done"] is False  # ticked for yesterday, today is still open

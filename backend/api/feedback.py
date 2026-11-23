@@ -62,7 +62,7 @@ async def order_export(tg: dict = Depends(telegram_user), session: AsyncSession 
     recent = await session.scalar(select(func.count()).where(
         Outbox.telegram_id == user.telegram_id, Outbox.kind == "export", Outbox.created_at > func.now() - timedelta(minutes=2)))
     if recent:
-        raise HTTPException(429, "Файл уже готовится — загляните в чат с ботом")
+        raise HTTPException(429, "Файл уже готовится — загляни в чат с ботом")
     session.add(Outbox(telegram_id=user.telegram_id, kind="export", text="", user_id=user.id))
     await session.commit()
     return {"ok": True}
@@ -83,7 +83,7 @@ async def send_feedback(body: FeedbackIn, tg: dict = Depends(telegram_user), ses
     user = await get_or_create_user(tg, session)
     today = await session.scalar(select(func.count()).where(Feedback.user_id == user.id, Feedback.created_at > func.now() - timedelta(days=1)))
     if today >= DAILY_LIMIT:
-        raise HTTPException(429, "Сегодня вы уже много написали — спасибо! Продолжим завтра")
+        raise HTTPException(429, "Сегодня ты уже много написал — спасибо! Продолжим завтра")
     product = await session.get(Product, body.product_id) if body.product_id else None
     session.add(Feedback(user_id=user.id, kind=body.kind, text=body.text.strip(), product_id=product.id if product else None))
     who = f"@{user.username}" if user.username else (user.first_name or f"id {user.telegram_id}")

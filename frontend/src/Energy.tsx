@@ -7,7 +7,8 @@ type Energy = {
   ready: boolean; formula: number; days_logged: number; weighins: number; need_days: number; need_weighins: number
   target_weight_kg: number | null; kcal_override: number | null; goal: string
   tdee?: number; intake?: number; kg_per_week?: number; suggest?: number; weight?: number; in_30_days?: number
-  eta?: string | null; plateau?: boolean
+  kcal_auto?: boolean; kcal_auto_at?: string | null
+  eta?: string | null; plateau?: boolean; plateau_tips?: string[]; plateau_kcal?: number | null
 }
 
 const fmt = (n: number) => n.toLocaleString('ru-RU')
@@ -28,6 +29,24 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     await api('/api/profile/target-weight', postJson({ target_weight_kg: target.trim() && v >= 30 && v <= 300 ? v : null })).catch(() => {})
     load()
   }
+  async function setAuto(on: boolean) {
+    setBusy(true)
+    try { await api('/api/insights/energy/auto', postJson({ on })); await load() } finally { setBusy(false) }
+  }
+  // The weekly recalculation from their own data (on by default)
+  const autoRow = (
+    <div className="energy-auto">
+      <div>
+        <b>Пересчитывать норму сама</b>
+        <small>{!e.kcal_auto ? 'Выключено — норма остаётся как есть'
+          : e.kcal_auto_at ? `Раз в неделю по дневнику и весу · последний раз ${date(e.kcal_auto_at)}`
+          : e.ready ? 'Раз в неделю по дневнику и весу · первый пересчёт — в ближайший вечер' : 'Начнёт, как только хватит данных'}</small>
+      </div>
+      <button role="switch" aria-checked={!!e.kcal_auto} aria-label="Пересчитывать норму автоматически" className="switch" disabled={busy}
+        onClick={() => setAuto(!e.kcal_auto)}><i /></button>
+    </div>
+  )
+
   async function applyNorm(kcal: number | null) {
     setBusy(true)
     try { await api('/api/insights/energy/apply', postJson({ kcal })); onNormChanged(); await load() } finally { setBusy(false) }
@@ -41,14 +60,27 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     </label>
   )
 
+  // Two flat weeks while losing or gaining: what to change, in order, and the new norm in one tap
+  const plateau = e.plateau && e.plateau_tips?.length ? (
+    <div className="energy-note">
+      <b>Вес стоит две недели — что поменять:</b>
+      <ol className="plateau-tips">{e.plateau_tips.map((t) => <li key={t}>{t}</li>)}</ol>
+      {e.plateau_kcal && e.plateau_kcal !== calories && (
+        <button className="btn btn-ghost" disabled={busy} onClick={() => applyNorm(e.plateau_kcal!)}>Сделать норму {fmt(e.plateau_kcal)} ккал</button>
+      )}
+    </div>
+  ) : null
+
   if (!e.ready) {
     const done = Math.min(e.days_logged / e.need_days, 1) * 0.7 + Math.min(e.weighins / e.need_weighins, 1) * 0.3
     return (
       <section className="card energy">
         <div className="card-head"><h2>Реальный расход</h2><span className="sub">по формуле {fmt(e.formula)} ккал</span></div>
-        <p className="sub">Посчитаем, сколько вы тратите на самом деле — по вашему дневнику и весу, а не по формуле. Нужно {e.need_days} дней с полным дневником
+        <p className="sub">Посчитаем, сколько ты тратишь на самом деле — по твоему дневнику и весу, а не по формуле. Нужно {e.need_days} дней с полным дневником
           (есть {e.days_logged}) и {e.need_weighins} взвешивания за 10+ дней (есть {e.weighins}).</p>
         <Bar value={done * 100} goal={100} />
+        {plateau}
+        {autoRow}
         {goalRow}
       </section>
     )
@@ -60,22 +92,18 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     <section className="card energy">
       <div className="card-head"><h2>Реальный расход</h2><span className="sub">за 4 недели</span></div>
       <div className="energy-main"><b>{fmt(tdee)}</b><span>ккал в день</span></div>
-      <p className="sub">По формуле было {fmt(e.formula)}. Вы ели в среднем {fmt(e.intake!)} ккал, вес {perWeek === 0 ? 'не менялся' : `${kg(perWeek)} в неделю`}.</p>
-      {e.plateau && (
-        <div className="energy-note">
-          <b>Вес стоит две недели.</b> Это нормально и часто связано с водой. Если так ещё неделю — снизьте норму на 100–150 ккал,
-          добавьте шагов или проверьте, всё ли попадает в дневник: масло, соусы, перекусы.
-        </div>
-      )}
+      <p className="sub">По формуле было {fmt(e.formula)}. Ты ел в среднем {fmt(e.intake!)} ккал, вес {perWeek === 0 ? 'не менялся' : `${kg(perWeek)} в неделю`}.</p>
+      {plateau}
       <p className="energy-forecast">{e.eta ? <>Цель {String(e.target_weight_kg).replace('.', ',')} кг — примерно <b>к {date(e.eta)}</b></>
         : <>Через 30 дней — около <b>{String(e.in_30_days).replace('.', ',')} кг</b></>}</p>
+      {autoRow}
       {goalRow}
       {differs && (
         <button className="btn" disabled={busy} onClick={() => applyNorm(suggest)}>
           Сделать норму {fmt(suggest)} ккал{e.goal.includes('loss') ? ' (−0,5 кг в неделю)' : e.goal.includes('gain') ? ' (+0,25 кг в неделю)' : ''}
         </button>
       )}
-      {e.kcal_override && <button className="link" disabled={busy} onClick={() => applyNorm(null)}>Вернуть норму по формуле</button>}
+      {e.kcal_override && <button className="link" disabled={busy} onClick={() => applyNorm(null)}>Вернуть норму по формуле и не пересчитывать</button>}
     </section>
   )
 }

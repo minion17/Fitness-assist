@@ -4,8 +4,8 @@ import { api, ApiError, postJson } from './telegram'
 import { Chevron } from './ui'
 
 type Settings = {
-  meals: boolean; water: boolean; streak: boolean; weekly: boolean; workout: boolean
-  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string; weekly_at: string; workout_at: string
+  meals: boolean; water: boolean; streak: boolean; weekly: boolean; workout: boolean; checkin?: boolean
+  breakfast_at: string; lunch_at: string; dinner_at: string; streak_at: string; weekly_at: string; workout_at: string; checkin_at?: string
 }
 
 function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: (v: boolean) => void }) {
@@ -51,7 +51,7 @@ export default function Reminders() {
     try {
       await api('/api/reminders', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(next) })
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не сохранилось — проверьте соединение')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось — проверь соединение')
     }
   }
 
@@ -84,7 +84,7 @@ export default function Reminders() {
         <div className="row">
           <div className="row-main">
             <div className="row-title">Вода</div>
-            <div className="row-sub">В 12, 16 и 19 ч, если отстаёте</div>
+            <div className="row-sub">В 12, 16 и 19 ч, если отстаёшь</div>
           </div>
           <Switch on={s.water} label="Напоминать о воде" onChange={(v) => save({ water: v })} />
         </div>
@@ -98,6 +98,14 @@ export default function Reminders() {
         {s.streak && <div className="time-row"><Time label="Вечером в" value={s.streak_at} onChange={(v) => save({ streak_at: v })} /></div>}
         <div className="row">
           <div className="row-main">
+            <div className="row-title">Как спалось? ☀️</div>
+            <div className="row-sub">Утром две кнопки: сон и энергия. Через пару недель — наблюдения</div>
+          </div>
+          <Switch on={s.checkin ?? false} label="Спрашивать про сон утром" onChange={(v) => save({ checkin: v })} />
+        </div>
+        {s.checkin && <div className="time-row"><Time label="Утром в" value={s.checkin_at ?? '09:00'} onChange={(v) => save({ checkin_at: v })} /></div>}
+        <div className="row">
+          <div className="row-main">
             <div className="row-title">Итоги недели 📊</div>
             <div className="row-sub">По воскресеньям: карточка недели и совет</div>
           </div>
@@ -108,7 +116,7 @@ export default function Reminders() {
       <div className="reminders-test">
         {next && <p className="sub">Ближайшее: {next.what} {next.tomorrow ? 'завтра' : 'сегодня'} в {next.at} — придёт, только если это ещё не сделано.</p>}
         <button className="btn btn-ghost" disabled={test === 'wait'} onClick={sendTest}>{test === 'wait' ? 'Отправляем…' : '🔔 Прислать пробное в чат'}</button>
-        {test === 'ok' && <p className="sub" role="status">Отправлено — проверьте чат с ботом.</p>}
+        {test === 'ok' && <p className="sub" role="status">Отправлено — проверь чат с ботом.</p>}
         {test === 'fail' && <p className="error" role="alert">Бот не ответил: он не запущен. Напоминания отправляет компьютер с сервером — он должен быть включён, а окно «FA бот» открыто.</p>}
       </div>
       {error && <p className="error" role="alert">{error}</p>}

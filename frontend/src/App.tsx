@@ -3,7 +3,7 @@ import AchievementBadge from './AchievementBadge'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
-import { enqueue, flush, pending, unreachable } from './offline'
+import { CHANGED, enqueue, flush, pending, unreachable } from './offline'
 import { known, syncCatalog } from './catalog'
 import Body, { QuickWeight, type MeasurementInput } from './Body'
 import Food from './Food'
@@ -160,6 +160,7 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
   canEdit: boolean
 }) {
   const pin = awards.find(a => a.pinned)
+  const norm = data?.targets_base ?? data?.targets // the plain norm, not today's training / rest version
   const title = awards.find(a => a.title_selected)
   const shown = data
     ? { age: YEAR - data.birth_year, height: data.height_cm, weight: data.weight_kg, goal: GOALS[data.goal] }
@@ -195,14 +196,14 @@ function Profile({ synced, progress, data, onEdit, body, theme, canEdit, awards 
         <section className="card"><span className="sub">Цель</span><div className="row-title" style={{ marginTop: 6 }}>{shown.goal}</div></section>
       </div>
       </section>
-      {data?.targets && (
+      {norm && (
         <section className="card profile-targets">
-          <h2>Дневная норма</h2>
+          <div className="card-head"><h2>Дневная норма</h2>{data?.kcal_override ? <span className="sub">по твоим данным</span> : <span className="sub">по формуле</span>}</div>
           <div className="list">
-            <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{data.targets.calories} ккал</div></div>
-            <div className="row"><div className="row-main row-title">Белки</div><div className="row-end">{data.targets.protein} г</div></div>
-            <div className="row"><div className="row-main row-title">Жиры</div><div className="row-end">{data.targets.fat} г</div></div>
-            <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{data.targets.carbs} г</div></div>
+            <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{norm.calories} ккал</div></div>
+            <div className="row"><div className="row-main row-title">Белки</div><div className="row-end">{norm.protein} г</div></div>
+            <div className="row"><div className="row-main row-title">Жиры</div><div className="row-end">{norm.fat} г</div></div>
+            <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{norm.carbs} г</div></div>
           </div>
         </section>
       )}
@@ -225,7 +226,7 @@ function SetlyApp() {
   const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
   const kcalRef = useRef<number | null>(null) // last known kcal, to notice the moment the norm is reached
   // the bot's buttons open the app on a tab: ?open=workout (today's workout), ?open=food (the diary)
-  const [tab, setTab] = useState<Tab>(() => ({ workout: 'workouts', food: 'food' } as Record<string, Tab>)[new URLSearchParams(window.location.search).get('open') ?? ''] ?? 'home')
+  const [tab, setTab] = useState<Tab>(() => ({ workout: 'workouts', food: 'food', fasting: 'food', month: 'progress' } as Record<string, Tab>)[new URLSearchParams(window.location.search).get('open') ?? ''] ?? 'home')
   const [synced, setSynced] = useState('Демо-режим')
   const [xp, setXp] = useState<Progress>(boot?.auth.progress ?? NEW_USER)
   const [boostUntil, setBoostUntil] = useState<string | null>(boot?.auth.settings.boost_until ?? null) // x2 XP after a duel win
@@ -414,7 +415,7 @@ function SetlyApp() {
           throw e
         }
         // keep the day and the snack's time as of now: it may be sent tomorrow
-        enqueue({ name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
+        enqueue({ path: '/api/food-logs', kind: 'food', name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
         setQueued(pending().length)
         flash('Нет связи — запишем, как только она появится')
         return
@@ -426,7 +427,7 @@ function SetlyApp() {
     }
     if (!p) return send()
     flash('Добавлено')
-    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось — попробуйте ещё раз'))
+    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось — попробуй ещё раз'))
   }
 
   /** "Повторить вчерашний завтрак": the meal of this hour is empty today and was logged yesterday. */
@@ -506,14 +507,16 @@ function SetlyApp() {
     const send = async () => {
       if (busy || !pending().length) return
       busy = true
-      const n = await flush((body) => api('/api/food-logs', postJson(body))).finally(() => { busy = false })
+      const n = await flush((path, init) => api(path, init)).finally(() => { busy = false })
       setQueued(pending().length)
       if (n) { await refreshJournal().catch(() => {}); flash(`Отправлено записей: ${n}`) }
     }
     send()
+    const count = () => setQueued(pending().length)
+    window.addEventListener(CHANGED, count)
     window.addEventListener('online', send)
     const timer = setInterval(send, 30_000)
-    return () => { window.removeEventListener('online', send); clearInterval(timer) }
+    return () => { window.removeEventListener(CHANGED, count); window.removeEventListener('online', send); clearInterval(timer) }
   }, [canEdit, refreshJournal])
 
   useEffect(() => {
@@ -566,9 +569,11 @@ function SetlyApp() {
     let r: (Water & { xp_awarded: number }) | null
     try {
       r = await api<Water & { xp_awarded: number }>('/api/water', postJson({ delta_ml: delta }))
-    } catch {
-      setWater(before)
-      flash('Вода не отметилась: нет связи')
+    } catch (e) {
+      if (!unreachable(e)) { setWater(before); flash('Вода не отметилась — попробуй ещё раз'); return }
+      enqueue({ path: '/api/water', kind: 'water', name: `${delta > 0 ? '+' : ''}${delta} мл воды`, body: { delta_ml: delta, day: localDay() } })
+      setQueued(pending().length)
+      flash('Нет связи — вода отметится, как только она появится')
       return
     }
     if (!r) return // demo mode: local only
@@ -634,12 +639,12 @@ function SetlyApp() {
     const suggestion = programs?.find((p) => p.id === profileResult.recommendation?.program_id)
     const finish = (destination: Tab) => { setProfileResult(null); go(destination) }
     return <div className="app"><main className="screen profile-results">
-      <div><p className="hello">Анкета заполнена</p><h1>Ваши первые ориентиры</h1><p className="sub">Ответы помогут настроить питание и тренировки под вас.</p></div>
+      <div><p className="hello">Анкета заполнена</p><h1>Твои первые ориентиры</h1><p className="sub">Ответы помогут настроить питание и тренировки под тебя.</p></div>
       <section className="card profile-results-card"><h2>Питание на день</h2>
-        {targets ? <><div className="profile-results-calories">{targets.calories} <span>ккал</span></div><div className="sub">Белки {targets.protein} г · Жиры {targets.fat} г · Углеводы {targets.carbs} г</div><p className="sub">Это расчётные ориентиры, не готовый рацион. Их можно уточнять по мере наблюдения за результатами.</p></> : <p className="sub">Ориентиры недоступны в деморежиме. Откройте приложение с подключённым аккаунтом.</p>}
+        {targets ? <><div className="profile-results-calories">{targets.calories} <span>ккал</span></div><div className="sub">Белки {targets.protein} г · Жиры {targets.fat} г · Углеводы {targets.carbs} г</div><p className="sub">Это расчётные ориентиры, не готовый рацион. Их можно уточнять по мере наблюдения за результатами.</p></> : <p className="sub">Ориентиры недоступны в деморежиме. Открой приложение с подключённым аккаунтом.</p>}
       </section>
       <section className="card"><h2>Тренировки</h2>
-        {suggestion ? <><div className="profile-results-program">{suggestion.name}</div>{profileResult.recommendation?.reasons.length ? <p className="sub">{profileResult.recommendation.reasons.join(' · ')}</p> : <p className="sub">Посмотрите программу и решите, подходит ли она вам.</p>}<p className="sub">Подбор учитывает уровень, оборудование и частоту занятий; ограничения и травмы автоматически не проверяются.</p></> : <p className="sub">Рекомендация пока недоступна. Можно посмотреть готовые программы и создать свою.</p>}
+        {suggestion ? <><div className="profile-results-program">{suggestion.name}</div>{profileResult.recommendation?.reasons.length ? <p className="sub">{profileResult.recommendation.reasons.join(' · ')}</p> : <p className="sub">Посмотри программу и реши, подходит ли она тебе.</p>}<p className="sub">Подбор учитывает уровень, оборудование и частоту занятий; ограничения и травмы автоматически не проверяются.</p></> : <p className="sub">Рекомендация пока недоступна. Можно посмотреть готовые программы и создать свою.</p>}
       </section>
       <button className="btn" onClick={() => finish('workouts')}>Посмотреть тренировки</button>
       <button className="btn btn-ghost" onClick={() => finish('food')}>Перейти к питанию</button>
@@ -667,18 +672,18 @@ function SetlyApp() {
             water={water} aiEnabled={aiEnabled} canEdit={canEdit}
             onFood={(i) => { go('food'); setFoodIntent(i) }} onNutrition={() => go('food')} onWorkouts={() => go('workouts')} onWater={changeWater}
             quests={canEdit && quests && <Quests week={quests} />}
-            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
-            weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} />}
+            habits={canEdit && <Habits habits={habits} onChange={habitsChanged} onQueued={() => setQueued(pending().length)} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
+            weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} goal={me?.target_weight_kg} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
-            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуйте ещё раз')) } : null}
+            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуй ещё раз')) } : null}
             intro={canEdit && <FirstSteps steps={[
-              { key: 'meal', title: 'Запишите, что съели', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найдите продукт или блюдо в поиске',
+              { key: 'meal', title: 'Запиши, что съел', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найди продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
-              { key: 'water', title: 'Отметьте стакан воды', hint: 'Нажмите — добавим 250 мл',
+              { key: 'water', title: 'Отметь стакан воды', hint: 'Нажми — добавим 250 мл',
                 done: water.ml > 0 || week.days.some((d) => d.water_ml > 0), action: () => changeWater(250) },
-              { key: 'program', title: 'Выберите программу', hint: recommended ? 'Подобрали подходящую по анкете' : 'Готовую или свою',
+              { key: 'program', title: 'Выбери программу', hint: recommended ? 'Подобрали подходящую по анкете' : 'Готовую или свою',
                 done: programId !== null, action: () => go('workouts') },
-              { key: 'workout', title: 'Проведите первую тренировку', hint: 'Отмечайте подходы прямо во время занятия',
+              { key: 'workout', title: 'Проведи первую тренировку', hint: 'Отмечай подходы прямо во время занятия',
                 done: unlocked('first_workout') || logs.some((l) => l.completed_at), action: () => go('workouts') },
             ]} />} />
         )}
@@ -700,11 +705,11 @@ function SetlyApp() {
             setAch(a => ({ ...a, items: a.items.map(i => ({ ...i, pinned: i.code === pinned, featured: codes.includes(i.code) })) }))
           }} canEdit={canEdit} achievements={ach.items} freezes={ach.freezes}
             weightGoal={me?.target_weight_kg}
-            top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={me?.targets?.calories ?? 2000}
-              norm={week.days.filter((d) => me?.targets && Math.abs(d.kcal - me.targets.calories) <= 0.1 * me.targets.calories).length}
+            top={<>{week.days.length === 7 && <WeekCard week={week.days} goal={(me?.targets_base ?? me?.targets)?.calories ?? 2000}
+              norm={week.days.filter((d) => { const t = me?.targets_base ?? me?.targets; return t && Math.abs(d.kcal - t.calories) <= 0.1 * t.calories }).length}
               onRecap={canEdit ? () => setRecapAsked(true) : undefined} />}
               {aiEnabled && <AiSummary />}</>}
-            bodyTop={canEdit && me && <EnergyCard calories={me.targets?.calories} onNormChanged={() => {
+            bodyTop={canEdit && me && <EnergyCard calories={(me.targets_base ?? me.targets)?.calories} onNormChanged={() => {
               api<ProfileData>('/api/profile').then((p) => p && setMe(p)).catch(() => {})
             }} />}
             body={<Body measurements={canEdit ? measurements : demoMeasurements} canEdit={canEdit} hideWeight={canEdit} onSave={saveMeasurement} onDelete={deleteMeasurement} />} />
@@ -719,9 +724,10 @@ function SetlyApp() {
         )}
       </main>
       {tab !== 'workouts' && <ActiveWorkoutBar onOpen={() => go('workouts')} />}
+      {queued > 0 && tab !== 'food' && <p className="queued offline-bar" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
       {recap && week.days.length > 0 && (
         <Suspense fallback={null}>
-          <WeekRecap days={week.days} goal={me?.targets?.calories ?? 2000} streak={week.streak} weightDelta={weekWeightDelta(measurements)}
+          <WeekRecap days={week.days} goal={(me?.targets_base ?? me?.targets)?.calories ?? 2000} streak={week.streak} weightDelta={weekWeightDelta(measurements)}
             onClose={() => { markRecapSeen(); setRecapClosed(true); setRecapAsked(false) }} />
         </Suspense>
       )}
@@ -738,14 +744,14 @@ function SetlyApp() {
       {toast && (
         <div className={toast.undo ? 'toast toast-undo' : 'toast'} role="status" key={toast.id}>
           <span>{toast.text}</span>
-          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не получилось отменить — попробуйте ещё раз')) }}>Отменить</button>}
+          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не получилось отменить — попробуй ещё раз')) }}>Отменить</button>}
         </div>
       )}
       {xpFloat && <div className="xp-float" key={xpFloat.id} aria-hidden="true" onAnimationEnd={() => setXpFloat(null)}>+{xpFloat.n} XP</div>}
       {party > 0 && <Confetti key={party} />}
       {storyOffer && canEdit && canStory() && (
         <Sheet title="Неделя для истории" onClose={() => setStoryOffer(false)}>
-          <p className="sub">Карточка с вашей серией, XP и тренировками за неделю — с вашей ссылкой-приглашением в подписи.</p>
+          <p className="sub">Карточка с твоей серией, XP и тренировками за неделю — с твоей ссылкой-приглашением в подписи.</p>
           <button className="btn" onClick={() => { setStoryOffer(false); shareStory({ kind: 'week' }).catch(() => flash('Не получилось открыть истории')) }}>Опубликовать в истории</button>
         </Sheet>
       )}

@@ -25,7 +25,7 @@ from backend.database.models import (
     User,
     WorkoutLog,
 )
-from backend.database.rewards import award_xp
+from backend.database.rewards import settle_meal_xp
 
 router = APIRouter(prefix="/api/ai")
 
@@ -46,7 +46,7 @@ def day_start(d: date) -> datetime:
 async def use_quota(session: AsyncSession, user: User, kind: str) -> None:
     """Count the request against the daily limit before calling the paid API."""
     if not settings.anthropic_api_key:
-        raise HTTPException(503, "AI не настроен: добавьте ANTHROPIC_API_KEY в .env")
+        raise HTTPException(503, "AI не настроен: добавь ANTHROPIC_API_KEY в .env")
     used = await session.scalar(
         select(func.count(AiRequest.id)).where(
             AiRequest.user_id == user.id, AiRequest.created_at >= day_start(clock.today())
@@ -70,7 +70,7 @@ MEAL_SYSTEM = """Ты помощник дневника питания. Разб
 - Если подходящего продукта в каталоге нет — catalog_id = null, дай короткое название и свою оценку КБЖУ на 100 г.
 - Массу оценивай реалистично: «тарелка супа» ≈ 300 г, «яйцо» ≈ 55 г, «кусок хлеба» ≈ 30 г, «ложка масла» ≈ 10 г.
 - Не выдумывай продукты, которых нет в описании/на фото. Если на фото не еда или ничего не понять — верни пустой список и объясни в note.
-- note — одна короткая фраза по-русски, только если есть важная неопределённость. Иначе пусто."""
+- note — одна короткая фраза по-русски, обращение на «ты», только если есть важная неопределённость. Иначе пусто."""
 
 MEAL_TOOL = {
     "name": "record_meal",
@@ -239,7 +239,7 @@ async def confirm_meal(body: ConfirmIn, tg: dict = Depends(telegram_user), sessi
     user = await get_or_create_user(tg, session)
     logs = await save_draft(session, user, body.meal_type, body.items)
     # same key as the manual diary, so XP stays once per meal type per day
-    xp = await award_xp(session, user.id, "meal_logged", f"meal:{clock.today()}:{body.meal_type}")
+    xp = await settle_meal_xp(session, user.id, clock.today(), body.meal_type)
     return {"added": len(logs), "xp_awarded": xp}
 
 
@@ -253,7 +253,8 @@ SUMMARY_SYSTEM = """Ты доброжелательный фитнес-помо�
 - Опирайся только на переданные данные, ничего не выдумывай. Если данных почти нет — скажи об этом и предложи начать с записи приёмов пищи.
 - Тон поддерживающий, без стыда и давления. Не предлагай резких ограничений, голодания или калорийности ниже нормы из анкеты.
 - Если человек сильно недоедает несколько дней подряд — мягко напомни, что есть достаточно важно, и при сложностях стоит обратиться к врачу или диетологу.
-- Не ставь диагнозов и не давай медицинских назначений."""
+- Не ставь диагнозов и не давай медицинских назначений.
+- Обращайся к пользователю на «ты», как всё приложение."""
 
 
 async def summary_data(session: AsyncSession, user: User, period: str) -> str:
@@ -334,7 +335,7 @@ async def summary(
     except ai.AIUnavailable as e:
         raise ai_errors(e)
     if not text:
-        raise HTTPException(503, "AI вернул пустой ответ, попробуйте ещё раз")
+        raise HTTPException(503, "AI вернул пустой ответ, попробуй ещё раз")
     row = (await session.execute(
         insert(AiSummary).values(user_id=user.id, period=period, day=today, text=text)
         .on_conflict_do_update(index_elements=["user_id", "period", "day"], set_={"text": text, "created_at": func.now()})
@@ -409,7 +410,7 @@ async def read_label(
     except ai.AIUnavailable as e:
         raise ai_errors(e)
     if not raw.get("found"):
-        return {"found": False, "note": str(raw.get("note") or "Не удалось прочитать таблицу пищевой ценности — снимите её ближе и ровнее.")}
+        return {"found": False, "note": str(raw.get("note") or "Не удалось прочитать таблицу пищевой ценности — сними её ближе и ровнее.")}
     out = {k: round(clamp(raw.get(f"{k}_100g", 0), 0, hi), 1) for k, hi in (("kcal", 900), ("protein", 100), ("fat", 100), ("carbs", 100))}
     net = clamp(raw.get("net_amount") or 0, 0, 5000)
     pieces = int(clamp(raw.get("pieces") or 0, 0, 100))
@@ -422,14 +423,16 @@ async def read_label(
 # ---- Restaurant menu / delivery-app dish card ----
 
 MENU_SYSTEM = """Ты читаешь фото меню ресторана, карточки блюда в приложении доставки или упаковки готовой еды.
-Перепиши блюда, для которых на фото напечатана пищевая ценность.
+Перепиши блюда из меню.
 Правила:
-- Только напечатанные числа, ничего не оценивай «на глаз». Блюдо без КБЖУ на фото — пропусти.
-- Нужны значения на 100 г. Если КБЖУ даны на порцию и вес порции напечатан — пересчитай на 100 г. Если вес порции не указан — пропусти блюдо.
-- portion_g — вес порции/выход, если он напечатан, иначе null. portion_name — «порция», «пицца», «кусок», «шт» и т. п.
+- Если пищевая ценность напечатана — бери только напечатанные числа, estimated=false.
+- Если КБЖУ не напечатано (обычное меню ресторана) — оцени по типичному рецепту и обычной порции этого блюда, estimated=true.
+  Блюда, которые не понять по названию, пропусти. Напитки без калорий (вода, чай, кофе без молока) пропусти.
+- Нужны значения на 100 г. Если КБЖУ даны на порцию и вес порции напечатан — пересчитай на 100 г.
+- portion_g — вес порции/выход: напечатанный, а для оценки — типичный вес порции. portion_name — «порция», «пицца», «кусок», «шт» и т. п.
 - Название — как в меню, с размером если он есть («Пепперони 30 см»).
 - venue — название заведения или бренда, если оно видно на фото (логотип, шапка меню, заголовок приложения), иначе пустая строка.
-- Если ни у одного блюда нет КБЖУ — пустой список и объясни в note, что снять (например, раскрыть «Пищевая ценность» в карточке)."""
+- Если на фото нет меню и блюд — пустой список и объясни в note, что снять. Обращайся к пользователю на «ты»."""
 
 MENU_TOOL = {
     "name": "menu_dishes",
@@ -450,8 +453,9 @@ MENU_TOOL = {
                         "protein_100g": {"type": "number"},
                         "fat_100g": {"type": "number"},
                         "carbs_100g": {"type": "number"},
+                        "estimated": {"type": "boolean"},
                     },
-                    "required": ["name", "portion_g", "portion_name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g"],
+                    "required": ["name", "portion_g", "portion_name", "kcal_100g", "protein_100g", "fat_100g", "carbs_100g", "estimated"],
                 },
             },
             "note": {"type": "string"},
@@ -465,15 +469,20 @@ MENU_TOOL = {
 async def read_menu(
     file: UploadFile = File(...), tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)
 ):
-    """Dishes with printed nutrition from a menu / delivery-app photo, for the user to pick and save."""
+    """Dishes from a menu / delivery-app photo, for the user to pick and save."""
     if file.content_type not in IMAGE_TYPES:
         raise HTTPException(415, "Нужна фотография (JPEG, PNG или WebP)")
     data = await file.read(MAX_IMAGE_BYTES + 1)
     if len(data) > MAX_IMAGE_BYTES:
         raise HTTPException(413, "Фото слишком большое (до 6 МБ)")
     user = await get_or_create_user(tg, session)
-    await use_quota(session, user, "menu")
     image = {"type": "image", "source": {"type": "base64", "media_type": file.content_type, "data": base64.b64encode(data).decode()}}
+    return await menu_dishes(session, user, image)
+
+
+async def menu_dishes(session: AsyncSession, user: User, image: dict) -> dict:
+    """The menu read by AI (printed values, or estimates marked `estimated`). Shared with the bot's menu advice."""
+    await use_quota(session, user, "menu")
     try:
         raw = await ai.call_tool(MENU_SYSTEM, [image, {"type": "text", "text": "Перепиши блюда с КБЖУ."}], MENU_TOOL, 3000)
     except ai.AIUnavailable as e:
@@ -492,6 +501,7 @@ async def read_menu(
             "protein_g": macros["protein"], "fat_g": macros["fat"], "carbs_g": macros["carbs"],
             "portion_g": clamp(portion, 1, 3000) if isinstance(portion, (int, float)) and portion > 0 else None,
             "portion_name": (str(it.get("portion_name") or "").strip() or "порция")[:40],
+            "estimated": bool(it.get("estimated")),
         })
     return {"venue": str(raw.get("venue") or "").strip()[:100], "items": items, "note": str(raw.get("note") or "")}
 

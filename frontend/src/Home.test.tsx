@@ -14,11 +14,11 @@ test('summarizes food and training with direct actions', () => {
     onFood={onFood} onNutrition={onNutrition} onWorkouts={onWorkouts} onWater={() => {}} />)
   const nutrition = screen.getByRole('button', { name: /Питание/ })
   expect(nutrition.textContent).toContain('800')
-  expect(screen.getByRole('button', { name: /Выберите программу/ })).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Выбери программу/ })).toBeTruthy()
   expect(screen.queryByText('Белки')).toBeNull()
   fireEvent.click(nutrition)
   expect(onNutrition).toHaveBeenCalledOnce()
-  fireEvent.click(screen.getByRole('button', { name: /Выберите программу/ }))
+  fireEvent.click(screen.getByRole('button', { name: /Выбери программу/ }))
   expect(onWorkouts).toHaveBeenCalledOnce()
   expect(screen.queryByText('Неделя')).toBeNull() // moved to Прогресс
 })
@@ -54,14 +54,14 @@ test('shows the x2 XP booster after a duel win', () => {
 test('first steps: shows progress, runs a step, collapses to a bar and reopens', () => {
   const water = vi.fn()
   const steps = [
-    { key: 'meal', title: 'Запишите, что съели', hint: '', done: true, action: vi.fn() },
-    { key: 'water', title: 'Отметьте стакан воды', hint: 'Нажмите — добавим 250 мл', done: false, action: water },
-    { key: 'program', title: 'Выберите программу', hint: '', done: false, action: vi.fn() },
+    { key: 'meal', title: 'Запиши, что съел', hint: '', done: true, action: vi.fn() },
+    { key: 'water', title: 'Отметь стакан воды', hint: 'Нажми — добавим 250 мл', done: false, action: water },
+    { key: 'program', title: 'Выбери программу', hint: '', done: false, action: vi.fn() },
   ]
   render(<FirstSteps steps={steps} />)
   expect(screen.getByText('1 из 3')).toBeTruthy()
-  expect((screen.getByRole('button', { name: 'Запишите, что съели — сделано' }) as HTMLButtonElement).disabled).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: 'Отметьте стакан воды' }))
+  expect((screen.getByRole('button', { name: 'Запиши, что съел — сделано' }) as HTMLButtonElement).disabled).toBe(true)
+  fireEvent.click(screen.getByRole('button', { name: 'Отметь стакан воды' }))
   expect(water).toHaveBeenCalled()
   fireEvent.click(screen.getByRole('button', { name: 'Свернуть' }))
   expect(screen.queryByLabelText('Первые шаги')).toBeNull()

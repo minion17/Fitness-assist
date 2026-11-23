@@ -267,9 +267,9 @@ test('AI errors are shown in plain words', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Получить итог дня' }))
   expect((await screen.findByRole('alert')).textContent).toMatch('Лимит AI-запросов')
 
-  apiMock.mockResolvedValueOnce({ text: 'Сегодня 1650 ккал из 2354.\nСовет: добавьте белка на ужин.', created_at: '', cached: false })
+  apiMock.mockResolvedValueOnce({ text: 'Сегодня 1650 ккал из 2354.\nСовет: добавь белка на ужин.', created_at: '', cached: false })
   fireEvent.click(screen.getByRole('button', { name: 'Получить итог дня' }))
-  expect(await screen.findByText(/Совет: добавьте белка/)).toBeTruthy()
+  expect(await screen.findByText(/Совет: добавь белка/)).toBeTruthy()
   expect(apiMock.mock.calls[1][0]).toBe('/api/ai/summary?period=day')
   fireEvent.click(screen.getByRole('button', { name: 'Обновить' }))
   await waitFor(() => expect(apiMock.mock.calls[2]?.[0]).toBe('/api/ai/summary?period=day&refresh=true'))
@@ -422,7 +422,7 @@ test('friends: leaderboard, accept an incoming duel, challenge a friend', async 
   apiMock.mockImplementation(async (path: string) => (path === '/api/friends' ? { invite_link: 'https://t.me/b?start=fx', board } : path === '/api/duels' ? duels : { ok: true }))
   render(<Friends />)
   expect(await screen.findByText('Рейтинг недели')).toBeTruthy()
-  expect(screen.getByText('Вы')).toBeTruthy()
+  expect(screen.getByText('Ты')).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Вызвать Борис на дуэль' })).toBeNull() // a duel with Борис is already open
   expect(screen.queryByRole('button', { name: 'Вызвать Гоша на дуэль' })).toBeNull() // no profile yet: no duels
   expect(screen.getByText('без анкеты')).toBeTruthy()
@@ -440,8 +440,8 @@ test('friends: leaderboard, accept an incoming duel, challenge a friend', async 
 
 test('weekly tasks: one row on Home that opens the list', () => {
   render(<Quests week={{ days_left: 3, bonus: 50, xp_awarded: 0, items: [
-    { code: 'diary_days', title: 'Ведите дневник питания 5 дн.', progress: 5, target: 5, xp: 50, done: true },
-    { code: 'workouts', title: 'Проведите 3 тренировки', progress: 1, target: 3, xp: 80, done: false },
+    { code: 'diary_days', title: 'Веди дневник питания 5 дн.', progress: 5, target: 5, xp: 50, done: true },
+    { code: 'workouts', title: 'Проведи 3 тренировки', progress: 1, target: 3, xp: 80, done: false },
   ] }} />)
   expect(screen.getByText('Задания недели · 1 из 2')).toBeTruthy()
   expect(screen.getByText('ещё 3 дня · все три — ещё +50 XP')).toBeTruthy()
@@ -498,14 +498,25 @@ test('habits: one tap ticks today, a server error puts it back', async () => {
   fireEvent.click(screen.getByRole('button', { name: /Привычки/ }))
   fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
   expect(onChange).toHaveBeenNthCalledWith(1, [{ ...sleep, done: true }]) // instantly, before the server answers
-  expect(apiMock).toHaveBeenCalledWith('/api/habits/1/check', expect.objectContaining({ body: JSON.stringify({ done: true }) }))
+  expect(apiMock).toHaveBeenCalledWith('/api/habits/1/check', expect.objectContaining({ body: JSON.stringify({ done: true, day: new Date().toLocaleDateString('sv') }) }))
   await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([{ ...sleep, done: true, streak: 4 }]))
 
   onChange.mockReset()
-  apiMock.mockRejectedValueOnce(new ApiError(500, 'Нет связи'))
+  apiMock.mockRejectedValueOnce(new ApiError(500, 'Сервер упал'))
   fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
   await waitFor(() => expect(onChange).toHaveBeenLastCalledWith([sleep]))
-  expect((await screen.findByRole('alert')).textContent).toBe('Нет связи')
+  expect((await screen.findByRole('alert')).textContent).toBe('Сервер упал')
+
+  // no connection at all: the tick stays and waits in the offline queue
+  onChange.mockReset()
+  const onQueued = vi.fn()
+  localStorage.removeItem('setly-offline-queue')
+  apiMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+  render(<Habits habits={[{ ...sleep, title: 'Растяжка', id: 5 }]} onChange={onChange} onQueued={onQueued} />)
+  fireEvent.click(screen.getByRole('button', { name: /Растяжка/ }))
+  await waitFor(() => expect(onQueued).toHaveBeenCalled())
+  expect(onChange).toHaveBeenCalledTimes(1) // only the instant tick, not taken back
+  expect(JSON.parse(localStorage.getItem('setly-offline-queue')!)[0].path).toBe('/api/habits/5/check')
 })
 
 test('habits: empty list offers to set them up with presets', async () => {
@@ -670,12 +681,14 @@ test('recipe: per 100 g from ingredients and the cooked weight, saved to the API
 test('real expenditure: shows the estimate, the forecast and applies the suggested norm', async () => {
   const { default: EnergyCard } = await import('./Energy')
   const e = { ready: true, formula: 2400, days_logged: 21, weighins: 5, need_days: 10, need_weighins: 3, target_weight_kg: 75, kcal_override: null,
-    goal: 'weight_loss', tdee: 2550, intake: 2000, kg_per_week: -0.5, suggest: 2000, weight: 78.5, in_30_days: 76.4, eta: '2027-03-01', plateau: true }
+    goal: 'weight_loss', tdee: 2550, intake: 2000, kg_per_week: -0.5, suggest: 2000, weight: 78.5, in_30_days: 76.4, eta: '2027-03-01', plateau: true,
+    plateau_tips: ['Норму ты держишь, а вес стоит — значит, реальный расход ниже расчёта. Снизь норму до 1750 ккал.'], plateau_kcal: 1750 }
   apiMock.mockImplementation(async (url: string) => (url === '/api/insights/energy' ? e : {}))
   const onNorm = vi.fn()
   render(<EnergyCard calories={1900} onNormChanged={onNorm} />)
   expect(await screen.findByText(/2 550|2 550/)).toBeTruthy()
   expect(screen.getByText(/Вес стоит две недели/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Сделать норму 1.750 ккал/ })).toBeTruthy() // the plateau's own step
   expect(screen.getByText(/к 1 марта/)).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: /Сделать норму 2.000 ккал/ }))
   await waitFor(() => expect(onNorm).toHaveBeenCalled())
@@ -696,7 +709,7 @@ test('progression: add weight only when every set reached the top of the plan', 
 test('challenges: accept an invitation, tick today', async () => {
   const { default: Challenges } = await import('./Challenges')
   const ch = { id: 5, title: 'Без сладкого', emoji: '🍬', days: 7, day: 2, end_day: '', finished: false, mine: false, invited: true,
-    members: [{ name: 'Аня', me: false, joined: true, done: 2, today: true }, { name: 'Вы', me: true, joined: false, done: 0, today: false }] }
+    members: [{ name: 'Аня', me: false, joined: true, done: 2, today: true }, { name: 'Ты', me: true, joined: false, done: 0, today: false }] }
   let state = ch
   apiMock.mockImplementation(async (url: string) => {
     if (url.endsWith('/join')) state = { ...ch, invited: false, members: ch.members.map((m) => (m.me ? { ...m, joined: true } : m)) }
@@ -802,7 +815,7 @@ test('home: hide and reorder the blocks, kept on the phone', async () => {
     habits: <div>Блок привычек</div>, quests: <div>Блок заданий</div>, weight: <div>Блок веса</div> }
   const { unmount } = render(<Home {...props} />)
   const order = () => [...document.querySelectorAll('.home-rows > *')].map((e) => e.textContent?.slice(0, 12))
-  expect(order()).toEqual(['Выберите про', 'Блок привыче', 'Блок заданий'])
+  expect(order()).toEqual(['Выбери прогр', 'Блок привыче', 'Блок заданий'])
   fireEvent.click(screen.getByRole('button', { name: '⚙ Настроить главный экран' }))
   fireEvent.click(screen.getByRole('button', { name: 'Задания недели: выше' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Тренировка на сегодня' }))
@@ -821,7 +834,7 @@ test('home: hide and reorder the blocks, kept on the phone', async () => {
 
 test('library: tap a muscle on the map, open an exercise; build a workout for chosen muscles and save it', async () => {
   const { default: Library } = await import('./Library')
-  const ex = (id: number, name: string, primary: string[], extra = {}) => ({ id, name, equipment: [], difficulty: 'beginner', description: 'Лягте на скамью. Опустите штангу к груди. Выжмите вверх.', is_bodyweight: false,
+  const ex = (id: number, name: string, primary: string[], extra = {}) => ({ id, name, equipment: [], difficulty: 'beginner', description: 'Ляг на скамью. Опусти штангу к груди. Выжми вверх.', is_bodyweight: false,
     primary, secondary: ['triceps'], images: [], category: 'strength', mechanic: 'compound', ...extra })
   const list = [
     ex(1, 'Жим штанги лёжа', ['chest'], { equipment: ['Штанга', 'Скамья'], images: ['Barbell_Bench/0.jpg', 'Barbell_Bench/1.jpg'] }),
@@ -852,7 +865,7 @@ test('library: tap a muscle on the map, open an exercise; build a workout for ch
   fireEvent.click(screen.getByRole('button', { name: /Жим штанги лёжа/ }))
   const card = screen.getByRole('dialog', { name: 'Жим штанги лёжа' })
   expect(within(card).getAllByRole('img')[0].getAttribute('src')).toBe('/api/exercise-image/Barbell_Bench/0.webp')
-  expect(within(card).getByText('Выжмите вверх.')).toBeTruthy() // technique as steps
+  expect(within(card).getByText('Выжми вверх.')).toBeTruthy() // technique as steps
   fireEvent.keyDown(window, { key: 'Escape' })
   unmount()
 

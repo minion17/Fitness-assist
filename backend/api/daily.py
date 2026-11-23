@@ -9,8 +9,8 @@ from sqlalchemy.dialects.postgresql import insert
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FoodLog, FrozenDay, HabitCheck, Outbox, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
-from backend.database.rewards import award_xp, sync_evolution
+from backend.database.models import DailyCheckin, FoodLog, FrozenDay, HabitCheck, Outbox, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
+from backend.database.rewards import award_xp, revoke_xp, sync_evolution
 
 router = APIRouter(prefix="/api")
 GLASS_ML = 250
@@ -38,12 +38,13 @@ async def get_water(tg: dict = Depends(telegram_user), session: AsyncSession = D
 
 class WaterIn(BaseModel):
     delta_ml: int = Field(ge=-1000, le=1000)  # +250 a glass, -250 to undo
+    day: date | None = None  # a glass logged offline goes to the day it was drunk (today or yesterday)
 
 
 @router.post("/water")
 async def add_water(body: WaterIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
-    today = clock.today()
+    today = clock.recent_day(body.day)
     # atomic upsert so two quick taps can't lose a glass; result clamped to 0..MAX_ML
     ml = await session.scalar(
         insert(WaterIntake)
@@ -56,7 +57,11 @@ async def add_water(body: WaterIn, tg: dict = Depends(telegram_user), session: A
     )
     await session.commit()
     goal = water_goal(await session.get(Profile, user.id))
-    xp = await award_xp(session, user.id, "water_goal", f"water:{today}") if ml >= goal else 0
+    if ml >= goal:
+        xp = await award_xp(session, user.id, "water_goal", f"water:{today}")
+    else:  # poured back below the goal: "+3 l, undo" doesn't pay
+        xp = 0
+        await revoke_xp(session, user.id, f"water:{today}", commit=False)
     await sync_evolution(session, user.id, "like_water")
     await session.commit()
     return {"ml": ml, "goal_ml": goal, "xp_awarded": xp}
@@ -152,10 +157,11 @@ async def week(tg: dict = Depends(telegram_user), session: AsyncSession = Depend
 # ---- Reminder settings (the bot sends them, see backend/bot/reminders.py) ----
 
 HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
-REMINDER_FIELDS = ("meals", "water", "streak", "weekly", "workout", "breakfast_at", "lunch_at", "dinner_at", "streak_at", "weekly_at",
-                   "workout_at")
-REMINDER_DEFAULTS = {"meals": True, "water": True, "streak": True, "weekly": True, "workout": True, "breakfast_at": "10:00",
-                     "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00", "weekly_at": "19:00", "workout_at": "09:00"}
+REMINDER_FIELDS = ("meals", "water", "streak", "weekly", "workout", "checkin", "breakfast_at", "lunch_at", "dinner_at", "streak_at",
+                   "weekly_at", "workout_at", "checkin_at")
+REMINDER_DEFAULTS = {"meals": True, "water": True, "streak": True, "weekly": True, "workout": True, "checkin": False,
+                     "breakfast_at": "10:00", "lunch_at": "14:00", "dinner_at": "20:00", "streak_at": "21:00", "weekly_at": "19:00",
+                     "workout_at": "09:00", "checkin_at": "09:00"}
 
 
 class RemindersIn(BaseModel):
@@ -166,6 +172,8 @@ class RemindersIn(BaseModel):
     weekly_at: str = Field(default="19:00", pattern=HHMM)
     workout: bool = True  # optional: older clients don't send it
     workout_at: str = Field(default="09:00", pattern=HHMM)
+    checkin: bool = False  # optional: older clients don't send it
+    checkin_at: str = Field(default="09:00", pattern=HHMM)
     breakfast_at: str = Field(pattern=HHMM)
     lunch_at: str = Field(pattern=HHMM)
     dinner_at: str = Field(pattern=HHMM)
@@ -191,6 +199,8 @@ def next_reminder(cfg: dict, now: datetime) -> dict | None:
         times.append((cfg["streak_at"], "серия дней"))
     if cfg.get("workout", True) and now.weekday() in (cfg.get("training_days") or []):  # today is a training day
         times.append((cfg.get("workout_at") or "09:00", "тренировка"))
+    if cfg.get("checkin"):
+        times.append((cfg.get("checkin_at") or "09:00", "как спалось"))
     if not times:
         return None
     hm = now.strftime("%H:%M")
@@ -236,3 +246,73 @@ async def save_reminders(body: RemindersIn, tg: dict = Depends(telegram_user), s
     )
     await session.commit()
     return body.model_dump()
+
+
+# ---- Morning check-in: sleep and energy ----
+
+SLEEP = {1: "меньше 6 ч", 2: "6–7 ч", 3: "7–8 ч", 4: "8+ ч"}
+ENERGY = {1: "мало сил", 2: "нормально", 3: "бодро"}
+
+
+class CheckinIn(BaseModel):
+    sleep: int | None = Field(default=None, ge=1, le=4)
+    energy: int | None = Field(default=None, ge=1, le=3)
+
+
+async def save_checkin(session: AsyncSession, user, sleep: int | None, energy: int | None) -> None:
+    """Today's answers; one call may carry only one of them (the bot asks sleep, then energy)."""
+    values = {k: v for k, v in (("sleep", sleep), ("energy", energy)) if v is not None}
+    stmt = insert(DailyCheckin).values(user_id=user.id, day=clock.today(), **values)
+    await session.execute(stmt.on_conflict_do_update(index_elements=["user_id", "day"], set_=values) if values else stmt.on_conflict_do_nothing())
+    await session.commit()
+
+
+async def checkin_insight(session: AsyncSession, user) -> str | None:
+    """After a few weeks: how sleep goes with eating and training. None until both kinds of nights have 4+ days each."""
+    from backend.database.models import WorkoutSet
+
+    since = clock.today() - timedelta(days=42)
+    rows = list(await session.execute(select(DailyCheckin.day, DailyCheckin.sleep).where(
+        DailyCheckin.user_id == user.id, DailyCheckin.day >= since, DailyCheckin.day < clock.today(), DailyCheckin.sleep.is_not(None))))
+    good = {d for d, s in rows if s >= 3}
+    bad = {d for d, s in rows if s <= 2}
+    if len(good) < 4 or len(bad) < 4:
+        return None
+    kcal: dict = {}
+    for at, g, k in await session.execute(select(FoodLog.logged_at, FoodLog.amount_g, Product.kcal).join(Product, Product.id == FoodLog.product_id)
+                                          .where(FoodLog.user_id == user.id, FoodLog.logged_at >= local_start(since))):
+        d = clock.local(at).date()
+        kcal[d] = kcal.get(d, 0) + g * k / 100
+    volume: dict = {}
+    for at, w, r in await session.execute(select(WorkoutLog.started_at, WorkoutSet.weight_kg, WorkoutSet.reps)
+                                          .join(WorkoutSet, WorkoutSet.workout_log_id == WorkoutLog.id)
+                                          .where(WorkoutLog.user_id == user.id, WorkoutLog.started_at >= local_start(since))):
+        d = clock.local(at).date()
+        volume[d] = volume.get(d, 0) + (w or 0) * (r or 0)
+
+    def avg(days, data):
+        vals = [data[d] for d in days if data.get(d)]
+        return sum(vals) / len(vals) if len(vals) >= 3 else None
+
+    parts = []
+    kg, kb = avg(good, kcal), avg(bad, kcal)
+    if kg and kb and abs(kb - kg) >= 150:
+        parts.append(f"съедаешь на {round(abs(kb - kg), -1):.0f} ккал {'меньше' if kg < kb else 'больше'}")
+    vg, vb = avg(good, volume), avg(bad, volume)
+    if vg and vb and abs(vg - vb) / max(vg, vb) >= 0.1:
+        parts.append(f"поднимаешь за тренировку на {abs(round((vg - vb) / vb * 100))}% {'больше' if vg > vb else 'меньше'}")
+    return f"В дни после сна 7+ часов ты {' и '.join(parts)}." if parts else None
+
+
+@router.get("/checkin")
+async def get_checkin(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    c = await session.get(DailyCheckin, (user.id, clock.today()))
+    return {"sleep": c and c.sleep, "energy": c and c.energy, "insight": await checkin_insight(session, user)}
+
+
+@router.post("/checkin")
+async def post_checkin(body: CheckinIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    user = await get_or_create_user(tg, session)
+    await save_checkin(session, user, body.sleep, body.energy)
+    return await get_checkin(tg, session)

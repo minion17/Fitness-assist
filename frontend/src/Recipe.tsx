@@ -47,8 +47,8 @@ export default function RecipeEditor({ initial, onSaved, onCancel }: {
 
   async function save() {
     setError('')
-    if (!name.trim()) return setError('Назовите блюдо')
-    if (!ings.length) return setError('Добавьте хотя бы один продукт')
+    if (!name.trim()) return setError('Назови блюдо')
+    if (!ings.length) return setError('Добавь хотя бы один продукт')
     if (ings.some((i) => !(num(i.grams) > 0 && num(i.grams) <= 10000))) return setError('Граммы: от 1 до 10 000')
     if (cooked && !(num(cooked) > 0)) return setError('Вес готового блюда — число в граммах')
     setBusy(true)
@@ -65,7 +65,7 @@ export default function RecipeEditor({ initial, onSaved, onCancel }: {
 
   return (
     <div className="recipe">
-      <p className="sub">Соберите блюдо из продуктов — посчитаем КБЖУ на 100 г. Потом записывайте его тарелками или граммами.</p>
+      <p className="sub">Собери блюдо из продуктов — посчитаем КБЖУ на 100 г. Потом записывай его тарелками или граммами.</p>
       <label className="field"><span>Название</span>
         <div className="input-wrap"><input value={name} maxLength={120} placeholder="Например, борщ мамин" onChange={(e) => setName(e.target.value)} /></div>
       </label>
@@ -96,7 +96,7 @@ export default function RecipeEditor({ initial, onSaved, onCancel }: {
           <div className="input-wrap"><input inputMode="numeric" value={servings} placeholder="необязательно" onChange={(e) => setServings(e.target.value)} /></div>
         </label>
       </div>
-      <p className="sub">Взвесьте кастрюлю с готовым блюдом (без кастрюли) — тогда учтём выкипевшую воду.</p>
+      <p className="sub">Взвесь кастрюлю с готовым блюдом (без кастрюли) — тогда учтём выкипевшую воду.</p>
       {ings.length > 0 && weight > 0 && (
         <p className="recipe-total"><b>{Math.round(per100('kcal'))} ккал</b> на 100 г · Б {per100('protein_g').toFixed(1)} · Ж {per100('fat_g').toFixed(1)} · У {per100('carbs_g').toFixed(1)}
           {portion && <><br />Порция {portion} г — {Math.round((per100('kcal') * portion) / 100)} ккал</>}</p>

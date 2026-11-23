@@ -14,13 +14,13 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy import delete, func, or_, select
 
-from backend.api.daily import active_days, is_active, streak_state
+from backend.api.daily import active_days, streak_state
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import clock
 from backend.core.config import settings
-from backend.core.gamification import BOOST_HOURS, MAX_INVITE_REWARDS, level_progress
+from backend.core.gamification import BOOST_HOURS, BOOST_MAX_BONUS, MAX_INVITE_REWARDS, level_progress
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import Duel, Friendship, Outbox, Profile, User, WorkoutLog, WorkoutSet, XpEvent
+from backend.database.models import Cheer, Duel, Friendship, Outbox, Profile, User, WorkoutLog, WorkoutSet, XpEvent
 from backend.database.rewards import award_xp
 
 router = APIRouter(prefix="/api")
@@ -36,7 +36,9 @@ WIN_MIN = {"xp": 25, "workouts": 1}    # per 3 days: the winner must really have
 LOSER_MIN = {"xp": 10, "workouts": 0}  # ...and so must the loser (an idle fake opponent gives no reward)
 WORKOUT_MIN_SETS = 3          # a duel workout counts with 3+ sets, at most one per day
 PAIR_COOLDOWN_DAYS = 14       # one rewarded win per pair of friends per two weeks
-MAX_REWARDED_WINS_PER_WEEK = 2
+MAX_REWARDED_WINS_PER_MONTH = 2  # per winner, in 30 days: a set of second accounts can't make it a weekly income
+FRIENDS_BEFORE_DAYS = 7       # friends for a week before the duel: an account made for the duel doesn't qualify
+REAL_DAYS_BEFORE = 5          # both had 5 real days (a full diary or a workout) in the 14 days before the duel
 MAX_PENDING_CHALLENGES = 3
 
 
@@ -81,7 +83,7 @@ async def befriend(session: AsyncSession, code: str, telegram_id: int, first_nam
     session.add_all([Friendship(user_id=me.id, friend_id=inviter.id), Friendship(user_id=inviter.id, friend_id=me.id)])
     if new:  # only people who never used Setly before count as invited (no re-inviting existing friends for XP)
         me.invited_by_id = inviter.id
-    notify(session, inviter, f"🤝 {name(me)} теперь у вас в друзьях. Посмотрите рейтинг недели или вызовите на дуэль.")
+    notify(session, inviter, f"🤝 {name(me)} теперь у тебя в друзьях. Загляни в рейтинг недели или вызови на дуэль.")
     await session.commit()
     return inviter
 
@@ -108,17 +110,42 @@ async def friends(tg: dict = Depends(telegram_user), session: AsyncSession = Dep
     user = await get_or_create_user(tg, session)
     people = [user, *await friends_of(session, user)]
     xp = await week_xp(session, [u.id for u in people])
+    cheered = set(await session.scalars(select(Cheer.to_user_id).where(Cheer.from_user_id == user.id, Cheer.day == clock.today())))
     board = []
     for u in people:
         clock.use_tz(u.device_tz)  # each person's streak by their own calendar
         streak, _ = await streak_state(session, u, clock.today())
+        trained = await session.scalar(select(WorkoutLog.id).where(  # their workout today: something to cheer
+            WorkoutLog.user_id == u.id, WorkoutLog.completed_at.is_not(None), WorkoutLog.completed_at >= clock.local_start(clock.today())).limit(1))
         board.append({"id": u.id, "name": name(u), "me": u.id == user.id, "level": level_progress(u.xp)["level"],
-                      "week_xp": xp.get(u.id, 0), "streak": streak,
-                      "registered": await session.get(Profile, u.id) is not None})
+                      "week_xp": xp.get(u.id, 0), "streak": streak, "trained_today": trained is not None,
+                      "cheered": u.id in cheered, "registered": await session.get(Profile, u.id) is not None})
     clock.use_tz(user.device_tz)
     board.sort(key=lambda r: (-r["week_xp"], -r["streak"], not r["me"]))
     code, bot = await invite_code(session, user), bot_username()
-    return {"invite_link": f"https://t.me/{bot}?start=f{code}" if bot else None, "board": board}
+    return {"invite_link": f"https://t.me/{bot}?start=f{code}" if bot else None, "board": board,
+            "group_link": f"https://t.me/{bot}?startgroup=setly" if bot else None}  # add the bot to a group chat
+
+
+class CheerIn(BaseModel):
+    emoji: Literal["👏", "🔥", "💪"] = "👏"
+
+
+@router.post("/friends/{friend_id}/cheer")
+async def cheer(friend_id: int, body: CheerIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """👏 for a friend's workout: they get it in the bot. Once per friend a day, so it stays something that matters."""
+    from sqlalchemy.dialects.postgresql import insert
+
+    user = await get_or_create_user(tg, session)
+    friend = next((f for f in await friends_of(session, user) if f.id == friend_id), None)
+    if friend is None:
+        raise HTTPException(404, "Это не твой друг в Setly")
+    fresh = await session.scalar(insert(Cheer).values(from_user_id=user.id, to_user_id=friend.id, day=clock.today(), emoji=body.emoji)
+                                 .on_conflict_do_nothing().returning(Cheer.day))
+    if fresh:
+        notify(session, friend, f"{body.emoji} {name(user)} отмечает твою тренировку сегодня — так держать!")
+    await session.commit()
+    return {"ok": True, "sent": fresh is not None}
 
 
 @router.delete("/friends/{friend_id}")
@@ -133,7 +160,7 @@ async def remove_friend(friend_id: int, tg: dict = Depends(telegram_user), sessi
 
 
 async def reward_invites(session: AsyncSession) -> int:
-    """Inviters get XP once their invited friend has really used Setly: registered and active on INVITE_ACTIVE_DAYS
+    """Inviters get XP once their invited friend has really used Setly: registered and with a full diary or a workout on INVITE_ACTIVE_DAYS
     different days within INVITE_WINDOW_DAYS of joining (up to MAX_INVITE_REWARDS friends). Run by the bot."""
     since = clock.now() - timedelta(days=INVITE_WINDOW_DAYS)
     given = 0
@@ -146,7 +173,8 @@ async def reward_invites(session: AsyncSession) -> int:
         clock.use_tz(user.device_tz)
         days = await active_days(session, user, clock.local(user.created_at).date())
         clock.use_tz(None)
-        if sum(map(is_active, days.values())) < INVITE_ACTIVE_DAYS:
+        # real days, not "a glass of water" from a second account: a full diary (800+ kcal) or a workout
+        if sum(1 for v in days.values() if v["kcal"] >= 800 or v["workouts"]) < INVITE_ACTIVE_DAYS:
             continue
         inviter = await session.get(User, user.invited_by_id)
         if inviter is None or await session.scalar(
@@ -154,7 +182,7 @@ async def reward_invites(session: AsyncSession) -> int:
         ) >= MAX_INVITE_REWARDS:
             continue
         if await award_xp(session, inviter.id, "friend_invited", key):
-            notify(session, inviter, f"🎉 {name(user)} уже {INVITE_ACTIVE_DAYS} дня с Setly по вашему приглашению — +50 XP!")
+            notify(session, inviter, f"🎉 {name(user)} уже {INVITE_ACTIVE_DAYS} дня с Setly по твоему приглашению — +50 XP!")
             await session.commit()
             given += 1
     return given
@@ -163,9 +191,10 @@ async def reward_invites(session: AsyncSession) -> int:
 # ---- Duels ----
 
 async def score(session: AsyncSession, user_id: int, metric: str, start, end) -> int:
-    if metric == "xp":  # the duel bonus itself doesn't count towards other duels
+    if metric == "xp":  # the duel bonus and its boost don't count towards other duels
         q = select(func.coalesce(func.sum(XpEvent.xp), 0)).where(
-            XpEvent.user_id == user_id, XpEvent.created_at >= start, XpEvent.created_at < end, XpEvent.event_type != "duel_win")
+            XpEvent.user_id == user_id, XpEvent.created_at >= start, XpEvent.created_at < end,
+            XpEvent.event_type.not_in(("duel_win", "boost_bonus")))
     else:  # real workouts only: 3+ sets, at most one counted per day
         real = (select(WorkoutLog.completed_at).join(WorkoutSet, WorkoutSet.workout_log_id == WorkoutLog.id)
                 .where(WorkoutLog.user_id == user_id, WorkoutLog.completed_at >= start, WorkoutLog.completed_at < end)
@@ -184,14 +213,31 @@ async def no_reward_reason(session: AsyncSession, d: Duel, winner: User, loser: 
         return "для награды победителю нужно больше активности"
     if lost < LOSER_MIN[d.metric] * scale:
         return "соперник почти не участвовал"
+    since = await session.scalar(select(Friendship.created_at).where(Friendship.user_id == winner.id, Friendship.friend_id == loser.id))
+    if since is None or since > d.starts_at - timedelta(days=FRIENDS_BEFORE_DAYS):
+        return f"награда — когда вы друзья хотя бы {FRIENDS_BEFORE_DAYS} дней до дуэли"
+    for u in (winner, loser):
+        if await real_days(session, u, d.starts_at) < REAL_DAYS_BEFORE:
+            return "награда — когда оба по-настоящему пользуются Setly: дневник или тренировки хотя бы 5 дней из 14 до дуэли"
     pair = or_((Duel.challenger_id == d.challenger_id) & (Duel.opponent_id == d.opponent_id),
                (Duel.challenger_id == d.opponent_id) & (Duel.opponent_id == d.challenger_id))
     if await session.scalar(select(Duel.id).where(pair, Duel.rewarded, Duel.ends_at > d.ends_at - timedelta(days=PAIR_COOLDOWN_DAYS)).limit(1)):
         return f"с этим другом награда бывает раз в {PAIR_COOLDOWN_DAYS} дней"
     if await session.scalar(select(func.count()).where(Duel.winner_id == winner.id, Duel.rewarded,
-                                                       Duel.ends_at > d.ends_at - timedelta(days=7))) >= MAX_REWARDED_WINS_PER_WEEK:
-        return f"наград за победы — не больше {MAX_REWARDED_WINS_PER_WEEK} в неделю"
+                                                       Duel.ends_at > d.ends_at - timedelta(days=30))) >= MAX_REWARDED_WINS_PER_MONTH:
+        return f"наград за победы — не больше {MAX_REWARDED_WINS_PER_MONTH} в месяц"
     return None
+
+
+async def real_days(session: AsyncSession, user: User, before) -> int:
+    """Days in the 14 before `before` with a full diary (800+ kcal) or a completed workout, in the user's calendar."""
+    clock.use_tz(user.device_tz)
+    try:
+        end = clock.local(before).date()
+        days = await active_days(session, user, end - timedelta(days=14))
+        return sum(1 for d, v in days.items() if d < end and (v["kcal"] >= 800 or v["workouts"]))
+    finally:
+        clock.use_tz(None)
 
 
 def plural_days(n: int) -> str:
@@ -212,7 +258,7 @@ async def finish_duels(session: AsyncSession) -> int:
             d.rewarded = why is None
         for me, other, mine, theirs in ((a, b, sa, sb), (b, a, sb, sa)):
             result = ("Ничья — оба молодцы." if mine == theirs else f"В этот раз победа за {name(other)}. Реванш?" if mine < theirs
-                      else f"🏆 Победа! +40 XP и бустер ×1,5 XP на {BOOST_HOURS} часа." if d.rewarded
+                      else f"🏆 Победа! +40 XP и бустер ×1,5 XP на {BOOST_HOURS} часа (до +{BOOST_MAX_BONUS} XP)." if d.rewarded
                       else f"🏆 Победа! Без награды: {why}.")
             notify(session, me, f"⚔️ Дуэль с {name(other)} окончена: {mine} : {theirs} {METRICS[d.metric]}. {result}")
         await session.commit()
@@ -259,13 +305,13 @@ class DuelIn(BaseModel):
 async def challenge(body: DuelIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     if not await session.get(Friendship, (user.id, body.friend_id)):
-        raise HTTPException(404, "Сначала добавьте друга по ссылке")
+        raise HTTPException(404, "Сначала добавь друга по ссылке")
     if not await session.get(Profile, user.id):
-        raise HTTPException(403, "Заполните анкету, чтобы участвовать в дуэлях")
+        raise HTTPException(403, "Заполни анкету, чтобы участвовать в дуэлях")
     if not await session.get(Profile, body.friend_id):
         raise HTTPException(403, "Друг ещё не заполнил анкету — дуэли только между зарегистрированными")
     if await session.scalar(select(func.count()).where(Duel.challenger_id == user.id, Duel.status == "pending")) >= MAX_PENDING_CHALLENGES:
-        raise HTTPException(429, "Дождитесь ответа на уже отправленные вызовы")
+        raise HTTPException(429, "Дождись ответа на уже отправленные вызовы")
     pair = or_((Duel.challenger_id == user.id) & (Duel.opponent_id == body.friend_id),
                (Duel.challenger_id == body.friend_id) & (Duel.opponent_id == user.id))
     if await session.scalar(select(Duel.id).where(pair, Duel.status.in_(("pending", "active"))).limit(1)):
@@ -274,7 +320,7 @@ async def challenge(body: DuelIn, tg: dict = Depends(telegram_user), session: As
     session.add(d)
     goal = "больше XP" if body.metric == "xp" else "больше тренировок"
     notify(session, await session.get(User, body.friend_id),
-           f"⚔️ {name(user)} вызывает вас на дуэль: кто наберёт {goal} за {plural_days(body.days)}. Принять можно в приложении: Прогресс → Друзья.")
+           f"⚔️ {name(user)} вызывает тебя на дуэль: кто наберёт {goal} за {plural_days(body.days)}. Принять можно в приложении: Прогресс → Друзья.")
     await session.commit()
     return await duel_out(session, d, user)
 
@@ -310,14 +356,26 @@ async def decline(duel_id: int, tg: dict = Depends(telegram_user), session: Asyn
 
 # ---- Share: the bot sends you a card with this week's results and your invite link, ready to forward ----
 
+class ShareIn(BaseModel):
+    kind: Literal["week", "month"] = "week"
+
+
 @router.post("/share")
-async def share(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+async def share(body: ShareIn | None = None, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """The card to the chat with the bot (no Stories on desktop): the week, or the challenge of the month."""
     user = await get_or_create_user(tg, session)
-    waiting = await session.scalar(select(Outbox.id).where(Outbox.user_id == user.id, Outbox.kind == "share", Outbox.sent_at.is_(None)).limit(1))
+    kind = "month_card" if body and body.kind == "month" else "share"
+    text = "Моя неделя в Setly 💪"
+    if kind == "month_card":
+        from backend.api.monthly import days, story_numbers
+
+        m = await story_numbers(session, user)  # 404 when they aren't taking part
+        text = f"{m['emoji']} {m['title']} в Setly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
+    waiting = await session.scalar(select(Outbox.id).where(Outbox.user_id == user.id, Outbox.kind == kind, Outbox.sent_at.is_(None)).limit(1))
     if not waiting:  # a double tap doesn't send two cards
         code, bot = await invite_code(session, user), bot_username()
         link = f"\n\nПрисоединяйся: https://t.me/{bot}?start=f{code}" if bot else ""
-        notify(session, user, f"Моя неделя в Setly 💪{link}", kind="share")
+        notify(session, user, text + link, kind=kind)
         await session.commit()
     return {"ok": True}
 
@@ -345,7 +403,7 @@ _stories: dict[str, tuple[float, bytes]] = {}
 
 
 class StoryIn(BaseModel):
-    kind: Literal["week", "duel"]
+    kind: Literal["week", "duel", "month"]
     duel_id: int | None = None
 
 
@@ -359,11 +417,17 @@ async def story(body: StoryIn, tg: dict = Depends(telegram_user), session: Async
     if body.kind == "duel":
         d = await session.get(Duel, body.duel_id or 0)
         if d is None or d.status != "done" or d.winner_id != user.id:
-            raise HTTPException(404, "Это не ваша победа")
+            raise HTTPException(404, "Это не твоя победа")
         out = await duel_out(session, d, user)
         png = await asyncio.to_thread(cards.story_duel, name(user), out["rival"], out["me"], out["them"], d.metric, d.days,
                                       d.rewarded, bot, theme, user.accent)
         text = f"Победа в дуэли в Setly 🏆 {out['me']} : {out['them']}"
+    elif body.kind == "month":
+        from backend.api.monthly import days, story_numbers
+
+        m = await story_numbers(session, user)
+        png = await asyncio.to_thread(cards.story_month, name(user), m, bot, theme, user.accent)
+        text = f"{m['emoji']} {m['title']} в Setly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
     else:
         w = await week_numbers(session, user)
         png = await asyncio.to_thread(cards.story_week, name(user), w["streak"], w["week_xp"], w["workouts"], w["level"], bot,

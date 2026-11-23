@@ -73,7 +73,7 @@ async def league(tg: dict = Depends(telegram_user), session: AsyncSession = Depe
         "tier": lg.tier, "tier_name": TIERS[lg.tier], "next_tier": TIERS[lg.tier + 1] if lg.tier < len(TIERS) - 1 else None,
         "ends_at": bounds(lg.week_start)[1].isoformat(), "promote": MOVE if lg.tier < len(TIERS) - 1 else 0,
         "demote": MOVE if lg.tier > 0 and n >= MIN_TO_DEMOTE else 0,
-        "members": [{"rank": i + 1, "name": short(u) if u.id != user.id else "Вы", "xp": x, "me": u.id == user.id}
+        "members": [{"rank": i + 1, "name": short(u) if u.id != user.id else "Ты", "xp": x, "me": u.id == user.id}
                     for i, (u, x) in enumerate(rows)],
     }
 
@@ -88,12 +88,12 @@ async def finish_leagues(session: AsyncSession) -> int:
             place = f"{i + 1}-е место из {n} в лиге «{TIERS[lg.tier]}» ({x} XP)"
             if i < MOVE and lg.tier < top and x > 0:
                 u.league_tier = lg.tier + 1
-                notify(session, u, f"🏆 Неделя закончилась: {place}. Поднимаетесь в лигу «{TIERS[lg.tier + 1]}»!")
+                notify(session, u, f"🏆 Неделя закончилась: {place}. Поднимаешься в лигу «{TIERS[lg.tier + 1]}»!")
             elif n >= MIN_TO_DEMOTE and i >= n - MOVE and lg.tier > 0:
                 u.league_tier = lg.tier - 1
-                notify(session, u, f"Неделя закончилась: {place}. Опускаетесь в «{TIERS[lg.tier - 1]}» — на этой неделе можно вернуться.")
+                notify(session, u, f"Неделя закончилась: {place}. Опускаешься в «{TIERS[lg.tier - 1]}» — на этой неделе можно вернуться.")
             elif x > 0:
-                notify(session, u, f"Неделя закончилась: {place}. Остаётесь в лиге — новая неделя уже началась.")
+                notify(session, u, f"Неделя закончилась: {place}. Остаёшься в лиге — новая неделя уже началась.")
         lg.closed = True
         await session.commit()
         done += 1

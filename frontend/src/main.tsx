@@ -10,6 +10,11 @@ import { watchCrashes } from './crash'
 
 watchCrashes()
 
+// opens without a connection next time: the page and its files are kept on the phone (public/sw.js)
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}) })
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <CrashScreen>

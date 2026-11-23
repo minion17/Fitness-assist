@@ -23,13 +23,13 @@ router = APIRouter(prefix="/api")
 
 # code -> (title with {n}, reward rule, default target, counts days (target shrinks for a late start))
 QUESTS = {
-    "diary_days": ("Ведите дневник питания {n} дн.", "quest_50", 5, True),
+    "diary_days": ("Веди дневник питания {n} дн.", "quest_50", 5, True),
     "full_days": ("{n} дн. с завтраком, обедом и ужином", "quest_50", 3, True),
     "norm_days": ("{n} дн. в норме калорий (±10%)", "quest_80", 3, True),
-    "workouts": ("Проведите {n} {трениров}", "quest_80", 3, False),
-    "weigh": ("Взвесьтесь {n} {раз}", "quest_30", 2, True),
+    "workouts": ("Проведи {n} {трениров}", "quest_80", 3, False),
+    "weigh": ("Взвесься {n} {раз}", "quest_30", 2, True),
     "water_days": ("{n} дн. с нормой воды", "quest_50", 4, True),
-    "active_days": ("Отмечайте что-нибудь {n} дн. за неделю", "quest_80", 6, True),
+    "active_days": ("Отмечай что-нибудь {n} дн. за неделю", "quest_80", 6, True),
 }
 SLOTS = (("diary_days", "full_days", "norm_days"), ("workouts", "weigh"), ("water_days", "active_days"))
 

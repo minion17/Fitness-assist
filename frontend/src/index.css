@@ -1783,9 +1783,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .home-insight { margin: 4px 0 0; color: var(--accent-text); font-size: 14px; font-weight: 500; animation: fade-in .4s ease-out .2s backwards; }
 /* medals: unlocked badges on the profile card */
 .medals { display: flex; align-items: center; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--line); color: var(--muted); text-align: left; }
-.medal { width: 38px; height: 42px; display: grid; place-items: center; font-size: 19px; flex: none;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 55%, #fff 10%), color-mix(in srgb, var(--accent) 30%, var(--card-2))); }
+.medal { width: 38px; height: 38px; display: inline-grid; place-items: center; font-size: 19px; flex: none; vertical-align: middle; }
 .medals-more { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: 13px; white-space: nowrap; }
 /* the unlock ceremony: the badge lands, a light sweeps across it, rings spread */
 .reward .badge { position: relative; overflow: hidden; }
@@ -1803,7 +1801,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .achievement-art { display: block; flex: none; width: 76px; max-width: 100%; aspect-ratio: 1; object-fit: contain; }
 .achievement-art-fallback { display: grid; place-items: center; background: none; line-height: 1; }
 .achievement-art-large { width: min(200px, 45vw); }
-.medal .achievement-art { width: 28px; }
+.medal .achievement-art { width: 38px; }
 
 .achievement-art-additional {
   background-image: url('/images/achievements/additional-badges.png');
@@ -2030,7 +2028,7 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .profile-identity { padding: 16px; gap: 10px; }
 .profile-person { gap: 12px; }
 .profile-identity .avatar { width: 52px; height: 52px; font-size: 22px; }
-.profile-identity h1 { margin-bottom: 0; }
+.profile-identity h1 { margin-bottom: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .profile-identity .profile-level { padding-top: 10px; gap: 6px; }
 .profile-identity .medals { padding-top: 8px; }
 

@@ -512,7 +512,8 @@ test('habits: one tap ticks today, a server error puts it back', async () => {
   const onQueued = vi.fn()
   localStorage.removeItem('setly-offline-queue')
   apiMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
-  render(<Habits habits={[{ ...sleep, title: 'Растяжка', id: 5 }]} onChange={onChange} onQueued={onQueued} />)
+  const offline = render(<Habits habits={[{ ...sleep, title: 'Растяжка', id: 5 }]} onChange={onChange} onQueued={onQueued} />)
+  fireEvent.click(offline.container.querySelector('.habits-head')!)
   fireEvent.click(screen.getByRole('button', { name: /Растяжка/ }))
   await waitFor(() => expect(onQueued).toHaveBeenCalled())
   expect(onChange).toHaveBeenCalledTimes(1) // only the instant tick, not taken back

@@ -623,6 +623,20 @@ class Cheer(Base):
     emoji: Mapped[str] = mapped_column(String(8))
 
 
+class CoachLink(Base):
+    """A client let a coach see their diary, workouts and weight (backend.api.coach): made as an invite with a code,
+    taken by the coach through t.me/<bot>?start=c<code>; the client can end it any time."""
+    __tablename__ = "coach_links"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    client_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    coach_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)  # None: not taken yet
+    code: Mapped[str] = mapped_column(String(16), unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    summary_for: Mapped[date | None] = mapped_column(Date)  # the Monday whose weekly summary went to the coach
+
+
 class Friendship(Base):
     """Stored both ways (a->b and b->a), so "my friends" is one simple query."""
 

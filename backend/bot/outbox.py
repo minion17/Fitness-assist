@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.challenges import finish_challenges
 from backend.api.leagues import finish_leagues
+from backend.api.coach import weekly_summaries
 from backend.api.groups import group_posts
 from backend.api.monthly import finish_months
 from backend.api.social import finish_duels, name, pending_messages, reward_invites, week_numbers
@@ -160,6 +161,9 @@ async def send_pending(bot, keyboard) -> None:
                                          reply_markup=keyboard() if m.kind == "month_end" else None)
                     if m.kind == "month_card":
                         await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу или сохрани и выложи в истории.")
+                elif m.kind == "coach":  # the coach's Monday summary: opens the clients screen
+                    from backend.bot.chat import app_button, kb
+                    await bot.send_message(m.telegram_id, m.text, reply_markup=kb([app_button("📋 Мои клиенты", "open=coach")]))
                 elif m.kind == "shoptip":  # the family-plan tip: opens the saved plan
                     from backend.bot.chat import app_button, kb
                     button = app_button("🛒 Открыть рацион", "open=plan")
@@ -199,6 +203,7 @@ async def run(bot, keyboard) -> None:
                     await finish_months(session)
                     await group_posts(session)
                     await barcode_misses.weekly_report(session)
+                    await weekly_summaries(session)
             await send_pending(bot, keyboard)
         except Exception as e:
             log.warning("outbox loop failed, retrying", exc_info=True)

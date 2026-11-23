@@ -3414,3 +3414,88 @@ def test_fasting_series_counts_itself_from_the_diary(client):
     if datetime.now().hour >= 1:  # a snack at 00:xx today — outside the window: back to 0
         assert client.portal.call(seed, [0], 0) == 0
     assert User
+
+
+def test_coach_sees_clients_by_invite_only(client, monkeypatch):
+    """A client invites a coach by a link; the coach sees all clients on one screen, one in detail, gets the PDF
+    and a Monday summary; the client takes access back."""
+    import random
+    from datetime import datetime, timedelta, timezone
+
+    from sqlalchemy import select
+
+    from backend.api import coach as coach_api
+    from backend.api import social
+    from backend.database.db import SessionLocal
+    from backend.database.models import CoachLink, Outbox, User
+    from conftest import USER, make_init_data
+
+    monkeypatch.setattr(coach_api, "bot_username", lambda: "SetlyBot")
+    ids = [random.randint(7 * 10**10, 8 * 10**10) for _ in range(3)]
+    hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Тренер Иван", "Чужой"))]
+    for h in hs:
+        client.put("/api/profile", headers=h, json=PROFILE)
+    assert social  # noqa
+
+    inv = client.post("/api/coach/invite", headers=hs[0]).json()
+    assert inv["link"] == f"https://t.me/SetlyBot?start=c{inv['code']}"
+    assert client.post("/api/coach/invite", headers=hs[0]).json()["code"] == inv["code"]  # the same until taken
+    pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()
+    if pid:
+        client.post("/api/food-logs", headers=hs[0], json={"product_id": pid[0]["id"], "amount_g": 900, "meal_type": "lunch"})
+
+    async def take(who, code):
+        async with SessionLocal() as s:
+            u = await s.scalar(select(User).where(User.telegram_id == ids[who]))
+            got, said = await coach_api.accept(s, code, u)
+            return got and got.telegram_id, said
+    assert client.portal.call(take, 0, inv["code"])[1] == "Это ссылка для твоего тренера — перешли её ему."
+    got, said = client.portal.call(take, 1, inv["code"])
+    assert got == ids[0] and said.startswith("🤝 Готово: Аня теперь у тебя в клиентах")
+    assert "другой тренер" in client.portal.call(take, 2, inv["code"])[1]  # a used link can't be reused
+    assert client.portal.call(take, 2, "nope")[0] is None
+
+    assert [c["name"] for c in client.get("/api/coach/mine", headers=hs[0]).json()] == ["Тренер Иван"]
+    board = client.get("/api/coach/clients", headers=hs[1]).json()
+    assert [c["name"] for c in board] == ["Аня"] and "без тренировок" in board[0]["flags"]
+    me = board[0]["id"]
+    detail = client.get(f"/api/coach/clients/{me}", headers=hs[1]).json()
+    assert len(detail["days"]) == 14 and detail["targets"]["calories"] > 0 and detail["workouts"] == []
+    assert client.get(f"/api/coach/clients/{me}", headers=hs[2]).status_code == 404  # not their client
+    assert client.get("/api/coach/clients", headers=hs[2]).json() == []
+    assert client.post(f"/api/coach/clients/{me}/report", headers=hs[1], json={"days": 30}).json() == {"ok": True}
+
+    async def outbox(tg, kind):
+        async with SessionLocal() as s:
+            return list(await s.scalars(select(Outbox).where(Outbox.telegram_id == tg, Outbox.kind == kind)))
+    rep = client.portal.call(outbox, ids[1], "report")
+    assert len(rep) == 1 and rep[0].text == "30"  # the client's report, to the coach's chat
+
+    # Monday 09:00 in the coach's zone: one summary for all clients, once
+    class Monday(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2030, 1, 7, 9, 30, tzinfo=timezone.utc).astimezone(tz)
+    from backend.core import clock
+    monkeypatch.setattr(clock, "datetime", Monday)
+
+    async def summaries():
+        async with SessionLocal() as s:
+            return await coach_api.weekly_summaries(s)
+    client.portal.call(summaries)
+    client.portal.call(summaries)
+    sent = client.portal.call(outbox, ids[1], "coach")
+    assert len(sent) == 1 and sent[0].text.startswith("📋 Неделя твоих клиентов (1):") and "• Аня: дневник" in sent[0].text
+
+    # the client takes access back: the coach is told, the client is gone from the list
+    link_id = client.get("/api/coach/mine", headers=hs[0]).json()[0]["id"]
+    assert client.delete(f"/api/coach/links/{link_id}", headers=hs[2]).status_code == 404
+    assert client.delete(f"/api/coach/links/{link_id}", headers=hs[0]).json() == {"ok": True}
+    monkeypatch.undo()
+    assert client.get("/api/coach/clients", headers=hs[1]).json() == []
+    assert any("закрыл(а) тебе доступ" in m.text for m in client.portal.call(outbox, ids[1], "text"))
+
+    async def links():
+        async with SessionLocal() as s:
+            return await s.scalar(select(CoachLink.id).where(CoachLink.id == link_id))
+    assert client.portal.call(links) is None and timedelta

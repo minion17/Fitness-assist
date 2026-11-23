@@ -18,6 +18,7 @@ import Consent, { PrivacyCard, type ConsentState } from './Consent'
 import FeedbackCard from './Feedback'
 import EnergyCard from './Energy'
 import ReportCard from './Report'
+import { CoachAccess, CoachClients } from './Coach'
 import { canStory, shareStory } from './story'
 import WeekCard from './Week'
 import { loadSnapshot, saveSnapshot } from './snapshot'
@@ -226,7 +227,7 @@ function SetlyApp() {
   const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
   const kcalRef = useRef<number | null>(null) // last known kcal, to notice the moment the norm is reached
   // the bot's buttons open the app on a tab: ?open=workout (today's workout), ?open=food (the diary)
-  const [tab, setTab] = useState<Tab>(() => ({ workout: 'workouts', food: 'food', fasting: 'food', plan: 'food', month: 'progress' } as Record<string, Tab>)[new URLSearchParams(window.location.search).get('open') ?? ''] ?? 'home')
+  const [tab, setTab] = useState<Tab>(() => ({ workout: 'workouts', food: 'food', fasting: 'food', plan: 'food', month: 'progress', coach: 'profile' } as Record<string, Tab>)[new URLSearchParams(window.location.search).get('open') ?? ''] ?? 'home')
   const [synced, setSynced] = useState('Демо-режим')
   const [xp, setXp] = useState<Progress>(boot?.auth.progress ?? NEW_USER)
   const [boostUntil, setBoostUntil] = useState<string | null>(boot?.auth.settings.boost_until ?? null) // x2 XP after a duel win
@@ -717,7 +718,7 @@ function SetlyApp() {
         {tab === 'profile' && (
           <Profile synced={synced} progress={xp} data={me} onEdit={() => setEditing(true)} theme={theme} canEdit={canEdit}
             awards={ach.items} onAwards={() => { try { sessionStorage.setItem('setly-progress-part', 'awards') } catch { /* private mode */ } go('progress') }}
-            body={canEdit && consent && <><ReportCard /><FeedbackCard /><PrivacyCard consent={consent} onHealth={(health) => {
+            body={canEdit && consent && <><CoachClients /><CoachAccess /><ReportCard /><FeedbackCard /><PrivacyCard consent={consent} onHealth={(health) => {
               setConsent({ ...consent, health })
               if (!health && me) setMe({ ...me, allergies: [], injury: null })
             }} /></>} />

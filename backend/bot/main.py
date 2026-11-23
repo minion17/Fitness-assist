@@ -98,6 +98,14 @@ async def welcome(message: Message, command: CommandObject | None, as_new: bool 
         user, prof = await chat.me(s, message.from_user)
         if command and command.args and command.args.startswith("g"):  # "Открыть Setly" in a group chat: t.me/<bot>?start=g<code>
             group = await join_by_code(s, command.args[1:13], user)
+        if command and command.args and command.args.startswith("c"):  # a client's invite for their coach
+            from backend.api.coach import accept
+            from backend.bot.chat import app_button, kb
+
+            client, said = await accept(s, command.args[1:17], user)
+            await message.answer(said, reply_markup=kb([app_button("📋 Мои клиенты", "open=coach")]) if client else None)
+            if prof:  # a coach who already uses Setly needs no onboarding here
+                return
         day = await chat.day_greeting(s, user, prof, hello_name) if prof and not as_new else None
     theme, accent = user.theme, user.accent
     if day:

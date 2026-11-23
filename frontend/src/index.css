@@ -2153,3 +2153,16 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .share-list-to { display: flex; flex-direction: column; gap: 8px; }
 .share-list-to p { margin: 0; }
 .fasting-series { font-weight: 600; color: var(--accent-text); }
+/* coach access (Coach.tsx) */
+.coach-card, .coach-clients { display: flex; flex-direction: column; gap: 8px; }
+.coach-card h2, .coach-clients h2, .coach-card p, .coach-clients p { margin: 0; }
+.coach-client { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; border-radius: 12px; background: var(--card-2); color: var(--text); text-align: left; border: 0; width: 100%; }
+.coach-client small { color: var(--muted); font-size: 12.5px; }
+.coach-client-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.coach-flag { font-style: normal; font-size: 11px; padding: 2px 7px; border-radius: 999px; background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.coach-days { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.coach-days th { text-align: right; color: var(--muted); font-weight: 500; padding: 4px; }
+.coach-days td { text-align: right; padding: 5px 4px; border-top: 1px solid var(--line); }
+.coach-days th:first-child, .coach-days td:first-child { text-align: left; }
+.coach-days tr.coach-day-empty td { color: var(--muted); }
+.coach-detail h3 { margin: 6px 0 0; font-size: 15px; }

@@ -90,13 +90,41 @@ async def kept(session: AsyncSession, plan: FastingPlan, user_id: int) -> tuple[
     return sum(days.values()), len(days)
 
 
+SERIES_DAYS = 60
+
+
+async def series(session: AsyncSession, plan: FastingPlan, user_id: int) -> int:
+    """Days in a row eaten only inside the window, counted from the diary — no start button: yesterday and back while
+    every entry of the day was in the window, plus today if it's clean so far. A day with nothing logged ends it
+    (nothing to judge by); a meal outside the window today resets it to 0."""
+    today = clock.today()
+    days: dict = {}
+    for at in await session.scalars(select(FoodLog.logged_at).where(
+            FoodLog.user_id == user_id, FoodLog.logged_at >= clock.local_start(today - timedelta(days=SERIES_DAYS)))):
+        local = clock.local(at)
+        days[local.date()] = days.get(local.date(), True) and in_window(plan, local)
+    if days.get(today) is False:
+        return 0
+    n, d = (1 if days.get(today) else 0), today - timedelta(days=1)
+    while days.get(d):
+        n, d = n + 1, d - timedelta(days=1)
+    return n
+
+
+def series_text(n: int) -> str:
+    from backend.bot.cards import plural_days
+
+    return f"🔥 Серия в окне: {n} {plural_days(n)}" if n >= 2 else ""
+
+
 async def status(session: AsyncSession, user_id: int) -> dict:
     plan = await session.get(FastingPlan, user_id)
     if plan is None:
         return {"plan": None}
     ok, logged = await kept(session, plan, user_id)
     return {"plan": {"hours": plan.hours, "eat_from": plan.eat_from, "eat_to": eat_to(plan), "remind": plan.remind},
-            **state(plan, await last_meal(session, user_id), clock.now()), "kept": ok, "logged": logged}
+            **state(plan, await last_meal(session, user_id), clock.now()), "kept": ok, "logged": logged,
+            "series": await series(session, plan, user_id)}
 
 
 class PlanIn(BaseModel):

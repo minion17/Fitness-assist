@@ -1161,7 +1161,9 @@ async def fast_command(message: Message) -> None:
                              "окна в приложении — дальше я напомню, когда окно открывается и закрывается.",
                              reply_markup=kb([app_button("Настроить голодание", "open=fasting")]))
         return
-    await message.answer(fasting.text(plan, st), reply_markup=kb([app_button("Открыть таймер", "open=fasting")]))
+    async with SessionLocal() as session:
+        streak = fasting.series_text(await fasting.series(session, plan, user.id))
+    await message.answer(fasting.text(plan, st) + (f"\n{streak}" if streak else ""), reply_markup=kb([app_button("Открыть таймер", "open=fasting")]))
 
 
 @router.message(Command("today"))

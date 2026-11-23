@@ -3381,3 +3381,36 @@ def test_shopping_list_shared_in_family_chat(client):
         async with SessionLocal() as s:
             return (await s.get(ShoppingList, own["id"])).chat_id
     assert client.portal.call(target) == ids[1]
+
+
+def test_fasting_series_counts_itself_from_the_diary(client):
+    """Days in a row eaten inside the window, with no start button: from the diary; a meal outside it resets."""
+    from datetime import datetime, time, timedelta
+
+    from sqlalchemy import select
+
+    from backend.api import fasting
+    from backend.database.db import SessionLocal
+    from backend.database.models import FastingPlan, FoodLog, Product, User
+
+    h = new_user_headers()
+    client.put("/api/profile", headers=h, json=PROFILE)
+    client.put("/api/fasting", headers=h, json={"hours": 16, "eat_from": "12:00", "remind": False, "safe": True})
+    me = client.post("/api/auth", headers=h).json()
+
+    async def seed(days, hour):
+        async with SessionLocal() as s:
+            uid = (await s.scalars(select(FastingPlan.user_id).order_by(FastingPlan.user_id.desc()))).first()
+            p = await s.scalar(select(Product).where(Product.owner_user_id.is_(None)).limit(1))
+            for d in days:
+                at = datetime.combine(datetime.now().date() - timedelta(days=d), time(hour)).astimezone()
+                s.add(FoodLog(user_id=uid, product_id=p.id, amount_g=100, meal_type="lunch", logged_at=at))
+            await s.commit()
+            return await fasting.series(s, await s.get(FastingPlan, uid), uid)
+    assert me and client.portal.call(seed, [1, 2, 3], 13) == 3  # three days in the 12–20 window
+    assert client.portal.call(seed, [5], 13) == 3  # a gap (day 4 not logged) ends the count there
+    assert client.get("/api/fasting", headers=h).json()["series"] == 3
+    assert fasting.series_text(3) == "🔥 Серия в окне: 3 дня" and fasting.series_text(1) == ""
+    if datetime.now().hour >= 1:  # a snack at 00:xx today — outside the window: back to 0
+        assert client.portal.call(seed, [0], 0) == 0
+    assert User

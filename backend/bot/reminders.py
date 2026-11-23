@@ -247,7 +247,8 @@ async def fasting_reminders(session, user: User, plan: FastingPlan, now: datetim
     if due(plan.eat_from, now):
         st = fasting.state(plan, await fasting.last_meal(session, user.id), now)
         out.append((f"{today}:fast_open", f"🍽 Окно питания открылось (до {fasting.eat_to(plan)}). "
-                    + (f"Голод {st['fasted_h']:g} ч позади. " if st["fasted_h"] >= 10 else "") + "Начни с белка.",
+                    + (f"Голод {st['fasted_h']:g} ч позади. " if st["fasted_h"] >= 10 else "") + "Начни с белка."
+                    + (f"\n{s}" if (s := fasting.series_text(await fasting.series(session, plan, user.id))) else ""),
                     NO_CARD, [("🍽 Что поесть?", "cb:eat")]))
     close = (datetime.strptime(fasting.eat_to(plan), "%H:%M") - timedelta(minutes=30)).strftime("%H:%M")
     if due(close, now):

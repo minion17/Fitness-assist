@@ -2,10 +2,11 @@
 // On Home only the timer (when a plan exists); in Food the timer plus the setup. The norm itself doesn't change.
 import { useEffect, useState } from 'react'
 import { haptic } from './haptics'
+import { plural } from './plural'
 import { api, putJson } from './telegram'
 
 type Plan = { hours: number; eat_from: string; eat_to: string; remind: boolean }
-type Status = { plan: null } | { plan: Plan; fast_start: string; kept: number; logged: number }
+type Status = { plan: null } | { plan: Plan; fast_start: string; kept: number; logged: number; series?: number }
 const PROTOCOLS: [number, string][] = [[12, 'мягкий старт'], [14, 'золотая середина'], [16, 'самая популярная'], [18, 'для опытных']]
 
 const mins = (hhmm: string) => { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m }
@@ -61,6 +62,7 @@ export default function Fasting({ home = false, protein, refresh = 0 }: { home?:
           : done ? `Цель достигнута 🎉 Окно откроется в ${plan.eat_from}.`
           : `Окно откроется в ${plan.eat_from}, через ${dur(until(plan.eat_from, now))}. Вода, чай и кофе без сахара — можно.`}</p>
       </>}
+      {(s.series ?? 0) >= 2 && <p className="fasting-series">🔥 Серия в окне: {s.series} {plural(s.series!, 'день', 'дня', 'дней')} — считается сама по дневнику</p>}
       {!home && s.logged > 0 && <p className="sub">За неделю в окне: {s.kept} из {s.logged} дн.</p>}
     </section>
   )

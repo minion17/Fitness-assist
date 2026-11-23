@@ -2152,3 +2152,4 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .share-list, .share-list-to { margin-top: 10px; }
 .share-list-to { display: flex; flex-direction: column; gap: 8px; }
 .share-list-to p { margin: 0; }
+.fasting-series { font-weight: 600; color: var(--accent-text); }

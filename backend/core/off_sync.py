@@ -1,4 +1,4 @@
-"""Bulk copy of Russian products from Open Food Facts (open data, ODbL) into the shared catalog.
+"""Bulk copy of Russian (and Belarusian, Kazakh) products from Open Food Facts (open data, ODbL) into the shared catalog.
 
 Runs inside the API process in the background: a page every few seconds (OFF limits search to ~10 requests
 a minute), progress kept in .off_sync so a restart continues where it stopped; a full pass is repeated monthly
@@ -70,19 +70,29 @@ async def save(batch: list[dict]) -> int:
     return added
 
 
+# Russia first; Belarusian and Kazakh goods are on every Russian shelf too
+COUNTRIES = ("russia", "belarus", "kazakhstan")
+
+
 async def run() -> None:
     state = load_state()
     if state.get("v") != VERSION:
         state = {"v": VERSION}
+    # a state from before the country list: Russia was the whole pass, so it's done if that pass was
+    done_countries = state.get("countries", ["russia"] if state.get("done_at") else [])
+    todo = [c for c in COUNTRIES if c not in done_countries]
     done = state.get("done_at")
-    if done and datetime.fromisoformat(done) > datetime.now(timezone.utc) - timedelta(days=REPEAT_DAYS):
-        return
-    page, total = state.get("page", 1), state.get("added", 0)
-    log.info("Open Food Facts: загружаю российские товары, с страницы %s", page)
+    if not todo:
+        if done and datetime.fromisoformat(done) > datetime.now(timezone.utc) - timedelta(days=REPEAT_DAYS):
+            return
+        done_countries, todo, state = [], list(COUNTRIES), {"v": VERSION}  # a new monthly pass
+    country = todo[0]
+    page, total = state.get("page", 1) if state.get("country") == country else 1, state.get("added", 0)
+    log.info("Open Food Facts: загружаю товары (%s), с страницы %s", country, page)
     async with httpx.AsyncClient(timeout=60, headers=HEADERS) as c:
         while True:
             try:
-                r = await c.get(URL, params={"countries_tags_en": "russia", "fields": FIELDS,
+                r = await c.get(URL, params={"countries_tags_en": country, "fields": FIELDS,
                                              "page_size": PAGE_SIZE, "page": page, "sort_by": "unique_scans_n"})
                 r.raise_for_status()
                 products = r.json().get("products") or []
@@ -91,12 +101,20 @@ async def run() -> None:
                 await asyncio.sleep(300)
                 continue
             if not products:
-                save_state({"v": VERSION, "page": 1, "added": 0, "done_at": datetime.now(timezone.utc).isoformat(), "last_total": total})
-                log.info("Open Food Facts: готово, добавлено %s товаров", total)
-                return
+                done_countries = [*done_countries, country]
+                rest = [x for x in COUNTRIES if x not in done_countries]
+                if not rest:
+                    save_state({"v": VERSION, "countries": done_countries, "added": 0,
+                                "done_at": datetime.now(timezone.utc).isoformat(), "last_total": total})
+                    log.info("Open Food Facts: готово, добавлено %s товаров", total)
+                    return
+                country, page = rest[0], 1
+                save_state({"v": VERSION, "countries": done_countries, "country": country, "page": 1, "added": total})
+                log.info("Open Food Facts: дальше — %s", country)
+                continue
             total += await save(rows(products))
             page += 1
-            save_state({"v": VERSION, "page": page, "added": total})
+            save_state({"v": VERSION, "countries": done_countries, "country": country, "page": page, "added": total})
             await asyncio.sleep(PAUSE)
 
 

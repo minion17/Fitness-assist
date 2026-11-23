@@ -8,7 +8,7 @@ import re
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import delete, distinct, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
@@ -18,7 +18,7 @@ from backend.api.deps import get_or_create_user, telegram_user
 from backend.core import off
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import FavoriteProduct, FoodLog, Product, User, UserBarcode
+from backend.database.models import BarcodeMiss, FavoriteProduct, FoodLog, Product, ProductCheck, User, UserBarcode
 from backend.database.rewards import award_xp
 from backend.api.social import notify
 
@@ -39,6 +39,7 @@ def product_out(p: Product) -> dict:
         "kcal": p.kcal, "protein_g": p.protein_g, "fat_g": p.fat_g, "carbs_g": p.carbs_g,
         "portion_g": p.portion_g, "portion_name": p.portion_name,
         "piece_g": p.piece_g, "piece_name": p.piece_name, "ml_g": ml_g, "tbsp_g": p.tbsp_g or (round(15 * ml_g, 1) if ml_g else None),
+        "barcode": p.barcode, "unverified": bool(p.unverified),
     }
 
 
@@ -159,7 +160,7 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
     product = await session.scalar(select(Product).where(Product.barcode == code)) or await session.scalar(
         select(Product).join(UserBarcode, UserBarcode.product_id == Product.id)
         .where(UserBarcode.user_id == user.id, UserBarcode.barcode == code)
-    )
+    ) or await attached(session, code)
     if product:
         return product_out(product)
     try:
@@ -168,7 +169,11 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
         log.warning("Open Food Facts lookup failed for %s: %s", code, e)
         raise HTTPException(503, "Не удалось проверить штрихкод — попробуй позже или добавь продукт вручную")
     if found is None:
+        await session.execute(insert(BarcodeMiss).values(barcode=code).on_conflict_do_update(
+            index_elements=["barcode"], set_={"scans": BarcodeMiss.scans + 1, "last_at": func.now()}))
+        await session.commit()
         raise HTTPException(404, "Товар не найден — добавь его вручную, это займёт минуту")
+    await session.execute(delete(BarcodeMiss).where(BarcodeMiss.barcode == code))
     product = Product(barcode=code, category="Из штрихкода", **found)
     session.add(product)
     try:
@@ -201,6 +206,58 @@ class ProductIn(BaseModel):
 # A user's product joins the shared catalog once this many different people entered the same thing with the same
 # numbers. Only branded items (brand/restaurant) or barcodes: "домашний сырник" differs from kitchen to kitchen.
 CONFIRMATIONS = 3
+# A barcode product is shown to everyone from its first author (marked "не проверен"); this many other people make it
+# checked: by "Всё верно" or by entering the same numbers — or replace its numbers by agreeing on other ones.
+VERIFY = 2
+# A barcode tied to an existing catalog product ("Найти по названию") counts for everyone from this many people.
+ATTACH_CONFIRMATIONS = 2
+
+
+def plausible(p) -> bool:
+    """The numbers add up: kcal ≈ 4·protein + 9·fat + 4·carbs (fibre, sugar alcohols and rounding allow a margin)."""
+    est = 4 * p.protein_g + 9 * p.fat_g + 4 * p.carbs_g
+    return abs(p.kcal - est) <= max(25, 0.2 * max(est, p.kcal))
+
+
+async def attached(session: AsyncSession, code: str) -> Product | None:
+    """A catalog product enough people tied this barcode to."""
+    return await session.scalar(
+        select(Product).join(UserBarcode, UserBarcode.product_id == Product.id)
+        .where(UserBarcode.barcode == code, Product.owner_user_id.is_(None))
+        .group_by(Product.id).having(func.count(distinct(UserBarcode.user_id)) >= ATTACH_CONFIRMATIONS)
+        .order_by(func.count(distinct(UserBarcode.user_id)).desc()).limit(1))
+
+
+async def review(session: AsyncSession, shared: Product) -> bool:
+    """An unverified barcode product: checked once VERIFY other people confirmed it ("Всё верно" or the same numbers);
+    corrected once VERIFY people agree on other numbers. XP to whoever's numbers stood. True if it's checked now."""
+    peers = [p for p in await session.scalars(
+        select(Product).join(UserBarcode, UserBarcode.product_id == Product.id)
+        .where(UserBarcode.barcode == shared.barcode, Product.owner_user_id.is_not(None))) if p.owner_user_id != shared.added_by]
+    checks = set(await session.scalars(select(ProductCheck.user_id).where(ProductCheck.product_id == shared.id)))
+    agree = ({p.owner_user_id for p in peers if same_numbers(p, shared)} | checks) - {shared.added_by}
+    winners: set[int] = set()
+    if len(agree) >= VERIFY:
+        winners = {shared.added_by} if shared.added_by else set()
+    else:
+        for cand in peers:
+            group = [q for q in peers if same_numbers(q, cand) and not same_numbers(q, shared)]
+            if len({q.owner_user_id for q in group}) >= VERIFY:
+                for k in ("kcal", "protein_g", "fat_g", "carbs_g"):
+                    setattr(shared, k, round(sum(getattr(q, k) for q in group) / len(group), 1))
+                winners = {q.owner_user_id for q in group}
+                break
+        else:
+            return False
+    shared.unverified, shared.category = False, "Проверено пользователями"
+    await session.commit()
+    for uid in winners:
+        got = await award_xp(session, uid, "product_shared", f"product:{shared.id}")
+        if got:
+            notify(session, await session.get(User, uid),
+                   f"🙌 «{shared.name}» проверили другие — цифры подтверждены, товар в общем каталоге Setly. +{got} XP, спасибо!")
+    await session.commit()
+    return True
 
 
 def close(a: float, b: float, rel: float, floor: float) -> bool:
@@ -282,4 +339,62 @@ async def create_product(body: ProductIn, tg: dict = Depends(telegram_user), ses
                 notify(session, await session.get(User, uid),
                        f"🙌 «{shared.name}» подтвердили другие — товар теперь в общем каталоге Setly. +{got} XP, спасибо!")
         await session.commit()
-    return {**product_out(product), "shared": promoted is not None, "xp_awarded": xp}
+    published = False
+    if body.barcode and not promoted:  # a barcode nobody has: everyone scanning it sees it from now on, marked
+        existing = await session.scalar(select(Product).where(Product.barcode == body.barcode))
+        if existing is None and plausible(product):
+            try:
+                async with session.begin_nested():
+                    session.add(Product(
+                        name=product.name, brand=product.brand, barcode=body.barcode, category="Добавлено пользователями",
+                        unverified=True, added_by=user.id, kcal=product.kcal, protein_g=product.protein_g, fat_g=product.fat_g,
+                        carbs_g=product.carbs_g, portion_g=product.portion_g, portion_name=product.portion_name,
+                        piece_g=product.piece_g, piece_name=product.piece_name, ml_g=product.ml_g))
+                published = True
+                await session.execute(delete(BarcodeMiss).where(BarcodeMiss.barcode == body.barcode))
+            except IntegrityError:  # the same name+brand is in the catalog already: it stays this user's own
+                pass
+            await session.commit()
+        elif existing is not None and existing.unverified:  # "Исправить" on an unverified product: maybe it settles it
+            await review(session, existing)
+    return {**product_out(product), "shared": promoted is not None, "published": published, "xp_awarded": xp}
+
+
+@router.post("/products/{product_id}/confirm")
+async def confirm_product(product_id: int, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """"Всё верно" on an unverified barcode product: compared with the package."""
+    user = await get_or_create_user(tg, session)
+    p = await session.get(Product, product_id)
+    if p is None or p.owner_user_id is not None:
+        raise HTTPException(404, "Товар не найден")
+    if p.unverified:
+        if p.added_by == user.id:
+            raise HTTPException(409, "Это ты добавил товар — подтвердить его должны другие")
+        await session.execute(insert(ProductCheck).values(product_id=p.id, user_id=user.id).on_conflict_do_nothing())
+        await session.commit()
+        await review(session, p)
+        await session.refresh(p)
+    return product_out(p)
+
+
+class AttachIn(BaseModel):
+    barcode: str = Field(pattern=r"^\d{8,14}$")
+
+
+@router.post("/products/{product_id}/barcode")
+async def attach_barcode(product_id: int, body: AttachIn, tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
+    """"Найти по названию": an unknown barcode tied to a product already in the catalog (or the user's own). At once
+    for this user; for everyone once ATTACH_CONFIRMATIONS people tied it to the same product."""
+    user = await get_or_create_user(tg, session)
+    p = await session.get(Product, product_id)
+    if p is None or p.owner_user_id not in (None, user.id):
+        raise HTTPException(404, "Товар не найден")
+    if await session.scalar(select(Product.id).where(Product.barcode == body.barcode, Product.id != p.id)):
+        raise HTTPException(409, "У этого штрихкода уже есть товар — отсканируй ещё раз")
+    await session.execute(insert(UserBarcode).values(user_id=user.id, barcode=body.barcode, product_id=p.id)
+                          .on_conflict_do_update(index_elements=["user_id", "barcode"], set_={"product_id": p.id}))
+    await session.commit()
+    if await attached(session, body.barcode):
+        await session.execute(delete(BarcodeMiss).where(BarcodeMiss.barcode == body.barcode))
+        await session.commit()
+    return product_out(p)

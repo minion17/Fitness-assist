@@ -467,7 +467,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   const [sets, setSets] = useState<MealSetData[] | null>(null)
   const [recipes, setRecipes] = useState<RecipeData[] | null>(null)
   const [recipe, setRecipe] = useState<RecipeData | 'new' | null>(null)
-  const [custom, setCustom] = useState<false | true | 'notFound'>(false)
+  const [custom, setCustom] = useState<false | true | 'notFound' | 'fix'>(false) // fix: other numbers for an unverified product
+  const [attach, setAttach] = useState<string | null>(null) // an unknown barcode to tie to a product found by name
   const [lastCode, setLastCode] = useState<string | null>(null) // unknown scanned code, linked to the custom product
   const [scan, setScan] = useState<'idle' | 'busy' | 'manual'>('idle')
   const [code, setCode] = useState('')
@@ -493,7 +494,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setAdded((a) => [...a, { name: p.name, kcal: Math.round((p.kcal * grams) / 100) }])
     setJustAdded(p.id)
     setTimeout(() => setJustAdded((id) => (id === p.id ? null : id)), 1200)
-    setPicked(null); setQ(''); setFound(null); setWanted(null); setThanks(false)
+    setPicked(null); setQ(''); setFound(null); setWanted(null); setThanks('')
     if (fromScan) setTimeout(() => setScanner(true), 250)
     else setTimeout(() => search.current?.focus(), 0)
   }
@@ -530,7 +531,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     } catch { setError('Набор не добавился — попробуй ещё раз') }
     setBusy(false)
   }
-  const [thanks, setThanks] = useState(false)
+  const [thanks, setThanks] = useState('')
+  const [checked, setChecked] = useState(false) // "Всё верно" given for the picked unverified product
   const [recent, setRecent] = useState<RecentProduct[] | null>(null)
   const [favorites, setFavorites] = useState<Product[] | null>(null)
 
@@ -574,6 +576,12 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   }
 
   function pick(p: Product | RecentProduct) {
+    if (attach) { // the unknown barcode goes with this product: for this user now, for everyone once others agree
+      api(`/api/products/${p.id}/barcode`, postJson({ barcode: attach })).catch(() => {})
+      setAttach(null)
+      setThanks('Штрихкод привязан — в следующий раз товар найдётся сканером сразу.')
+    }
+    setChecked(false)
     setPicked(p)
     const typed = wanted && q.trim().length >= 2 ? applyWanted(p, wanted) : null // "яйцо 2" opens with 2 шт
     if (typed) { setUnit(typed.unit); setGrams(fmtQty(typed.qty)); return }
@@ -671,11 +679,23 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
         <RecipeEditor initial={recipe === 'new' ? null : recipe} onCancel={() => setRecipe(null)}
           onSaved={(p) => { setRecipe(null); setRecipes(null); pick(p) }} />
       ) : custom && !picked ? (
-        <CustomProduct aiEnabled={aiEnabled} barcode={custom === 'notFound' ? lastCode : null} onCreated={(p) => { setCustom(false); setError(''); setThanks(!!p.shared); pick(p) }} onCancel={() => { setCustom(false); setError('') }} />
+        <CustomProduct aiEnabled={aiEnabled} barcode={custom === 'notFound' || custom === 'fix' ? lastCode : null} fix={custom === 'fix'}
+          onFind={custom === 'notFound' ? () => { setAttach(lastCode); setCustom(false); setError('') } : undefined}
+          onCreated={(p) => {
+            setCustom(false); setError('')
+            setThanks(p.shared ? 'Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем, а тебе +25 XP.'
+              : p.published ? 'Готово — теперь этот товар найдётся по штрихкоду у всех. Когда двое сверят цифры с упаковкой, тебе придёт +25 XP.'
+              : custom === 'fix' ? 'Спасибо! Когда ещё кто-то внесёт те же цифры, они заменят прежние.' : '')
+            pick(p)
+          }} onCancel={() => { setCustom(false); setError('') }} />
       ) : menuMode && !picked ? (
         <MenuImport kcalLeft={kcalLeft} onPick={(p) => { setMenuMode(false); pick(p) }} onCancel={() => setMenuMode(false)} />
       ) : !picked ? (
         <>
+          {attach && (
+            <p className="sub attach-note">Найди товар по названию — привяжем к нему штрихкод {attach}.{' '}
+              <button type="button" className="link" onClick={() => setAttach(null)}>Отмена</button></p>
+          )}
           <div className="input-wrap">
             <input autoFocus ref={search} placeholder="Поиск: творог, гречка…" value={q}
               onChange={(e) => { setQ(e.target.value); setError(''); setFromScan(false); if (e.target.value.trim().length < 2) setFound(null) }} />
@@ -799,7 +819,17 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
             )}
             <button className="link" onClick={() => setPicked(null)}>Другой</button>
           </div>
-          {thanks && <p className="sub pos">Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем, а тебе +25 XP.</p>}
+          {thanks && <p className="sub pos">{thanks}</p>}
+          {picked.unverified && !thanks && (
+            <div className="unverified-note">
+              <p className="sub">{checked ? 'Спасибо, учли! Когда цифры сверят ещё люди, товар станет проверенным.'
+                : '⚠️ Товар добавил пользователь, цифры ещё не проверены. Сверь с упаковкой:'}</p>
+              {!checked && <div className="meal-actions">
+                <button className="link" onClick={() => { setChecked(true); api(`/api/products/${picked.id}/confirm`, { method: 'POST' }).catch(() => {}) }}>✓ Всё верно</button>
+                <button className="link" onClick={() => { setLastCode(picked.barcode ?? null); setPicked(null); setCustom('fix') }}>Цифры другие — исправить</button>
+              </div>}
+            </div>
+          )}
           <label className="field">
             <span>Количество{unit.label !== 'г' && valid ? ` · ${fmtQty(g)} г` : ''}</span>
             <div className="input-wrap">
@@ -858,8 +888,9 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
 type Label = { found: true; name: string; kcal: number; protein_g: number; fat_g: number; carbs_g: number; note: string
   brand?: string; package_g?: number | null; pieces?: number | null; liquid?: boolean } | { found: false; note: string }
 
-function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
-  barcode: string | null; aiEnabled: boolean; onCreated: (p: Product & { shared?: boolean }) => void; onCancel: () => void
+function CustomProduct({ barcode, fix = false, aiEnabled, onCreated, onCancel, onFind }: {
+  barcode: string | null; fix?: boolean; aiEnabled: boolean; onCreated: (p: Product & { shared?: boolean; published?: boolean }) => void
+  onCancel: () => void; onFind?: () => void
 }) {
   const [v, setV] = useState({ name: '', kcal: '', protein_g: '', fat_g: '', carbs_g: '', brand: '', portion_g: '', package_g: '', pieces: '' })
   const [liquid, setLiquid] = useState(false)
@@ -925,8 +956,10 @@ function CustomProduct({ barcode, aiEnabled, onCreated, onCancel }: {
 
   return (
     <>
-      {barcode && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавь его один раз — дальше он будет находиться по штрихкоду у всех.</p>}
-      {barcode && <p className="xp-note">🏅 <b>+25 XP</b>, когда ещё двое подтвердят те же цифры и товар попадёт в общий каталог</p>}
+      {barcode && !fix && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавь его один раз — он сразу начнёт находиться по штрихкоду у всех.</p>}
+      {barcode && !fix && <p className="xp-note">🏅 <b>+25 XP</b>, когда двое сверят цифры с упаковкой</p>}
+      {fix && <p className="row-title strong">Внеси цифры с упаковки. Если ещё кто-то внесёт такие же, они заменят нынешние у всех.</p>}
+      {onFind && <button type="button" className="link" onClick={onFind}>Он есть в поиске под своим названием? Найти и привязать штрихкод</button>}
       {!barcode && <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только тебе; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а ты получишь <b>+25 XP</b>.</p>}
       {aiEnabled && (
         <label className={`btn ${barcode ? '' : 'btn-ghost '}photo-btn${reading ? ' disabled' : ''}`}>

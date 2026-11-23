@@ -150,6 +150,9 @@ class Product(Base):
     tbsp_g: Mapped[float | None] = mapped_column(Float)
     # NULL = shared catalog; otherwise a custom product (e.g. recognised by AI) visible only to its owner.
     owner_user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    # a barcode product one user added (shown to all at once, marked) until others confirm or correct it
+    unverified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    added_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
     # Lower-cased in Python: Postgres with the C locale can't case-fold Cyrillic in ILIKE/lower().
     search_text: Mapped[str] = mapped_column(
         Text, default=lambda ctx: _search_text(ctx.get_current_parameters()), index=True
@@ -261,6 +264,25 @@ class UserBarcode(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     barcode: Mapped[str] = mapped_column(String(32), primary_key=True)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"))
+
+
+class ProductCheck(Base):
+    """"Всё верно": a user compared an unverified product with its package."""
+    __tablename__ = "product_checks"
+
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+
+class BarcodeMiss(Base):
+    """A scanned barcode found nowhere: asked again in Open Food Facts weekly; the most wanted go to the owner."""
+    __tablename__ = "barcode_misses"
+
+    barcode: Mapped[str] = mapped_column(String(32), primary_key=True)
+    scans: Mapped[int] = mapped_column(Integer, default=1)
+    first_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class ReminderSettings(Base):

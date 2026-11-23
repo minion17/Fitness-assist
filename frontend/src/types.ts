@@ -5,6 +5,8 @@ export type Product = Macros & {
   id: number; name: string; brand: string | null; category: string | null
   portion_g?: number | null; portion_name?: string | null // typical serving, e.g. 610 g «пицца»
   piece_g?: number | null; piece_name?: string | null; ml_g?: number | null; tbsp_g?: number | null // other units, in grams
+  barcode?: string | null
+  unverified?: boolean // added by one user from the package, not yet checked by others
 }
 
 export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack'

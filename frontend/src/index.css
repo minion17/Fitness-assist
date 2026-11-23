@@ -2146,3 +2146,6 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
   margin: 0; padding: 6px 12px; border-radius: 999px; background: var(--card); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
   box-shadow: 0 4px 14px rgba(0, 0, 0, .25); white-space: nowrap; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis; }
 .app:has(.active-workout) .offline-bar { bottom: calc(160px + env(safe-area-inset-bottom)); }
+.unverified-note { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--card-2); border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent); }
+.unverified-note p { margin: 0; }
+.attach-note { margin: 0 0 8px; }

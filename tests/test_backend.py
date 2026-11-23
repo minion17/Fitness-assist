@@ -512,14 +512,20 @@ def test_barcode_lookup_and_custom_product(client, monkeypatch):
     assert client.get("/api/products/search", params={"q": "сырник домашний"}, headers=new_user_headers()).json() == []
     assert client.post("/api/products", headers=h, json={**body, "protein_g": 60, "fat_g": 30, "carbs_g": 20}).status_code == 422
 
-    # unknown code -> user's own product remembered for that code (only for them)
+    # unknown code -> the user's product, and (its numbers add up) a marked copy everyone finds by scanning at once
     unknown = "47" + code[2:]
     assert client.get(f"/api/products/barcode/{unknown}", headers=h).status_code == 404
-    mine = client.post("/api/products", headers=h, json={**body, "name": "Йогурт Ирбитский", "barcode": unknown}).json()
+    mine = client.post("/api/products", headers=h, json={**body, "name": f"Йогурт Ирбитский {code}", "barcode": unknown}).json()
+    assert mine["published"] is True
     n = len(calls)
-    assert client.get(f"/api/products/barcode/{unknown}", headers=h).json()["id"] == mine["id"]
+    assert client.get(f"/api/products/barcode/{unknown}", headers=h).json()["unverified"] is True
     assert len(calls) == n  # served locally
-    assert client.get(f"/api/products/barcode/{unknown}", headers=new_user_headers()).status_code == 404
+    other = client.get(f"/api/products/barcode/{unknown}", headers=new_user_headers()).json()
+    assert other["unverified"] is True and other["name"] == f"Йогурт Ирбитский {code}"
+    # numbers that don't add up stay the author's own
+    odd = "45" + code[2:]
+    assert client.post("/api/products", headers=h, json={**body, "name": f"Странное {code}", "kcal": 600, "barcode": odd}).json()["published"] is False
+    assert client.get(f"/api/products/barcode/{odd}", headers=new_user_headers()).status_code == 404
     assert client.get(f"/api/products/barcode/0{code}", headers=h).json()["id"] == pid  # GTIN-14 form of the EAN
     assert client.post("/api/products", headers=h, json={**body, "kcal": 2000}).status_code == 422
 
@@ -612,14 +618,17 @@ def test_user_products_become_shared_after_three_confirmations(client):
     plain = {**dish, "brand": None, "name": f"Сырник домашний {tag}"}
     assert not any(client.post("/api/products", headers=h, json=plain).json()["shared"] for h in users)
 
-    # barcode: 3 users enter the same unknown code -> everyone finds it by scanning
+    # barcode: the first author's entry is found by everyone at once (unverified); two more with the same numbers check it
     code = "48" + str(random.randint(10**10, 10**11 - 1))
     pack = {"piece_g": 900, "piece_name": "упаковка", "ml_g": 1}  # read from the label: 900 ml bottle
+    before = xp(users[0])
     for h in users[:3]:
         r = client.post("/api/products", headers=h, json={**plain, "name": f"Кефир {tag}", "barcode": code, **pack}).json()
-    assert r["shared"] is True and r["piece_g"] == 900
+    assert r["piece_g"] == 900
     found = client.get(f"/api/products/barcode/{code}", headers=new_user_headers()).json()
-    assert found["category"] == "Проверено пользователями" and (found["piece_g"], found["piece_name"], found["ml_g"]) == (900, "упаковка", 1)
+    assert found["category"] == "Проверено пользователями" and found["unverified"] is False
+    assert (found["piece_g"], found["piece_name"], found["ml_g"]) == (900, "упаковка", 1)
+    assert xp(users[0]) == before + 25  # the author, once it was checked
     assert client.post("/api/products", headers=users[0], json={**plain, "name": "Странный", "ml_g": 7}).status_code == 422
 
 
@@ -1207,10 +1216,12 @@ def test_open_food_facts_bulk_sync(client, seeded, tmp_path, monkeypatch):
         {"code": str(int(code) + 1), "product_name": "Без КБЖУ", "nutriments": {}},              # unusable
     ]
     pages = {1: page1, 2: []}
+    asked = []
 
     def handler(req: httpx.Request) -> httpx.Response:
-        assert req.url.params["countries_tags_en"] == "russia"
-        return httpx.Response(200, json={"products": pages[int(req.url.params["page"])]})
+        country = req.url.params["countries_tags_en"]
+        asked.append(country)
+        return httpx.Response(200, json={"products": pages[int(req.url.params["page"])] if country == "russia" else []})
 
     real = httpx.AsyncClient
     monkeypatch.setattr(off_sync.httpx, "AsyncClient", lambda **kw: real(transport=httpx.MockTransport(handler), **kw))
@@ -1224,7 +1235,13 @@ def test_open_food_facts_bulk_sync(client, seeded, tmp_path, monkeypatch):
             return list(await s.scalars(select(Product).where(Product.barcode.in_([code, str(int(code) + 1)]))))
     found = client.portal.call(go)
     assert [(p.name, p.brand, p.kcal, p.owner_user_id) for p in found] == [(f"Кефир тестовый {code}", "Ирбит", 53, None)]
-    assert off_sync.load_state()["done_at"]
+    assert off_sync.load_state()["done_at"] and off_sync.load_state()["countries"] == ["russia", "belarus", "kazakhstan"]
+    assert sorted(set(asked)) == ["belarus", "kazakhstan", "russia"]
+    # a state from before the countries (Russia done): carries on with Belarus and Kazakhstan, not Russia again
+    off_sync.save_state({"v": off_sync.VERSION, "page": 1, "added": 0, "done_at": "2026-11-20T00:00:00+00:00"})
+    asked.clear()
+    client.portal.call(off_sync.run)
+    assert asked == ["belarus", "kazakhstan"]
     assert client.get("/api/products/search", params={"q": f"кефир тестовый {code}"}).json()[0]["name"] == f"Кефир тестовый {code}"
 
     # a new version of the sync goes over again and adds the package to products it already has
@@ -3201,3 +3218,100 @@ def test_offline_records_keep_their_time(client):
     habit = client.post("/api/habits", headers=h, json={"emoji": "🧘", "title": "Растяжка"}).json()[0]
     after = client.post(f"/api/habits/{habit['id']}/check", headers=h, json={"done": True, "day": yesterday}).json()
     assert after[0]["done"] is False  # ticked for yesterday, today is still open
+
+
+
+def test_barcode_products_checked_corrected_attached_and_missed(client, monkeypatch):
+    """Unverified barcode products: "Всё верно" checks them, two agreeing corrections replace their numbers; a barcode
+    tied to a catalog product by name counts for all after two people; misses are counted, re-asked and reported."""
+    import random
+
+    from backend.core import alerts, barcode_misses, off
+    from backend.database.db import SessionLocal
+    from backend.database.models import BarcodeMiss, Outbox
+
+    async def nothing(c):
+        return None
+    monkeypatch.setattr(off, "fetch", nothing)
+    tag = random.randint(10**6, 10**7)
+    users = [new_user_headers() for _ in range(5)]
+    xp = lambda h: client.post("/api/auth", headers=h).json()["progress"]["xp"]  # noqa: E731
+    bar = {"name": f"Батончик {tag}", "brand": "Тест", "kcal": 400, "protein_g": 10, "fat_g": 16, "carbs_g": 54}
+
+    code = "49" + str(random.randint(10**10, 10**11 - 1))
+    assert client.get(f"/api/products/barcode/{code}", headers=users[0]).status_code == 404
+    p = client.post("/api/products", headers=users[0], json={**bar, "barcode": code}).json()
+    shared = client.get(f"/api/products/barcode/{code}", headers=users[1]).json()
+    assert shared["unverified"] and shared["barcode"] == code
+    assert client.post(f"/api/products/{shared['id']}/confirm", headers=users[0]).status_code == 409  # not by the author
+    assert client.post(f"/api/products/{shared['id']}/confirm", headers=users[1]).json()["unverified"] is True
+    assert client.post(f"/api/products/{shared['id']}/confirm", headers=users[1]).json()["unverified"] is True  # once per person
+    assert client.post(f"/api/products/{shared['id']}/confirm", headers=users[2]).json()["unverified"] is False
+    assert xp(users[0]) == 25 and p["published"]
+
+    # wrong numbers from the first author: two people agreeing on others replace them
+    code2 = "49" + str(random.randint(10**10, 10**11 - 1))
+    client.post("/api/products", headers=users[0], json={**bar, "name": f"Батончик-2 {tag}", "kcal": 300, "carbs_g": 29, "barcode": code2})
+    right = {**bar, "name": f"Батончик-2 {tag}", "barcode": code2}
+    client.post("/api/products", headers=users[3], json=right)
+    assert client.get(f"/api/products/barcode/{code2}", headers=users[4]).json()["kcal"] == 300  # one isn't enough
+    client.post("/api/products", headers=users[4], json=right)
+    fixed = client.get(f"/api/products/barcode/{code2}", headers=new_user_headers()).json()
+    assert (fixed["kcal"], fixed["unverified"]) == (400, False) and xp(users[3]) == 25
+
+    # "Найти по названию": tied to a catalog product; for everyone once two people did it
+    code3 = "49" + str(random.randint(10**10, 10**11 - 1))
+    target = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()
+    target = target[0]["id"] if target else shared["id"]
+    assert client.post(f"/api/products/{target}/barcode", headers=users[1], json={"barcode": code3}).status_code == 200
+    assert client.get(f"/api/products/barcode/{code3}", headers=users[1]).json()["id"] == target  # at once for them
+    assert client.get(f"/api/products/barcode/{code3}", headers=users[2]).status_code == 404
+    client.post(f"/api/products/{target}/barcode", headers=users[2], json={"barcode": code3})
+    assert client.get(f"/api/products/barcode/{code3}", headers=new_user_headers()).json()["id"] == target
+    assert client.post(f"/api/products/{target}/barcode", headers=users[1], json={"barcode": code}).status_code == 409  # taken
+
+    # misses: counted; re-asked weekly (found -> in the catalog); the most wanted reported to the owner on Monday
+    miss = "49" + str(random.randint(10**10, 10**11 - 1))
+    for h in users[:3]:
+        client.get(f"/api/products/barcode/{miss}", headers=h)
+
+    async def scans():
+        async with SessionLocal() as s:
+            m = await s.get(BarcodeMiss, miss)
+            return m and m.scans
+    assert client.portal.call(scans) == 3
+
+    async def age():
+        from datetime import timedelta
+
+        from sqlalchemy import func, update
+        async with SessionLocal() as s:
+            await s.execute(update(BarcodeMiss).where(BarcodeMiss.barcode == miss).values(checked_at=func.now() - timedelta(days=8)))
+            await s.commit()
+    client.portal.call(age)
+
+    async def appears(c):
+        return {"name": f"Нашёлся {tag}", "brand": None, "kcal": 50, "protein_g": 1, "fat_g": 1, "carbs_g": 9} if c == miss else None
+    monkeypatch.setattr(off, "fetch", appears)
+    monkeypatch.setattr(barcode_misses, "PAUSE", 0)
+    assert client.portal.call(barcode_misses.recheck) >= 1
+    assert client.portal.call(scans) is None
+    assert client.get(f"/api/products/barcode/{miss}", headers=users[0]).json()["name"] == f"Нашёлся {tag}"
+
+    client.get(f"/api/products/barcode/{code3}0", headers=users[0])  # one more miss for the report
+    monkeypatch.setattr(alerts, "admin_ids", lambda: [555])
+    monkeypatch.setattr(barcode_misses, "STATE", __import__("pathlib").Path(__import__("tempfile").mkdtemp()) / "r")
+
+    class Monday(__import__("datetime").datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return __import__("datetime").datetime(2030, 1, 7, 11, 0).astimezone(tz)
+    monkeypatch.setattr(barcode_misses, "datetime", Monday)
+
+    async def report():
+        async with SessionLocal() as s:
+            sent = await barcode_misses.weekly_report(s), await barcode_misses.weekly_report(s)
+            from sqlalchemy import select
+            return sent, (await s.scalars(select(Outbox.text).where(Outbox.telegram_id == 555).order_by(Outbox.id.desc()))).first()
+    (first, second), text = client.portal.call(report)
+    assert (first, second) == (True, False) and text.startswith("🔎 Штрихкоды, которых нет в базе")

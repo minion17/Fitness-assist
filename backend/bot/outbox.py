@@ -10,7 +10,7 @@ from backend.api.groups import group_posts
 from backend.api.monthly import finish_months
 from backend.api.social import finish_duels, name, pending_messages, reward_invites, week_numbers
 from backend.bot import cards
-from backend.core import alerts, clock
+from backend.core import alerts, barcode_misses, clock
 from backend.database.db import SessionLocal
 from backend.database.models import User
 
@@ -173,6 +173,7 @@ async def run(bot, keyboard) -> None:
                     await finish_challenges(session)
                     await finish_months(session)
                     await group_posts(session)
+                    await barcode_misses.weekly_report(session)
             await send_pending(bot, keyboard)
         except Exception as e:
             log.warning("outbox loop failed, retrying", exc_info=True)

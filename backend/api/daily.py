@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.deps import get_or_create_user, telegram_user
-from backend.core import clock, testosterone
+from backend.core import body_facts, clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import DailyCheckin, FoodLog, FrozenDay, HabitCheck, Outbox, Product, Profile, ReminderSettings, User, WaterIntake, WorkoutLog
 from backend.database.rewards import award_xp, revoke_xp, sync_evolution
@@ -309,7 +309,7 @@ async def get_checkin(tg: dict = Depends(telegram_user), session: AsyncSession =
     user = await get_or_create_user(tg, session)
     c = await session.get(DailyCheckin, (user.id, clock.today()))
     profile = await session.get(Profile, user.id)
-    tip = c and profile and testosterone.sleep_tip(profile.sex, c.sleep)  # a short night today: why sleep matters
+    tip = c and profile and body_facts.sleep_tip(profile.sex, c.sleep)  # a short night today: why sleep matters
     return {"sleep": c and c.sleep, "energy": c and c.energy, "insight": tip or await checkin_insight(session, user)}
 
 

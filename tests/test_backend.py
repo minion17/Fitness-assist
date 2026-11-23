@@ -3501,14 +3501,16 @@ def test_coach_sees_clients_by_invite_only(client, monkeypatch):
     assert client.portal.call(links) is None and timedelta
 
 
-def test_testosterone_tips_only_for_men_and_only_where_research_says():
-    from backend.core import testosterone as t
+def test_body_facts_by_sex_and_only_where_research_says():
+    from backend.core import body_facts as t
     assert "≈12 кг" in t.weight_tip("male", 120, 180)  # BMI 37: 10 % of weight
     assert "≈8 кг" in t.weight_tip("male", 89, 180)  # BMI 27.5: to BMI 25
-    assert t.weight_tip("male", 80, 180) is None  # normal weight: nothing to promise
-    assert "не хватает веса" in t.weight_tip("male", 55, 180)
-    assert t.weight_tip("female", 120, 170) is None
-    tips = {t.workout_tip("male", n, 80, 180) for n in range(6)}
-    assert len(tips) == 3 and all(x.startswith("Молодец!") for x in tips)
-    assert "10 % веса" in t.workout_tip("male", 3, 120, 180) and t.workout_tip("female", 1) is None
-    assert "10–15 %" in t.sleep_tip("male", 1) and t.sleep_tip("male", 3) is None and t.sleep_tip("female", 1) is None
+    assert t.weight_tip("male", 80, 180) is None and t.weight_tip("female", 60, 168) is None  # normal weight: nothing to promise
+    assert "не хватает веса" in t.weight_tip("male", 55, 180) and "цикл" in t.weight_tip("female", 48, 170)
+    assert "4–8 кг" in t.weight_tip("female", 80, 168)
+    men = {t.workout_tip("male", n, 80, 180) for n in range(8)}
+    women = {t.workout_tip("female", n, 60, 168) for n in range(8)}
+    assert len(men) == len(women) == 4 and all(x.startswith("Молодец!") for x in men | women)
+    assert not any("тестостерон" in x and "перекачаться" not in x for x in women)
+    assert any("гормональный баланс" in t.workout_tip("female", n, 90, 165) for n in range(5))
+    assert "10–15 %" in t.sleep_tip("male", 1) and "385 ккал" in t.sleep_tip("female", 1) and t.sleep_tip("male", 3) is None

@@ -360,14 +360,14 @@ export default function Home(props: {
   )
 }
 
-/** The weight fact once a week: closed, it comes back next week (and changes with the weight). */
+/** The weight fact (men: testosterone, women: hormonal balance, cycle, bones) once a week: closed, it comes back next week (and changes with the weight). */
 function TestosteroneTip({ text }: { text: string }) {
   const week = `t-tip:${Math.floor(Date.now() / 604_800_000)}`
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(week) === '1' } catch { return false } })
   if (hidden) return null
   return (
     <section className="card t-tip" aria-label="Совет">
-      <div className="card-head"><h2>⚡ Вес и тестостерон</h2>
+      <div className="card-head"><h2>⚡ Полезно знать</h2>
         <button className="link" aria-label="Скрыть" onClick={() => { try { localStorage.setItem(week, '1') } catch { /* private mode */ } setHidden(true) }}>✕</button></div>
       <p>{text}</p>
     </section>

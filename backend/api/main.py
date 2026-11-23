@@ -42,7 +42,7 @@ from backend.api.quests import router as quests_router
 from backend.api.social import router as social_router
 from backend.api.stats import for_day, router as stats_router, trained_today
 from backend.api.deps import get_or_create_user, optional_telegram_user, telegram_user
-from backend.core import clock, testosterone
+from backend.core import body_facts, clock
 from backend.database.db import AsyncSession, get_session, init_db
 from backend.database.models import (
     BodyMeasurement,
@@ -124,7 +124,7 @@ def profile_out(profile: Profile | None, trained: bool = False) -> dict | None:
     base = daily_targets(**{k: data[k] for k in BASE_FIELDS}, calories=profile.kcal_override)
     return {**data, "target_weight_kg": profile.target_weight_kg, "kcal_override": profile.kcal_override,
             "targets": for_day(profile, base, trained), "targets_base": base,
-            "t_tip": testosterone.weight_tip(profile.sex, profile.weight_kg, profile.height_cm)}
+            "t_tip": body_facts.weight_tip(profile.sex, profile.weight_kg, profile.height_cm)}
 
 
 async def recommended_program(session: AsyncSession, profile: Profile | None) -> dict | None:
@@ -833,7 +833,7 @@ async def complete_workout(log_id: int, body: CompleteIn | None = None, tg: dict
             else f"XP за тренировку — от {MIN_WORKOUT_MINUTES} минут" if minutes < MIN_WORKOUT_MINUTES
             else "XP начисляется за две тренировки в сутки — эта сохранена без XP")
     profile = await session.get(Profile, user.id)
-    tip = profile and testosterone.workout_tip(profile.sex, w.id, profile.weight_kg, profile.height_cm)
+    tip = profile and body_facts.workout_tip(profile.sex, w.id, profile.weight_kg, profile.height_cm)
     return {"ok": True, "xp_awarded": xp, "xp_note": note, "tip": tip}
 
 

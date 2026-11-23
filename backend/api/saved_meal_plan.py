@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from backend.core import clock
 from backend.api.deps import get_or_create_user, telegram_user
 from backend.database.db import AsyncSession, get_session
-from backend.database.models import SavedMealPlan, User, Product, FoodLog
+from backend.database.models import Outbox, SavedMealPlan, User, Product, FoodLog
 
 router = APIRouter(prefix="/api/meal-plan")
 MAX_BYTES = 256 * 1024
@@ -70,8 +70,19 @@ async def put_saved_plan(body: SavedPlanIn, tg: dict = Depends(telegram_user), s
     payload["_tracking"] = tracking or {"start": clock.today().isoformat(), "logs": {}}
     stmt = insert(SavedMealPlan).values(user_id=user.id, payload=payload)
     await session.execute(stmt.on_conflict_do_update(index_elements=[SavedMealPlan.user_id], set_={"payload": stmt.excluded.payload}))
+    persons = body.input.get("persons")
+    if isinstance(persons, int) and persons > 1 and body.plan["shopping"] and not await session.scalar(
+            select(Outbox.id).where(Outbox.user_id == user.id, Outbox.kind == "shoptip").limit(1)):
+        # once: a plan for a family — the list can go to the family chat, where whoever buys ticks it off
+        session.add(Outbox(telegram_id=user.telegram_id, user_id=user.id, kind="shoptip", text=SHOP_TIP))
     await session.commit()
     return body.model_dump()
+
+
+SHOP_TIP = ("🛒 Рацион на семью сохранён, список покупок готов.\n\n"
+            "Отправь его в ваш семейный чат: кто купил — отмечает товар прямо в сообщении, и у всех список обновится. "
+            "Кнопка «Отправить список в чат» — под списком продуктов в рационе.\n\n"
+            "Если меня ещё нет в семейном чате — /group.")
 
 
 class MealConfirmation(BaseModel):

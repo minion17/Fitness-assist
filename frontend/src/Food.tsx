@@ -251,7 +251,8 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   const editable = canEdit && date >= shiftDay(today(), -BACKFILL_DAYS) // older days: read only
   const [saving, setSaving] = useState<{ meal: MealType; slot?: string | null; name: string } | null>(null)
   const [saveError, setSaveError] = useState('')
-  const [planning, setPlanning] = useState<'new' | 'saved' | null>(null)
+  // ?open=plan (the bot's "send the list to the family chat" tip): straight to the saved plan
+  const [planning, setPlanning] = useState<'new' | 'saved' | null>(() => (new URLSearchParams(window.location.search).get('open') === 'plan' ? 'saved' : null))
   const [recipe, setRecipe] = useState<Meal | null>(null)
   const [todayPlan, setTodayPlan] = useState<TodayPlan | null>(null)
   const [planBusy, setPlanBusy] = useState<number | null>(null)

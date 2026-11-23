@@ -160,6 +160,10 @@ async def send_pending(bot, keyboard) -> None:
                                          reply_markup=keyboard() if m.kind == "month_end" else None)
                     if m.kind == "month_card":
                         await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу или сохрани и выложи в истории.")
+                elif m.kind == "shoptip":  # the family-plan tip: opens the saved plan
+                    from backend.bot.chat import app_button, kb
+                    button = app_button("🛒 Открыть рацион", "open=plan")
+                    await bot.send_message(m.telegram_id, m.text, reply_markup=kb([button]) if button else None)
                 elif m.kind == "shoplist":  # a shopping list with a button per item; its message id is kept to redraw it
                     await send_shopping(bot, session, m)
                 elif m.kind == "group":  # a group chat: no Mini App buttons there, a link to the bot instead

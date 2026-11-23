@@ -140,7 +140,7 @@ async def day_close(session, user: User, today) -> tuple[str, str, Render, Butto
     kcal, norm = round(t["kcal"]), goal["calories"]
     text = f"🌙 Итог дня: {kcal:,} из {norm:,} ккал".replace(",", " ")
     if kcal > norm * 1.1:
-        text += " — чуть выше нормы. Ничего страшного, завтра новый день."
+        text += f" — выше нормы на {kcal - norm:,} ккал.".replace(",", " ") + " Завтра верни день в норму: запиши завтрак сразу, как поешь."
     elif kcal >= norm * 0.9:
         text += " — в норме 👌"
     else:
@@ -323,7 +323,8 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                 out.append(close)
         elif n > 0:
             week = [today - timedelta(days=i) in days and is_active(days[today - timedelta(days=i)]) for i in range(6, -1, -1)]
-            out.append((f"{today}:streak", f"🔥 Ты {n} дн. подряд с Setly. Одна запись — еда, вода или тренировка — и серия продолжится. Пропустить день тоже нормально.",
+            out.append((f"{today}:streak", f"🔥 {n} {cards.plural_days(n)} подряд с Setly — не обрывай серию. Одна запись — еда, вода или тренировка — "
+                        f"и она продолжится. До конца дня {24 - now.hour} ч.",
                         Render(cards.streak, n, week, **look), None))
     if getattr(cfg, "workout", True) and due(cfg.workout_at or "09:00", now):
         p = await session.get(Profile, user.id)

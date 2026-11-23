@@ -212,10 +212,10 @@ def streak(days: int, week: list[bool], theme=None, accent=None) -> bytes:
     c.brand("Серия")
     n = str(days)
     c.text((64, 150), n, 230, "streak", 800, "Unbounded")
-    c.text((64 + c.width(n, 230, 800, "Unbounded") + 28, 300), "дней", 56, "text", 700, "Unbounded")
+    c.text((64 + c.width(n, 230, 800, "Unbounded") + 28, 300), plural_days(days), 56, "text", 700, "Unbounded")
     c.text((64 + c.width(n, 230, 800, "Unbounded") + 28, 370), "подряд", 56, "text", 700, "Unbounded")
     c.text((64, 470), "Сегодня ещё ничего не записано — запиши еду,", 30, "muted", 600)
-    c.text((64, 512), "воду или тренировку, и серия продолжится.", 30, "muted", 600)
+    c.text((64, 512), "воду или тренировку, иначе серия сгорит.", 30, "muted", 600)
     names = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
     today = date.today().weekday()
     week = week[-7:]

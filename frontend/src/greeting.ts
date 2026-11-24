@@ -14,11 +14,11 @@ const workoutsWord = (n: number) => n % 10 === 1 && n % 100 !== 11 ? 'трени
 
 /** The first fact that applies, most personal first; null when there's nothing worth saying. */
 export function insight(g: GreetingInput): string | null {
-  if (g.streak >= 7 && g.streak % 7 === 0) return `${g.streak / 7 === 1 ? 'Неделя' : `${g.streak / 7} недели`} без пропусков — это уже привычка`
-  if (g.goal && g.yesterday && g.yesterday.kcal > 0 && Math.abs(g.yesterday.kcal - g.goal) <= 0.1 * g.goal) return 'Вчера калории точно в норме — так держать'
+  if (g.streak >= 7 && g.streak % 7 === 0) return `${g.streak / 7 === 1 ? 'Неделя' : `${g.streak / 7} недели`} без пропусков. Это уже привычка`
+  if (g.goal && g.yesterday && g.yesterday.kcal > 0 && Math.abs(g.yesterday.kcal - g.goal) <= 0.1 * g.goal) return 'Вчера калории ровно в норме'
   if (g.workoutsThisWeek >= 2) return `Уже ${g.workoutsThisWeek} ${workoutsWord(g.workoutsThisWeek)} на этой неделе`
-  if (g.trainingDay && g.hour < 18) return 'Сегодня день тренировки — план уже ждёт'
-  if (g.streak >= 3) return `${g.streak} дня подряд с дневником — хороший ритм`.replace(/^(\d+) дня/, (m, n) => (Number(n) % 10 >= 5 || Number(n) % 10 === 0 || (Number(n) % 100 >= 11 && Number(n) % 100 <= 14) ? `${n} дней` : m))
-  if (g.kcalToday === 0 && g.hour >= 5 && g.hour < 11) return 'Начни день с завтрака — запись займёт пару секунд'
+  if (g.trainingDay && g.hour < 18) return 'Сегодня тренировка'
+  if (g.streak >= 3) return `${g.streak} дня подряд с дневником`.replace(/^(\d+) дня/, (m, n) => (Number(n) % 10 >= 5 || Number(n) % 10 === 0 || (Number(n) % 100 >= 11 && Number(n) % 100 <= 14) ? `${n} дней` : m))
+  if (g.kcalToday === 0 && g.hour >= 5 && g.hour < 11) return 'Начни с завтрака'
   return null
 }

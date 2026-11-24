@@ -167,7 +167,7 @@ async def product_by_barcode(code: str, tg: dict = Depends(telegram_user), sessi
         found = await off.fetch(code)
     except httpx.HTTPError as e:
         log.warning("Open Food Facts lookup failed for %s: %s", code, e)
-        raise HTTPException(503, "Не удалось проверить штрихкод — попробуй позже или добавь продукт вручную")
+        raise HTTPException(503, "Не удалось проверить штрихкод. Попробуй позже или добавь продукт вручную")
     if found is None:
         await session.execute(insert(BarcodeMiss).values(barcode=code).on_conflict_do_update(
             index_elements=["barcode"], set_={"scans": BarcodeMiss.scans + 1, "last_at": func.now()}))

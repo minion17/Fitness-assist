@@ -138,7 +138,7 @@ const SCREENS: Screen[] = [
   { key: 'activity', title: 'Сколько ты двигаешься в обычные дни?', check: (d) => (!d.activity ? 'Выбери уровень активности' : null) },
   { key: 'place', title: 'Где будешь тренироваться?', check: (d) => (!d.place ? 'Выбери место' : null) },
   { key: 'equipment', title: 'Что есть под рукой?', check: (d) => (!d.equipment.length ? 'Отметь доступное оборудование' : null) },
-  { key: 'schedule', title: 'Когда будешь тренироваться?', hint: 'Отметь дни — в эти дни утром бот напомнит о тренировке, а отдых не будет считаться пропуском.',
+  { key: 'schedule', title: 'Когда будешь тренироваться?', hint: 'Отметь дни: утром бот напомнит о тренировке, а отдых не будет считаться пропуском.',
     check: (d) => (!d.training_days.length ? 'Отметь хотя бы один день' : !d.session_minutes ? 'Выбери длительность' : null) },
   { key: 'focus', title: 'На что сделать упор?', hint: 'Можно выбрать несколько или пропустить.' },
   { key: 'recovery', title: 'Сон и стресс', hint: 'Необязательно: поможет точнее подобрать нагрузку.', check: (d) => (d.sleep_hours ? checkNum(d, 'sleep_hours') : null) },

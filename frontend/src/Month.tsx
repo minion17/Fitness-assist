@@ -40,14 +40,14 @@ export default function Month() {
   const [error, setError] = useState('')
   const [scope, setScope] = useState<'all' | 'friends'>('all')
   const [sent, setSent] = useState(false) // the card was asked for in the chat
-  useEffect(() => { api<MonthBoard>('/api/month').then((r) => r && setB(r)).catch(() => setError('Нет связи — челлендж покажем, как только вернётся интернет')) }, [])
+  useEffect(() => { api<MonthBoard>('/api/month').then((r) => r && setB(r)).catch(() => setError('Нет связи. Челлендж покажем, как только вернётся интернет')) }, [])
   if (error) return <p className="error">{error}</p>
   if (!b) return <p className="sub">Загружаем челлендж…</p>
 
-  const join = () => { haptic('success'); api<MonthBoard>('/api/month/join', postJson({})).then((r) => r && setB(r)).catch(() => setError('Не получилось — попробуй ещё раз')) }
+  const join = () => { haptic('success'); api<MonthBoard>('/api/month/join', postJson({})).then((r) => r && setB(r)).catch(() => setError('Не получилось. Попробуй ещё раз')) }
   const story = () => shareStory({ kind: 'month' }).catch(() => setError('Не получилось открыть истории'))
   // Stories exist only in the phone app; everywhere the bot can send the same card to the chat to forward or save
-  const toChat = () => { haptic('success'); api('/api/share', postJson({ kind: 'month' })).then(() => setSent(true)).catch(() => setError('Не получилось — попробуй ещё раз')) }
+  const toChat = () => { haptic('success'); api('/api/share', postJson({ kind: 'month' })).then(() => setSent(true)).catch(() => setError('Не получилось. Попробуй ещё раз')) }
   const shareRow = (final: boolean) => (
     <div className="month-share">
       {canStory() && <button className={final ? 'btn' : 'btn btn-ghost'} onClick={story}>{final ? 'Итог в истории' : 'В истории'}</button>}
@@ -84,7 +84,7 @@ export default function Month() {
             <button aria-pressed={scope === 'friends'} onClick={() => setScope('friends')}>Друзья</button>
           </div>
         )}
-        {rows.length ? <List rows={rows} /> : <p className="sub">Пока никого — будь первым.</p>}
+        {rows.length ? <List rows={rows} /> : <p className="sub">Пока никого. Будь первым.</p>}
         {scope === 'all' && b.me && b.me.rank > b.top.length && <p className="sub">Ты на {b.me.rank}-м месте — до топ-10 не хватает {Math.max(1, (b.top[b.top.length - 1]?.score ?? 0) - b.me.score + 1)} дн.</p>}
       </section>
     </>

@@ -10,7 +10,7 @@ describe('advice', () => {
   })
   it('suggests a lighter week on a plateau', () => {
     const history = [{ weight_kg: 60, reps: 9 }, { weight_kg: 60, reps: 10 }, { weight_kg: 60, reps: 9 }]
-    expect(advice({ date: '', sets: sets(60, 9), history }, '8-12')).toMatch(/облегчённую неделю: 54 кг/)
+    expect(advice({ date: '', sets: sets(60, 9), history }, '8-12')).toMatch(/лёгкую неделю: 54 кг/)
   })
   it('asks for more reps on a bodyweight exercise done to the top', () => {
     expect(advice({ date: '', sets: sets(0, 15) }, '10-15')).toMatch(/на 1–2 повтора больше/)

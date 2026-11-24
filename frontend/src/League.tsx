@@ -17,7 +17,7 @@ function left(iso: string): string {
 export default function League() {
   const [b, setB] = useState<Board | null>(null)
   const [error, setError] = useState('')
-  useEffect(() => { api<Board>('/api/league').then(setB).catch(() => setError('Нет связи — лигу покажем, как только вернётся интернет')) }, [])
+  useEffect(() => { api<Board>('/api/league').then(setB).catch(() => setError('Нет связи. Лигу покажем, как только вернётся интернет')) }, [])
   if (error) return <p className="error">{error}</p>
   if (!b) return <p className="sub">Загружаем лигу…</p>
   const n = b.members.length
@@ -27,9 +27,9 @@ export default function League() {
         <span className="league-medal" aria-hidden="true">{MEDALS[b.tier]}</span>
         <div><h2>Лига «{b.tier_name}»</h2><span className="sub">{left(b.ends_at)} · XP за эту неделю</span></div>
       </div>
-      <p className="sub">{b.promote ? `Первые ${b.promote} поднимутся в «${b.next_tier}»` : 'Это высшая лига — держись в ней'}
+      <p className="sub">{b.promote ? `Первые ${b.promote} поднимутся в «${b.next_tier}»` : 'Высшая лига. Удержись'}
         {b.demote ? `, последние ${b.demote} опустятся.` : '.'} XP дают еда, вода, тренировки, задания.</p>
-      {n === 1 && <p className="sub">В группе пока только ты — соперники появятся, когда зайдут другие.</p>}
+      {n === 1 && <p className="sub">В группе пока только ты. Соперники появятся, когда зайдут другие.</p>}
       <ol className="league-list">
         {b.members.map((m) => (
           <li key={m.rank} className={[m.me ? 'me' : '', m.rank <= b.promote ? 'up' : '', b.demote && m.rank > n - b.demote ? 'down' : ''].join(' ')}>

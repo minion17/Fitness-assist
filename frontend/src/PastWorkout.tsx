@@ -40,7 +40,7 @@ export default function PastWorkout({ program, dayId, onDone, onClose }: { progr
       const r = await api<Result>('/api/workout-logs/past', postJson({ program_day_id: day.id, title: `${day.day_name} · ${program.name}`,
         day: iso(date), start, minutes: Math.round(num(minutes)), sets }))
       if (r) { haptic('success'); setResult(r); onDone(r.xp_awarded) }
-    } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не сохранилось — попробуй ещё раз') }
+    } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не сохранилось. Попробуй ещё раз') }
     setBusy(false)
   }
 
@@ -49,7 +49,7 @@ export default function PastWorkout({ program, dayId, onDone, onClose }: { progr
       <div className="workout-summary-icon" aria-hidden="true">📝</div>
       <h1>Тренировка записана</h1>
       <p className="sub">{day.day_name} · {sets.length} {plural(sets.length, 'подход', 'подхода', 'подходов')}</p>
-      {result.xp_awarded > 0 ? <p className="pos">+{result.xp_awarded} XP <span className="sub">(в плеере во время тренировки — вдвое больше)</span></p>
+      {result.xp_awarded > 0 ? <p className="pos">+{result.xp_awarded} XP <span className="sub">(в плеере вдвое больше)</span></p>
         : result.xp_note && <p className="sub">{result.xp_note}</p>}
       {result.tip && <p className="workout-tip">⚡ {result.tip}</p>}
       <button className="btn" onClick={onClose}>Готово</button>
@@ -59,7 +59,7 @@ export default function PastWorkout({ program, dayId, onDone, onClose }: { progr
   return (
     <section className="past-workout">
       <div className="card-head"><h1>Записать после</h1><button className="link" onClick={onClose}>Отмена</button></div>
-      <p className="sub">Тренировка прошла без телефона? Внеси подходы — прогресс и веса посчитаем. XP — половина, а в дуэлях и рейтинге чатов такие тренировки не участвуют.</p>
+      <p className="sub">Внеси подходы, и прогресс посчитается. XP вдвое меньше, в дуэлях и рейтинге чатов такая тренировка не участвует.</p>
       {program.days.length > 1 && <label className="past-field"><span>Тренировка</span>
         <select value={day.id} onChange={(e) => pick(Number(e.target.value))}>{program.days.map((d) => <option key={d.id} value={d.id}>{d.day_name}</option>)}</select></label>}
       <div className="checkin-row" role="radiogroup" aria-label="Когда">

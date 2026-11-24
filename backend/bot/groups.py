@@ -20,11 +20,11 @@ GROUPS = {"group", "supergroup"}
 router.message.filter(F.chat.type.in_(GROUPS))
 router.callback_query.filter(F.message.chat.type.in_(GROUPS))
 
-HELLO = ("Всем привет! 👋 Я Setly — считаю калории, тренировки и воду.\n\n"
-         "Давайте соревноваться: я веду рейтинг этого чата за неделю. Очки — XP Setly: за тренировки, записи еды, воду "
-         "и привычки. В понедельник утром — итоги и чемпион недели, в четверг — кто кого догоняет.\n\n"
-         "Сюда же можно прислать список покупок из рациона Setly — купленное отмечайте кнопками под сообщением.\n\n"
-         "Жмите «Участвую». Кто ещё не в Setly — «Открыть Setly», это 2 минуты.\n\n"
+HELLO = ("Всем привет! 👋 Я Setly, считаю калории, тренировки и воду.\n\n"
+         "Давайте соревноваться: я веду рейтинг этого чата за неделю. Очки — это XP Setly: за тренировки, записи еды, воду "
+         "и привычки. В понедельник утром итоги и чемпион недели, в четверг сводка, кто кого догоняет.\n\n"
+         "Сюда же можно прислать список покупок из рациона Setly, купленное отмечается кнопками.\n\n"
+         "Жмите «Участвую». Кто ещё не в Setly, жмите «Открыть Setly».\n\n"
          "/top — рейтинг сейчас · /join — участвовать · /leave — выйти")
 
 
@@ -110,9 +110,9 @@ async def join_command(message: Message) -> None:
         user, new = await enter(s, g, message.from_user)
         n = await count(s, g)
     if user is None:
-        await message.reply("Сначала открой Setly — это 2 минуты, и ты сразу попадёшь в рейтинг этого чата.", reply_markup=link_keyboard(g))
+        await message.reply("Сначала открой Setly, и сразу попадёшь в рейтинг этого чата.", reply_markup=link_keyboard(g))
     else:
-        await message.reply(f"✋ {html.escape(name(user))} в игре! Участников: {n}." if new else "Ты уже в рейтинге. Как дела — /top")
+        await message.reply(f"✋ {html.escape(name(user))} в игре! Участников: {n}." if new else "Ты уже в рейтинге. Как дела: /top")
 
 
 @router.message(Command("leave"))

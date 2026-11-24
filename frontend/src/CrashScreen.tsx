@@ -17,7 +17,7 @@ export default class CrashScreen extends Component<{ children: ReactNode }, { br
       <div className="crash">
         <div className="crash-icon" aria-hidden="true">🛠</div>
         <h1>Что-то сломалось</h1>
-        <p className="sub">Мы уже получили сообщение об ошибке. Твои записи сохранены — попробуй открыть приложение заново.</p>
+        <p className="sub">Мы уже получили сообщение об ошибке. Записи сохранены. Открой приложение заново.</p>
         <button className="btn" onClick={() => location.reload()}>Перезапустить</button>
       </div>
     )

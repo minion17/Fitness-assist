@@ -65,7 +65,7 @@ export default function RecipeEditor({ initial, onSaved, onCancel }: {
 
   return (
     <div className="recipe">
-      <p className="sub">Собери блюдо из продуктов — посчитаем КБЖУ на 100 г. Потом записывай его тарелками или граммами.</p>
+      <p className="sub">Собери блюдо из продуктов, и посчитаем КБЖУ на 100 г. Потом записывай его тарелками или граммами.</p>
       <label className="field"><span>Название</span>
         <div className="input-wrap"><input value={name} maxLength={120} placeholder="Например, борщ мамин" onChange={(e) => setName(e.target.value)} /></div>
       </label>
@@ -96,7 +96,7 @@ export default function RecipeEditor({ initial, onSaved, onCancel }: {
           <div className="input-wrap"><input inputMode="numeric" value={servings} placeholder="необязательно" onChange={(e) => setServings(e.target.value)} /></div>
         </label>
       </div>
-      <p className="sub">Взвесь кастрюлю с готовым блюдом (без кастрюли) — тогда учтём выкипевшую воду.</p>
+      <p className="sub">Вес готового блюда без кастрюли. Так учтём выкипевшую воду.</p>
       {ings.length > 0 && weight > 0 && (
         <p className="recipe-total"><b>{Math.round(per100('kcal'))} ккал</b> на 100 г · Б {per100('protein_g').toFixed(1).replace('.', ',')} · Ж {per100('fat_g').toFixed(1).replace('.', ',')} · У {per100('carbs_g').toFixed(1).replace('.', ',')}
           {portion && <><br />Порция {portion} г — {Math.round((per100('kcal') * portion) / 100)} ккал</>}</p>

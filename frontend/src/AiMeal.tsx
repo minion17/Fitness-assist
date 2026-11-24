@@ -10,7 +10,7 @@ type DraftItem = {
 }
 type Draft = { meal_type: MealType | null; items: DraftItem[]; note: string }
 
-const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуй через минуту')
+const errorText = (e: unknown) => (e instanceof ApiError ? e.message : 'Нет связи с Setly. Попробуй через минуту')
 
 export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
   mode: 'text' | 'photo'
@@ -103,7 +103,7 @@ export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
               </div>
             ))}
           </div>
-          {items.length > 0 && <p className="sub">Итого ≈ {total} ккал. Проверь граммы — AI оценивает порции примерно.</p>}
+          {items.length > 0 && <p className="sub">Итого ≈ {total} ккал. Проверь граммы: AI оценивает порции на глаз.</p>}
           <button className="btn" disabled={!valid || busy} onClick={confirm}>{busy ? 'Добавляем…' : `Добавить в «${MEALS[meal]}»`}</button>
           <button className="btn btn-ghost" disabled={busy} onClick={() => { setDraft(null); setError('') }}>Заново</button>
         </>

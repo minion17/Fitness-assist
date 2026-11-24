@@ -21,7 +21,7 @@ export function datePace(weight: number, target: number, date: string | undefine
   if (!date || !weeks) return null
   const left = Math.floor((new Date(date + 'T12:00').getTime() - today.getTime()) / (7 * 864e5))
   if (left >= weeks[1]) return { ok: true, text: `К ${dateRu(date)} успеваешь спокойно: нужно ${weeks[0]}–${weeks[1]} нед., до даты ${left}.` }
-  if (left >= weeks[0]) return { ok: true, text: `К ${dateRu(date)} успеваешь, но без запаса — придётся держать темп каждую неделю.` }
+  if (left >= weeks[0]) return { ok: true, text: `К ${dateRu(date)} успеваешь, но без запаса. Темп придётся держать каждую неделю.` }
   const reach = Math.round(Math.max(0, left) * topRate(weight, target) * 10) / 10
   const whole = new Date(today.getTime() + weeks[0] * 7 * 864e5).toLocaleDateString('sv-SE')
   return { ok: false, text: `К ${dateRu(date)} безопасно получится ${target < weight ? 'минус' : 'плюс'} ${reach.toLocaleString('ru-RU')} кг — уже хороший шаг. Вся цель — примерно к ${dateRu(whole)}.` }

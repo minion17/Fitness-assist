@@ -89,7 +89,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       const previousExercises = (programs ?? []).flatMap(program => program.days.flatMap(day => day.exercises.map(exercise => ({ id: exercise.exercise_id, name: exercise.name }))))
       setExercises([...new Map([...previousExercises, ...(list ?? []), ...localExercises.filter(exercise => !existingNames.has(exercise.name.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е')))].map(exercise => [exercise.id, exercise])).values()])
       setEditing(p)
-    } catch { setBuilderError('Нет связи — упражнения загрузим, как только вернётся интернет') }
+    } catch { setBuilderError('Нет связи. Упражнения загрузим, как только вернётся интернет') }
   }
   async function saveProgram(draft: ProgramDraft, target: Program | 'new' | null = editing) {
     if (!canEdit) {
@@ -249,7 +249,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
       <section className="card">
         <div className="card-head"><h2>История</h2>{canEdit && <button className="link" onClick={() => setPast(next.id)}>+ Добавить тренировку</button>}</div>
-        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведи первую — подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
+        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведи первую: подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
           <div className="list">
             {logs.slice(0, 10).map((l) => (
               <button className="row row-btn history-entry" key={l.id} onClick={() => setHistoryLog(l)}>
@@ -428,7 +428,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
         setCur(ei + 1)
       }
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : 'Подход не сохранился — попробуй ещё раз')
+      setError(e instanceof Error && e.message ? e.message : 'Подход не сохранился. Попробуй ещё раз')
     } finally {
       setBusy(false)
     }
@@ -446,7 +446,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       if (rest) skipRest()
       setTimer(null)
       setCur(ei)
-    } catch { setError('Не получилось отменить подход — попробуй ещё раз') }
+    } catch { setError('Не получилось отменить подход. Попробуй ещё раз') }
     setBusy(false)
   }
 
@@ -463,7 +463,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
     try {
       const sent = await sendOrQueue<{ xp_awarded: number; xp_note?: string | null; tip?: string | null }>({ path: `/api/workout-logs/${logId}/complete`, kind: 'workout',
         name: day.day_name, body: { completed_at: new Date().toISOString() } }, send)
-      const r = sent.queued ? { xp_awarded: 0, xp_note: 'Нет связи — тренировка сохранена на телефоне и отправится сама, XP придёт тогда же' } : sent.value
+      const r = sent.queued ? { xp_awarded: 0, xp_note: 'Нет связи. Тренировка сохранена на телефоне и отправится сама, XP придёт тогда же' } : sent.value
       if (!sent.queued) onChanged(r?.xp_awarded ?? 0)
       const done = sets.flat().filter((x) => x.saved)
       const tonnage = sets.reduce((n, row, ei) => n + (timedExercise(day.exercises[ei]) ? 0
@@ -472,7 +472,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       setSummary({ minutes: Math.max(1, Math.round((Date.now() - startedAt) / 60000)), sets: done.length, tonnage: Math.round(tonnage), xp: r?.xp_awarded ?? 0, note: r?.xp_note ?? null, tip: sent.queued ? null : sent.value?.tip ?? null })
       setBusy(false)
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : 'Тренировка не завершилась — попробуй ещё раз')
+      setError(e instanceof Error && e.message ? e.message : 'Тренировка не завершилась. Попробуй ещё раз')
       setBusy(false)
     }
   }
@@ -615,7 +615,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
           </> : list ? setTable : <>
             {sets[ei].some(s => s.saved) && <div className="session-splits">{sets[ei].map((s, i) => s.saved &&
               <span key={i}>✓ {i + 1} · {s.reps}{s.weight && s.weight !== '0' ? ` × ${s.weight}` : ''}</span>)}</div>}
-            <details className="session-manual"><summary>Все подходы — поправить</summary>{setTable}</details>
+            <details className="session-manual"><summary>Все подходы</summary>{setTable}</details>
           </>}
           {!timed && !list && (() => {
             const si = sets[ei].findIndex((x) => !x.saved)
@@ -647,7 +647,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       )}
       {guideExercise && <KettlebellExercise exercise={guideExercise} onClose={() => setGuideExercise(null)} />}
       {error && <p className="error" role="alert">{error}</p>}
-      {offline && <p className="queued" role="status">📴 Нет связи — подходы сохраняются на телефоне и отправятся сами</p>}
+      {offline && <p className="queued" role="status">📴 Нет связи. Подходы сохраняются на телефоне и отправятся сами</p>}
       {savedCount > 0 && <button className="btn btn-ghost" disabled={busy || timer?.phase === 'work'} onClick={finish}>
         Завершить тренировку · {savedCount} подх.
       </button>}

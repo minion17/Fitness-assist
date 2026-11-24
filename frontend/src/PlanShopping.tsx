@@ -12,21 +12,21 @@ function ShareList({ items, title }: { items: MealPlan['shopping']; title: strin
   const [chats, setChats] = useState<{ id: number; title: string }[] | null>(null)
   const [sent, setSent] = useState('')
   const [error, setError] = useState('')
-  const open = () => api<{ id: number; title: string }[]>('/api/shopping/chats').then((r) => setChats(r ?? [])).catch(() => setError('Нет связи — попробуй ещё раз'))
+  const open = () => api<{ id: number; title: string }[]>('/api/shopping/chats').then((r) => setChats(r ?? [])).catch(() => setError('Нет связи. Попробуй ещё раз'))
   const send = (groupId: number | null, where: string) => {
     haptic('success')
     setError('')
     api('/api/shopping/share', postJson({ group_id: groupId, title, items: items.slice(0, 90).map((i) => ({ name: i.product.slice(0, 60), qty: qty(i.grams) })) }))
-      .then(() => setSent(where)).catch(() => setError('Не отправилось — попробуй ещё раз'))
+      .then(() => setSent(where)).catch(() => setError('Не отправилось. Попробуй ещё раз'))
   }
-  if (sent) return <p className="sub pos" role="status">Список отправлен {sent}. Кто купил — отмечает прямо в сообщении, у всех обновится.</p>
+  if (sent) return <p className="sub pos" role="status">Список отправлен {sent}. Купленное отмечают прямо в сообщении, список обновится у всех.</p>
   if (!chats) return <><button className="btn btn-ghost share-list" onClick={open}>🛒 Отправить список в чат</button>{error && <p className="error" role="alert">{error}</p>}</>
   return (
     <div className="share-list-to">
       <p className="sub">Куда отправить? Покупки отмечаются кнопками прямо в сообщении.</p>
       {chats.map((c) => <button key={c.id} className="btn btn-ghost" onClick={() => send(c.id, `в чат «${c.title}»`)}>👥 {c.title}</button>)}
       <button className="btn btn-ghost" onClick={() => send(null, 'тебе в чат с Setly')}>💬 Себе в чат с Setly</button>
-      {!chats.length && <p className="sub">Чтобы покупать вместе с семьёй, добавь Setly в ваш общий чат — команда /group в боте — и нажмите там «Участвую».</p>}
+      {!chats.length && <p className="sub">Чтобы покупать вместе с семьёй, добавь Setly в общий чат (команда /group в боте) и нажмите там «Участвую».</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </div>
   )

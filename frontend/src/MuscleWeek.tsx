@@ -23,7 +23,7 @@ export default function MuscleWeek() {
           <div className="lib-tags">{worked.map(([m, v]) => <span key={m} className="chip chip-accent">{MUSCLES[m as Muscle] ?? m} · {String(v).replace('.', ',')}</span>)}</div>
           {rested.length > 0 && <p className="sub">Не нагружали: {rested.map((m) => MUSCLES[m].toLowerCase()).join(', ')}.</p>}
         </>
-      ) : <p className="sub">За неделю тренировок не было — схема заполнится, когда отметишь подходы.</p>}
+      ) : <p className="sub">За неделю тренировок не было.</p>}
     </section>
   )
 }

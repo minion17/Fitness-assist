@@ -25,14 +25,14 @@ export function advice(entry: Last[string] | undefined, plan: string): string | 
   if (!entry?.sets.length) return null
   const top = topReps(plan)
   const weight = Math.max(...entry.sets.map((s) => s.weight_kg || 0))
-  if (entry.effort === 'hard') return 'В прошлый раз было тяжело — держим вес и добираем повторы.'
+  if (entry.effort === 'hard') return 'В прошлый раз было тяжело. Держим вес, добираем повторы.'
   const h = entry.history ?? []
   if (weight > 0 && h.length >= 3 && h[0].weight_kg <= h[2].weight_kg && (!top || h[0].reps < top)) {
     const light = Math.round(weight * 0.9 * 2) / 2
-    return `Вес стоит три тренировки — сделай облегчённую неделю: ${String(light).replace('.', ',')} кг, потом вернёмся с новыми силами.`
+    return `Вес стоит три тренировки. Сделай лёгкую неделю: ${String(light).replace('.', ',')} кг, потом вернёмся с новыми силами.`
   }
   if (weight === 0 && top && entry.sets.every((s) => s.duration_seconds == null && (s.reps ?? 0) >= top))
     return `Все подходы были по ${top} — сегодня попробуй на 1–2 повтора больше.`
-  if (entry.effort === 'easy' && weight > 0 && !nextWeight(entry.sets, plan)) return 'В прошлый раз было легко — добавь повтор в каждом подходе.'
+  if (entry.effort === 'easy' && weight > 0 && !nextWeight(entry.sets, plan)) return 'В прошлый раз было легко. Добавь по повтору в каждом подходе.'
   return null
 }

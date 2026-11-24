@@ -114,7 +114,7 @@ const BLOCKS: Record<Block, { icon: IconName; name: string; hint: string }> = {
   habits: { icon: 'check', name: 'Привычки', hint: 'Отметки за день: сон, шаги, витамины' },
   quests: { icon: 'trophy', name: 'Задания недели', hint: 'Три задания и XP за них' },
   weight: { icon: 'scale', name: 'Вес', hint: 'Записать вес в два нажатия' },
-  usual: { icon: 'repeat', name: 'Подсказка «как обычно»', hint: 'Твой обычный завтрак, обед или ужин — одной кнопкой' },
+  usual: { icon: 'repeat', name: 'Подсказка «как обычно»', hint: 'Обычный завтрак, обед или ужин в одно нажатие' },
 }
 const LAYOUT_KEY = 'setly-home-layout'
 type Layout = { order: Block[]; hidden: Block[] }
@@ -165,7 +165,7 @@ function HomeSettings({ layout, onChange, onClose }: { layout: Layout; onChange:
         <span className="home-row-icon" aria-hidden="true"><Icon name="utensils" /></span>
         <span className="step-text"><b>Питание и вода</b><span className="sub">Всегда наверху</span></span>
       </div>
-      <h3 className="home-settings-h">Блоки — сверху вниз</h3>
+      <h3 className="home-settings-h">Порядок блоков</h3>
       <ul className="home-settings">{layout.order.map((b, i) => row(b, i))}</ul>
       <h3 className="home-settings-h">Подсказки</h3>
       <ul className="home-settings">{row('usual')}</ul>
@@ -303,7 +303,7 @@ export default function Home(props: {
         <section className="card day-summary" aria-label="Итоги дня">
           <div className="day-summary-head">
             <div><h2>{progress >= 100 ? 'День закрыт 🎉' : evening ? 'Итог дня' : 'Прогресс дня'}</h2>
-              <p className="sub">{progress >= 100 ? 'Всё по плану — так держать' : evening ? 'Ещё можно успеть' : 'Что уже сделано сегодня'}</p></div>
+              <p className="sub">{progress >= 100 ? 'Всё по плану' : evening ? 'Ещё можно успеть' : 'Что уже сделано сегодня'}</p></div>
             <span className="day-summary-total">{progress}%</span>
           </div>
           <ul className="day-summary-list">
@@ -324,7 +324,7 @@ export default function Home(props: {
             {props.aiEnabled && <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>}
             {props.aiEnabled ? 'Добавить еду' : '+ Добавить еду'}
           </button>
-          <button className="btn btn-ghost btn-side water-quick" aria-label={`Добавить воды, ${portion} мл`} title="Зажми — другие порции"
+          <button className="btn btn-ghost btn-side water-quick" aria-label={`Добавить воды, ${portion} мл`} title="Зажми, чтобы выбрать порцию"
             onPointerDown={() => { longPressed.current = false; pressTimer.current = setTimeout(() => { longPressed.current = true; haptic('light'); setWaterOpen(true) }, 450) }}
             onPointerUp={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }} onPointerLeave={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }}
             onContextMenu={(e) => e.preventDefault()}
@@ -367,7 +367,7 @@ function TestosteroneTip({ text }: { text: string }) {
   if (hidden) return null
   return (
     <section className="card t-tip" aria-label="Совет">
-      <div className="card-head"><h2>⚡ Полезно знать</h2>
+      <div className="card-head"><h2>Полезно знать</h2>
         <button className="link" aria-label="Скрыть" onClick={() => { try { localStorage.setItem(week, '1') } catch { /* private mode */ } setHidden(true) }}>✕</button></div>
       <p>{text}</p>
     </section>

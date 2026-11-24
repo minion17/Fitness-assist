@@ -130,7 +130,7 @@ function AddMeasurement({ measurements, onClose, onSave }: {
 
   return (
     <Sheet title="Замер на сегодня" onClose={onClose}>
-      <span className="sub">{base ? 'Сегодняшний замер будет обновлён.' : 'Подставлены последние значения — поменяй то, что изменилось.'}</span>
+      <span className="sub">{base ? 'Сегодняшний замер будет обновлён.' : 'Подставили прошлые значения. Поменяй то, что изменилось.'}</span>
       <div className="grid2">
         {MEASURES.map(({ key, label, unit }) => (
           <label className="field" key={key}>
@@ -176,7 +176,7 @@ export function QuickWeight({ measurements, onSave, goal }: { measurements: Meas
     <button className="card quick-weight" onClick={() => { setValue(String(todays?.weight_kg ?? last?.value ?? '')); setOpen(true) }}>
       <span className="home-row-icon" aria-hidden="true"><Icon name="scale" /></span>
       <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${ru(todays.weight_kg)} кг` : 'Взвеситься'}</b>
-        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запиши вес — увидишь динамику'}</span>
+        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запиши вес, чтобы видеть динамику'}</span>
         {(() => {
           const f = forecast(measurements.filter((m) => m.weight_kg != null).map((m) => ({ date: m.measured_on, kg: m.weight_kg! })).sort((a, b) => a.date.localeCompare(b.date)), goal)
           return f && goal ? <span className="sub forecast">📅 {forecastText(f, goal)}</span> : null

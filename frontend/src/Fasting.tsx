@@ -47,7 +47,7 @@ export default function Fasting({ home = false, protein, refresh = 0 }: { home?:
   return (
     <section className="card fasting" aria-label="Интервальное голодание">
       <div className="card-head">
-        <h2>⏱ Голодание {plan.hours}:{24 - plan.hours}</h2>
+        <h2>Голодание {plan.hours}:{24 - plan.hours}</h2>
         {!home && <button className="link" onClick={() => setEdit(true)}>Изменить</button>}
       </div>
       {eating && fasted < 6 * 60 ? <>
@@ -60,7 +60,7 @@ export default function Fasting({ home = false, protein, refresh = 0 }: { home?:
         </div>
         <p className="sub">{eating ? `Окно открыто до ${plan.eat_to} — можно есть, начни с белка.`
           : done ? `Цель достигнута 🎉 Окно откроется в ${plan.eat_from}.`
-          : `Окно откроется в ${plan.eat_from}, через ${dur(until(plan.eat_from, now))}. Вода, чай и кофе без сахара — можно.`}</p>
+          : `Окно откроется в ${plan.eat_from}, через ${dur(until(plan.eat_from, now))}. Вода, чай и кофе без сахара можно.`}</p>
       </>}
       {(s.series ?? 0) >= 2 && <p className="fasting-series">🔥 Серия в окне: {s.series} {plural(s.series!, 'день', 'дня', 'дней')} — считается сама по дневнику</p>}
       {!home && s.logged > 0 && <p className="sub">За неделю в окне: {s.kept} из {s.logged} дн.</p>}
@@ -75,12 +75,12 @@ function Setup({ plan, open, onOpen, onSave, onCancel }: { plan: Plan | null; op
   const [safe, setSafe] = useState(!!plan)
   if (!open) return (
     <button className="card fasting-entry" onClick={onOpen}>
-      <strong>⏱ Интервальное голодание</strong><small>Схема 16:8 и другие, таймер и напоминания в боте</small>
+      <strong>Интервальное голодание</strong><small>16:8 и другие схемы, таймер, напоминания</small>
     </button>
   )
   return (
     <section className="card fasting" aria-label="Настройка голодания">
-      <h2>⏱ Интервальное голодание</h2>
+      <h2>Интервальное голодание</h2>
       <div className="fasting-protocols" role="radiogroup" aria-label="Схема">
         {PROTOCOLS.map(([h, note]) => (
           <button key={h} role="radio" aria-checked={hours === h} className="fasting-protocol" onClick={() => setHours(h)}>
@@ -95,8 +95,8 @@ function Setup({ plan, open, onOpen, onSave, onCancel }: { plan: Plan | null; op
       <label className="fasting-check"><input type="checkbox" checked={remind} onChange={(e) => setRemind(e.target.checked)} /> Напоминать в боте, когда окно открывается и закрывается</label>
       <ul className="fasting-facts">
         <li>Голодание помогает не переедать, но жир сам по себе не сжигает: при тех же калориях результат как у обычной диеты.</li>
-        <li>Норма КБЖУ остаётся прежней — её нужно съесть в окне. Белок раздели на 2–3 приёма.</li>
-        <li>Тренируйся в окне или прямо перед первым приёмом пищи. Сложно — начни с 12:12.</li>
+        <li>Норма КБЖУ та же, просто съедаешь её в окне. Белок — на 2–3 приёма.</li>
+        <li>Тренируйся в окне или прямо перед первой едой. Тяжело? Начни с 12:12.</li>
       </ul>
       <div className="fasting-warn">
         <b>Не подходит, если:</b> беременность или кормление грудью; тебе меньше 18; диабет на инсулине или таблетках, снижающих

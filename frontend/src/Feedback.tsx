@@ -18,11 +18,11 @@ export function FeedbackForm({ kind: fixed, productId, placeholder, onSent }: { 
       await api('/api/feedback', postJson({ kind, text: text.trim(), product_id: productId ?? null }))
       setState('sent'); setText(''); onSent?.()
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не отправилось — проверь соединение'); setState('idle')
+      setError(e instanceof ApiError ? e.message : 'Не отправилось. Проверь интернет'); setState('idle')
     }
   }
 
-  if (state === 'sent') return <p className="sub pos" role="status">Спасибо! Сообщение у команды — прочитаем и ответим в чате, если понадобится.</p>
+  if (state === 'sent') return <p className="sub pos" role="status">Спасибо, получили. Если нужно, ответим в чате.</p>
   return (
     <div className="feedback-form">
       {!fixed && (

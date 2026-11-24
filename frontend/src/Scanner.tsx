@@ -58,7 +58,7 @@ export default function Scanner({ onCode, onPhoto, onManual, onClose, note }: {
         const denied = e instanceof DOMException && e.name === 'NotAllowedError'
         setError(denied
           ? 'Нет доступа к камере. Разреши его Telegram в настройках телефона или выбери фото.'
-          : 'Камера недоступна в этой версии Telegram — выбери фото штрихкода или введи цифры.')
+          : 'Камера недоступна в этой версии Telegram. Выбери фото штрихкода или введи цифры.')
       }
     })()
     return () => { stopped = true; stream?.getTracks().forEach((t) => t.stop()) }

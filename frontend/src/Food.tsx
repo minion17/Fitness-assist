@@ -285,7 +285,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   useEffect(() => {
     if (!canEdit || planning) return
     let active = true
-    api<TodayPlan>('/api/meal-plan/today').then(result => { if (active) { setTodayPlan(result && Array.isArray(result.meals) ? result : null); setPlanError('') } }).catch(() => { if (active) setPlanError('Нет связи — рацион покажем, как только вернётся интернет') })
+    api<TodayPlan>('/api/meal-plan/today').then(result => { if (active) { setTodayPlan(result && Array.isArray(result.meals) ? result : null); setPlanError('') } }).catch(() => { if (active) setPlanError('Нет связи. Рацион покажем, как только вернётся интернет') })
     return () => { active = false }
   }, [canEdit, planning, day])
 
@@ -326,12 +326,12 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
             ))}
           </div>
         </div>
-        {!targets && <span className="sub">Ориентир по умолчанию — заполни анкету в профиле, чтобы получить свою норму.</span>}
+        {!targets && <span className="sub">Это средняя норма. Заполни анкету, и посчитаем твою.</span>}
         {isToday && targets?.day && targets.carbs_shift ? <span className="sub day-kind">{targets.day === 'training'
           ? `🏋️ День тренировки: углеводов +${targets.carbs_shift} г — топливо для нагрузки.`
           : `🛋 День отдыха: углеводов ${targets.carbs_shift} г — за неделю норма та же.`}</span> : null}
       </section>
-      {editable && onDate && <Tip id="days">Смахни КБЖУ вбок — соседний день. Дата сверху — календарь.</Tip>}
+      {editable && onDate && <Tip id="days">Свайп вбок листает дни, дата сверху открывает календарь.</Tip>}
       {canEdit && !editable && <p className="sub">Дописать можно только последние {BACKFILL_DAYS} дней — этот день только для просмотра.</p>}
       {editable && (isToday
         ? <button className="food-search" onClick={() => setAdding({ meal: mealNow() })} aria-label={`Добавить продукт в «${MEALS[mealNow()]}»: поиск`}>
@@ -347,7 +347,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
 
       <section className="meal-diary">
       <h2>Приёмы пищи</h2>
-      {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажми продукт — изменить или перенести. Влево — быстрые действия.</Tip>}
+      {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажми продукт, чтобы изменить или перенести. Смахни влево для быстрых действий.</Tip>}
       {queued > 0 && <p className="queued" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
       {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отмечай съеденное.</p>}
       {isToday && todayPlan?.finished && <p className="sub">Рацион завершён.</p>}
@@ -512,7 +512,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       eaten(p)
       await (shown.unit.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: shown.unit.label, qty: shown.qty }))
       done(p, grams)
-    } catch { setError('Не добавилось — попробуй ещё раз') }
+    } catch { setError('Не добавилось. Попробуй ещё раз') }
     setBusy(false)
   }
 
@@ -529,7 +529,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     try {
       await onLogSet(id, meal, meal === 'snack' ? slot : null)
       if (set) setAdded((a) => [...a, { name: set.name, kcal: Math.round(set.kcal) }])
-    } catch { setError('Набор не добавился — попробуй ещё раз') }
+    } catch { setError('Набор не добавился. Попробуй ещё раз') }
     setBusy(false)
   }
   const [thanks, setThanks] = useState('')
@@ -552,7 +552,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   async function toggleFav(p: Product) {
     const was = favorites?.some((f) => f.id === p.id)
     setFavorites((fs) => (was ? (fs ?? []).filter((f) => f.id !== p.id) : [p, ...(fs ?? [])])) // optimistic
-    try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Избранное не обновилось — попробуй ещё раз') }
+    try { await api(`/api/favorites/${p.id}`, { method: was ? 'DELETE' : 'PUT' }) } catch { setError('Избранное не обновилось. Попробуй ещё раз') }
   }
   async function lookup(c: string) {
     setScan('busy')
@@ -562,7 +562,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       if (p) { pick(p); setScan('idle'); return }
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) { setScan('idle'); setLastCode(c); setCustom('notFound'); return }
-      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуй через минуту')
+      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly. Попробуй через минуту')
     }
     setScan('manual')
   }
@@ -580,7 +580,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     if (attach) { // the unknown barcode goes with this product: for this user now, for everyone once others agree
       api(`/api/products/${p.id}/barcode`, postJson({ barcode: attach })).catch(() => {})
       setAttach(null)
-      setThanks('Штрихкод привязан — в следующий раз товар найдётся сканером сразу.')
+      setThanks('Штрихкод привязан. В следующий раз сканер найдёт товар сразу.')
     }
     setChecked(false)
     setPicked(p)
@@ -614,7 +614,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
         let r = w && w.unit ? null : await find(q.trim(), Boolean(w))
         if (w && !r?.length && text.length >= 2) { r = await find(text); if (!stale) setWanted(w) } else if (!stale) setWanted(null)
         if (!stale) { setFound({ q, items: r ?? [] }); (r ?? []).forEach(remember) }
-      } catch { if (!stale) setError('Поиск недоступен — проверь соединение') }
+      } catch { if (!stale) setError('Поиск недоступен. Проверь интернет') }
     }, 300) // wait for the user to stop typing
     return () => { stale = true; clearTimeout(timer) }
   }, [q])
@@ -663,7 +663,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
       done(picked, g)
     } catch {
-      setError('Не добавилось — попробуй ещё раз')
+      setError('Не добавилось. Попробуй ещё раз')
     }
     setBusy(false)
   }
@@ -684,8 +684,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
           onFind={custom === 'notFound' ? () => { setAttach(lastCode); setCustom(false); setError('') } : undefined}
           onCreated={(p) => {
             setCustom(false); setError('')
-            setThanks(p.shared ? 'Спасибо! Этот продукт подтвердили и другие — теперь он доступен всем, а тебе +25 XP.'
-              : p.published ? 'Готово — теперь этот товар найдётся по штрихкоду у всех. Когда двое сверят цифры с упаковкой, тебе придёт +25 XP.'
+            setThanks(p.shared ? 'Спасибо! Продукт подтвердили другие, теперь он есть у всех. +25 XP.'
+              : p.published ? 'Готово, теперь товар найдётся по штрихкоду у всех. Когда двое сверят цифры с упаковкой, тебе придёт +25 XP.'
               : custom === 'fix' ? 'Спасибо! Когда ещё кто-то внесёт те же цифры, они заменят прежние.' : '')
             pick(p)
           }} onCancel={() => { setCustom(false); setError('') }} />
@@ -694,7 +694,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       ) : !picked ? (
         <>
           {attach && (
-            <p className="sub attach-note">Найди товар по названию — привяжем к нему штрихкод {attach}.{' '}
+            <p className="sub attach-note">Найди товар по названию, и привяжем к нему штрихкод {attach}.{' '}
               <button type="button" className="link" onClick={() => setAttach(null)}>Отмена</button></p>
           )}
           <div className="input-wrap">
@@ -722,7 +722,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
           )}
           {q.trim().length < 2 && recent && favorites && (
             <>
-              {recent.length > 0 && <Tip id="quick-add">«+» добавляет сразу, окно не закрывается — можно следующий.</Tip>}
+              {recent.length > 0 && <Tip id="quick-add">«+» добавляет сразу, окно остаётся открытым.</Tip>}
               <div className="seg seg-inline">
                 <button type="button" aria-pressed={list === 'recent'} onClick={() => setList('recent')}>Недавние</button>
                 <button type="button" aria-pressed={list === 'favorites'} onClick={() => setList('favorites')}>Избранное</button>
@@ -731,7 +731,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
               {list === 'mine' ? (
                 <div className="list scroll-list">
                   {sets === null || recipes === null ? <p className="sub">Загружаем…</p> : sets.length + recipes.length === 0 ? (
-                    <p className="sub">Наборы — то, что ты обычно ешь вместе: в дневнике под приёмом пищи нажми «☆ В наборы». Рецепт — своё блюдо из продуктов: «🍲 Рецепт» выше.</p>
+                    <p className="sub">Наборы — то, что ты обычно ешь вместе. В дневнике под приёмом пищи нажми «☆ В наборы». Рецепт — своё блюдо из продуктов: «🍲 Рецепт» выше.</p>
                   ) : null}
                   {sets?.map((s) => (
                     <div className="row" key={`s${s.id}`}>
@@ -755,7 +755,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                   ))}
                 </div>
               ) : (list === 'recent' ? recentForMeal! : favorites).length === 0 ? (
-                <p className="sub">{list === 'recent' ? 'Здесь появятся твои недавние продукты.' : 'Отметь продукт звёздочкой — он появится здесь.'}</p>
+                <p className="sub">{list === 'recent' ? 'Здесь появятся твои недавние продукты.' : 'Отметь продукт звёздочкой, и он появится здесь.'}</p>
               ) : (
                 <div className="list scroll-list">
                   {(list === 'recent' ? recentForMeal! : favorites).map((p) => {
@@ -827,7 +827,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                 : '⚠️ Товар добавил пользователь, цифры ещё не проверены. Сверь с упаковкой:'}</p>
               {!checked && <div className="meal-actions">
                 <button className="link" onClick={() => { setChecked(true); api(`/api/products/${picked.id}/confirm`, { method: 'POST' }).catch(() => {}) }}>✓ Всё верно</button>
-                <button className="link" onClick={() => { setLastCode(picked.barcode ?? null); setPicked(null); setCustom('fix') }}>Цифры другие — исправить</button>
+                <button className="link" onClick={() => { setLastCode(picked.barcode ?? null); setPicked(null); setCustom('fix') }}>Цифры другие? Исправить</button>
               </div>}
             </div>
           )}
@@ -950,21 +950,21 @@ function CustomProduct({ barcode, fix = false, aiEnabled, onCreated, onCancel, o
       }))
       if (p) onCreated(p)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуй ещё раз')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось. Попробуй ещё раз')
       setBusy(false)
     }
   }
 
   return (
     <>
-      {barcode && !fix && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавь его один раз — он сразу начнёт находиться по штрихкоду у всех.</p>}
+      {barcode && !fix && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавь его один раз, и он будет находиться по штрихкоду у всех.</p>}
       {barcode && !fix && <p className="xp-note">🏅 <b>+25 XP</b>, когда двое сверят цифры с упаковкой</p>}
       {fix && <p className="row-title strong">Внеси цифры с упаковки. Если ещё кто-то внесёт такие же, они заменят нынешние у всех.</p>}
       {onFind && <button type="button" className="link" onClick={onFind}>Он есть в поиске под своим названием? Найти и привязать штрихкод</button>}
-      {!barcode && <p className="sub">Значения — на 100 г, они есть на упаковке. Сначала продукт виден только тебе; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а ты получишь <b>+25 XP</b>.</p>}
+      {!barcode && <p className="sub">Значения на 100 г, они есть на упаковке. Сначала продукт виден только тебе; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а ты получишь <b>+25 XP</b>.</p>}
       {aiEnabled && (
         <label className={`btn ${barcode ? '' : 'btn-ghost '}photo-btn${reading ? ' disabled' : ''}`}>
-          {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку — заполню сам'}
+          {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку и заполнить'}
           <input type="file" accept="image/*" capture="environment" hidden disabled={reading}
             onChange={(e) => { readLabel(e.target.files?.[0]); e.target.value = '' }} />
         </label>

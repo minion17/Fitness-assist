@@ -589,7 +589,7 @@ def test_reminder_settings_and_collect(client, seeded):
     client.put("/api/profile", headers=h2, json=PROFILE)
     client.post("/api/water", headers=h2, json={"delta_ml": 250})
     noon = [(t, card) for chat, t, card, _ in client.portal.call(run, (12, 1)) if chat == tg2]
-    assert [t for t, _ in noon] == ["💧 Выпито 0,25 л из 2,5 л. Стакан воды сейчас — самое время."]
+    assert [t for t, _ in noon] == ["💧 Выпито 0,25 л из 2,5 л. Выпей стакан сейчас."]
     assert noon[0][1]().startswith(b"\x89PNG")  # the card renders
 
 
@@ -707,7 +707,7 @@ def test_bot_greeting_handles_empty_and_invisible_names():
     assert clean_name("\u00ad") == "друг"  # soft hyphen only: Telegram shows it as blank
     assert clean_name("\u200b \u2063") == "друг" and clean_name(None) == "друг"
     assert clean_name("<b>Хакер</b>") == "&lt;b&gt;Хакер&lt;/b&gt;"  # HTML caption
-    assert WELCOME.format(name="Егор").startswith("Привет, Егор! 👋") and "Анкета ещё ждёт" in UNFINISHED
+    assert WELCOME.format(name="Егор").startswith("Привет, Егор! 👋") and "Анкета не закончена" in UNFINISHED
 
 
 def test_bot_greets_a_returning_user_with_their_day(client, seeded):
@@ -728,7 +728,7 @@ def test_bot_greets_a_returning_user_with_their_day(client, seeded):
             return await chat.day_greeting(s, user, await s.get(Profile, user.id), "Егор")
 
     text, card, _ = client.portal.call(greet)
-    assert ", Егор! " in text and "Сегодня пока пусто" in text and card["accent_line"] == "пока пусто"
+    assert ", Егор! " in text and "Сегодня пусто" in text and card["accent_line"] == "пока пусто"
     pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()[0]["id"]
     client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 200, "meal_type": "lunch"})
     text, card, _ = client.portal.call(greet)

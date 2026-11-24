@@ -33,7 +33,7 @@ export default function Friends() {
   const load = useCallback(() => Promise.all([
     api<{ invite_link: string | null; group_link?: string | null; board: Row[] }>('/api/friends').then((r) => { if (r) { setBoard(r.board); setLink(r.invite_link); setGroupLink(r.group_link ?? null) } }),
     api<Duel[]>('/api/duels').then((r) => r && setDuels(r)),
-  ]).catch(() => setError('Нет связи — друзей покажем, как только вернётся интернет')), [])
+  ]).catch(() => setError('Нет связи. Друзей покажем, как только вернётся интернет')), [])
   useEffect(() => { load() }, [load])
 
   async function act(run: () => Promise<unknown>, done = '') {
@@ -65,15 +65,15 @@ export default function Friends() {
         <div className="friends-actions">
           <button className="btn" disabled={!link} onClick={invite}>Пригласить друга</button>
           {canStory() && <button className="btn btn-ghost" onClick={() => act(() => shareStory({ kind: 'week' }))}>Неделя в историю</button>}
-          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом — перешли её кому угодно.')}>{canStory() ? 'Карточкой в чат' : 'Поделиться неделей'}</button>
+          <button className="btn btn-ghost" onClick={() => act(() => api('/api/share', { method: 'POST' }), 'Карточка недели придёт в чат с ботом. Перешли её кому хочешь.')}>{canStory() ? 'Карточкой в чат' : 'Поделиться неделей'}</button>
         </div>
         {!link && <p className="sub">Ссылка появится, когда бот будет запущен.</p>}
       </section>
       {groupLink && (
         <section className="card friends-group">
-          <h2>👥 Рейтинг в вашем чате</h2>
+          <h2>Рейтинг в вашем чате</h2>
           <p className="sub">Добавь Setly в чат друзей, семьи или коллег: бот ведёт общий рейтинг недели, по понедельникам объявляет
-            чемпиона, в четверг подначивает отстающих, а когда кто-то закончил тренировку — пишет в чат.</p>
+            чемпиона, в четверг подначивает отстающих, а после тренировок пишет в чат.</p>
           <button className="btn btn-ghost" onClick={() => { if (tg?.openTelegramLink) tg.openTelegramLink(groupLink); else window.open(groupLink, '_blank') }}>Добавить в чат</button>
         </section>
       )}
@@ -141,7 +141,7 @@ export default function Friends() {
             <button className="btn" onClick={() => act(async () => {
               await api('/api/duels', postJson({ friend_id: challenge.friend.id, metric: challenge.metric, days: challenge.days }))
               setChallenge(null)
-            }, 'Вызов отправлен — бот сообщит другу.')}>Вызвать</button>
+            }, 'Вызов отправлен.')}>Вызвать</button>
             <button className="btn btn-ghost" onClick={() => setChallenge(null)}>Отмена</button>
           </div>
         </section>

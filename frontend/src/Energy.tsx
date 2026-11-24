@@ -38,9 +38,9 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     <div className="energy-auto">
       <div>
         <b>Пересчитывать норму сама</b>
-        <small>{!e.kcal_auto ? 'Выключено — норма остаётся как есть'
+        <small>{!e.kcal_auto ? 'Выключено, норма не меняется'
           : e.kcal_auto_at ? `Раз в неделю по дневнику и весу · последний раз ${date(e.kcal_auto_at)}`
-          : e.ready ? 'Раз в неделю по дневнику и весу · первый пересчёт — в ближайший вечер' : 'Начнёт, как только хватит данных'}</small>
+          : e.ready ? 'Раз в неделю по дневнику и весу · первый пересчёт сегодня вечером' : 'Начнёт, как только хватит данных'}</small>
       </div>
       <button role="switch" aria-checked={!!e.kcal_auto} aria-label="Пересчитывать норму автоматически" className="switch" disabled={busy}
         onClick={() => setAuto(!e.kcal_auto)}><i /></button>
@@ -76,7 +76,7 @@ export default function EnergyCard({ calories, onNormChanged }: { calories?: num
     return (
       <section className="card energy">
         <div className="card-head"><h2>Реальный расход</h2><span className="sub">по формуле {fmt(e.formula)} ккал</span></div>
-        <p className="sub">Посчитаем, сколько ты тратишь на самом деле — по твоему дневнику и весу, а не по формуле. Нужно {e.need_days} дней с полным дневником
+        <p className="sub">Посчитаем, сколько ты тратишь на самом деле, по дневнику и весу, а не по формуле. Нужно {e.need_days} дней с полным дневником
           (есть {e.days_logged}) и {e.need_weighins} взвешивания за 10+ дней (есть {e.weighins}).</p>
         <Bar value={done * 100} goal={100} />
         {plateau}

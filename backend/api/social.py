@@ -143,7 +143,7 @@ async def cheer(friend_id: int, body: CheerIn, tg: dict = Depends(telegram_user)
     fresh = await session.scalar(insert(Cheer).values(from_user_id=user.id, to_user_id=friend.id, day=clock.today(), emoji=body.emoji)
                                  .on_conflict_do_nothing().returning(Cheer.day))
     if fresh:
-        notify(session, friend, f"{body.emoji} {name(user)} отмечает твою тренировку сегодня — так держать!")
+        notify(session, friend, f"{body.emoji} {name(user)} отмечает твою тренировку сегодня.")
     await session.commit()
     return {"ok": True, "sent": fresh is not None}
 

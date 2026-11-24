@@ -61,7 +61,7 @@ export default function MenuImport({ onPick, onCancel, kcalLeft }: { onPick: (p:
       }
       setSaved(out)
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Не сохранилось — попробуй ещё раз')
+      setError(e instanceof ApiError ? e.message : 'Не сохранилось. Попробуй ещё раз')
     } finally {
       setBusy('')
     }
@@ -71,7 +71,7 @@ export default function MenuImport({ onPick, onCancel, kcalLeft }: { onPick: (p:
     return (
       <>
         <p className="row-title strong">Сохранено: {saved.length}. Выбери, что добавить сейчас:</p>
-        {saved.some((p) => p.shared) && <p className="sub pos">Спасибо! Часть блюд подтвердили другие пользователи — теперь они доступны всем.</p>}
+        {saved.some((p) => p.shared) && <p className="sub pos">Спасибо! Часть блюд подтвердили другие, теперь они есть у всех.</p>}
         <div className="list scroll-list">
           {saved.map((p) => (
             <button className="row row-btn" key={p.id} onClick={() => onPick(p)}>
@@ -90,7 +90,7 @@ export default function MenuImport({ onPick, onCancel, kcalLeft }: { onPick: (p:
 
   return (
     <>
-      <p className="sub">Сфотографируй меню или карточку блюда в приложении доставки. Где КБЖУ напечатаны — возьму их, где нет — оценю по обычному рецепту (≈). Подскажу, что влезает в остаток дня.</p>
+      <p className="sub">Сфотографируй меню или карточку блюда в приложении доставки. КБЖУ возьму с фото, а где их нет, оценю по обычному рецепту (≈). Подскажу, что влезает в остаток дня.</p>
       <label className={busy ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
         {busy || (menu ? '📷 Другое фото' : '📷 Сфоткать меню')}
         <input type="file" accept="image/*" hidden disabled={!!busy} onChange={(e) => { read(e.target.files?.[0]); e.target.value = '' }} />

@@ -56,7 +56,7 @@ export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]
     return (
       <button className="home-row" onClick={() => setEditing(true)}>
         <span className="home-row-icon" aria-hidden="true"><Icon name="check" /></span>
-        <span className="step-text"><b>Привычки</b><span className="sub">Сон, шаги, без сладкого — отметка продлевает серию</span></span>
+        <span className="step-text"><b>Привычки</b><span className="sub">Сон, шаги, без сладкого. Отметка тоже держит серию</span></span>
         <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
       </button>
     )
@@ -84,7 +84,7 @@ export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]
 
       {editing && (
         <div className="habit-edit">
-          {habits.length > 0 && <p className="sub">Время — бот напомнит, если привычка ещё не отмечена. Отметить можно прямо в чате.</p>}
+          {habits.length > 0 && <p className="sub">Во сколько напомнить, если привычка не отмечена. Отметить можно прямо в чате.</p>}
           {removed && <p className="sub habit-removed" role="status">Убрали «{removed.title}» · <button className="link" onClick={async () => { if (await send(`/api/habits/${removed.id}/restore`, { method: 'POST' })) setRemoved(null) }}>Вернуть</button></p>}
           {habits.map((h) => (
             <div key={h.id} className="habit-line">

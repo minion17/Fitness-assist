@@ -57,7 +57,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
     let stale = false
     loadStats(days)
       .then((r) => { if (!stale && r) { setS(r); setError('') } })
-      .catch(() => !stale && setError('Нет связи — графики появятся, как только вернётся интернет'))
+      .catch(() => !stale && setError('Нет связи. Графики появятся, как только вернётся интернет'))
     return () => { stale = true }
   }, [canEdit, days])
 
@@ -112,7 +112,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       {part === 'food' && <>
         {top}
         {s && !logged.length && !waterDays.length && <Empty art="chart" title="Здесь появится твоё питание по дням"
-          text="Запиши еду хотя бы 3 дня — покажем средние калории, дни в норме и как ты ешь по сравнению с нормой." />}
+          text="Три дня с дневником, и здесь появятся средние калории и дни в норме." />}
         {s && (logged.length > 0 || waterDays.length > 0) && <>
           <section className="card progress-overview">
             <div className="card-head"><h2>Итоги периода</h2><span className="sub">{PERIODS.find(([n]) => n === days)?.[1]}</span></div>
@@ -160,7 +160,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               {delta !== null && <span className={delta <= 0 ? 'sub pos' : 'sub'}>{delta > 0 ? '+' : ''}{fmt(delta, 1)} кг за {PERIODS.find(([n]) => n === days)?.[1].toLowerCase()}</span>}</div>
             {w.length
               ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={170} goal={weightGoal} />
-              : <Empty art="chart" title="Пока нет записей веса" text="Запиши вес на Главной — здесь появится линия, как он меняется, и твоя цель." />}
+              : <Empty art="chart" title="Пока нет записей веса" text="Запиши вес на главной, и здесь появится график." />}
             {weightGoal && w.length > 0 && <p className="sub">До цели {fmt(Math.abs(w[w.length - 1].kg - weightGoal), 1)} кг</p>}
             {(() => { const f = forecast(w, weightGoal); return f && weightGoal ? <p className="sub forecast">📅 {forecastText(f, weightGoal)}</p> : null })()}
           </section>
@@ -197,7 +197,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               ? <LineChart points={exercise.points.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={140} />
               : <p className="sub">Упражнение с собственным весом: лучший подход — {Math.max(...exercise.points.map((p) => p.reps))} повт.</p>}
           </section>
-        ) : <Empty art="workouts" title="Пока нет тренировок за период" text="Проведи тренировку — здесь появятся рабочие веса и нагрузка на мышцы." />}
+        ) : <Empty art="workouts" title="Пока нет тренировок за период" text="После первой тренировки здесь появятся рабочие веса и нагрузка на мышцы." />}
       </>}
 
       {part === 'awards' && (

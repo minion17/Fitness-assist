@@ -147,7 +147,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
   const [plan, setPlan] = useState<LibExercise[] | null>(null)
   useEffect(() => {
     if (all) return
-    loadLibrary(canEdit).then(setAll).catch(() => setError('Нет связи — упражнения загрузим, как только вернётся интернет'))
+    loadLibrary(canEdit).then(setAll).catch(() => setError('Нет связи. Упражнения загрузим, как только вернётся интернет'))
   }, [all, canEdit])
 
   const toggleMuscle = (m: Muscle) => { setMuscles((ms) => (ms.includes(m) ? ms.filter((x) => x !== m) : [...ms, m])); setShown(PAGE) }
@@ -169,7 +169,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
   return (
     <div className="library">
       <div className="card-head"><h1>{build ? 'Собрать тренировку' : 'Упражнения'}</h1><button className="link" onClick={onClose}>Назад</button></div>
-      {build && <p className="sub">Нажми на мышцы на схеме — подберём упражнения под твоё оборудование и уровень.</p>}
+      {build && <p className="sub">Нажми на мышцы на схеме, и подберём упражнения под твоё оборудование и уровень.</p>}
       <MuscleMap primary={muscles} onPick={toggleMuscle} />
       <div className="lib-chips" role="group" aria-label="Мышцы">
         {MUSCLE_GROUPS.flatMap((g) => g.muscles).map((m) => (
@@ -186,7 +186,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
           <div className="lib-chips" role="group" aria-label="Вид">
             {Object.entries(KINDS).map(([k, t]) => <button key={k} className="habit-chip" aria-pressed={!q && kind === k} onClick={() => { setKind(k); setShown(PAGE) }}>{t}</button>)}
           </div>
-          <span className="lib-label">Что есть под рукой — можно несколько</span>
+          <span className="lib-label">Что есть под рукой</span>
           <div className="lib-chips" role="group" aria-label="Оборудование">
             {Object.entries(GEAR_NAMES).map(([k, t]) => <button key={k} className="habit-chip" aria-pressed={gear.includes(k)}
               onClick={() => { setGear(gear.includes(k) ? gear.filter((g) => g !== k) : [...gear, k]); setShown(PAGE) }}>{t}</button>)}
@@ -194,7 +194,7 @@ export default function Library({ canEdit, profile, mode, onClose, onSaveWorkout
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           {!all && !error && <p className="sub">Загружаем упражнения…</p>}
-          {all && <p className="sub">{list.length ? `Нашлось: ${list.length}` : 'Ничего не нашлось — убери часть фильтров'}</p>}
+          {all && <p className="sub">{list.length ? `Нашлось: ${list.length}` : 'Ничего не нашлось. Убери часть фильтров'}</p>}
           <div className="lib-list">{list.slice(0, shown).map((e) => <Row key={e.id} e={e} onOpen={() => setOpen(e)} />)}</div>
           {list.length > shown && <button className="btn btn-ghost" onClick={() => setShown(shown + PAGE)}>Показать ещё</button>}
         </>
@@ -245,7 +245,7 @@ function WorkoutPlan({ plan: initial, all, profile, muscles, onBack, onSave }: {
     const e = plan[i]
     const muscle = (muscles.find((m) => e.primary.includes(m)) ?? e.primary[0]) as Muscle
     const list = candidates(all, muscle, profile).filter((x) => !plan.includes(x))
-    if (!list.length) return setError('Других подходящих упражнений нет — можно убрать это')
+    if (!list.length) return setError('Других подходящих упражнений нет. Можно убрать это')
     const pos = list.findIndex((x) => x.id > e.id)
     setPlan(plan.map((x, j) => (j === i ? list[pos < 0 ? 0 : pos] : x)))
     setError('')
@@ -266,7 +266,7 @@ function WorkoutPlan({ plan: initial, all, profile, muscles, onBack, onSave }: {
     <div className="library">
       <div className="card-head"><h1>Твоя тренировка</h1><button className="link" onClick={onBack}>Назад</button></div>
       <MuscleMap primary={muscles} secondary={[...new Set(plan.flatMap((e) => [...e.primary, ...e.secondary]))].filter((m) => !muscles.includes(m as Muscle))} compact />
-      <p className="sub">{plan.length ? `${plan.length} ${plural(plan.length, 'упражнение', 'упражнения', 'упражнений')} · 3 подхода по ${reps} · отдых ${rest} с. Любое можно заменить или убрать.` : 'Под твоё оборудование не нашлось упражнений — отметь его в анкете или выбери другие мышцы.'}</p>
+      <p className="sub">{plan.length ? `${plan.length} ${plural(plan.length, 'упражнение', 'упражнения', 'упражнений')} · 3 подхода по ${reps} · отдых ${rest} с. Любое можно заменить или убрать.` : 'Под твоё оборудование упражнений нет. Отметь его в анкете или выбери другие мышцы.'}</p>
       <div className="lib-list">
         {plan.map((e, i) => (
           <Row key={e.id} e={e} onOpen={() => setOpen(e)} end={

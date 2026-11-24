@@ -433,7 +433,7 @@ async def repeat_meal(call: CallbackQuery) -> None:
 async def food_photo(message: Message, bot: Bot) -> None:
     photo = message.photo[-1]
     if (photo.file_size or 0) > 6 * 1024 * 1024:
-        await message.answer("Фото слишком большое — пришли поменьше (до 6 МБ).")
+        await message.answer("Фото слишком большое. Нужно до 6 МБ.")
         return
     data = (await bot.download(photo)).read()
     image = {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": base64.b64encode(data).decode()}}
@@ -527,7 +527,7 @@ async def water_button(call: CallbackQuery) -> None:
 
 async def weight(message: Message, kg: float) -> None:
     if not 30 <= kg <= 300:
-        await message.answer("Похоже на опечатку — вес должен быть от 30 до 300 кг.")
+        await message.answer("Похоже на опечатку: вес от 30 до 300 кг.")
         return
     async with SessionLocal() as session:
         user, profile = await me(session, message.from_user)
@@ -669,21 +669,21 @@ async def day_greeting(session, user: User, profile: Profile, hello_name: str) -
 
     lines = [f"{word}, {hello_name}! {emoji}", ""]
     if away:
-        lines.append("Давно не виделись! Серия прервалась — пора собрать новую. Твой план на месте: "
-                     "начни прямо сейчас: напиши, что ешь, — я посчитаю.")
+        lines.append("Давно не виделись. Серия прервалась, собираем новую. План на месте: "
+                     "напиши, что ешь, я посчитаю.")
         title = ("С возвращением", "начнём с сегодня")
     elif not eaten:
-        lines.append("Сегодня пока пусто — напиши сюда завтрак, например «омлет из 2 яиц, кофе»." if hour < 12 else
-                     f"Сегодня пока пусто — напиши, что ешь, например {EXAMPLE}, и я посчитаю.")
+        lines.append("Сегодня пусто. Напиши завтрак, например «омлет из 2 яиц, кофе»." if hour < 12 else
+                     f"Сегодня пусто. Напиши, что ешь, например {EXAMPLE}.")
         title = ("Сегодня", "пока пусто")
     else:
         lines.append(f"Сегодня {n(t['kcal'])} из {n(norm)} ккал, воды {liters(ml)} из {liters(wgoal)} л. " +
-                     (f"Осталось {n(left)} ккал — пиши, что ешь, запишу." if left > 0 else "Норма на сегодня набрана 👌"))
+                     (f"Осталось {n(left)} ккал." if left > 0 else "Норма на сегодня набрана 👌"))
         title = ("Осталось", f"{n(left)} ккал") if left > 0 else ("Норма", "набрана")
     if not away and streak >= 2 and not active_today:
         lines.append(f"\n🔥 Серия {streak} {cards.plural_days(streak)} — запиши сегодня хоть что-то, и она продолжится.")
     elif streak >= 3 and active_today:
-        lines.append(f"\n🔥 Серия {streak} {cards.plural_days(streak)} — так держать!")
+        lines.append(f"\n🔥 Серия {streak} {cards.plural_days(streak)}.")
     if day:
         lines.append(f"\n💪 По плану тренировка: {html.escape(day.day_name)} — ~{day_minutes(day)} мин.")
     chips = [f"Вода {liters(ml)} из {liters(wgoal)} л"]
@@ -707,12 +707,12 @@ async def workout_cmd(message: Message) -> None:
         trained = await session.scalar(select(WorkoutLog.id).where(WorkoutLog.user_id == user.id, WorkoutLog.completed_at.is_not(None),
                                                                    WorkoutLog.started_at >= local_start(today)).limit(1))
         if day is None:
-            await message.answer("Программа ещё не выбрана — выбери её в приложении.",
+            await message.answer("Программа не выбрана. Выбери её в приложении.",
                                  reply_markup=kb([app_button("Выбрать программу", "open=workout")]))
             return
         rest = profile.training_days and today.weekday() not in profile.training_days
         head = ("💪 Сегодня тренировка уже сделана ✓ Следующая:" if trained else
-                "😌 Сегодня по плану отдых. Если хочется — следующая тренировка:" if rest else "💪 Тренировка на сегодня:")
+                "😌 Сегодня по плану отдых. Следующая тренировка:" if rest else "💪 Тренировка на сегодня:")
         sets = sum(i.sets for i in day.items)
         minutes = day_minutes(day)
         lines = [head, f"\n<b>{html.escape(day.day_name)}</b> — {len(day.items)} упр., ~{minutes} мин\n"]
@@ -726,7 +726,7 @@ async def workout_cmd(message: Message) -> None:
 
 # ---- Tour ----
 
-TOUR_CAPTIONS = ("Листай стрелками →", "", "", "", "Ответь на пару вопросов — и я соберу твой план: норму КБЖУ, воду и "
+TOUR_CAPTIONS = ("Листай стрелками →", "", "", "", "Ответь на пару вопросов, и я соберу план: норму КБЖУ, воду и "
                  "программу тренировок. Это 2 минуты.")
 
 
@@ -746,7 +746,7 @@ async def tour_card(tg_id: int, i: int) -> BufferedInputFile:
 
 
 TOUR_POST = Path(__file__).resolve().parents[2] / ".tour_post"  # project root, git-ignored: {"chat_id", "ids"}
-TOUR_INVITE = "Ответь на пару вопросов — и я соберу твой план: норму КБЖУ, воду и программу тренировок. Это 2 минуты."
+TOUR_INVITE = "Ответь на пару вопросов, и я соберу план: норму КБЖУ, воду и тренировки. Две минуты."
 
 
 def tour_post() -> dict | None:
@@ -838,9 +838,9 @@ async def eat_cmd(message: Message, tg_user) -> None:
             return
         sug = await meal_suggestions(session, user, guess_meal(clock.now().hour))
     if sug["kcal_left"] < 150:
-        await message.answer("На сегодня норма набрана 👌 Если голодно — лучше овощи, кефир или чай.")
+        await message.answer("На сегодня норма набрана 👌 Голодно? Овощи, кефир или чай.")
     elif not sug["options"]:
-        await message.answer(f"Пока не из чего выбрать — запиши пару дней еды, и я буду подсказывать. Осталось {n(sug['kcal_left'])} ккал.")
+        await message.answer(f"Пока не из чего выбирать. Запиши пару дней еды, и начну подсказывать. Осталось {n(sug['kcal_left'])} ккал.")
     else:
         await message.answer(ideas_text(sug), parse_mode="HTML", reply_markup=ideas_keyboard(sug))
 
@@ -1113,12 +1113,12 @@ async def help_cmd(message: Message) -> None:
 
 
 GROUP_TEXT = ("👥 Соревнуйтесь всем чатом!\n\n"
-              "Добавь меня в чат друзей, семьи или офиса — и я буду вести рейтинг недели по очкам Setly: за тренировки, "
+              "Добавь меня в чат друзей, семьи или офиса, и я буду вести рейтинг недели по очкам Setly: за тренировки, "
               "записи еды, воду и привычки.\n\n"
-              "• в понедельник утром — итоги и чемпион недели\n"
-              "• в четверг — кто кого догоняет\n"
-              "• когда кто-то закончил тренировку — пишу в чат\n"
-              "• список покупок из рациона — общий: кто купил, отмечает кнопкой\n\n"
+              "• в понедельник утром итоги и чемпион недели\n"
+              "• в четверг сводка, кто кого догоняет\n"
+              "• после чьей-то тренировки пишу в чат\n"
+              "• общий список покупок из рациона, купленное отмечают кнопкой\n\n"
               "Кто ещё не в Setly, присоединится по кнопке прямо из чата. Команды в чате: /top, /join, /leave.")
 
 
@@ -1142,7 +1142,7 @@ async def month_command(message: Message) -> None:
     place = next((i for i, (u, _, _) in enumerate(rows) if u.id == user.id), None)
     head = f"{t['emoji']} Челлендж месяца — «{t['title']}». Цель: {monthly.days(t['goal'], t)}, за неё +100 XP.\n{t['hint']}"
     if place is None:
-        text = f"{head}\n\nУчастников уже {len(rows)}. Присоединяйся — считается само, по дневнику." if rows else f"{head}\n\nПрисоединяйся первым."
+        text = f"{head}\n\nУчастников уже {len(rows)}. Присоединяйся, считается само по дневнику." if rows else f"{head}\n\nПрисоединяйся первым."
         button = "Участвовать"
     else:
         text = f"{head}\n\nУ тебя {monthly.days(rows[place][2], t)} — {monthly.places(rows)[place]}-е место из {len(rows)}."
@@ -1214,7 +1214,7 @@ async def any_text(message: Message) -> None:
     elif m := WEIGHT.match(text):
         await weight(message, float((m[1] or m[2]).replace(",", ".")))
     elif len(text) > 300:
-        await message.answer("Слишком длинно — напиши покороче, например " + EXAMPLE + ".")
+        await message.answer("Слишком длинно. Напиши короче, например " + EXAMPLE + ".")
     else:
         await log_food(message, text)
 

@@ -92,7 +92,7 @@ export function PrivacyCard({ consent, onHealth }: { consent: ConsentState; onHe
       </div>
       {ask && (
         <Sheet title="Удалить аккаунт?" onClose={() => state !== 'busy' && setAsk(false)}>
-          {state === 'done' ? <p>Готово: аккаунт и данные удалены. Если вернёшься — начнём с чистого листа.</p> : <>
+          {state === 'done' ? <p>Готово: аккаунт и данные удалены. Вернёшься, начнём с чистого листа.</p> : <>
             <p className="sub">Удалятся анкета, дневник, тренировки, замеры, привычки, друзья и XP. Это нельзя отменить. Из резервных копий данные исчезнут в течение 14 дней.</p>
             {state === 'error' && <p className="error" role="alert">Не получилось удалить. Попробуй ещё раз.</p>}
             <button className="btn btn-danger" disabled={state === 'busy'} onClick={remove}>{state === 'busy' ? 'Удаляем…' : 'Удалить навсегда'}</button>

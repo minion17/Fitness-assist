@@ -30,12 +30,12 @@ export function CoachAccess() {
     setError('')
     try {
       const r = await api<{ link: string | null }>('/api/coach/invite', { method: 'POST' })
-      if (!r?.link) { setError('Бот ещё не настроен — попробуй позже'); return }
+      if (!r?.link) { setError('Бот пока не настроен. Попробуй позже'); return }
       haptic('success')
-      const url = `https://t.me/share/url?url=${encodeURIComponent(r.link)}&text=${encodeURIComponent('Открой ссылку — увидишь мой дневник питания и тренировки в Setly')}`
+      const url = `https://t.me/share/url?url=${encodeURIComponent(r.link)}&text=${encodeURIComponent('Мой дневник питания и тренировки в Setly')}`
       if (tg?.openTelegramLink) tg.openTelegramLink(url)
       else window.open(url, '_blank')
-    } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось — попробуй ещё раз') }
+    } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуй ещё раз') }
   }
   async function end(c: Coach) {
     await api(`/api/coach/links/${c.id}`, { method: 'DELETE' }).catch(() => {})
@@ -44,9 +44,8 @@ export function CoachAccess() {
 
   return (
     <section className="card coach-card" aria-label="Тренер">
-      <h2>🏋️ Тренер</h2>
-      <p className="sub">Пригласи тренера или диетолога: он увидит твой дневник питания, тренировки и вес, а по понедельникам получит
-        сводку твоей недели в Telegram. Закрыть доступ можно в любой момент.</p>
+      <h2>Тренер</h2>
+      <p className="sub">Тренер или диетолог увидит дневник, тренировки и вес, а по понедельникам получит сводку недели.</p>
       {coaches?.map((c) => (
         <div className="row" key={c.id}>
           <div className="row-main"><span className="row-title">{c.name}</span>{c.since && <small className="sub"> · с {new Date(c.since).toLocaleDateString('ru-RU')}</small>}</div>
@@ -88,7 +87,7 @@ export function CoachClients() {
         <div className="row" key={i}><div className="row-main"><span className="row-title">{w.title}</span>
           <small className="sub"> {dm(w.date)} · {w.minutes} мин · {w.sets} подх.{w.tonnage ? ` · ${n(w.tonnage)} кг` : ''}{w.effort ? ` · ${{ easy: 'легко', ok: 'нормально', hard: 'тяжело' }[w.effort] ?? ''}` : ''}{w.after ? ' · записано после' : ''}</small></div></div>
       )) : <p className="sub">Не было.</p>}
-      <button className="btn btn-ghost" onClick={() => { haptic('success'); api(`/api/coach/clients/${open.id}/report`, postJson({ days: 30 })).then(() => setNote('PDF-отчёт за 30 дней придёт тебе в чат с ботом')).catch(() => setNote('Не получилось — попробуй ещё раз')) }}>📄 PDF-отчёт за 30 дней</button>
+      <button className="btn btn-ghost" onClick={() => { haptic('success'); api(`/api/coach/clients/${open.id}/report`, postJson({ days: 30 })).then(() => setNote('PDF-отчёт за 30 дней придёт тебе в чат с ботом')).catch(() => setNote('Не получилось. Попробуй ещё раз')) }}>📄 PDF-отчёт за 30 дней</button>
       {note && <p className="sub" role="status">{note}</p>}
       <button className="link danger" onClick={() => { api(`/api/coach/links/${open.link_id}`, { method: 'DELETE' }).then(() => { setOpen(null); load() }).catch(() => {}) }}>Убрать из клиентов</button>
     </section>
@@ -96,8 +95,8 @@ export function CoachClients() {
 
   return (
     <section className="card coach-clients" aria-label="Мои клиенты">
-      <h2>📋 Мои клиенты · {clients.length}</h2>
-      <p className="sub">Последние 7 дней. Сверху — кому нужно внимание.</p>
+      <h2>Мои клиенты · {clients.length}</h2>
+      <p className="sub">Последние 7 дней. Сверху те, кому нужно внимание.</p>
       {clients.map((c) => (
         <button key={c.id} className="coach-client" onClick={() => api<Detail>(`/api/coach/clients/${c.id}`).then((d) => d && setOpen({ ...d, link_id: c.link_id }))}>
           <span className="coach-client-head"><b>{c.name}</b>{c.flags.map((f) => <i key={f} className="coach-flag">{f}</i>)}</span>

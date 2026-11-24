@@ -26,13 +26,13 @@ export default function Checkin() {
   return (
     <section className="card checkin" aria-label="Утренний вопрос">
       {!s.sleep ? <>
-        <h2>☀️ Как спалось?</h2>
+        <h2>Как спалось?</h2>
         <div className="checkin-row">{SLEEP.map(([t, v]) => <button key={v} className="chip" onClick={() => send({ sleep: v })}>{t}</button>)}</div>
       </> : !s.energy ? <>
         <h2>А как энергия?</h2>
         <div className="checkin-row">{ENERGY.map(([t, v]) => <button key={v} className="chip" onClick={() => send({ energy: v })}>{t}</button>)}</div>
       </> : <>
-        <div className="card-head"><h2>💡 Наблюдение</h2><button className="link" aria-label="Скрыть" onClick={() => setClosed(true)}>✕</button></div>
+        <div className="card-head"><h2>Наблюдение</h2><button className="link" aria-label="Скрыть" onClick={() => setClosed(true)}>✕</button></div>
         <p>{s.insight}</p>
       </>}
     </section>

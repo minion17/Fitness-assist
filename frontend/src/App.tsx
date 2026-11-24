@@ -359,7 +359,7 @@ function SetlyApp() {
         saveSnapshot(b)
         prefetchStats()
       })
-      .catch(() => { setSynced('Нет связи — показываем сохранённое'); if (!snap) setPrograms(demoPrograms) })
+      .catch(() => { setSynced('Нет связи. Показываем сохранённое'); if (!snap) setPrograms(demoPrograms) })
       .finally(() => setLoading(false))
   }, [apply])
 
@@ -433,7 +433,7 @@ function SetlyApp() {
         // keep the day and the snack's time as of now: it may be sent tomorrow
         enqueue({ path: '/api/food-logs', kind: 'food', name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
         setQueued(pending().length)
-        flash('Нет связи — запишем, как только она появится')
+        flash('Нет связи. Запишем, как только она появится')
         return
       }
       optimistic.current.delete(tempId)
@@ -443,7 +443,7 @@ function SetlyApp() {
     }
     if (!p) return send()
     flash('Добавлено')
-    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось — попробуй ещё раз'))
+    send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось. Попробуй ещё раз'))
   }
 
   /** "Повторить вчерашний завтрак": the meal of this hour is empty today and was logged yesterday. */
@@ -586,10 +586,10 @@ function SetlyApp() {
     try {
       r = await api<Water & { xp_awarded: number }>('/api/water', postJson({ delta_ml: delta }))
     } catch (e) {
-      if (!unreachable(e)) { setWater(before); flash('Вода не отметилась — попробуй ещё раз'); return }
+      if (!unreachable(e)) { setWater(before); flash('Вода не отметилась. Попробуй ещё раз'); return }
       enqueue({ path: '/api/water', kind: 'water', name: `${delta > 0 ? '+' : ''}${delta} мл воды`, body: { delta_ml: delta, day: localDay() } })
       setQueued(pending().length)
-      flash('Нет связи — вода отметится, как только она появится')
+      flash('Нет связи. Вода отметится, как только она появится')
       return
     }
     if (!r) return // demo mode: local only
@@ -691,7 +691,7 @@ function SetlyApp() {
             habits={canEdit && <Habits habits={habits} onChange={habitsChanged} onQueued={() => setQueued(pending().length)} />} habitsDone={[habits.filter((h) => h.done).length, habits.length]}
             weight={canEdit && <QuickWeight measurements={measurements} onSave={saveMeasurement} goal={me?.target_weight_kg} />}
             repeat={canEdit && !usual ? repeatOffer() : null}
-            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуй ещё раз')) } : null}
+            usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось. Попробуй ещё раз')) } : null}
             intro={canEdit && <FirstSteps steps={[
               { key: 'meal', title: 'Запиши первый приём пищи', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найди продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
@@ -761,7 +761,7 @@ function SetlyApp() {
       {toast && (
         <div className={toast.undo ? 'toast toast-undo' : 'toast'} role="status" key={toast.id}>
           <span>{toast.text}</span>
-          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не получилось отменить — попробуй ещё раз')) }}>Отменить</button>}
+          {toast.undo && <button onClick={() => { const undo = toast.undo!; setToast(null); undo().catch(() => flash('Не получилось отменить. Попробуй ещё раз')) }}>Отменить</button>}
         </div>
       )}
       {xpFloat && <div className="xp-float" key={xpFloat.id} aria-hidden="true" onAnimationEnd={() => setXpFloat(null)}>+{xpFloat.n} XP</div>}

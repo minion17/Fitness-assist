@@ -17,7 +17,7 @@ export default function AiSummary() {
       const s = await api<Summary>(`/api/ai/summary?period=${period}${refresh ? '&refresh=true' : ''}`)
       if (s) setData((d) => ({ ...d, [period]: s }))
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly — попробуй через минуту')
+      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly. Попробуй через минуту')
     } finally {
       setBusy(false)
     }
@@ -26,7 +26,7 @@ export default function AiSummary() {
   return (
     <section className="card">
       <div className="card-head">
-        <h2>✨ AI-итог</h2>
+        <h2>AI-итог</h2>
         <div className="seg seg-inline">
           {(['day', 'week'] as const).map((p) => (
             <button type="button" key={p} aria-pressed={period === p} onClick={() => { setPeriod(p); setError('') }}>

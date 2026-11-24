@@ -112,7 +112,7 @@ async def habit_reminders(session, user: User, now: datetime) -> list[tuple[str,
         todo = [h for h in due_now if h.remind_at == at and h.id not in done]
         if todo:
             names = ", ".join(f"{h.emoji} {h.title}" for h in todo)
-            out.append((f"{today}:habits{at}", f"⏰ Время привычки: {names}. Отметь прямо здесь — серия продлится.",
+            out.append((f"{today}:habits{at}", f"⏰ Время привычки: {names}. Отметь здесь.",
                         NO_CARD, [(f"✓ {h.emoji} {h.title}"[:60], f"cb:hb:{h.id}") for h in todo]))
     return out
 
@@ -123,10 +123,10 @@ async def day_one(session, user: User, today) -> tuple[str, str, Render, Buttons
     ml = await session.scalar(select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)) or 0
     if eaten or ml:
         parts = [f"записано приёмов пищи: {len(eaten)}, {round(t['kcal'])} ккал" if eaten else "", f"воды {liters(ml)} л" if ml else ""]
-        text = f"🌙 Первый день с Setly: {', '.join(p for p in parts if p)}. Отличный старт — завтра будет ещё проще."
+        text = f"🌙 Первый день с Setly: {', '.join(p for p in parts if p)}. Завтра повтори, со второго дня уже легче."
     else:
-        text = ("🌙 Первый день позади. Завтра начни с малого: напиши сюда завтрак, например «овсянка 60 г, банан», — "
-                "я посчитаю и запишу. Это 10 секунд.")
+        text = ("🌙 Первый день позади, а записей нет. Завтра начни с завтрака: напиши «овсянка 60 г, банан», "
+                "остальное посчитаю.")
     return "onb:day1", text, NO_CARD, None
 
 
@@ -201,9 +201,9 @@ async def group_tip(session, user: User, today: date) -> tuple[str, str, Render,
     bot = bot_username()
     if active < 3 or not bot:
         return None
-    return ("onb:group", "👥 Неделя с Setly позади — вдвоём и втроём держаться проще.\n\nДобавь меня в чат друзей, семьи или офиса: "
+    return ("onb:group", "👥 Неделя с Setly позади. Дальше держаться проще компанией.\n\nДобавь меня в чат друзей, семьи или офиса: "
             "буду вести рейтинг недели, в понедельник объявлять чемпиона, а в четверг подначивать отстающих. "
-            "Кто ещё не в Setly — присоединится по кнопке прямо из чата.",
+            "Кто ещё не в Setly, присоединится по кнопке из чата.",
             NO_CARD, [("👥 Добавить в чат", f"url:https://t.me/{bot}?startgroup=setly")])
 
 
@@ -212,14 +212,14 @@ async def day_three_tip(session, user: User) -> tuple[str, str, Render, Buttons]
     from backend.database.models import AiRequest, Friendship
 
     if not await session.scalar(select(AiRequest.id).where(AiRequest.user_id == user.id, AiRequest.kind == "meal_photo").limit(1)):
-        text = "📸 Совет: еду можно не писать, а сфотографировать. Пришли сюда фото тарелки — я распознаю блюда и посчитаю калории."
+        text = "📸 Совет: еду можно не писать, а сфотографировать. Пришли фото тарелки, я разберу блюда и посчитаю калории."
     elif not await session.scalar(select(FoodLog.id).join(Product, Product.id == FoodLog.product_id)
                                   .where(FoodLog.user_id == user.id, Product.barcode.is_not(None)).limit(1)):
-        text = "🏷 Совет: продукты из магазина быстрее всего записывать по штрихкоду — в приложении: Питание → сканер."
+        text = "🏷 Совет: продукты из магазина быстрее записывать по штрихкоду: Питание → сканер."
     elif not await session.scalar(select(Friendship.user_id).where(Friendship.user_id == user.id).limit(1)):
-        text = "🤝 Совет: с другом держаться проще. Пригласи его — в приложении: Прогресс → Друзья, там же недельный рейтинг и дуэли."
+        text = "🤝 Совет: с другом держаться проще. Пригласи его: Прогресс → Друзья. Там же рейтинг недели и дуэли."
     else:
-        text = "💡 Совет: напиши /today — и я покажу, сколько съедено и сколько осталось на сегодня."
+        text = "💡 /today покажет, сколько съедено и сколько осталось на сегодня."
     return "onb:tip3", text, NO_CARD, None
 
 
@@ -232,11 +232,10 @@ async def nudges(session, now: datetime) -> list[tuple[User, str, str]]:
         clock.use_tz(user.device_tz)
         local, age = clock.local(now), now - user.created_at
         if timedelta(hours=3) <= age < timedelta(hours=20) and 9 <= local.hour < 21:
-            out.append((user, "onb:n1", "Осталась пара вопросов — и твой план готов: норма КБЖУ, вода и программа тренировок. "
-                                        "Это 2 минуты 🙂"))
+            out.append((user, "onb:n1", "Осталась пара вопросов, и план готов: норма КБЖУ, вода, тренировки. Две минуты."))
         elif age >= timedelta(hours=20) and 12 <= local.hour < 20:
             out.append((user, "onb:n2", "Последнее напоминание, обещаю: анкета займёт 2 минуты, а дальше я сам буду считать "
-                                        "калории по фото и тексту. Если неинтересно — просто не отвечай, больше не напишу."))
+                                        "калории по фото и тексту. Неинтересно? Просто не отвечай, больше не напишу."))
     clock.use_tz(None)
     return out
 
@@ -256,7 +255,7 @@ async def fasting_reminders(session, user: User, plan: FastingPlan, now: datetim
         p = await session.get(Profile, user.id)
         left = (await today_targets(session, user, p))["protein"] - t["protein"]
         out.append((f"{today}:fast_close", f"⏳ Через 30 минут, в {fasting.eat_to(plan)}, окно питания закрывается. "
-                    + (f"Белка осталось ~{round(left / 5) * 5} г — успей добрать." if left >= 20 else "Норма белка на сегодня почти добрана 👍"),
+                    + (f"Белка осталось ~{round(left / 5) * 5} г , успей добрать." if left >= 20 else "Норма белка на сегодня почти добрана 👍"),
                     NO_CARD, None))
     return out
 
@@ -299,7 +298,7 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                     select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)
                 ) or 0
                 if ml < goal * share:
-                    out.append((f"{today}:water{at}", f"💧 Выпито {liters(ml)} л из {liters(goal)} л. Стакан воды сейчас — самое время.",
+                    out.append((f"{today}:water{at}", f"💧 Выпито {liters(ml)} л из {liters(goal)} л. Выпей стакан сейчас.",
                                 Render(cards.water, ml, goal, at, **look), None))
     if due(cfg.weekly_at or "19:00", now):  # the norm from their own data, once a week (energy.recalc keeps the pace)
         # shortcut: users without enough data are re-measured each minute of the window; cache the miss if users grow to thousands
@@ -323,8 +322,8 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                 out.append(close)
         elif n > 0:
             week = [today - timedelta(days=i) in days and is_active(days[today - timedelta(days=i)]) for i in range(6, -1, -1)]
-            out.append((f"{today}:streak", f"🔥 {n} {cards.plural_days(n)} подряд с Setly — не обрывай серию. Одна запись — еда, вода или тренировка — "
-                        f"и она продолжится. До конца дня {24 - now.hour} ч.",
+            out.append((f"{today}:streak", f"🔥 {n} {cards.plural_days(n)} подряд с Setly. Не обрывай серию: хватит одной записи еды, воды или тренировки."
+                        f" До конца дня {24 - now.hour} ч.",
                         Render(cards.streak, n, week, **look), None))
     if getattr(cfg, "workout", True) and due(cfg.workout_at or "09:00", now):
         p = await session.get(Profile, user.id)
@@ -332,7 +331,7 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
             trained = await session.scalar(select(WorkoutLog.id).where(
                 WorkoutLog.user_id == user.id, WorkoutLog.started_at >= local_start(today)).limit(1))
             if not trained:
-                out.append((f"{today}:workout", "🏋️ Сегодня день тренировки. Открывай приложение — план уже ждёт, веса подставим с прошлого раза.",
+                out.append((f"{today}:workout", "🏋️ Сегодня день тренировки. Веса подставлены с прошлого раза.",
                             NO_CARD, None))
     if getattr(cfg, "checkin", False) and due(cfg.checkin_at or "09:00", now) and \
             not await session.get(DailyCheckin, (user.id, today)):

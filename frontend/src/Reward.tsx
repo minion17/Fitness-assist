@@ -22,7 +22,7 @@ export default function Reward({ level, levelXp, needed, streak, onClose }: {
           <div className="bar"><i style={{ width: `${Math.min(100, (levelXp / needed) * 100)}%`, background: 'var(--accent)' }} /></div>
           <span className="sub">{levelXp} / {needed} XP до уровня {level + 1}</span>
         </div>
-        {streak > 0 && <p className="sub">Серия: {streak} дн. подряд — так держать</p>}
+        {streak > 0 && <p className="sub">Серия: {streak} дн. подряд</p>}
       </div>
       <button className="btn" onClick={onClose} autoFocus>Продолжить</button>
     </div>

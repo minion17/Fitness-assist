@@ -1545,7 +1545,12 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
     assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] != usual  # long, never eaten: not first
     client.post("/api/food-logs", headers=h, json={"product_id": usual, "amount_g": 150, "meal_type": "lunch"})
     assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] == usual  # what I eat comes first
-    assert client.get("/api/products/search", params={"q": "курица"}, headers=new_user_headers()).json()[0]["id"] != usual  # mine only
+    # someone else's history isn't mine: with a plainer «Курица …» eaten more by others, a new user doesn't get mine first
+    popular = next(p["id"] for p in client.get("/api/products/search", params={"q": "курица"}).json() if p["id"] != usual)
+    other = new_user_headers()
+    for _ in range(2):
+        client.post("/api/food-logs", headers=other, json={"product_id": popular, "amount_g": 150, "meal_type": "lunch"})
+    assert client.get("/api/products/search", params={"q": "курица"}, headers=new_user_headers()).json()[0]["id"] != usual
 
     async def clean():  # earlier runs' misses would crowd the top 10 of the shared test database
         from sqlalchemy import delete

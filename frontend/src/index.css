@@ -2187,31 +2187,3 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 /* Профиль → Настройки: one row instead of the settings at the profile's tail */
 .profile-settings-entry { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer }
 .profile-settings-entry span { display: flex; flex-direction: column; gap: 2px }
-
-/* ---- «Штанга дня»: the home card's one loud thing (Barbell.tsx). Olympic plate colours, a steel bar. ---- */
-:root { --plate-red: #d9293f; --plate-blue: #2563c9; --plate-yellow: #f2c230; --plate-green: #2e9e57;
-  --steel: #9aa3ad; --steel-dark: #6c757f; }
-.day-card { grid-template-columns: 1fr; gap: 6px; padding: 14px 16px 6px; background: var(--card); }
-.day-bar { display: flex; flex-direction: column; align-items: stretch; gap: 2px; width: 100%; padding: 0; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
-.barbell { width: 100%; height: auto; display: block; overflow: visible; }
-.bar-shaft { fill: var(--steel-dark); }
-.bar-grip { fill: var(--steel); opacity: .55; }
-.bar-collar { fill: var(--steel); }
-.plate-shell { fill: color-mix(in srgb, var(--text) 6%, transparent); stroke: color-mix(in srgb, var(--text) 16%, transparent); stroke-width: 1; }
-.plate.ghost .plate-shell { stroke-dasharray: 3 3; fill: none; }
-.plate-fill { transition: opacity .2s; }
-.plate-rim { fill: none; stroke: rgba(255, 255, 255, .28); stroke-width: 1; }
-.plate.done { animation: plate-on .5s cubic-bezier(.2, 1.5, .4, 1) both; }
-@keyframes plate-on { from { transform: translateX(var(--dx)); } }
-@media (prefers-reduced-motion: reduce) { .plate.done { animation: none; } }
-.day-bar-load { display: flex; align-items: baseline; justify-content: center; gap: 8px; }
-.day-bar-load strong { font-family: var(--font-display); font-size: 30px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
-.day-bar-load .sub { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
-.day-card .day-stats { flex-direction: row; gap: 0; border-top: 1px solid var(--line); }
-.day-card .day-stat { flex: 1 1 0; padding: 10px 0 8px; }
-.day-card .day-stat + .day-stat { border-top: 0; border-left: 1px solid var(--line); padding-left: 14px; }
-.day-card.closed .bar-collar { fill: var(--accent); }
-.plate-hub { fill: color-mix(in srgb, var(--bg) 55%, transparent); }
-.plate-shell { stroke-width: 1.2; }
-.swatch { display: inline-block; width: 4px; height: 11px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-.day-card .water-value { color: inherit; }

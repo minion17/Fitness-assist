@@ -1,5 +1,4 @@
 // Daily overview with compact food and workout summaries.
-import Barbell from './Barbell'
 import Checkin from './Checkin'
 import Fasting from './Fasting'
 import { Fragment, useRef, useState } from 'react'
@@ -277,25 +276,20 @@ export default function Home(props: {
 
       {props.intro}
 
-      {/* the day in one card: the barbell + calories + water */}
+      {/* the day in one card: ring + calories + water */}
       <section className={!props.loading && progress >= 100 ? 'card day-card closed' : 'card day-card'} aria-busy={props.loading}>
-        <button className="day-bar" aria-expanded={whyOpen} aria-label={props.loading ? 'Загрузка' : `День загружен на ${progress}%. Из чего он сложился`} onClick={() => setWhyOpen(!whyOpen)}>
-          <Barbell loading={props.loading} plates={[
-            { key: 'food', label: 'Питание', value: foodRatio > 1.1 ? 1 : Math.min(1, foodRatio / 0.9), over: foodRatio > 1.1 },
-            ...(trained || days.includes(weekday) ? [{ key: 'workout', label: 'Тренировка', value: trained ? 1 : 0, ghost: !trained }] : []),
-            { key: 'water', label: 'Вода', value: waterProgress },
-            ...(hTotal ? [{ key: 'habits', label: 'Привычки', value: hDone / hTotal }] : []),
-          ]} />
-          <span className="day-bar-load">{props.loading ? <span className="skeleton skeleton-num" /> : <><strong>{shownProgress}%</strong><span className="sub">{progress >= 100 ? 'день закрыт' : 'загружено'} <Chevron /></span></>}</span>
+        <button className="daily-progress-ring" aria-expanded={whyOpen} aria-label={props.loading ? 'Загрузка' : `Прогресс дня: ${progress}%. Из чего он сложился`} onClick={() => setWhyOpen(!whyOpen)}>
+          <svg viewBox="0 0 200 200" aria-hidden="true"><circle className="daily-ring-track" cx="100" cy="100" r="86" />{!props.loading && shownProgress > 0 && <circle className={foodRatio > 1.1 ? 'daily-ring-value over' : 'daily-ring-value'} cx="100" cy="100" r="86" pathLength="100" strokeDasharray={`${shownProgress} 100`} />}</svg>
+          <div className="daily-progress-center">{props.loading ? <span className="skeleton skeleton-num" /> : <><strong>{shownProgress}%</strong><span className="sub day-why-hint">день <Chevron /></span></>}</div>
         </button>
         <div className="day-stats">
           <button className="day-stat" onClick={props.onNutrition} aria-label="Питание: открыть дневник">
-            <span className="sub"><i className="swatch" style={{ background: 'var(--plate-red)' }} />Питание</span>
+            <span className="sub">Питание</span>
             <span className="day-stat-value">{props.loading ? <span className="skeleton skeleton-line" /> : <>{fmt(shownKcal)} <small>/ {fmt(goal)} ккал</small></>}</span>
             {foodRatio > 1.1 && <span className="sub warn">на {fmt(day.totals.kcal - goal)} больше нормы</span>}
           </button>
           <button className="day-stat" aria-expanded={waterOpen} onClick={() => setWaterOpen(!waterOpen)} aria-label="Вода: подробнее">
-            <span className="sub"><i className="swatch" style={{ background: 'var(--plate-yellow)' }} />Вода</span>
+            <span className="sub">Вода</span>
             <span className="day-stat-value water-value">{liters(Math.round(shownWater / 10) * 10)} <small>/ {liters(water.goal_ml)} л</small></span>
           </button>
         </div>

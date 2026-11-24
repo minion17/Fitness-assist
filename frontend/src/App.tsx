@@ -219,14 +219,14 @@ function Profile({ synced, progress, data, onEdit, top, share, help, privacy, th
             <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{norm.carbs} г</div></div>
           </div>
           {data?.targets?.day && data.targets.calories !== norm.calories && <p className="sub">
-            {data.targets.day === 'training' ? '🏋️ Сегодня день тренировки' : '😌 Сегодня день отдыха'}: {data.targets.calories.toLocaleString('ru-RU')} ккал,
+            {data.targets.day === 'training' ? 'Сегодня день тренировки' : 'Сегодня день отдыха'}: {data.targets.calories.toLocaleString('ru-RU')} ккал,
             углеводы {data.targets.carbs} г — это норма в «Питании» на сегодня.</p>}
         </section>
       )}
       {share && <h3 className="profile-group">Поделиться прогрессом</h3>}
       {share}
       <button className="card profile-settings-entry" onClick={() => setSettings(true)}>
-        <span><b>⚙️ Настройки</b><small className="sub">Напоминания, оформление, данные и конфиденциальность</small></span><Chevron dir="right" />
+        <span><b>Настройки</b><small className="sub">Напоминания, оформление, данные и конфиденциальность</small></span><Chevron dir="right" />
       </button>
       {help}
     </>
@@ -319,8 +319,8 @@ function SetlyApp() {
     const goal = u.profile?.targets?.calories, before = kcalRef.current, now = b.food_day.totals.kcal
     kcalRef.current = now
     setFoodDay(withOptimistic(b.food_day, localDay())); setWater(b.water); setQuests(b.quests); setYesterday(b.yesterday); setHabits(b.habits ?? [])
-    if (b.quests?.xp_awarded) celebrate(`Задание недели выполнено 🏆 +${b.quests.xp_awarded} XP`)
-    else if (goal && before !== null && before < goal * 0.9 && now >= goal * 0.9 && now <= goal * 1.1) celebrate('Калории в норме на сегодня 🎯')
+    if (b.quests?.xp_awarded) celebrate(`Задание недели выполнено, +${b.quests.xp_awarded} XP`)
+    else if (goal && before !== null && before < goal * 0.9 && now >= goal * 0.9 && now <= goal * 1.1) celebrate('Калории в норме на сегодня')
   }, [withOptimistic])
 
   const refreshJournal = useCallback(async () => {
@@ -595,7 +595,7 @@ function SetlyApp() {
     if (!r) return // demo mode: local only
     setWater(r)
     if (undoable && !(water.ml < r.goal_ml && r.ml >= r.goal_ml)) flashUndo(`+${delta} мл воды`, () => changeWater(-delta, false))
-    if (water.ml < r.goal_ml && r.ml >= r.goal_ml) celebrate(r.xp_awarded ? `Норма воды выполнена 💧 +${r.xp_awarded} XP` : 'Норма воды выполнена 💧')
+    if (water.ml < r.goal_ml && r.ml >= r.goal_ml) celebrate(r.xp_awarded ? `Норма воды выполнена, +${r.xp_awarded} XP` : 'Норма воды выполнена 💧')
     if (r.xp_awarded) {
       await refreshJournal()
     } else {
@@ -741,7 +741,7 @@ function SetlyApp() {
         )}
       </main>
       {tab !== 'workouts' && <ActiveWorkoutBar onOpen={() => go('workouts')} />}
-      {queued > 0 && tab !== 'food' && <p className="queued offline-bar" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
+      {queued > 0 && tab !== 'food' && <p className="queued offline-bar" role="status">Ждут связи: {queued} — отправим автоматически</p>}
       {recap && week.days.length > 0 && (
         <Suspense fallback={null}>
           <WeekRecap days={week.days} goal={(me?.targets_base ?? me?.targets)?.calories ?? 2000} streak={week.streak} weightDelta={weekWeightDelta(measurements)}

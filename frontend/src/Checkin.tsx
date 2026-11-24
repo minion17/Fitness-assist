@@ -6,7 +6,7 @@ import { api, postJson } from './telegram'
 
 type State = { sleep: number | null; energy: number | null; insight: string | null }
 const SLEEP: [string, number][] = [['<6 ч', 1], ['6–7', 2], ['7–8', 3], ['8+', 4]]
-const ENERGY: [string, number][] = [['😩 мало сил', 1], ['🙂 норм', 2], ['💪 бодро', 3]]
+const ENERGY: [string, number][] = [['мало сил', 1], ['норм', 2], ['💪 бодро', 3]]
 
 export default function Checkin() {
   const [hour] = useState(() => new Date().getHours())

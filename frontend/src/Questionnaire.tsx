@@ -9,13 +9,13 @@ import { NOW_LEVELS, TARGET_LEVELS, bodyAvatarSource, targetAvatar } from './bod
 import { YEAR, type ProfileData } from './profile'
 
 type Opt = Record<string, string>
-const SEX: Opt = { male: '👨 Мужской', female: '👩 Женский' }
+const SEX: Opt = { male: 'Мужской', female: 'Женский' }
 const GOALS: Opt = {
-  weight_loss: '⚖️ Снизить вес',
-  fat_loss: '🔥 Убрать жир, сохранить мышцы',
-  maintenance: '🧘 Поддерживать форму',
-  muscle_gain: '💪 Набрать мышцы',
-  mass_gain: '🏋️ Набрать общую массу',
+  weight_loss: 'Снизить вес',
+  fat_loss: 'Убрать жир, сохранить мышцы',
+  maintenance: 'Поддерживать форму',
+  muscle_gain: 'Набрать мышцы',
+  mass_gain: 'Набрать общую массу',
 }
 const EXPERIENCE: Opt = {
   beginner: 'Новичок — меньше 6 месяцев',
@@ -23,13 +23,13 @@ const EXPERIENCE: Opt = {
   advanced: 'Продвинутый — больше 2 лет',
 }
 const ACTIVITY: Opt = {
-  low: '🪑 Сидячий образ жизни',
-  light: '🚶 Лёгкая — 1–2 дня в неделю',
-  moderate: '🏃 Умеренная — 3–5 дней в неделю',
-  high: '⚡ Высокая — 6–7 дней в неделю',
-  very_high: '🔨 Очень высокая — физический труд + спорт',
+  low: 'Сидячий образ жизни',
+  light: 'Лёгкая — 1–2 дня в неделю',
+  moderate: 'Умеренная — 3–5 дней в неделю',
+  high: 'Высокая — 6–7 дней в неделю',
+  very_high: 'Очень высокая — физический труд + спорт',
 }
-const PLACE: Opt = { home: '🏠 Дома', gym: '🏋️ В зале', outdoor: '🌳 На улице' }
+const PLACE: Opt = { home: 'Дома', gym: 'В зале', outdoor: 'На улице' }
 const EQUIPMENT: Opt = {
   bodyweight: 'Собственный вес', dumbbells: 'Гантели', barbell: 'Штанга', bench: 'Скамья', pullup_bar: 'Турник / брусья',
   cable_machine: 'Блочный тренажёр', machine: 'Силовые тренажёры', treadmill: 'Беговая дорожка', exercise_bike: 'Велотренажёр',

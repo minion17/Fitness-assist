@@ -75,7 +75,7 @@ export default function Reminders() {
         )}
         <div className="row">
           <div className="row-main">
-            <div className="row-title">Тренировки 🏋️</div>
+            <div className="row-title">Тренировки</div>
             <div className="row-sub">Утром в дни из анкеты, если ещё не начали</div>
           </div>
           <Switch on={s.workout ?? true} label="Напоминать о тренировках" onChange={(v) => save({ workout: v })} />
@@ -90,7 +90,7 @@ export default function Reminders() {
         </div>
         <div className="row">
           <div className="row-main">
-            <div className="row-title">Серия дней 🔥</div>
+            <div className="row-title">Серия дней</div>
             <div className="row-sub">Если сегодня ещё ничего не записано</div>
           </div>
           <Switch on={s.streak} label="Напоминать о серии" onChange={(v) => save({ streak: v })} />
@@ -98,7 +98,7 @@ export default function Reminders() {
         {s.streak && <div className="time-row"><Time label="Вечером в" value={s.streak_at} onChange={(v) => save({ streak_at: v })} /></div>}
         <div className="row">
           <div className="row-main">
-            <div className="row-title">Как спалось? ☀️</div>
+            <div className="row-title">Как спалось?</div>
             <div className="row-sub">Утром две кнопки: сон и энергия. Через пару недель появятся наблюдения</div>
           </div>
           <Switch on={s.checkin ?? false} label="Спрашивать про сон утром" onChange={(v) => save({ checkin: v })} />
@@ -106,7 +106,7 @@ export default function Reminders() {
         {s.checkin && <div className="time-row"><Time label="Утром в" value={s.checkin_at ?? '09:00'} onChange={(v) => save({ checkin_at: v })} /></div>}
         <div className="row">
           <div className="row-main">
-            <div className="row-title">Итоги недели 📊</div>
+            <div className="row-title">Итоги недели</div>
             <div className="row-sub">По воскресеньям: карточка недели и совет</div>
           </div>
           <Switch on={s.weekly} label="Присылать итоги недели" onChange={(v) => save({ weekly: v })} />
@@ -115,7 +115,7 @@ export default function Reminders() {
       </div>
       <div className="reminders-test">
         {next && <p className="sub">Ближайшее: {next.what} {next.tomorrow ? 'завтра' : 'сегодня'} в {next.at} — придёт, только если это ещё не сделано.</p>}
-        <button className="btn btn-ghost" disabled={test === 'wait'} onClick={sendTest}>{test === 'wait' ? 'Отправляем…' : '🔔 Прислать пробное в чат'}</button>
+        <button className="btn btn-ghost" disabled={test === 'wait'} onClick={sendTest}>{test === 'wait' ? 'Отправляем…' : 'Прислать пробное в чат'}</button>
         {test === 'ok' && <p className="sub" role="status">Отправлено, проверь чат с ботом.</p>}
         {test === 'fail' && <p className="error" role="alert">Бот не ответил: он не запущен. Попробуй чуть позже.</p>}
       </div>

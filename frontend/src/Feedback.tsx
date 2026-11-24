@@ -27,8 +27,8 @@ export function FeedbackForm({ kind: fixed, productId, placeholder, onSent }: { 
     <div className="feedback-form">
       {!fixed && (
         <div className="habit-chips" role="group" aria-label="О чём">
-          <button type="button" className="habit-chip" aria-pressed={kind === 'idea'} onClick={() => setKind('idea')}>💡 Идея</button>
-          <button type="button" className="habit-chip" aria-pressed={kind === 'bug'} onClick={() => setKind('bug')}>🐞 Что-то не работает</button>
+          <button type="button" className="habit-chip" aria-pressed={kind === 'idea'} onClick={() => setKind('idea')}>Идея</button>
+          <button type="button" className="habit-chip" aria-pressed={kind === 'bug'} onClick={() => setKind('bug')}>Что-то не работает</button>
         </div>
       )}
       <textarea aria-label="Сообщение" rows={3} maxLength={2000} value={text} placeholder={placeholder ?? (kind === 'bug' ? 'Что случилось и где?' : 'Чего не хватает? Что сделать удобнее?')}

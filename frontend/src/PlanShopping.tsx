@@ -20,12 +20,12 @@ function ShareList({ items, title }: { items: MealPlan['shopping']; title: strin
       .then(() => setSent(where)).catch(() => setError('Не отправилось. Попробуй ещё раз'))
   }
   if (sent) return <p className="sub pos" role="status">Список отправлен {sent}. Купленное отмечают прямо в сообщении, список обновится у всех.</p>
-  if (!chats) return <><button className="btn btn-ghost share-list" onClick={open}>🛒 Отправить список в чат</button>{error && <p className="error" role="alert">{error}</p>}</>
+  if (!chats) return <><button className="btn btn-ghost share-list" onClick={open}>Отправить список в чат</button>{error && <p className="error" role="alert">{error}</p>}</>
   return (
     <div className="share-list-to">
       <p className="sub">Куда отправить? Покупки отмечаются кнопками прямо в сообщении.</p>
-      {chats.map((c) => <button key={c.id} className="btn btn-ghost" onClick={() => send(c.id, `в чат «${c.title}»`)}>👥 {c.title}</button>)}
-      <button className="btn btn-ghost" onClick={() => send(null, 'тебе в чат с Setly')}>💬 Себе в чат с Setly</button>
+      {chats.map((c) => <button key={c.id} className="btn btn-ghost" onClick={() => send(c.id, `в чат «${c.title}»`)}>{c.title}</button>)}
+      <button className="btn btn-ghost" onClick={() => send(null, 'тебе в чат с Setly')}>Себе в чат с Setly</button>
       {!chats.length && <p className="sub">Чтобы покупать вместе с семьёй, добавь Setly в общий чат (команда /group в боте) и нажмите там «Участвую».</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </div>

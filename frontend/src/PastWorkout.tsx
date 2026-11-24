@@ -51,7 +51,7 @@ export default function PastWorkout({ program, dayId, onDone, onClose }: { progr
       <p className="sub">{day.day_name} · {sets.length} {plural(sets.length, 'подход', 'подхода', 'подходов')}</p>
       {result.xp_awarded > 0 ? <p className="pos">+{result.xp_awarded} XP <span className="sub">(в плеере вдвое больше)</span></p>
         : result.xp_note && <p className="sub">{result.xp_note}</p>}
-      {result.tip && <p className="workout-tip">⚡ {result.tip}</p>}
+      {result.tip && <p className="workout-tip">{result.tip}</p>}
       <button className="btn" onClick={onClose}>Готово</button>
     </section>
   )

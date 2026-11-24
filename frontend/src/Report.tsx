@@ -19,7 +19,7 @@ export default function ReportCard() {
       <div className="seg seg-row">
         {[7, 30, 90].map((d) => <button key={d} aria-pressed={days === d} onClick={() => { setDays(d); setState('idle') }}>{d === 7 ? 'Неделя' : d === 30 ? 'Месяц' : '3 месяца'}</button>)}
       </div>
-      {state === 'sent' ? <p className="xp-note">📄 Готовим отчёт. Через несколько секунд он будет в чате с ботом.</p>
+      {state === 'sent' ? <p className="xp-note">Готовим отчёт. Через несколько секунд он будет в чате с ботом.</p>
         : <button className="btn btn-ghost" disabled={state === 'busy'} onClick={order}>{state === 'busy' ? 'Отправляем…' : 'Прислать PDF в чат'}</button>}
       {error && <p className="error" role="alert">{error}</p>}
     </section>

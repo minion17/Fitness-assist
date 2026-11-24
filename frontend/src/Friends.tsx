@@ -43,7 +43,7 @@ export default function Friends() {
 
   function invite() {
     if (!link) return
-    const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Давай вместе в Setly: дневник, тренировки и дуэли 💪')}`
+    const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Давай вместе в Setly: дневник, тренировки и дуэли')}`
     if (tg?.openTelegramLink) tg.openTelegramLink(url)
     else window.open(url, '_blank')
   }

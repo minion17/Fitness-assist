@@ -380,7 +380,7 @@ test('menu photo: pick dishes, save with the restaurant, then quick portions', a
   const onAdd = vi.fn().mockResolvedValue(undefined)
   const { container } = render(<Food day={empty} canEdit aiEnabled onAdd={onAdd} onDelete={vi.fn()} />)
   fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
-  fireEvent.click(await screen.findByRole('button', { name: '📷 Меню ресторана' }))
+  fireEvent.click(await screen.findByRole('button', { name: 'Меню ресторана' }))
   const file = new File(['x'], 'menu.jpg', { type: 'image/jpeg' })
   fireEvent.change(container.ownerDocument.querySelector('.sheet input[type=file]')!, { target: { files: [file] } })
   const boxes = await screen.findAllByRole('checkbox')

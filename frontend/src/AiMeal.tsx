@@ -72,7 +72,7 @@ export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
       )}
       {!draft && mode === 'photo' && (
         <label className={`btn photo-btn${busy ? ' disabled' : ''}`}>
-          {busy ? 'Распознаём фото…' : '📷 Сфотографировать или выбрать фото'}
+          {busy ? 'Распознаём фото…' : 'Сфотографировать или выбрать фото'}
           <input type="file" accept="image/*" hidden disabled={busy}
             onChange={(e) => { const f = e.target.files?.[0]; if (f) fromPhoto(f); e.target.value = '' }} />
         </label>

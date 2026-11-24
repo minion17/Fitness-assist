@@ -61,7 +61,7 @@ export default function Month() {
       {showLast && b.last && (
         <section className="card month-final">
           <h2>{b.last.emoji} Итог: «{b.last.title}»</h2>
-          <p>{days(b.last.score ?? 0, b.last.unit)} · {b.last.rank}-е место из {b.last.total}{b.last.done ? ' · цель взята 🎉' : ''}</p>
+          <p>{days(b.last.score ?? 0, b.last.unit)} · {b.last.rank}-е место из {b.last.total}{b.last.done ? ' · цель взята' : ''}</p>
           {shareRow(true)}
         </section>
       )}

@@ -162,7 +162,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={170} goal={weightGoal} />
               : <Empty art="chart" title="Пока нет записей веса" text="Запиши вес на главной, и здесь появится график." />}
             {weightGoal && w.length > 0 && <p className="sub">До цели {fmt(Math.abs(w[w.length - 1].kg - weightGoal), 1)} кг</p>}
-            {(() => { const f = forecast(w, weightGoal); return f && weightGoal ? <p className="sub forecast">📅 {forecastText(f, weightGoal)}</p> : null })()}
+            {(() => { const f = forecast(w, weightGoal); return f && weightGoal ? <p className="sub forecast">{forecastText(f, weightGoal)}</p> : null })()}
           </section>
         )}
         {bodyTop}
@@ -203,7 +203,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
       {part === 'awards' && (
         <section className="card">
           <div className="card-head"><h2>Достижения</h2><span className="sub">{unlocked} из {achievements.length}</span></div>
-          <p className="sub">❄ Заморозок серии: {freezes} из 2 — даются за каждые 7 дней подряд и спасают серию, если день пропущен.</p>
+          <p className="sub">Заморозок серии: {freezes} из 2 — даются за каждые 7 дней подряд и спасают серию, если день пропущен.</p>
           <div className="badges">
             {achievements.map((a) => (
               <button type="button" key={a.code} onClick={() => setSelectedAward(a)} aria-label={`Открыть достижение: ${a.title}`} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>

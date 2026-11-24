@@ -331,8 +331,8 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
         </div>
         {!targets && <span className="sub">Это средняя норма. Заполни анкету, и посчитаем твою.</span>}
         {isToday && targets?.day && targets.carbs_shift ? <span className="sub day-kind">{targets.day === 'training'
-          ? `🏋️ День тренировки: углеводов +${targets.carbs_shift} г — топливо для нагрузки.`
-          : `🛋 День отдыха: углеводов ${targets.carbs_shift} г — за неделю норма та же.`}</span> : null}
+          ? `День тренировки: углеводов +${targets.carbs_shift} г — топливо для нагрузки.`
+          : `День отдыха: углеводов ${targets.carbs_shift} г — за неделю норма та же.`}</span> : null}
       </section>
       {editable && onDate && <Tip id="days">Свайп вбок листает дни, дата сверху открывает календарь.</Tip>}
       {canEdit && !editable && <p className="sub">Дописать можно только последние {BACKFILL_DAYS} дней — этот день только для просмотра.</p>}
@@ -343,15 +343,15 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
         : <button className="btn nutrition-add" onClick={() => setAdding({ meal: 'dinner' })}>{`+ Дописать за ${dayLabel(date).toLowerCase()}`}</button>)}
       {canEdit && isToday && aiEnabled && (
         <div className="ai-row">
-          <button className="btn btn-ghost" onClick={() => setAiMode('text')}>✨ Текстом</button>
-          <button className="btn btn-ghost" onClick={() => setAiMode('photo')}>📷 Фото</button>
+          <button className="btn btn-ghost" onClick={() => setAiMode('text')}>Текстом</button>
+          <button className="btn btn-ghost" onClick={() => setAiMode('photo')}>Фото</button>
         </div>
       )}
 
       <section className="meal-diary">
       <h2>Приёмы пищи</h2>
       {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажми продукт, чтобы изменить или перенести. Смахни влево для быстрых действий.</Tip>}
-      {queued > 0 && <p className="queued" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
+      {queued > 0 && <p className="queued" role="status">Ждут связи: {queued} — отправим автоматически</p>}
       {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отмечай съеденное.</p>}
       {isToday && todayPlan?.finished && <p className="sub">Рацион завершён.</p>}
       {planError && <p className="error" role="alert">{planError}</p>}
@@ -710,8 +710,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                 {scan === 'busy' ? 'Ищем товар…' : '▥ Сканировать штрихкод'}
               </button>
               <button type="button" className="link" onClick={() => setCustom(true)}>+ Свой продукт</button>
-              <button type="button" className="link" onClick={() => setRecipe('new')}>🍲 Рецепт</button>
-              {aiEnabled && <button type="button" className="link" onClick={() => setMenuMode(true)}>📷 Меню ресторана</button>}
+              <button type="button" className="link" onClick={() => setRecipe('new')}>Рецепт</button>
+              {aiEnabled && <button type="button" className="link" onClick={() => setMenuMode(true)}>Меню ресторана</button>}
             </div>
           )}
           {scan === 'manual' && (
@@ -734,7 +734,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
               {list === 'mine' ? (
                 <div className="list scroll-list">
                   {sets === null || recipes === null ? <p className="sub">Загружаем…</p> : sets.length + recipes.length === 0 ? (
-                    <p className="sub">Наборы — то, что ты обычно ешь вместе. В дневнике под приёмом пищи нажми «☆ В наборы». Рецепт — своё блюдо из продуктов: «🍲 Рецепт» выше.</p>
+                    <p className="sub">Наборы — то, что ты обычно ешь вместе. В дневнике под приёмом пищи нажми «☆ В наборы». Рецепт — своё блюдо из продуктов: «Рецепт» выше.</p>
                   ) : null}
                   {sets?.map((s) => (
                     <div className="row" key={`s${s.id}`}>
@@ -749,7 +749,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                   {recipes?.map((r) => (
                     <div className="row" key={`r${r.id}`}>
                       <button className="row-main row-btn-plain" onClick={() => pick(r)}>
-                        <div className="row-title">🍲 {r.name}</div>
+                        <div className="row-title">{r.name}</div>
                         <div className="row-sub">{Math.round(r.kcal)} ккал на 100 г{r.portion_g ? ` · порция ${r.portion_g} г` : ''}</div>
                       </button>
                       <button className="link" aria-label={`Изменить рецепт ${r.name}`} onClick={() => setRecipe(r)}>✎</button>
@@ -783,8 +783,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
           {results && results.length === 0 && (
             <div className="not-found">
               <p className="row-title">Не нашли «{parseQuery(q).text || q.trim()}»</p>
-              {aiEnabled && onAiText && <button className="btn" onClick={() => onAiText(q.trim())}>✨ Описать AI: «{q.trim()}»</button>}
-              <button className="btn btn-ghost" onClick={() => setCustom(true)}>{aiEnabled ? '📷 Сфоткать этикетку или ввести вручную' : '+ Добавить свой продукт'}</button>
+              {aiEnabled && onAiText && <button className="btn" onClick={() => onAiText(q.trim())}>Описать AI: «{q.trim()}»</button>}
+              <button className="btn btn-ghost" onClick={() => setCustom(true)}>{aiEnabled ? 'Сфоткать этикетку или ввести вручную' : '+ Добавить свой продукт'}</button>
               <button className="link" onClick={() => { setError(''); setScanner(true) }}>▥ Сканировать штрихкод</button>
             </div>
           )}
@@ -827,7 +827,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
           {picked.unverified && !thanks && (
             <div className="unverified-note">
               <p className="sub">{checked ? 'Спасибо, учли! Когда цифры сверят ещё люди, товар станет проверенным.'
-                : '⚠️ Товар добавил пользователь, цифры ещё не проверены. Сверь с упаковкой:'}</p>
+                : 'Товар добавил пользователь, цифры ещё не проверены. Сверь с упаковкой:'}</p>
               {!checked && <div className="meal-actions">
                 <button className="link" onClick={() => { setChecked(true); api(`/api/products/${picked.id}/confirm`, { method: 'POST' }).catch(() => {}) }}>✓ Всё верно</button>
                 <button className="link" onClick={() => { setLastCode(picked.barcode ?? null); setPicked(null); setCustom('fix') }}>Цифры другие? Исправить</button>
@@ -961,13 +961,13 @@ function CustomProduct({ barcode, fix = false, aiEnabled, onCreated, onCancel, o
   return (
     <>
       {barcode && !fix && <p className="row-title strong">Товара {barcode} пока нет в базе. Добавь его один раз, и он будет находиться по штрихкоду у всех.</p>}
-      {barcode && !fix && <p className="xp-note">🏅 <b>+25 XP</b>, когда двое сверят цифры с упаковкой</p>}
+      {barcode && !fix && <p className="xp-note"><b>+25 XP</b>, когда двое сверят цифры с упаковкой</p>}
       {fix && <p className="row-title strong">Внеси цифры с упаковки. Если ещё кто-то внесёт такие же, они заменят нынешние у всех.</p>}
       {onFind && <button type="button" className="link" onClick={onFind}>Он есть в поиске под своим названием? Найти и привязать штрихкод</button>}
       {!barcode && <p className="sub">Значения на 100 г, они есть на упаковке. Сначала продукт виден только тебе; когда ещё двое внесут те же цифры, он попадёт в общий каталог, а ты получишь <b>+25 XP</b>.</p>}
       {aiEnabled && (
         <label className={`btn ${barcode ? '' : 'btn-ghost '}photo-btn${reading ? ' disabled' : ''}`}>
-          {reading ? 'Читаю этикетку…' : '📷 Сфоткать этикетку и заполнить'}
+          {reading ? 'Читаю этикетку…' : 'Сфоткать этикетку и заполнить'}
           <input type="file" accept="image/*" capture="environment" hidden disabled={reading}
             onChange={(e) => { readLabel(e.target.files?.[0]); e.target.value = '' }} />
         </label>

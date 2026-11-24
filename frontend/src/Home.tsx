@@ -62,7 +62,7 @@ function WaterCard({ water, canEdit, onWater, onPortion }: { water: Water; canEd
         <div className="row-main water-text">
           <span className="sub">Вода</span>
           <span className="water-amount">{liters(water.ml)} <span className="muted">/ {liters(water.goal_ml)} л</span></span>
-          <span className="sub">{water.ml >= water.goal_ml ? 'Норма выполнена 💧' : `ещё ${liters(water.goal_ml - water.ml)} л`}</span>
+          <span className="sub">{water.ml >= water.goal_ml ? 'Норма выполнена' : `ещё ${liters(water.goal_ml - water.ml)} л`}</span>
         </div>
         {canEdit && water.ml > 0 && (
           <div className="water-mode" role="group" aria-label="Режим">
@@ -264,7 +264,7 @@ export default function Home(props: {
           {props.canEdit && <button className="home-arrange" aria-label="Настроить главный экран" title="Настроить главный экран" onClick={() => setArranging(true)}><Icon name="settings" size={21} /></button>}
           {props.boostUntil && ( // the server sends it only while the boost lasts
             <span className="pill pill-boost" title={`Бустер за победу в дуэли: ×1,5 XP до ${new Date(props.boostUntil).toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`}>
-              ⚡ ×1,5<span className="sr-only"> XP: бустер за победу в дуэли</span>
+              ×1,5 XP<span className="sr-only">: бустер за победу в дуэли</span>
             </span>
           )}
           <span className="pill" title="Дней подряд" style={props.loading ? { visibility: 'hidden' } : undefined}>
@@ -302,7 +302,7 @@ export default function Home(props: {
       {whyOpen && !props.loading && (
         <section className="card day-summary" aria-label="Итоги дня">
           <div className="day-summary-head">
-            <div><h2>{progress >= 100 ? 'День закрыт 🎉' : evening ? 'Итог дня' : 'Прогресс дня'}</h2>
+            <div><h2>{progress >= 100 ? 'День закрыт' : evening ? 'Итог дня' : 'Прогресс дня'}</h2>
               <p className="sub">{progress >= 100 ? 'Всё по плану' : evening ? 'Ещё можно успеть' : 'Что уже сделано сегодня'}</p></div>
             <span className="day-summary-total">{progress}%</span>
           </div>
@@ -328,7 +328,7 @@ export default function Home(props: {
             onPointerDown={() => { longPressed.current = false; pressTimer.current = setTimeout(() => { longPressed.current = true; haptic('light'); setWaterOpen(true) }, 450) }}
             onPointerUp={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }} onPointerLeave={() => { if (pressTimer.current) clearTimeout(pressTimer.current) }}
             onContextMenu={(e) => e.preventDefault()}
-            onClick={() => { if (!longPressed.current) props.onWater(portion) }}>+💧 {portion}</button>
+            onClick={() => { if (!longPressed.current) props.onWater(portion) }}>+{portion} мл</button>
         </div>
       )}
       {props.usual && shows('usual') && <UsualCard {...props.usual} />}
@@ -347,7 +347,7 @@ export default function Home(props: {
             <button key={b} className="home-row" onClick={props.onWorkouts} aria-label={restDay ? `Сегодня отдых. Следующая тренировка — ${nextTraining}: ${next!.day_name}` : undefined}>
               <span className="home-row-icon" aria-hidden="true"><Icon name="dumbbell" /></span>
               {props.loading && !next ? <span className="step-text"><span className="skeleton skeleton-line" style={{ width: 180 }} /></span> // not "choose a program" before the program has loaded
-                : <span className="step-text"><b>{trained && next ? 'Тренировка сегодня сделана ✓' : restDay ? 'Сегодня отдых 😌' : next ? `Сегодня · ${next.day_name}` : 'Выбери программу тренировок'}</b></span>}
+                : <span className="step-text"><b>{trained && next ? 'Тренировка сегодня сделана ✓' : restDay ? 'Сегодня отдых' : next ? `Сегодня · ${next.day_name}` : 'Выбери программу тренировок'}</b></span>}
               <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
             </button>
           ) : <Fragment key={b}>{b === 'habits' ? props.habits : props.quests}</Fragment>)}

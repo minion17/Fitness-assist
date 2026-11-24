@@ -61,10 +61,10 @@ export default function Fasting({ home = false, protein, refresh = 0 }: { home?:
           <i style={{ width: `${Math.min(100, fasted / plan.hours / 0.6)}%`, background: 'var(--accent)' }} />
         </div>
         <p className="sub">{eating ? `Окно открыто до ${plan.eat_to} — можно есть, начни с белка.`
-          : done ? `Цель достигнута 🎉 Окно откроется в ${plan.eat_from}.`
+          : done ? `Цель достигнута. Окно откроется в ${plan.eat_from}.`
           : `Окно откроется в ${plan.eat_from}, через ${dur(until(plan.eat_from, now))}. Вода, чай и кофе без сахара можно.`}</p>
       </>}
-      {(s.series ?? 0) >= 2 && <p className="fasting-series">🔥 Серия в окне: {s.series} {plural(s.series!, 'день', 'дня', 'дней')} — считается сама по дневнику</p>}
+      {(s.series ?? 0) >= 2 && <p className="fasting-series">Серия в окне: {s.series} {plural(s.series!, 'день', 'дня', 'дней')} — считается сама по дневнику</p>}
       {!home && s.logged > 0 && <p className="sub">За неделю в окне: {s.kept} из {s.logged} дн.</p>}
     </section>
   )

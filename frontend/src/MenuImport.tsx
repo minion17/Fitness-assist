@@ -92,7 +92,7 @@ export default function MenuImport({ onPick, onCancel, kcalLeft }: { onPick: (p:
     <>
       <p className="sub">Сфотографируй меню или карточку блюда в приложении доставки. КБЖУ возьму с фото, а где их нет, оценю по обычному рецепту (≈). Подскажу, что влезает в остаток дня.</p>
       <label className={busy ? 'btn btn-ghost photo-btn disabled' : 'btn btn-ghost photo-btn'}>
-        {busy || (menu ? '📷 Другое фото' : '📷 Сфоткать меню')}
+        {busy || (menu ? 'Другое фото' : 'Сфоткать меню')}
         <input type="file" accept="image/*" hidden disabled={!!busy} onChange={(e) => { read(e.target.files?.[0]); e.target.value = '' }} />
       </label>
       {menu && menu.items.length > 0 && (

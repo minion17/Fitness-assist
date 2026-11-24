@@ -186,7 +186,7 @@ export function QuickWeight({ measurements, onSave, goal }: { measurements: Meas
       {last && <span className="sub">Последний: {ru(last.value)} кг · {dateRu(last.on)}</span>}
       {(() => {
         const f = forecast(measurements.filter((m) => m.weight_kg != null).map((m) => ({ date: m.measured_on, kg: m.weight_kg! })).sort((a, b) => a.date.localeCompare(b.date)), goal)
-        return f && goal ? <span className="sub forecast">📅 {forecastText(f, goal)}</span> : null
+        return f && goal ? <span className="sub forecast">{forecastText(f, goal)}</span> : null
       })()}
       <div className="weight-stepper">
         <button className="icon-btn" aria-label="Минус 0,1 кг" onClick={() => step(-0.1)}>−</button>

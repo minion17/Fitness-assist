@@ -75,7 +75,7 @@ export function CoachClients() {
       <p className="sub">Норма: {open.targets ? `${n(open.targets.calories)} ккал · Б ${open.targets.protein} · Ж ${open.targets.fat} · У ${open.targets.carbs} г` : 'анкета не заполнена'}
         {open.weight ? ` · вес ${String(open.weight).replace('.', ',')} кг` : ''}{open.weight_change != null ? ` (${signed(open.weight_change)} за 2 нед.)` : ''}</p>
       <table className="coach-days">
-        <thead><tr><th>День</th><th>Ккал</th><th>Б</th><th>Ж</th><th>У</th><th>🏋️</th></tr></thead>
+        <thead><tr><th>День</th><th>Ккал</th><th>Б</th><th>Ж</th><th>У</th><th>Трен.</th></tr></thead>
         <tbody>{[...open.days].reverse().map((d) => (
           <tr key={d.date} className={d.kcal ? '' : 'coach-day-empty'}>
             <td>{dm(d.date)}</td><td>{d.kcal ? n(d.kcal) : '—'}</td><td>{d.kcal ? d.protein : ''}</td><td>{d.kcal ? d.fat : ''}</td><td>{d.kcal ? d.carbs : ''}</td><td>{d.workouts || ''}</td>
@@ -87,7 +87,7 @@ export function CoachClients() {
         <div className="row" key={i}><div className="row-main"><span className="row-title">{w.title}</span>
           <small className="sub"> {dm(w.date)} · {w.minutes} мин · {w.sets} подх.{w.tonnage ? ` · ${n(w.tonnage)} кг` : ''}{w.effort ? ` · ${{ easy: 'легко', ok: 'нормально', hard: 'тяжело' }[w.effort] ?? ''}` : ''}{w.after ? ' · записано после' : ''}</small></div></div>
       )) : <p className="sub">Не было.</p>}
-      <button className="btn btn-ghost" onClick={() => { haptic('success'); api(`/api/coach/clients/${open.id}/report`, postJson({ days: 30 })).then(() => setNote('PDF-отчёт за 30 дней придёт тебе в чат с ботом')).catch(() => setNote('Не получилось. Попробуй ещё раз')) }}>📄 PDF-отчёт за 30 дней</button>
+      <button className="btn btn-ghost" onClick={() => { haptic('success'); api(`/api/coach/clients/${open.id}/report`, postJson({ days: 30 })).then(() => setNote('PDF-отчёт за 30 дней придёт тебе в чат с ботом')).catch(() => setNote('Не получилось. Попробуй ещё раз')) }}>PDF-отчёт за 30 дней</button>
       {note && <p className="sub" role="status">{note}</p>}
       <button className="link danger" onClick={() => { api(`/api/coach/links/${open.link_id}`, { method: 'DELETE' }).then(() => { setOpen(null); load() }).catch(() => {}) }}>Убрать из клиентов</button>
     </section>

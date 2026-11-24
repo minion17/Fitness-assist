@@ -413,7 +413,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       setNow(time)
       setTimer({ phase: 'rest', end: time + rest * 1000, result: `Подход ${si + 1} · ${reps} ${timed ? 'с' : 'повт.'}`, ei, si })
       if (weight) setSets(prev => prev.map((row, i) => i !== ei ? row : row.map((x, j) => j > si && !x.saved && x.weight === '' ? { ...x, weight: s.weight } : x)))
-      if (r?.record) { onRecord?.(`🏆 Личный рекорд: ${day.exercises[ei].name}`); setRecords((x) => x.includes(day.exercises[ei].name) ? x : [...x, day.exercises[ei].name]) }
+      if (r?.record) { onRecord?.(`Личный рекорд: ${day.exercises[ei].name}`); setRecords((x) => x.includes(day.exercises[ei].name) ? x : [...x, day.exercises[ei].name]) }
       const nextName = day.exercises[ei + 1]?.name ?? day.exercises[ei].name
       if (rest >= 10) startRest(rest, nextName)
       haptic('save'); sound('click')
@@ -512,10 +512,10 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
         <div><b>{summary.sets}</b><span>{plural(summary.sets, 'подход', 'подхода', 'подходов')}</span></div>
         <div><b>{summary.tonnage.toLocaleString('ru-RU')}</b><span>кг поднято</span></div>
       </div>
-      {records.length > 0 && <ul className="workout-records">{records.map((r) => <li key={r}>🏆 Личный рекорд: {r}</li>)}</ul>}
+      {records.length > 0 && <ul className="workout-records">{records.map((r) => <li key={r}>Личный рекорд: {r}</li>)}</ul>}
       {summary.xp > 0 && <p className="pos">+{summary.xp} XP</p>}
       {!summary.xp && summary.note && <p className="sub">{summary.note}</p>}
-      {summary.tip && <p className="workout-tip">⚡ {summary.tip}</p>}
+      {summary.tip && <p className="workout-tip">{summary.tip}</p>}
       {logId && <EffortPick logId={logId} />}
       <button className="btn" onClick={onExit}>Готово</button>
     </section>
@@ -602,8 +602,8 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
               <div className="sub session-last">В прошлый раз ({new Date(last[e.exercise_id].date + 'T12:00').toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}): {lastLabel(last[e.exercise_id].sets)}</div>
             ) : null}
             {nextWeight(last[e.exercise_id]?.sets, e.reps, last[e.exercise_id]?.effort) ? (
-              <div className="session-up">📈 Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуй {String(nextWeight(last[e.exercise_id]?.sets, e.reps, last[e.exercise_id]?.effort)).replace('.', ',')} кг</div>
-            ) : advice(last[e.exercise_id], e.reps) && <div className="session-up">💡 {advice(last[e.exercise_id], e.reps)}</div>}
+              <div className="session-up">Все подходы были по {e.reps.match(/\d+/g)?.pop()} — сегодня попробуй {String(nextWeight(last[e.exercise_id]?.sets, e.reps, last[e.exercise_id]?.effort)).replace('.', ',')} кг</div>
+            ) : advice(last[e.exercise_id], e.reps) && <div className="session-up">{advice(last[e.exercise_id], e.reps)}</div>}
           </div>
           {timed ? <>
             {nextSet >= 0 && timer?.phase !== 'work' &&
@@ -647,7 +647,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       )}
       {guideExercise && <KettlebellExercise exercise={guideExercise} onClose={() => setGuideExercise(null)} />}
       {error && <p className="error" role="alert">{error}</p>}
-      {offline && <p className="queued" role="status">📴 Нет связи. Подходы сохраняются на телефоне и отправятся сами</p>}
+      {offline && <p className="queued" role="status">Нет связи. Подходы сохраняются на телефоне и отправятся сами</p>}
       {savedCount > 0 && <button className="btn btn-ghost" disabled={busy || timer?.phase === 'work'} onClick={finish}>
         Завершить тренировку · {savedCount} подх.
       </button>}
@@ -688,9 +688,9 @@ function EffortPick({ logId }: { logId: number }) {
     <div className="effort">
       <p className="sub">Как ощущения?</p>
       <div className="effort-row">
-        <button className="chip" onClick={() => choose('easy')}>😌 Легко</button>
-        <button className="chip" onClick={() => choose('ok')}>🙂 Норм</button>
-        <button className="chip" onClick={() => choose('hard')}>😮‍💨 Тяжело</button>
+        <button className="chip" onClick={() => choose('easy')}>Легко</button>
+        <button className="chip" onClick={() => choose('ok')}>Норм</button>
+        <button className="chip" onClick={() => choose('hard')}>Тяжело</button>
       </div>
     </div>
   )

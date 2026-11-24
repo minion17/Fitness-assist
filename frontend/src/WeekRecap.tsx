@@ -18,7 +18,7 @@ export default function WeekRecap({ days, goal, streak, weightDelta, onClose }: 
   const workouts = days.reduce((n, d) => n + d.workouts, 0)
   const water = days.filter((d) => d.water_ml > 0)
   const best = logged.length ? logged.reduce((a, d) => Math.abs(d.kcal - goal) < Math.abs(a.kcal - goal) ? d : a) : null
-  const text = `Моя неделя в Setly: ${norm} из 7 дней в норме, ${workouts} ${plural(workouts, 'тренировка', 'тренировки', 'тренировок')}${streak > 1 ? `, серия ${streak} ${plural(streak, 'день', 'дня', 'дней')}` : ''} 💪`
+  const text = `Моя неделя в Setly: ${norm} из 7 дней в норме, ${workouts} ${plural(workouts, 'тренировка', 'тренировки', 'тренировок')}${streak > 1 ? `, серия ${streak} ${plural(streak, 'день', 'дня', 'дней')}` : ''}`
 
   function share() {
     if (canStory()) { shareStory({ kind: 'week' }).catch(() => {}); return }
@@ -31,7 +31,7 @@ export default function WeekRecap({ days, goal, streak, weightDelta, onClose }: 
     <div className="recap" role="dialog" aria-modal="true" aria-label="Итоги недели">
       <button className="recap-close" aria-label="Закрыть" onClick={onClose}>✕</button>
       <p className="recap-kicker">Итоги недели</p>
-      <h1 className="recap-title">{norm >= 5 ? 'Сильная неделя 🔥' : norm >= 3 ? 'Хорошая неделя' : 'Неделя позади'}</h1>
+      <h1 className="recap-title">{norm >= 5 ? 'Сильная неделя' : norm >= 3 ? 'Хорошая неделя' : 'Неделя позади'}</h1>
       <div className="recap-grid">
         <div className="recap-tile big"><b>{norm}<small>/7</small></b><span>дней в норме калорий</span></div>
         <div className="recap-tile"><b>{workouts}</b><span>{plural(workouts, 'тренировка', 'тренировки', 'тренировок')}</span></div>

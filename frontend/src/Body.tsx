@@ -176,17 +176,18 @@ export function QuickWeight({ measurements, onSave, goal }: { measurements: Meas
     <button className="card quick-weight" onClick={() => { setValue(String(todays?.weight_kg ?? last?.value ?? '')); setOpen(true) }}>
       <span className="home-row-icon" aria-hidden="true"><Icon name="scale" /></span>
       <span className="step-text"><b>{todays?.weight_kg ? `Вес сегодня: ${ru(todays.weight_kg)} кг` : 'Взвеситься'}</b>
-        <span className="sub">{last ? `Последний: ${ru(last.value)} кг · ${dateRu(last.on)}` : 'Запиши вес, чтобы видеть динамику'}</span>
-        {(() => {
-          const f = forecast(measurements.filter((m) => m.weight_kg != null).map((m) => ({ date: m.measured_on, kg: m.weight_kg! })).sort((a, b) => a.date.localeCompare(b.date)), goal)
-          return f && goal ? <span className="sub forecast">📅 {forecastText(f, goal)}</span> : null
-        })()}</span>
+</span>
       <span className="link">{todays?.weight_kg ? 'Изменить' : 'Записать'}</span>
     </button>
   )
   return (
     <section className="card quick-weight open">
       <div className="card-head"><h2>Вес сегодня</h2><button className="link" onClick={() => setOpen(false)}>Отмена</button></div>
+      {last && <span className="sub">Последний: {ru(last.value)} кг · {dateRu(last.on)}</span>}
+      {(() => {
+        const f = forecast(measurements.filter((m) => m.weight_kg != null).map((m) => ({ date: m.measured_on, kg: m.weight_kg! })).sort((a, b) => a.date.localeCompare(b.date)), goal)
+        return f && goal ? <span className="sub forecast">📅 {forecastText(f, goal)}</span> : null
+      })()}
       <div className="weight-stepper">
         <button className="icon-btn" aria-label="Минус 0,1 кг" onClick={() => step(-0.1)}>−</button>
         <div className="input-wrap"><input autoFocus inputMode="decimal" aria-label="Вес, кг" value={value}

@@ -111,5 +111,5 @@ test('on a day off from the questionnaire the workout row says rest and when the
     day={{ date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }} program={program} trainingDays={[0, 2, 4]}
     logs={[]} water={{ ml: 0, goal_ml: 2000 }} aiEnabled={false} canEdit onFood={() => {}} onNutrition={() => {}} onWorkouts={() => {}} onWater={() => {}} />)
   expect(screen.getByText('Сегодня отдых 😌')).toBeTruthy()
-  expect(screen.getByText('Следующая тренировка — пт: День 1')).toBeTruthy()
+  expect(screen.getByRole('button', { name: /Следующая тренировка — пт: День 1/ })).toBeTruthy()
 })

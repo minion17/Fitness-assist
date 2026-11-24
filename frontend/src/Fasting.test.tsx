@@ -21,6 +21,9 @@ it('setup needs the contraindications confirmed before it starts', async () => {
   const { default: F } = await import('./Fasting')
   render(<F />)
   fireEvent.click(await screen.findByText('Интервальное голодание'))
+  fireEvent.click(screen.getByRole('button', { name: /Интервальное голодание/, expanded: true }))
+  expect(screen.queryByRole('radio', { name: /14:10/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: /Интервальное голодание/, expanded: false }))
   fireEvent.click(screen.getByRole('radio', { name: /14:10/ }))
   expect(screen.getByText('22:00')).toBeTruthy() // 12:00 + 10 h
   const start = screen.getByRole('button', { name: 'Начать' }) as HTMLButtonElement

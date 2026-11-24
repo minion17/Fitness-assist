@@ -1,0 +1,34 @@
+.fasting-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0;
+  text-align: left;
+  font-weight: inherit;
+}
+
+.fasting-toggle .chev {
+  flex: none;
+  transform: rotate(180deg);
+}
+
+.card.fasting-entry {
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+}
+
+.fasting-entry-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fasting-entry > .chev {
+  flex: none;
+  color: var(--muted);
+}

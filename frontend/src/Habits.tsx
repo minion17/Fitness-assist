@@ -16,6 +16,7 @@ const MAX = 8
 
 export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]; onChange: (list: Habit[]) => void; onQueued?: () => void }) {
   const [editing, setEditing] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [title, setTitle] = useState('')
   const [error, setError] = useState('')
   const [removed, setRemoved] = useState<Habit | null>(null) // just removed: «Вернуть» for a few seconds
@@ -54,9 +55,9 @@ export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]
 
   if (!habits.length && !editing) {
     return (
-      <button className="home-row" onClick={() => setEditing(true)}>
+      <button className="home-row" onClick={() => { setEditing(true); setExpanded(true) }}>
         <span className="home-row-icon" aria-hidden="true"><Icon name="check" /></span>
-        <span className="step-text"><b>Привычки</b><span className="sub">Сон, шаги, без сладкого. Отметка тоже держит серию</span></span>
+        <span className="step-text"><b>Привычки</b></span>
         <span className="step-go" aria-hidden="true"><Chevron dir="right" /></span>
       </button>
     )
@@ -64,14 +65,15 @@ export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]
 
   return (
     <div className="habits">
-      <div className="home-row habits-head">
+      <button className="home-row habits-head" type="button" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
         <span className="home-row-icon" aria-hidden="true"><Icon name="check" /></span>
-        <span className="step-text"><b>Привычки{habits.length ? ` · ${done} из ${habits.length}` : ''}</b>
-          <span className="sub">{habits.length && done === habits.length ? 'Все отмечены сегодня' : 'Отметка за сегодня продлевает серию'}</span></span>
-        <button className="link" onClick={() => { setEditing(!editing); setError('') }}>{editing ? 'Готово' : 'Изменить'}</button>
-      </div>
+        <span className="step-text"><b>Привычки{habits.length ? ` · ${done} из ${habits.length}` : ''}</b></span>
+        <span className={`step-go${expanded ? ' open' : ''}`} aria-hidden="true"><Chevron dir="right" /></span>
+      </button>
 
-      {!editing && (
+      {expanded && <button className="link habits-edit-toggle" onClick={() => { setEditing(!editing); setError('') }}>{editing ? 'Готово' : 'Изменить'}</button>}
+
+      {expanded && !editing && (
         <div className="habit-chips habit-today" role="group" aria-label="Привычки на сегодня">
           {habits.map((h) => (
             <button key={h.id} className="habit-chip" aria-pressed={h.done} onClick={() => tick(h)}>
@@ -82,7 +84,7 @@ export default function Habits({ habits, onChange, onQueued }: { habits: Habit[]
         </div>
       )}
 
-      {editing && (
+      {expanded && editing && (
         <div className="habit-edit">
           {habits.length > 0 && <p className="sub">Во сколько напомнить, если привычка не отмечена. Отметить можно прямо в чате.</p>}
           {removed && <p className="sub habit-removed" role="status">Убрали «{removed.title}» · <button className="link" onClick={async () => { if (await send(`/api/habits/${removed.id}/restore`, { method: 'POST' })) setRemoved(null) }}>Вернуть</button></p>}

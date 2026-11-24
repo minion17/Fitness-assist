@@ -826,8 +826,8 @@ button:not(:disabled):active, .btn:not(:disabled):active, summary:active { trans
 .water-value small { color: var(--muted); }
 .home-actions .water-quick { flex: 0 0 auto; padding: 0 16px; color: var(--water); font-weight: 800; }
 .repeat-link { display: block; margin: -4px auto 12px; font-size: 14px; }
-.home-rows { padding: 4px 16px; }
-.home-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 12px 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.card.home-rows, [data-theme='light'] .card.home-rows { padding: 2px 16px; gap: 0; }
+.home-row { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 0; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .home-rows > .home-row + .home-row, .home-rows > .quest-list + .home-row { border-top: 1px solid var(--line); }
 .home-rows .quest-list { margin: 0 0 8px; }
 .home-row-icon { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-size: 18px; background: var(--card-2); }
@@ -838,9 +838,8 @@ button:not(:disabled):active, .btn:not(:disabled):active, summary:active { trans
 .crash { min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 10px; padding: 24px; } .crash-icon { font-size: 44px; } .crash .btn { width: auto; padding: 12px 28px; margin-top: 8px; }
 
 .home-rows > .habits + .home-row, .home-rows > .home-row + .habits, .home-rows > .quest-list + .habits { border-top: 1px solid var(--line); }
-.habits { padding-bottom: 10px; }
-.habits-head { cursor: default; }
-.habits-head .link { flex: none; font-size: 14px; }
+.habits:has(.habit-today), .habits:has(.habit-edit) { padding-bottom: 10px; }
+.habits-edit-toggle { display: block; margin: 0 0 10px auto; font-size: 14px; }
 .habit-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .habit-chip { min-height: 36px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--card-2); color: var(--text); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: background .15s ease, transform .1s ease; }
 .habit-chip:active { transform: scale(.96); }
@@ -1364,7 +1363,7 @@ button.ready-exercise-row:focus-visible { outline: 2px solid var(--accent-text);
 .weight-stepper input { text-align: center; font-size: 22px; font-weight: 700; }
 .weight-stepper .icon-btn { width: 48px; height: 48px; font-size: 24px; color: var(--text); background: var(--card-2); border-radius: 14px; }
 .fold[open] > summary { margin-bottom: 12px; }
-.card.quick-weight:not(.open) { flex-direction: row; align-items: center; text-align: left; justify-content: flex-start; }
+.card.quick-weight:not(.open), [data-theme='light'] .card.quick-weight:not(.open) { padding: 10px 16px; flex-direction: row; align-items: center; text-align: left; justify-content: flex-start; }
 .card.quick-weight:not(.open) .step-text { align-items: flex-start; }
 body:has(.added-bar) .toast { display: none; } /* the sheet's own bar already says what was added */
 .chev { display: block; flex-shrink: 0; color: var(--muted); transition: transform .2s ease; }
@@ -1448,7 +1447,7 @@ body:has(.sheet) .toast-undo { display: none; } /* don't cover the sheet's butto
 .set-nudge button:active { transform: scale(.95); }
 .set-go { min-height: 54px; font-size: 17px; }
 /* ---- Home layout settings ---- */
-.home-arrange { align-self: center; font-size: 13px; color: var(--muted); padding: 8px; }
+.home-arrange { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 12px; background: var(--card-2); color: var(--muted); cursor: pointer; }
 .home-settings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .home-settings-h { margin: 6px 0 -2px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .home-setting { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--card-border); transition: opacity .2s; }
@@ -1784,9 +1783,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .home-insight { margin: 4px 0 0; color: var(--accent-text); font-size: 14px; font-weight: 500; animation: fade-in .4s ease-out .2s backwards; }
 /* medals: unlocked badges on the profile card */
 .medals { display: flex; align-items: center; gap: 8px; padding: 12px 0 0; border-top: 1px solid var(--line); color: var(--muted); text-align: left; }
-.medal { width: 38px; height: 42px; display: grid; place-items: center; font-size: 19px; flex: none;
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-  background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 55%, #fff 10%), color-mix(in srgb, var(--accent) 30%, var(--card-2))); }
+.medal { width: 38px; height: 38px; display: inline-grid; place-items: center; font-size: 19px; flex: none; vertical-align: middle; }
 .medals-more { margin-left: auto; display: inline-flex; align-items: center; gap: 2px; font-size: 13px; white-space: nowrap; }
 /* the unlock ceremony: the badge lands, a light sweeps across it, rings spread */
 .reward .badge { position: relative; overflow: hidden; }
@@ -1801,10 +1798,10 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 /* Onest: tabular digits run wide, tighten big numbers */
 .stat, .daily-progress-center strong, .overview-value, .hero-num, .amount-kcal strong, .workout-summary-grid b, .recap-tile b, .day-stat-value, .session-prescription dd, .session-clock strong, .chart-read b, .session-progress .sub, .set-go { letter-spacing: -.03em; }
 
-.achievement-art { display: block; flex: none; width: 76px; max-width: 100%; aspect-ratio: 320 / 356; background-image: url('/images/achievements/badges.png'); background-size: 554.375% 249.15730337%; background-repeat: no-repeat; }
+.achievement-art { display: block; flex: none; width: 76px; max-width: 100%; aspect-ratio: 1; object-fit: contain; }
 .achievement-art-fallback { display: grid; place-items: center; background: none; line-height: 1; }
 .achievement-art-large { width: min(200px, 45vw); }
-.medal .achievement-art { width: 28px; }
+.medal .achievement-art { width: 38px; }
 
 .achievement-art-additional {
   background-image: url('/images/achievements/additional-badges.png');
@@ -2034,7 +2031,7 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .profile-identity { padding: 16px; gap: 10px; }
 .profile-person { gap: 12px; }
 .profile-identity .avatar { width: 52px; height: 52px; font-size: 22px; }
-.profile-identity h1 { margin-bottom: 0; }
+.profile-identity h1 { margin-bottom: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .profile-identity .profile-level { padding-top: 10px; gap: 6px; }
 .profile-identity .medals { padding-top: 8px; }
 

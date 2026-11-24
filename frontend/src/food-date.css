@@ -1,0 +1,26 @@
+.nutrition-summary-head {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.nutrition-summary-title {
+  min-width: 0;
+}
+
+.nutrition-summary-title .sub {
+  display: block;
+  margin-top: 4px;
+}
+
+.nutrition-summary-head .date-bar {
+  margin-left: auto;
+}
+
+@media (max-width: 420px) {
+  .nutrition-summary-head .date-bar .icon-btn {
+    width: 32px;
+  }
+  .nutrition-summary-head .date-label {
+    min-width: 78px;
+  }
+}

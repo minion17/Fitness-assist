@@ -444,10 +444,10 @@ test('weekly tasks: one row on Home that opens the list', () => {
     { code: 'workouts', title: 'Проведи 3 тренировки', progress: 1, target: 3, xp: 80, done: false },
   ] }} />)
   expect(screen.getByText('Задания недели · 1 из 2')).toBeTruthy()
-  expect(screen.getByText('ещё 3 дня · все три — ещё +50 XP')).toBeTruthy()
   expect(screen.queryByText('1 из 3')).toBeNull()
   fireEvent.click(screen.getByRole('button', { name: /Задания недели/ }))
   expect(screen.getByText('1 из 3')).toBeTruthy()
+  expect(screen.getByText('ещё 3 дня · все три — ещё +50 XP')).toBeTruthy()
 })
 
 test('workout player: one exercise at a time, moves on when its sets are done', async () => {
@@ -494,6 +494,8 @@ test('habits: one tap ticks today, a server error puts it back', async () => {
   const onChange = vi.fn()
   apiMock.mockResolvedValueOnce([{ ...sleep, done: true, streak: 4 }])
   render(<Habits habits={[sleep]} onChange={onChange} />)
+  expect(screen.queryByRole('button', { name: /Сон 8 часов/ })).toBeNull()
+  fireEvent.click(screen.getByRole('button', { name: /Привычки/ }))
   fireEvent.click(screen.getByRole('button', { name: /Сон 8 часов/ }))
   expect(onChange).toHaveBeenNthCalledWith(1, [{ ...sleep, done: true }]) // instantly, before the server answers
   expect(apiMock).toHaveBeenCalledWith('/api/habits/1/check', expect.objectContaining({ body: JSON.stringify({ done: true, day: new Date().toLocaleDateString('sv') }) }))
@@ -510,7 +512,8 @@ test('habits: one tap ticks today, a server error puts it back', async () => {
   const onQueued = vi.fn()
   localStorage.removeItem('setly-offline-queue')
   apiMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
-  render(<Habits habits={[{ ...sleep, title: 'Растяжка', id: 5 }]} onChange={onChange} onQueued={onQueued} />)
+  const offline = render(<Habits habits={[{ ...sleep, title: 'Растяжка', id: 5 }]} onChange={onChange} onQueued={onQueued} />)
+  fireEvent.click(offline.container.querySelector('.habits-head')!)
   fireEvent.click(screen.getByRole('button', { name: /Растяжка/ }))
   await waitFor(() => expect(onQueued).toHaveBeenCalled())
   expect(onChange).toHaveBeenCalledTimes(1) // only the instant tick, not taken back
@@ -814,7 +817,7 @@ test('home: hide and reorder the blocks, kept on the phone', async () => {
   const { unmount } = render(<Home {...props} />)
   const order = () => [...document.querySelectorAll('.home-rows > *')].map((e) => e.textContent?.slice(0, 12))
   expect(order()).toEqual(['Выбери прогр', 'Блок привыче', 'Блок заданий'])
-  fireEvent.click(screen.getByRole('button', { name: '⚙ Настроить главный экран' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Настроить главный экран' }))
   fireEvent.click(screen.getByRole('button', { name: 'Задания недели: выше' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Тренировка на сегодня' }))
   fireEvent.click(screen.getByRole('switch', { name: 'Показывать: Вес' }))

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import './food-date.css'
 import Fasting from './Fasting'
 import type { ProfileData, Targets } from './profile'
 import AiMeal from './AiMeal'
@@ -303,7 +304,6 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
     <>
       <div className="food-head">
         <h1>Питание</h1>
-        {onDate && canEdit && <DateBar date={date} onDate={(d) => { setBefore(null); onDate(d) }} />}
       </div>
       <section className="card nutrition-summary"
         onPointerDown={(e) => { swipe.current = { x: e.clientX, y: e.clientY } }}
@@ -314,7 +314,10 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
           const dx = e.clientX - s0.x
           if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(e.clientY - s0.y)) go(dx > 0 ? -1 : 1) // swipe right = the day before
         }}>
-        <div className="card-head"><h2>{isToday ? 'КБЖУ за сегодня' : `КБЖУ · ${dayLabel(date)}`}</h2><span className="sub">{Math.round(t.kcal).toLocaleString('ru-RU')} / {goals.calories.toLocaleString('ru-RU')}</span></div>
+        <div className="card-head nutrition-summary-head">
+          <div className="nutrition-summary-title"><h2>{isToday ? 'КБЖУ за сегодня' : `КБЖУ · ${dayLabel(date)}`}</h2><span className="sub">{Math.round(t.kcal).toLocaleString('ru-RU')} / {goals.calories.toLocaleString('ru-RU')} ккал</span></div>
+          {onDate && canEdit && <DateBar date={date} onDate={(d) => { setBefore(null); onDate(d) }} />}
+        </div>
         <div className="ring-wrap">
           <Ring value={t.kcal} goal={goals.calories} />
           <div className="macros">

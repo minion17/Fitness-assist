@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { haptic } from './haptics'
 import { plural } from './plural'
+import { Chevron } from './ui'
+import './fasting-toggle.css'
 import { api, putJson } from './telegram'
 
 type Plan = { hours: number; eat_from: string; eat_to: string; remind: boolean }
@@ -38,7 +40,7 @@ export default function Fasting({ home = false, protein, refresh = 0 }: { home?:
     const req = body ? api<Status>('/api/fasting', putJson({ ...body, safe: true })) : api<Status>('/api/fasting', { method: 'DELETE' })
     req.then((r) => r && setS(r)).catch(() => {})
   }
-  if (!s.plan || edit) return <Setup plan={s.plan} open={edit} onOpen={() => setEdit(true)} onSave={save} onCancel={s.plan ? () => setEdit(false) : undefined} />
+  if (!s.plan || edit) return <Setup plan={s.plan} open={edit} onOpen={() => setEdit(true)} onSave={save} onCancel={() => setEdit(false)} />
 
   const { plan } = s
   const eating = inWindow(plan, now)
@@ -68,19 +70,20 @@ export default function Fasting({ home = false, protein, refresh = 0 }: { home?:
   )
 }
 
-function Setup({ plan, open, onOpen, onSave, onCancel }: { plan: Plan | null; open: boolean; onOpen: () => void; onSave: (p: Plan | null) => void; onCancel?: () => void }) {
+function Setup({ plan, open, onOpen, onSave, onCancel }: { plan: Plan | null; open: boolean; onOpen: () => void; onSave: (p: Plan | null) => void; onCancel: () => void }) {
   const [hours, setHours] = useState(plan?.hours ?? 16)
   const [from, setFrom] = useState(plan?.eat_from ?? '12:00')
   const [remind, setRemind] = useState(plan?.remind ?? true)
   const [safe, setSafe] = useState(!!plan)
   if (!open) return (
-    <button className="card fasting-entry" onClick={onOpen}>
-      <strong>Интервальное голодание</strong><small>16:8 и другие схемы, таймер, напоминания</small>
+    <button className="card fasting-entry" aria-expanded="false" onClick={onOpen}>
+      <span className="fasting-entry-text"><strong>Интервальное голодание</strong><small>16:8 и другие схемы, таймер, напоминания</small></span>
+      <Chevron />
     </button>
   )
   return (
     <section className="card fasting" aria-label="Настройка голодания">
-      <h2>Интервальное голодание</h2>
+      <h2><button className="fasting-toggle" aria-expanded="true" onClick={onCancel}>Интервальное голодание <Chevron /></button></h2>
       <div className="fasting-protocols" role="radiogroup" aria-label="Схема">
         {PROTOCOLS.map(([h, note]) => (
           <button key={h} role="radio" aria-checked={hours === h} className="fasting-protocol" onClick={() => setHours(h)}>
@@ -104,10 +107,10 @@ function Setup({ plan, open, onOpen, onSave, onCancel }: { plan: Plan | null; op
         <label className="fasting-check"><input type="checkbox" checked={safe} onChange={(e) => setSafe(e.target.checked)} /> Ничего из этого не про меня</label>
       </div>
       <button className="btn" disabled={!safe} onClick={() => onSave({ hours, eat_from: from, eat_to: windowEnd(from, hours), remind })}>{plan ? 'Сохранить' : 'Начать'}</button>
-      {onCancel && <div className="fasting-actions">
+      <div className="fasting-actions">
         <button className="link" onClick={onCancel}>Отмена</button>
-        <button className="link danger" onClick={() => onSave(null)}>Выключить голодание</button>
-      </div>}
+        {plan && <button className="link danger" onClick={() => onSave(null)}>Выключить голодание</button>}
+      </div>
     </section>
   )
 }

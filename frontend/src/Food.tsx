@@ -224,6 +224,9 @@ function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, it
   )
 }
 
+/** Search answers for this session, by URL: typing back over the same letters needs no network. */
+const searchCache = new Map<string, Product[]>()
+
 export default function Food({ day, date = today(), onDate, queued = 0, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, onMove, onCopyToday, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onLogSet, onSaved, onLogBatch, onPlanLogged = async () => {} }: {
   day: FoodDay
   date?: string // the day on screen, YYYY-MM-DD
@@ -512,7 +515,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setError('')
     try {
       const s = meal === 'snack' ? slot : null
-      eaten(p)
+      eaten(p); searchCache.clear() // «mine» first: the cached order is out of date
       await (shown.unit.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: shown.unit.label, qty: shown.qty }))
       done(p, grams)
     } catch { setError('Не добавилось. Попробуй ещё раз') }
@@ -604,22 +607,34 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
 
   useEffect(() => {
     if (q.trim().length < 2) return
-    let stale = false
+    const ctrl = new AbortController() // a newer letter cancels the request in flight
     // signed request also returns the user's own products; outside Telegram fall back to the public catalog
     const find = (text: string, quiet = false) => {
       const url = `/api/products/search?q=${encodeURIComponent(text)}${quiet ? '&quiet=1' : ''}`
-      return api<Product[]>(url).then((r) => r ?? publicGet<Product[]>(url))
+      const hit = searchCache.get(url)
+      if (hit) return Promise.resolve(hit) // backspace, or the same word again: no round trip
+      return api<Product[]>(url, { signal: ctrl.signal }).then((r) => r ?? publicGet<Product[]>(url)).then((r) => {
+        searchCache.set(url, r)
+        if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value!)
+        return r
+      })
     }
     const timer = setTimeout(async () => {
       try {
-        // "яйцо 2": the number may be part of a name ("Творог 9%"), so the whole text goes first, then without the amount
+        // "яйцо 2": the number may be part of a name ("Творог 9%"), so the whole text is tried too — both at once,
+        // the whole one wins when it finds something
         const { text, wanted: w } = parseQuery(q)
-        let r = w && w.unit ? null : await find(q.trim(), Boolean(w))
-        if (w && !r?.length && text.length >= 2) { r = await find(text); if (!stale) setWanted(w) } else if (!stale) setWanted(null)
-        if (!stale) { setFound({ q, items: r ?? [] }); (r ?? []).forEach(remember) }
-      } catch { if (!stale) setError('Поиск недоступен. Проверь интернет') }
-    }, 300) // wait for the user to stop typing
-    return () => { stale = true; clearTimeout(timer) }
+        const [whole, stripped] = await Promise.all([
+          w && w.unit ? null : find(q.trim(), Boolean(w)),
+          w && text.length >= 2 ? find(text) : null,
+        ])
+        const r = whole?.length || !w ? whole : stripped
+        if (ctrl.signal.aborted) return
+        setWanted(r === stripped && w ? w : null)
+        setFound({ q, items: r ?? [] }); (r ?? []).forEach(remember)
+      } catch (e) { if (!ctrl.signal.aborted && !(e instanceof DOMException)) setError('Поиск недоступен. Проверь интернет') }
+    }, 150) // wait for the user to stop typing
+    return () => { ctrl.abort(); clearTimeout(timer) }
   }, [q])
 
   // the phone's own catalog answers at once; the server's results replace it when they arrive
@@ -663,7 +678,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setError('')
     try {
       const s = meal === 'snack' ? slot : null
-      eaten(picked)
+      eaten(picked); searchCache.clear()
       await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
       done(picked, g)
     } catch {
@@ -948,6 +963,7 @@ function CustomProduct({ barcode, fix = false, aiEnabled, onCreated, onCancel, o
       : { piece_g: pack, piece_name: 'упаковка' }
     setBusy(true)
     try {
+      searchCache.clear() // the new product must show up when searched again
       const p = await api<Product & { shared: boolean }>('/api/products', postJson({
         name: v.name, kcal: num(v.kcal), protein_g: num(v.protein_g), fat_g: num(v.fat_g), carbs_g: num(v.carbs_g),
         brand: v.brand.trim() || null, portion_g: portion, ...units, ...(liquid ? { ml_g: 1 } : {}), ...(barcode ? { barcode } : {}),

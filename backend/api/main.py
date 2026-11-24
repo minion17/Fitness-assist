@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import delete, func, literal, or_, select, text
+from sqlalchemy import and_, delete, func, literal, or_, select, text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import selectinload
 
@@ -59,7 +59,8 @@ from backend.database.models import (
     WorkoutLog,
     WorkoutSet,
 )
-from backend.core import alerts, backup, barcode_misses, off_sync
+from backend.core import alerts, backup, barcode_misses, off_sync, popularity
+from backend.database import db as database
 from backend.database.rewards import award_xp, revoke_xp, settle_meal_xp, sync_evolution
 
 
@@ -68,7 +69,8 @@ async def lifespan(_: FastAPI):
     await init_db()
     tasks = [asyncio.create_task(t()) for on, t in ((settings.off_sync, off_sync.forever),  # Russian products from Open Food Facts
                                                     (settings.off_sync, barcode_misses.forever),  # unknown barcodes, weekly
-                                                    (settings.backups, backup.forever)) if on]  # daily database copy
+                                                    (settings.backups, backup.forever),  # daily database copy
+                                                    (True, popularity.forever)) if on]  # products.eaten_count, hourly
     yield
     for t in tasks:
         t.cancel()
@@ -261,6 +263,9 @@ async def save_profile(
 # ---- Reference data: products, exercises, programs ----
 
 
+DISHES = ("Готовые блюда", "Супы", "Салаты", "Фастфуд")
+
+
 @app.get("/api/products/search")
 async def search_products(
     q: str = Query(min_length=2, max_length=100),
@@ -278,25 +283,35 @@ async def search_products(
     groups = alternatives(q)
     if not groups:
         return []
-    match = [or_(*(word_start(Product.search_text, a) for a in alts)) for alts in groups]
+    # the plain substring lets the trigram index pick the candidates (147 → 31 ms on 120k products); the regex keeps
+    # «a word starts with it» exact
+    match = [and_(or_(*(Product.search_text.contains(a, autoescape=True) for a in alts)),
+                  or_(*(word_start(Product.search_text, a) for a in alts))) for alts in groups]
     firsts = first_words(q)
-    mine = (select(func.count(FoodLog.id)).where(FoodLog.product_id == Product.id, FoodLog.user_id == user.id).scalar_subquery()
-            if user else literal(0))
-    eaten = select(func.count(FoodLog.id)).where(FoodLog.product_id == Product.id).scalar_subquery()
+    mine = set(await session.scalars(select(FoodLog.product_id).where(FoodLog.user_id == user.id).distinct())) if user else set()
     rows = list(await session.scalars(
         select(Product).where(owner, *match)
         .order_by(or_(*(starts_with_word(Product.search_text, w) for w in firsts)).desc(),
                   or_(*(has_word(Product.search_text, w) for w in firsts)).desc(),
-                  (mine > 0).desc(),  # inside a tier: a cookie once eaten must not beat «Мёд» for «мёд»
+                  or_(*(Product.search_text.startswith(a, autoescape=True) for a in groups[0])).desc(),  # «мол»: Молоко first
+                  Product.id.in_(mine or [0]).desc(),  # inside a tier: a cookie once eaten must not beat «Мёд» for «мёд»
                   Product.brand.is_not(None),  # the plain product before its brands ("Молоко 2.5%" before 12 brands of it)
-                  eaten.desc(), func.length(Product.name), Product.name)
+                  Product.category.in_(DISHES),  # «кура»: chicken before «Курица в сливочном соусе»
+                  Product.eaten_count.desc(), func.length(Product.name), Product.name)
         .limit(40)
     ))
     if len(rows) < 3:  # maybe a typo: compare with products that have a similar word (same first letter, similar length)
         words = norm(q).split()
         seen = {p.id for p in rows}
-        pool = await session.execute(select(Product.id, Product.search_text).where(
-            owner, typo_pool(Product.search_text, words[0]), Product.id.not_in(seen or [0])).limit(3000))
+        if database.trgm:  # the index finds words that look alike; Python then checks every word and the first letter
+            await session.execute(text("SET LOCAL pg_trgm.word_similarity_threshold = 0.3"))
+            similar_ = literal(words[0]).op("<%")(Product.search_text)
+            pool = await session.execute(select(Product.id, Product.search_text).where(
+                owner, similar_, Product.id.not_in(seen or [0]))
+                .order_by(func.word_similarity(words[0], Product.search_text).desc()).limit(300))
+        else:
+            pool = await session.execute(select(Product.id, Product.search_text).where(
+                owner, typo_pool(Product.search_text, words[0]), Product.id.not_in(seen or [0])).limit(3000))
         scored = sorted((-fuzzy_match(words, text), len(text), pid) for pid, text in pool)
         ids = [pid for score, _, pid in scored if score][: 20 - len(rows)]
         if ids:

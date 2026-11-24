@@ -33,6 +33,20 @@ SYNONYMS = {
     "мороженка": ["мороженое"], "мороженное": ["мороженое"], "тортик": ["торт"], "пироженка": ["пирожное"],
     "салатик": ["салат"], "супчик": ["суп"], "борщик": ["борщ"], "кашка": ["каша"], "протеинка": ["протеин"], "протик": ["протеин"],
     "орешки": ["орех"], "семки": ["семечки"], "сухарики": ["сухари"],
+    "спагетти": ["макароны"], "паста": ["макароны"], "вермишель": ["макароны"], "лапша": ["макароны"],
+}
+
+# The commonest foods typed in English: checked before the keyboard-layout and transliteration guesses
+# ("rice" is not «Рикотта»).
+ENGLISH = {
+    "rice": "рис", "chicken": "курица", "egg": "яйцо", "eggs": "яйцо", "milk": "молоко", "banana": "банан", "apple": "яблоко",
+    "oatmeal": "овсянка", "oats": "овсяные", "coffee": "кофе", "tea": "чай", "cheese": "сыр", "bread": "хлеб",
+    "potato": "картофель", "potatoes": "картофель", "beef": "говядина", "pork": "свинина", "fish": "рыба", "salmon": "лосось",
+    "tuna": "тунец", "yogurt": "йогурт", "yoghurt": "йогурт", "butter": "масло", "pasta": "макароны", "buckwheat": "гречка",
+    "cottage": "творог", "kefir": "кефир", "water": "вода", "juice": "сок", "sugar": "сахар", "honey": "мед", "nuts": "орех",
+    "chocolate": "шоколад", "cookies": "печенье", "salad": "салат", "soup": "суп", "beer": "пиво", "wine": "вино",
+    "tomato": "помидор", "cucumber": "огурец", "carrot": "морковь", "orange": "апельсин", "avocado": "авокадо",
+    "protein": "протеин", "turkey": "индейка", "shrimp": "креветки", "pizza": "пицца", "burger": "бургер",
 }
 
 EN = "qwertyuiop[]asdfghjkl;'zxcvbnm,.`"
@@ -72,6 +86,8 @@ def variants(word: str) -> list[str]:
     if similar(word, key) < 0.85:
         key = word
     out = [word, key, *SYNONYMS.get(key, [])]  # a typo of an everyday word: "кртошка" -> "картошка" -> "картофель"
+    if word in ENGLISH:
+        return list(dict.fromkeys([word, ENGLISH[word], *SYNONYMS.get(ENGLISH[word], [])]))
     if re.fullmatch(r"[a-z\[\];',.`]+", word):
         out += [word.translate(LAYOUT), translit(word)]
     return list(dict.fromkeys(out))

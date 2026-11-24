@@ -19,6 +19,9 @@ async def get_session():
         yield session
 
 
+trgm = False  # pg_trgm is there: search lets the index pick candidates and find typos (backend.api.main.search_products)
+
+
 async def init_db() -> None:
     # shortcut: create_all instead of migrations; switch to Alembic once the schema starts changing
     from backend.database import models  # noqa: F401
@@ -33,11 +36,14 @@ async def init_db() -> None:
         async with engine.begin() as conn:
             await conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
             await conn.execute(text("CREATE INDEX IF NOT EXISTS ix_products_search_trgm ON products USING gin (search_text gin_trgm_ops)"))
+        global trgm
+        trgm = True
     except Exception as e:  # noqa: BLE001
         logging.getLogger(__name__).warning("Search index skipped (pg_trgm unavailable): %s", e)
 
 
 ADDED_COLUMNS = [
+    "ALTER TABLE products ADD COLUMN IF NOT EXISTS eaten_count INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_title VARCHAR(32)",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS showcase VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]",
     "ALTER TABLE users ADD COLUMN IF NOT EXISTS pinned_badge VARCHAR(32)",

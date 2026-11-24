@@ -1524,6 +1524,13 @@ def test_search_the_way_people_type(client, seeded):
     assert names("малако")[0].startswith("Молоко") and names("творг")[0].startswith("Творог")
     assert not any(n.startswith("Курага") for n in names("кура")[:5])
     assert "Куриная грудка" in names("филе куриное")
+    # «кура»: chicken itself before dishes with it
+    kura = client.get("/api/products/search", params={"q": "кура"}).json()
+    dishes = ("Готовые блюда", "Супы", "Салаты", "Фастфуд")
+    assert kura[0]["category"] not in dishes
+    assert names("rice")[0].startswith("Рис") and not any("Рикотт" in n for n in names("rice")[:3])  # English, not translit
+    assert any(n.startswith("Макароны") for n in names("спагетти"))
+    assert names("мол")[0].startswith("Мол")  # half a word: «Молоко…» before «Колбаса молочная»
 
 
 def test_search_ranks_own_history_and_logs_misses(client, seeded):
@@ -3594,3 +3601,24 @@ def test_each_day_has_its_own_norm():
     day_goals(t, p, rows)  # Mon planned, Tue rest, Wed trained
     assert rows[0]["goal"] > t["calories"] > rows[1]["goal"] and rows[2]["goal"] == rows[0]["goal"]
     day_goals(None, p, rows)  # no profile norm: rows untouched
+
+
+def test_popularity_counter_follows_the_diary(client, seeded):
+    from sqlalchemy import select
+
+    from backend.core import popularity
+    from backend.database.db import SessionLocal
+    from backend.database.models import Product
+
+    h = new_user_headers()
+    pid = client.get("/api/products/search", params={"q": "гречка"}, headers=h).json()[0]["id"]
+
+    async def count():
+        async with SessionLocal() as s:
+            return await s.scalar(select(Product.eaten_count).where(Product.id == pid))
+    client.portal.call(popularity.refresh)
+    before = client.portal.call(count)
+    for _ in range(2):
+        client.post("/api/food-logs", headers=h, json={"product_id": pid, "amount_g": 150, "meal_type": "lunch"})
+    client.portal.call(popularity.refresh)
+    assert client.portal.call(count) == before + 2

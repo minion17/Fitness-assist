@@ -153,6 +153,8 @@ class Product(Base):
     # a barcode product one user added (shown to all at once, marked) until others confirm or correct it
     unverified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     added_by: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    # times logged by anyone, refreshed hourly (backend.core.popularity): search ranks by it without counting the diary
+    eaten_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Lower-cased in Python: Postgres with the C locale can't case-fold Cyrillic in ILIKE/lower().
     search_text: Mapped[str] = mapped_column(
         Text, default=lambda ctx: _search_text(ctx.get_current_parameters()), index=True

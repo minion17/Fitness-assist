@@ -36,7 +36,18 @@ const AMOUNT = /(^|\s)(\d+(?:[.,]\d+)?)\s*(шт\S*|штук\S*|кг|гр?\.?|г�
 
 export type Wanted = { qty: number; unit: string | null } // unit as typed, null = just a number
 
+// "полбанана", "пол банана", "пол-банана", "полстакана молока": half of a piece or of a unit. Glued, the rest must be a
+// unit or a longer word in the genitive, so "полента", "полезный", "полуфабрикат" stay words.
+const HALF_UNIT = /^(стакан|кружк|чашк|ложк|порци|упаковк|банк|бутылк|литр|кило|килограмм|пачк|плитк|тарелк|ломтик|кус)\S*$/i
+const HALF = /(^|\s)пол(?:([\s-])|(?=[а-яё]))([а-яё]+)(?=\s|$)/i
+
 export function parseQuery(q: string): { text: string; wanted: Wanted | null } {
+  const h = HALF.exec(q)
+  if (h && (h[2] || HALF_UNIT.test(h[3]) || (h[3].length >= 5 && /[аяиы]$/i.test(h[3])))) {
+    const rest = (q.slice(0, h.index) + ' ' + q.slice(h.index + h[0].length)).replace(/\s+/g, ' ').trim()
+    if (HALF_UNIT.test(h[3])) return { text: rest, wanted: { qty: 0.5, unit: h[3].toLowerCase() } }
+    return { text: [h[3], rest].filter(Boolean).join(' '), wanted: { qty: 0.5, unit: null } }
+  }
   const m = AMOUNT.exec(q)
   if (!m) return { text: q.trim(), wanted: null }
   const text = (q.slice(0, m.index) + ' ' + q.slice(m.index + m[0].length)).replace(/\s+/g, ' ').trim()
@@ -53,14 +64,14 @@ export function applyWanted(p: Product, w: Wanted): { unit: Unit; qty: number } 
   if (!u) {
     if (w.qty >= 20) return { unit: by('мл') ?? us[0], qty: w.qty } // "гречка 150" — grams; a drink — ml
     const one = piece ?? portion // "яйцо 2" — pieces, if the product has them
-    return one && Number.isInteger(w.qty) && w.qty <= 10 ? { unit: one, qty: w.qty } : null
+    return one && (Number.isInteger(w.qty) || w.qty === 0.5) && w.qty <= 10 ? { unit: one, qty: w.qty } : null
   }
   if (/^г|^грамм/.test(u)) return { unit: us[0], qty: w.qty }
-  if (u === 'кг') return { unit: us[0], qty: w.qty * 1000 }
+  if (u === 'кг' || u.startsWith('кило')) return { unit: us[0], qty: w.qty * 1000 }
   if (u === 'мл') return by('мл') ? { unit: by('мл')!, qty: w.qty } : { unit: us[0], qty: w.qty }
   if (u === 'л' || u.startsWith('литр')) return by('мл') ? { unit: by('мл')!, qty: w.qty * 1000 } : null
   const found =
-    u.startsWith('стакан') ? by('стакан')
+    u.startsWith('стакан') || u.startsWith('кружк') || u.startsWith('чашк') ? by('стакан')
     : /^ст|^ложк/.test(u) ? by('ст. л.')
     : u.startsWith('ч') ? by('ч. л.')
     : u.startsWith('упак') || u.startsWith('бутыл') || u.startsWith('банк') ? (by('упаковка') ?? piece)

@@ -42,7 +42,7 @@ export function AchievementUnlocked({ code, icon, title, more, onClose, actionLa
     return () => { document.removeEventListener('keydown', escape); previous?.focus() }
   }, [onClose])
   const badge = (<button className="achievement-replay" aria-label="Повторить анимацию награды" onClick={() => setReplay((n) => n + 1)}>
-          <span className="achievement-reveal" key={`${code}-${replay}`}><AchievementBadge code={code} fallback={icon} large /></span>
+          <span className="achievement-reveal" key={`${code}-${replay}`}><AchievementBadge code={code} fallback={icon} stage={stage} large /></span>
         </button>)
   if (viewing) return (
     <div className="award-overlay" role="presentation" onClick={onClose}>

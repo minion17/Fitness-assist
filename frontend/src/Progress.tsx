@@ -202,7 +202,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
           <div className="badges">
             {achievements.map((a) => (
               <button type="button" key={a.code} onClick={() => setSelectedAward(a)} aria-label={`Открыть достижение: ${a.title}`} className={a.unlocked_at ? 'badge-item on' : 'badge-item'} title={a.hint}>
-                <span data-stage={a.stage} className="badge-icon" aria-hidden="true"><AchievementBadge code={a.code} fallback={a.icon} /></span>
+                <span data-stage={a.stage} className="badge-icon" aria-hidden="true"><AchievementBadge code={a.code} fallback={a.icon} stage={a.stage} /></span>
                 <b>{a.title}</b>
                 {a.stage !== undefined && <span className="sub">Ступень {a.stage} / 5</span>}
                 {a.unlocked_at

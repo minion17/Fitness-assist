@@ -29,7 +29,7 @@ export default function League() {
       </div>
       <p className="sub">{b.promote ? `Первые ${b.promote} поднимутся в «${b.next_tier}»` : 'Это высшая лига — держись в ней'}
         {b.demote ? `, последние ${b.demote} опустятся.` : '.'} XP дают еда, вода, тренировки, задания.</p>
-      {n === 1 && <p className="sub">Ты первый в группе на этой неделе — соперники появятся, когда зайдут другие.</p>}
+      {n === 1 && <p className="sub">В группе пока только ты — соперники появятся, когда зайдут другие.</p>}
       <ol className="league-list">
         {b.members.map((m) => (
           <li key={m.rank} className={[m.me ? 'me' : '', m.rank <= b.promote ? 'up' : '', b.demote && m.rank > n - b.demote ? 'down' : ''].join(' ')}>

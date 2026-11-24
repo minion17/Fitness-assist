@@ -1878,7 +1878,7 @@ def test_group_challenges(client, seeded):
             xa = await s.scalar(select(User.xp).where(User.id == ua))
             return n, texts, xa
     n, texts, xp = client.portal.call(finish)
-    assert n >= 1 and "справился: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
+    assert n >= 1 and "цель выполнена: 6 из 7" in texts[ids[0]][0] and "+50 XP" in texts[ids[0]][0]
     assert "1 из 7" in texts[ids[1]][0] and "Аня 6/7" in texts[ids[1]][0]
     assert client.get("/api/challenges", headers=a).json()[0]["finished"] is True
 

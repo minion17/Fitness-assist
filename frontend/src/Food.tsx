@@ -37,7 +37,7 @@ const MACROS = [
   { label: 'Углеводы', key: 'carbs_g', goal: 'carbs', color: 'var(--carbs)' },
 ] as const
 
-const r1 = (n: number) => Math.round(n * 10) / 10
+const r1 = (n: number) => (Math.round(n * 10) / 10).toLocaleString('ru-RU') // 35,5, not 35.5
 type RecentProduct = Product & { last_amount_g: number; meals?: Partial<Record<MealType, number>> }
 type TodayPlan = { finished: boolean; day?: number; meals: (Meal & { completed: boolean })[] }
 
@@ -190,7 +190,7 @@ function DateBar({ date, onDate }: { date: string; onDate: (iso: string) => void
   )
 }
 
-type Suggest = { kcal_left: number; protein_left: number; options: { title: string; items: { product_id: number; amount_g: number; unit?: string | null; qty?: number | null }[]; kcal: number; protein_g: number }[] }
+type Suggest = { kcal_left: number; protein_left: number; options: { title: string; idea?: boolean; items: { product_id: number; amount_g: number; unit?: string | null; qty?: number | null }[]; kcal: number; protein_g: number }[] }
 
 /** Lunch and dinner time: the user's own past meals that fit what's left of today's norm. */
 function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, items: Suggest['options'][0]['items']) => Promise<void> }) {
@@ -210,7 +210,7 @@ function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, it
         <h2>Что съесть на {MEALS[meal].toLowerCase()}</h2>
         <button className="link" aria-label="Скрыть на сегодня" onClick={() => { setHidden(true); try { localStorage.setItem(key, '1') } catch { /* private mode */ } }}>✕</button>
       </div>
-      <p className="sub">Осталось {s.kcal_left} ккал{s.protein_left > 10 ? ` и ${s.protein_left} г белка` : ''} — {s.options.some((o) => !o.title.startsWith('Идея')) ? 'из того, что ты ел раньше' : 'пара идей, пока мало истории'}:</p>
+      <p className="sub">Осталось {s.kcal_left.toLocaleString('ru-RU')} ккал{s.protein_left > 10 ? ` и ${s.protein_left} г белка` : ''} — {s.options.some((o) => !o.idea) ? 'из твоих прошлых записей' : 'пара идей, пока мало истории'}:</p>
       <div className="list">
         {s.options.map((o) => (
           <button className="row row-btn" key={o.title} disabled={busy} onClick={() => { setBusy(true); onLog(meal, o.items).finally(() => setBusy(false)) }}>
@@ -314,7 +314,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
           const dx = e.clientX - s0.x
           if (Math.abs(dx) > 60 && Math.abs(dx) > 2 * Math.abs(e.clientY - s0.y)) go(dx > 0 ? -1 : 1) // swipe right = the day before
         }}>
-        <div className="card-head"><h2>{isToday ? 'КБЖУ за сегодня' : `КБЖУ · ${dayLabel(date)}`}</h2><span className="sub">{Math.round(t.kcal)} / {goals.calories}</span></div>
+        <div className="card-head"><h2>{isToday ? 'КБЖУ за сегодня' : `КБЖУ · ${dayLabel(date)}`}</h2><span className="sub">{Math.round(t.kcal).toLocaleString('ru-RU')} / {goals.calories.toLocaleString('ru-RU')}</span></div>
         <div className="ring-wrap">
           <Ring value={t.kcal} goal={goals.calories} />
           <div className="macros">
@@ -349,7 +349,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       <h2>Приёмы пищи</h2>
       {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажми продукт — изменить или перенести. Влево — быстрые действия.</Tip>}
       {queued > 0 && <p className="queued" role="status">⏳ Ждут связи: {queued} — отправим автоматически</p>}
-      {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отметь, что съел.</p>}
+      {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отмечай съеденное.</p>}
       {isToday && todayPlan?.finished && <p className="sub">Рацион завершён.</p>}
       {planError && <p className="error" role="alert">{planError}</p>}
       {mealGroups(day).map(({ key, meal, slot, title, items }) => {
@@ -755,7 +755,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                   ))}
                 </div>
               ) : (list === 'recent' ? recentForMeal! : favorites).length === 0 ? (
-                <p className="sub">{list === 'recent' ? 'Здесь появятся продукты, которые ты добавлял.' : 'Отметь продукт звёздочкой — он появится здесь.'}</p>
+                <p className="sub">{list === 'recent' ? 'Здесь появятся твои недавние продукты.' : 'Отметь продукт звёздочкой — он появится здесь.'}</p>
               ) : (
                 <div className="list scroll-list">
                   {(list === 'recent' ? recentForMeal! : favorites).map((p) => {

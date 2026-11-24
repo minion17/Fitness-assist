@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { repsLabel } from './reps'
 import type { ProfileData, Recommendation } from './profile'
 import Library from './Library'
 import { api, postJson, publicGet } from './telegram'
@@ -146,7 +147,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
         <summary><strong>{day.day_name}</strong><span>{day.exercises.length} упр. <Chevron /></span></summary>
         <div>{day.exercises.map((exercise, index) => {
           const canOpen = hasExerciseGuide(exercise.name)
-          const info = <><ExerciseThumbnail name={exercise.name} index={index} /><span className="ready-exercise-main"><strong>{exercise.name}</strong><small>{exercise.sets} × {exercise.reps}{exercise.unit === 'seconds' ? ' с' : ' повт.'} · отдых {exercise.rest_seconds} с</small></span>{canOpen && <span className="ready-exercise-arrow" aria-hidden="true"><Chevron dir="right" /></span>}</>
+          const info = <><ExerciseThumbnail name={exercise.name} index={index} /><span className="ready-exercise-main"><strong>{exercise.name}</strong><small>{exercise.sets} × {repsLabel(exercise.reps)}{exercise.unit === 'seconds' ? ' с' : ' повт.'} · отдых {exercise.rest_seconds} с</small></span>{canOpen && <span className="ready-exercise-arrow" aria-hidden="true"><Chevron dir="right" /></span>}</>
           return canOpen
             ? <button className="ready-exercise-row" key={index} onClick={() => setGuideExercise(exercise)} aria-label={`Открыть ${exercise.name}`}>{info}</button>
             : <div className="ready-exercise-row" key={index}>{info}</div>
@@ -222,13 +223,13 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
           {next.exercises.map((e, i) => (
             <div className="row" key={i}>
               <ExerciseThumbnail name={e.name} index={i} />
-              <div className="row-main"><div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div><div className="row-sub">{e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ''}</div></div>
+              <div className="row-main"><div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{e.name}</div><div className="row-sub">{e.sets} × {repsLabel(e.reps)}{e.unit === 'seconds' ? ' сек' : ''}</div></div>
             </div>
           ))}
         </div>
         {canEdit
           ? <><button className="btn" onClick={() => morph(() => setSession(next))}>Начать тренировку</button>
-            <button className="link past-entry" onClick={() => setPast(next.id)}>Тренировался без телефона? Записать после</button></>
+            <button className="link past-entry" onClick={() => setPast(next.id)}>Тренировка без телефона? Записать после</button></>
           : <p className="sub">Демо-режим: чтобы записывать тренировки, открой приложение из Telegram.</p>}
       </section>
 
@@ -261,7 +262,7 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
       </section>
       {historyLog && <Sheet title="Тренировка" onClose={() => setHistoryLog(null)}>
         <h2>{historyLog.title}</h2><p className="sub">{dateRu(historyLog.started_at)} · подходов: {historyLog.sets}</p>
-        {historyError ? <p className="error" role="alert">Не удалось загрузить подходы.</p> : !historySets ? <p className="sub">Загрузка…</p> : historySets.length === 0 ? <p className="sub">Подходы не записаны.</p> : <div className="list">{historySets.map(item => <div className="row" key={item.id}><div className="row-main"><div className="row-title">{item.name}</div><div className="row-sub">Подход {item.set_number}</div></div><span className="row-end">{item.duration_seconds != null ? `${item.duration_seconds} сек` : `${item.reps ?? '—'} повт.`}{item.weight_kg ? ` · ${item.weight_kg} кг` : ''}</span></div>)}</div>}
+        {historyError ? <p className="error" role="alert">Не удалось загрузить подходы.</p> : !historySets ? <p className="sub">Загрузка…</p> : historySets.length === 0 ? <p className="sub">Подходы не записаны.</p> : <div className="list">{historySets.map(item => <div className="row" key={item.id}><div className="row-main"><div className="row-title">{item.name}</div><div className="row-sub">Подход {item.set_number}</div></div><span className="row-end">{item.duration_seconds != null ? `${item.duration_seconds} сек` : `${item.reps ?? '—'} повт.`}{item.weight_kg ? ` · ${String(item.weight_kg).replace('.', ',')} кг` : ''}</span></div>)}</div>}
       </Sheet>}
     </>
   )
@@ -527,7 +528,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
         {onMinimize && <button className="link" onClick={onMinimize} aria-label="Свернуть тренировку и открыть Главную">Свернуть</button>}
         <button className="link" onClick={exit}>Выйти</button>
       </div>
-      <div className="session-progress" aria-label={`Сделано ${savedCount} из ${totalSets} подходов`}>
+      <div className="session-progress" aria-label={`Сделано ${savedCount} из ${totalSets} ${plural(totalSets, 'подхода', 'подходов', 'подходов')}`}>
         <div className="bar thin"><i style={{ width: `${totalSets ? (savedCount / totalSets) * 100 : 0}%`, background: 'var(--accent)' }} /></div>
         <span className="sub"><span>{clockLabel(Math.floor((now - startedAt) / 1000))}</span> · {savedCount} из {totalSets} {plural(totalSets, 'подхода', 'подходов', 'подходов')}</span>
       </div>
@@ -593,7 +594,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
               : <div className="row-title">{e.name}</div>}
             {e.superset && !timed && <small className="sub">{program.name.startsWith('Гиря ·') ? 'Круг' : 'Суперсет'} {e.superset}</small>}
             <dl className="session-prescription">
-              <div><dt>Подходы</dt><dd>{e.sets} × {e.reps}{timed && !/сек/i.test(e.reps) ? ' с' : ''}</dd></div>
+              <div><dt>Подходы</dt><dd>{e.sets} × {repsLabel(e.reps)}{timed && !/сек/i.test(e.reps) ? ' с' : ''}</dd></div>
               {e.rest_seconds > 0 && <div><dt>Отдых</dt><dd>{e.rest_seconds} с</dd></div>}
             </dl>
             {e.notes && <details className="session-note"><summary>Подсказка</summary><p>{e.notes}</p></details>}

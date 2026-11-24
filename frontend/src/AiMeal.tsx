@@ -62,7 +62,7 @@ export default function AiMeal({ mode, initialText = '', onClose, onDone }: {
   }
 
   return (
-    <Sheet title={mode === 'text' ? 'Описать, что съел' : 'Еда по фото'} onClose={onClose}>
+    <Sheet title={mode === 'text' ? 'Описать словами' : 'Еда по фото'} onClose={onClose}>
       {!draft && mode === 'text' && (
         <>
           <textarea className="textarea" rows={3} autoFocus maxLength={1000} value={text} onChange={(e) => setText(e.target.value)}

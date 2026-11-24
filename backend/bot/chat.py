@@ -23,6 +23,7 @@ from sqlalchemy.orm import selectinload
 from backend.api.ai import DraftItem, recognise, save_draft
 from backend.api.daily import GLASS_ML, WaterIn, add_water, local_start, water_goal
 from backend.api.deps import get_or_create_user
+from backend.api.quests import plural
 from backend.api.stats import today_targets
 from backend.bot import cards
 from backend.core import alerts, clock
@@ -54,7 +55,7 @@ KEYBOARD = ReplyKeyboardMarkup(
 EXAMPLE = "«овсянка 60 г, банан» или «гречка 150 г и котлета»"
 HELP = (
     "Что можно делать прямо здесь:\n\n"
-    f"🍽 <b>Записать еду</b> — напиши, что съел: {EXAMPLE}. Или пришли фото тарелки.\n"
+    f"🍽 <b>Записать еду</b> — напиши, что ешь: {EXAMPLE}. Или пришли фото тарелки.\n"
     "💧 <b>Вода</b> — кнопка «+250 мл» или любое количество: «500 мл», «вода 0,5 л», «2 стакана воды».\n"
     "⚖️ <b>Вес</b> — «вес 76,4».\n"
     "✏️ <b>Поправить</b> — «убери хлеб», «риса было 200», «это был обед».\n"
@@ -669,20 +670,20 @@ async def day_greeting(session, user: User, profile: Profile, hello_name: str) -
     lines = [f"{word}, {hello_name}! {emoji}", ""]
     if away:
         lines.append("Давно не виделись! Серия прервалась — пора собрать новую. Твой план на месте: "
-                     "начни прямо сейчас, напиши, что ел, — я посчитаю.")
+                     "начни прямо сейчас: напиши, что ешь, — я посчитаю.")
         title = ("С возвращением", "начнём с сегодня")
     elif not eaten:
         lines.append("Сегодня пока пусто — напиши сюда завтрак, например «омлет из 2 яиц, кофе»." if hour < 12 else
-                     f"Сегодня пока пусто — напиши, что ел, например {EXAMPLE}, и я посчитаю.")
+                     f"Сегодня пока пусто — напиши, что ешь, например {EXAMPLE}, и я посчитаю.")
         title = ("Сегодня", "пока пусто")
     else:
         lines.append(f"Сегодня {n(t['kcal'])} из {n(norm)} ккал, воды {liters(ml)} из {liters(wgoal)} л. " +
-                     (f"Осталось {n(left)} ккал — пиши, что съел, запишу." if left > 0 else "Норма на сегодня набрана 👌"))
+                     (f"Осталось {n(left)} ккал — пиши, что ешь, запишу." if left > 0 else "Норма на сегодня набрана 👌"))
         title = ("Осталось", f"{n(left)} ккал") if left > 0 else ("Норма", "набрана")
     if not away and streak >= 2 and not active_today:
-        lines.append(f"\n🔥 Серия {streak} дн. — запиши сегодня хоть что-то, и она продолжится.")
+        lines.append(f"\n🔥 Серия {streak} {cards.plural_days(streak)} — запиши сегодня хоть что-то, и она продолжится.")
     elif streak >= 3 and active_today:
-        lines.append(f"\n🔥 Серия {streak} дн. — так держать!")
+        lines.append(f"\n🔥 Серия {streak} {cards.plural_days(streak)} — так держать!")
     if day:
         lines.append(f"\n💪 По плану тренировка: {html.escape(day.day_name)} — ~{day_minutes(day)} мин.")
     chips = [f"Вода {liters(ml)} из {liters(wgoal)} л"]
@@ -718,7 +719,7 @@ async def workout_cmd(message: Message) -> None:
         lines += [f"• {html.escape(i.exercise.name)} — {i.sets} × {html.escape(i.reps)}" for i in day.items[:8]]
         if len(day.items) > 8:
             lines.append(f"• и ещё {len(day.items) - 8}")
-        lines.append(f"\nВсего {sets} подходов. Таймер отдыха и веса с прошлого раза — в приложении.")
+        lines.append(f"\nВсего {sets} {plural(sets, 'подход', 'подхода', 'подходов')}. Таймер отдыха и веса с прошлого раза — в приложении.")
     await message.answer("\n".join(lines), parse_mode="HTML",
                          reply_markup=kb([app_button("Начать тренировку" if not trained else "Открыть тренировки", "open=workout")]))
 
@@ -1194,7 +1195,7 @@ async def water_button_msg(message: Message) -> None:
 
 @router.message(F.text == BTN_FOOD)
 async def food_button(message: Message) -> None:
-    await message.answer(f"Напиши, что съел, — например {EXAMPLE}. Или пришли фото тарелки.",
+    await message.answer(f"Напиши, что ешь, — например {EXAMPLE}. Или пришли фото тарелки.",
                          reply_markup=kb([app_button("Открыть дневник", "open=food")]))
 
 

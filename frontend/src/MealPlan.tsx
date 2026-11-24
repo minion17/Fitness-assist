@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { plural } from './plural'
 import { api, putJson } from './telegram'
 import { calculateTargets, type Goal, type ProfileData } from './profile'
 import { createMealPlan, replaceMeal, type PlanInput, type MealPlan as GeneratedPlan } from './mealPrototype'
@@ -82,7 +83,7 @@ export default function MealPlan({ onClose, showSaved = false, canEdit = false, 
   }
   const openSavedPlan = (savedPlan: { input: PlanInput; plan: GeneratedPlan }) => {
     setPlan(savedPlan.plan); setPlanInput(savedPlan.input)
-    setDays(DAYS[savedPlan.input.days] ?? `${savedPlan.input.days} дней`)
+    setDays(DAYS[savedPlan.input.days] ?? `${savedPlan.input.days} ${plural(savedPlan.input.days, 'день', 'дня', 'дней')}`)
     setDiet(savedPlan.input.dietary ?? 'omnivore')
     setAllergies(healthConsent ? savedPlan.input.allergies : '')
     setNoAllergies(!savedPlan.input.allergies.trim())

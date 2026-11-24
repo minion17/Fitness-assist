@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { repsLabel } from './reps'
 import './MealDay.css'
 import type { PlannedExercise } from './types'
 import translatedCatalog from '../../content/exercises/translated_exercises.json'
@@ -174,7 +175,7 @@ export default function KettlebellExercise({ exercise, onClose }: { exercise: Pl
       <div className="plan-recipe-body exercise-guide-body"><h2 id="exercise-guide-title">{name}</h2>
         <dl className="exercise-plan-stats">
           <div><dt>Подходы</dt><dd>{exercise.sets}</dd></div>
-          <div><dt>{exercise.unit === 'seconds' ? 'Секунды' : 'Повторы'}</dt><dd>{exercise.reps}</dd></div>
+          <div><dt>{exercise.unit === 'seconds' ? 'Секунды' : 'Повторы'}</dt><dd>{repsLabel(exercise.reps)}</dd></div>
           <div><dt>Отдых</dt><dd>{exercise.rest_seconds} с</dd></div>
         </dl>
         <h3>Работают мышцы</h3><p>{guide.muscles}</p>{guide.steps && <><h3>Как выполнять</h3><p>{guide.steps}</p></>}{exercise.notes && <><h3>Рекомендации</h3><p>{exercise.notes}</p></>}</div>

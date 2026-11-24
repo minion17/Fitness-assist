@@ -111,7 +111,7 @@ export default function Friends() {
                 <span className="board-place">{i + 1}</span>
                 <div className="board-who">
                   <b>{r.me ? 'Ты' : r.name}</b>
-                  <span className="sub">Ур. {r.level} · 🔥 {r.streak}{r.trained_today ? ' · 💪 тренировался сегодня' : ''}</span>
+                  <span className="sub">Ур. {r.level} · 🔥 {r.streak}{r.trained_today ? ' · 💪 тренировка сегодня' : ''}</span>
                 </div>
                 {!r.me && r.trained_today && (r.cheered
                   ? <span className="cheer-sent" aria-label="Ты уже поддержал">👏</span>

@@ -98,7 +98,7 @@ export default function RecipeEditor({ initial, onSaved, onCancel }: {
       </div>
       <p className="sub">Взвесь кастрюлю с готовым блюдом (без кастрюли) — тогда учтём выкипевшую воду.</p>
       {ings.length > 0 && weight > 0 && (
-        <p className="recipe-total"><b>{Math.round(per100('kcal'))} ккал</b> на 100 г · Б {per100('protein_g').toFixed(1)} · Ж {per100('fat_g').toFixed(1)} · У {per100('carbs_g').toFixed(1)}
+        <p className="recipe-total"><b>{Math.round(per100('kcal'))} ккал</b> на 100 г · Б {per100('protein_g').toFixed(1).replace('.', ',')} · Ж {per100('fat_g').toFixed(1).replace('.', ',')} · У {per100('carbs_g').toFixed(1).replace('.', ',')}
           {portion && <><br />Порция {portion} г — {Math.round((per100('kcal') * portion) / 100)} ккал</>}</p>
       )}
       {error && <p className="error" role="alert">{error}</p>}

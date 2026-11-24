@@ -240,6 +240,14 @@ IDEAS = {
 }
 
 
+def joined(names) -> str:
+    """«Яйцо куриное, хлеб белый»: a list in a sentence; «ГОСТ», «iPhone»-like names keep their case."""
+    out = []
+    for k, n in enumerate(names):
+        out.append(n[0].lower() + n[1:] if k and len(n) > 1 and n[1].islower() else n)
+    return ", ".join(out)
+
+
 async def idea_options(session: AsyncSession, meal_type: str) -> list[dict]:
     out = []
     for combo in IDEAS.get(meal_type, IDEAS["snack"]):
@@ -252,7 +260,7 @@ async def idea_options(session: AsyncSession, meal_type: str) -> list[dict]:
                 break
             items.append((p, grams))
         if len(items) == len(combo):
-            out.append({"title": ", ".join(p.name for p, _ in items), "idea": True,  # the card says «пара идей»
+            out.append({"title": joined(p.name for p, _ in items), "idea": True,  # the card says «пара идей»
                         "items": [{"product_id": p.id, "name": p.name, "amount_g": g} for p, g in items],
                         **totals(items)})
     return out
@@ -297,7 +305,7 @@ async def meal_suggestions(session: AsyncSession, user: User, meal_type: str) ->
             continue
         seen.add(key)
         candidates.append({
-            "title": ", ".join(p.name for _, p in items[:3]) + ("…" if len(items) > 3 else ""),
+            "title": joined(p.name for _, p in items[:3]) + ("…" if len(items) > 3 else ""),
             "items": [{"product_id": p.id, "name": p.name, "amount_g": log.amount_g, "unit": log.unit, "qty": log.qty} for log, p in items],
             **totals((p, log.amount_g) for log, p in items)})
     for s in await session.scalars(select(MealSet).where(MealSet.user_id == user.id)):

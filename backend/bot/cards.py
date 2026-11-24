@@ -121,7 +121,7 @@ def welcome(theme: str | None = None, accent: str | None = None) -> bytes:
     c = Card(theme, accent, glow=(870, 360, "accent"))
     c.brand()
     c.text((64, 170), "Напиши,", 64, "text", 700, "Unbounded")
-    c.text((64, 250), "что съел, —", 64, "text", 700, "Unbounded")
+    c.text((64, 250), "что ешь, —", 64, "text", 700, "Unbounded")
     c.text((64, 330), "остальное", 64, "accent_text", 700, "Unbounded")
     c.text((64, 410), "посчитаю я", 64, "accent_text", 700, "Unbounded")
     c.text((64, 560), "Калории, тренировки и вода —", 28, "muted", 500)

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { repsLabel } from './reps'
 import type { Program } from './types'
 import { Chevron } from './ui'
 
@@ -99,7 +100,7 @@ export default function ProgramBuilder({ exercises, initial, onSave, onCancel, o
       </details>}
     </section>)}
     {stage === 'day' && editingItem === null && (draft.days[activeDay]?.exercises.length ?? 0) > 0 && <button className="btn" onClick={() => { if (Object.keys(searches).length) { setError('Выбери упражнение из списка или добавь своё.'); return } if (!draft.days[activeDay]?.exercises.length) { setError('Добавь хотя бы одно упражнение.'); return } setError(''); setStage('preview') }}>Готово</button>}
-    {stage === 'preview' && draft.days[activeDay] && <><section className="card"><h2>{draft.days[activeDay].name}</h2>{draft.days[activeDay].exercises.map((e, i) => <div className="row" key={i}><div className="row-main"><div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{exercises.find(x => x.id === e.exercise_id)?.name ?? 'Упражнение'}</div><div className="row-sub">{e.sets} × {e.reps}{e.unit === 'seconds' ? ' сек' : ' повт.'} · отдых {formatRest(e.rest_seconds)}{e.planned_weights?.some(w => w !== null) ? ` · вес: ${e.planned_weights.map(w => w === null ? '—' : w).join(' / ')} кг` : ''}</div></div><button className="link" onClick={() => { setEditingItem(i); setStage('day') }}>Изменить</button></div>)}</section><button className="btn btn-ghost" onClick={() => setStage('day')}>Редактировать</button><button className="btn" onClick={() => setStage('days')}>Сохранить</button></>}
+    {stage === 'preview' && draft.days[activeDay] && <><section className="card"><h2>{draft.days[activeDay].name}</h2>{draft.days[activeDay].exercises.map((e, i) => <div className="row" key={i}><div className="row-main"><div className="row-title">{e.superset ? `Суперсет ${e.superset} · ` : ''}{exercises.find(x => x.id === e.exercise_id)?.name ?? 'Упражнение'}</div><div className="row-sub">{e.sets} × {repsLabel(e.reps)}{e.unit === 'seconds' ? ' сек' : ' повт.'} · отдых {formatRest(e.rest_seconds)}{e.planned_weights?.some(w => w !== null) ? ` · вес: ${e.planned_weights.map(w => w === null ? '—' : w).join(' / ')} кг` : ''}</div></div><button className="link" onClick={() => { setEditingItem(i); setStage('day') }}>Изменить</button></div>)}</section><button className="btn btn-ghost" onClick={() => setStage('day')}>Редактировать</button><button className="btn" onClick={() => setStage('days')}>Сохранить</button></>}
     {error && <p className="error" role="alert">{error}</p>}
   </div>
 }

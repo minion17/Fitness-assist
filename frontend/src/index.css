@@ -1970,6 +1970,9 @@ button.badge-item { width: 100%; color: var(--text); border: 0; font: inherit; c
 }
 .nav svg { width: 24px; height: 24px; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .sheet { border-radius: var(--surface-radius) var(--surface-radius) 0 0; overscroll-behavior: contain; }
+/* a sheet sits inside its dimmed backdrop, which becomes the backdrop root: the blur sees nothing and the screen
+   under it shows through as readable text. Solid there; the glass stays on the tab bar. */
+.sheet { background: var(--surface-glass); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .card { border-color: var(--card-border); border-radius: var(--radius); }
 .btn-ghost, .icon-btn, .seg button, .chip { border-radius: var(--control-radius); }
 :where(input:not([type='range']), textarea, select) {

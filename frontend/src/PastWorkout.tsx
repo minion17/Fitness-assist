@@ -59,7 +59,7 @@ export default function PastWorkout({ program, dayId, onDone, onClose }: { progr
   return (
     <section className="past-workout">
       <div className="card-head"><h1>Записать после</h1><button className="link" onClick={onClose}>Отмена</button></div>
-      <p className="sub">Тренировался без телефона? Внеси, что сделал, — прогресс и веса посчитаем. XP — половина, а в дуэлях и рейтинге чатов такие тренировки не участвуют.</p>
+      <p className="sub">Тренировка прошла без телефона? Внеси подходы — прогресс и веса посчитаем. XP — половина, а в дуэлях и рейтинге чатов такие тренировки не участвуют.</p>
       {program.days.length > 1 && <label className="past-field"><span>Тренировка</span>
         <select value={day.id} onChange={(e) => pick(Number(e.target.value))}>{program.days.map((d) => <option key={d.id} value={d.id}>{d.day_name}</option>)}</select></label>}
       <div className="checkin-row" role="radiogroup" aria-label="Когда">

@@ -26,7 +26,7 @@ export function Ring({ value: target, goal }: { value: number; goal: number }) {
       <circle cx="52" cy="52" r={r} fill="none" stroke="var(--nutrition-ring-track)" strokeWidth="9" />
       {frac > 0 && <circle cx="52" cy="52" r={r} fill="none" stroke={value > goal * 1.1 ? 'var(--warn)' : 'var(--accent)'} strokeWidth="9"
         strokeLinecap="round" strokeDasharray={`${c * frac} ${c}`} transform="rotate(-90 52 52)" />}
-      <text x="52" y="50" textAnchor="middle" fill="var(--text)" fontSize="20" fontWeight="650" textLength={String(Math.abs(left)).length > 5 ? 65 : undefined} lengthAdjust="spacingAndGlyphs">{Math.abs(left)}</text>
+      <text x="52" y="50" textAnchor="middle" fill="var(--text)" fontSize="20" fontWeight="650" textLength={Math.abs(left).toLocaleString('ru-RU').length > 6 ? 65 : undefined} lengthAdjust="spacingAndGlyphs">{Math.abs(left).toLocaleString('ru-RU')}</text>
       <text x="52" y="67" textAnchor="middle" fill="var(--muted)" fontSize="11">{left < 0 ? 'сверх нормы' : 'осталось'}</text>
     </svg>
   )

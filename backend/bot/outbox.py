@@ -88,7 +88,7 @@ async def send_report(bot, session, m) -> None:
         clock.use_tz(None)
     pdf = await asyncio.to_thread(render, data)
     await bot.send_document(m.telegram_id, BufferedInputFile(pdf, f"setly-report-{data['since']:%Y-%m-%d}-{data['until']:%Y-%m-%d}.pdf"),
-                            caption=f"📄 Отчёт за {m.text} дней для врача, диетолога или тренера: масса тела и обхваты с ориентирами, "
+                            caption=f"📄 Отчёт за {m.text} {cards.plural_days(int(m.text))} для врача, диетолога или тренера: масса тела и обхваты с ориентирами, "
                                     "нормы и реальный расход, питание по дням и дневник за последние 2 недели, тренировки, вода и сон. "
                                     "Перешли этот файл специалисту.")
 

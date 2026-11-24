@@ -81,7 +81,7 @@ async def weekly_summary(session, user: User, today, look: dict) -> tuple[str, s
             + f", тренировок — {workouts}.")
     ticks = await session.scalar(select(func.count()).where(HabitCheck.user_id == user.id, HabitCheck.day > today - timedelta(days=7)))
     if ticks:
-        text += f" Привычки отмечены {ticks} раз."
+        text += f" Привычки отмечены {ticks} {'раза' if ticks % 10 in (2, 3, 4) and ticks % 100 not in (12, 13, 14) else 'раз'}."
     from backend.api.energy import plateau
 
     buttons: list = [("📸 Неделя в историю", "app:open=story")]

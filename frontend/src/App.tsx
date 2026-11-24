@@ -90,7 +90,7 @@ function LevelCard({ p }: { p: Progress }) {
         <span className="sub">{p.xp} XP всего</span>
       </div>
       <Bar value={p.level_xp} goal={p.level_xp_needed} />
-      <span className="sub">{p.level_xp} / {p.level_xp_needed} XP до уровня {p.level + 1}</span>
+      <span className="sub">{p.level_xp.toLocaleString('ru-RU')} / {p.level_xp_needed.toLocaleString('ru-RU')} XP до уровня {p.level + 1}</span>
     </section>
   )
 }
@@ -213,7 +213,7 @@ function Profile({ synced, progress, data, onEdit, top, share, help, privacy, th
         <section className="card profile-targets">
           <div className="card-head"><h2>Дневная норма</h2>{data?.kcal_override ? <span className="sub">по твоим данным</span> : <span className="sub">по формуле</span>}</div>
           <div className="list">
-            <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{norm.calories} ккал</div></div>
+            <div className="row"><div className="row-main row-title">Калории</div><div className="row-end">{norm.calories.toLocaleString('ru-RU')} ккал</div></div>
             <div className="row"><div className="row-main row-title">Белки</div><div className="row-end">{norm.protein} г</div></div>
             <div className="row"><div className="row-main row-title">Жиры</div><div className="row-end">{norm.fat} г</div></div>
             <div className="row"><div className="row-main row-title">Углеводы</div><div className="row-end">{norm.carbs} г</div></div>
@@ -693,7 +693,7 @@ function SetlyApp() {
             repeat={canEdit && !usual ? repeatOffer() : null}
             usual={canEdit && usual ? { meal: MEALS[usual.meal_type], title: usual.title, kcal: usual.kcal, run: () => logUsual(usual).catch(() => flash('Не записалось — попробуй ещё раз')) } : null}
             intro={canEdit && <FirstSteps steps={[
-              { key: 'meal', title: 'Запиши, что съел', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найди продукт или блюдо в поиске',
+              { key: 'meal', title: 'Запиши первый приём пищи', hint: aiEnabled ? 'Можно просто сфотографировать тарелку' : 'Найди продукт или блюдо в поиске',
                 done: unlocked('first_meal') || foodDay.items.length > 0, action: () => { go('food'); setFoodIntent(aiEnabled ? 'photo' : 'search') } },
               { key: 'water', title: 'Отметь стакан воды', hint: 'Нажми — добавим 250 мл',
                 done: water.ml > 0 || week.days.some((d) => d.water_ml > 0), action: () => changeWater(250) },

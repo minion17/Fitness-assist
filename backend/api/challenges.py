@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from backend.api.deps import get_or_create_user, telegram_user
-from backend.api.social import friends_of, name, notify
+from backend.api.social import friends_of, name, notify, plural_days
 from backend.core import clock
 from backend.database.db import AsyncSession, get_session
 from backend.database.models import Challenge, ChallengeCheck, ChallengeMember, User
@@ -85,7 +85,7 @@ async def create_challenge(body: ChallengeIn, tg: dict = Depends(telegram_user),
     session.add(ChallengeMember(challenge_id=c.id, user_id=user.id, joined=True))
     for f in invited:
         session.add(ChallengeMember(challenge_id=c.id, user_id=f.id, joined=False))
-        notify(session, f, f"{c.emoji} {name(user)} зовёт тебя в челлендж «{c.title}» на {c.days} дней. Принять — в Setly: Прогресс → Друзья.")
+        notify(session, f, f"{c.emoji} {name(user)} зовёт тебя в челлендж «{c.title}» на {plural_days(c.days)}. Принять — в Setly: Прогресс → Друзья.")
     await session.commit()
     return await challenge_out(session, c, user)
 
@@ -164,9 +164,9 @@ async def finish_challenges(session: AsyncSession) -> int:
         for u, n in rows:
             if n >= DONE_SHARE * c.days:
                 xp = await award_xp(session, u.id, "challenge_done", f"challenge:{c.id}")
-                notify(session, u, f"{c.emoji} Челлендж «{c.title}» завершён — ты справился: {n} из {c.days} дней! +{xp} XP\nИтоги: {board}")
+                notify(session, u, f"{c.emoji} Челлендж «{c.title}» завершён, цель выполнена: {n} из {c.days} {'дня' if c.days % 10 == 1 and c.days % 100 != 11 else 'дней'}! +{xp} XP\nИтоги: {board}")
             else:
-                notify(session, u, f"{c.emoji} Челлендж «{c.title}» завершён: {n} из {c.days} дней. Итоги: {board}. Попробуем ещё раз?")
+                notify(session, u, f"{c.emoji} Челлендж «{c.title}» завершён: {n} из {c.days} {'дня' if c.days % 10 == 1 and c.days % 100 != 11 else 'дней'}. Итоги: {board}. Попробуем ещё раз?")
         c.closed = True
         await session.commit()
         done += 1

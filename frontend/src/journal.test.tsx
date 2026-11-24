@@ -593,10 +593,41 @@ test('search: an amount in the query opens the product with it; brands of one pr
 
   await screen.findByRole('status') // still open: the next product
   fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'молоко' } })
-  await screen.findByRole('button', { name: 'ещё 2 варианта ›' }, { timeout: 2000 })
+  await screen.findByRole('button', { name: 'ещё 2 бренда' }, { timeout: 2000 })
   expect(screen.getAllByRole('button', { name: /^Молоко 2.5%/ })).toHaveLength(1) // brands folded under the plain one
-  fireEvent.click(screen.getByRole('button', { name: 'ещё 2 варианта ›' }))
+  expect(screen.getAllByRole('button', { name: /^Молоко 2.5%/ })[0].querySelector('b')!.textContent).toBe('Молоко') // the typed word, bold
+  fireEvent.click(screen.getByRole('button', { name: 'ещё 2 бренда' }))
   expect(screen.getAllByRole('button', { name: /^Молоко 2.5%/ })).toHaveLength(3)
+})
+
+test('search: several products in one line, a portion from the row, and undo', async () => {
+  const empty: FoodDay = { date: '', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  const buck = { id: 11, name: 'Гречка', brand: null, category: null, kcal: 110, protein_g: 4, fat_g: 1, carbs_g: 21 }
+  const hen = { id: 12, name: 'Курица отварная', brand: null, category: null, kcal: 170, protein_g: 25, fat_g: 7, carbs_g: 0 }
+  apiMock.mockResolvedValue(null)
+  publicGetMock.mockImplementation(async (url: string) => url.includes('quiet=1') ? []
+    : url.includes(encodeURIComponent('гречка')) ? [buck] : url.includes(encodeURIComponent('курица')) ? [hen] : [])
+  const undo = vi.fn().mockResolvedValue(undefined)
+  const onAdd = vi.fn().mockResolvedValue(undo)
+  render(<Food day={empty} canEdit onAdd={onAdd} onDelete={vi.fn()} />)
+  fireEvent.click(screen.getAllByRole('button', { name: '+ Добавить' })[0])
+
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'гречка 150, курица 200, ананасик' } })
+  fireEvent.click(await screen.findByRole('button', { name: /^Добавить 2 продукта · 505 ккал/ }, { timeout: 2000 }))
+  expect(screen.getByText(/«ананасик» не нашли/)).toBeTruthy()
+  await waitFor(() => expect(onAdd).toHaveBeenCalledTimes(2))
+  expect(onAdd).toHaveBeenNthCalledWith(1, 11, 150, 'breakfast', null)
+  expect(onAdd).toHaveBeenNthCalledWith(2, 12, 200, 'breakfast', null)
+
+  fireEvent.change(screen.getByPlaceholderText(/Поиск/), { target: { value: 'гречка' } })
+  fireEvent.click(await screen.findByRole('button', { name: /Другая порция/ }, { timeout: 2000 }))
+  fireEvent.click(screen.getByRole('button', { name: /^200 г/ }))
+  await waitFor(() => expect(onAdd).toHaveBeenLastCalledWith(11, 200, 'breakfast', null))
+  expect(screen.getByRole('status').textContent).toContain('Добавлено: 3')
+  fireEvent.click(screen.getByRole('button', { name: 'Отменить' }))
+  await waitFor(() => expect(undo).toHaveBeenCalledTimes(1))
+  expect(screen.getByRole('status').textContent).toContain('Добавлено: 2')
+  expect(screen.getByRole('button', { name: 'гречка' })).toBeTruthy() // the query is kept as a chip for next time
 })
 
 test('search: nothing found offers AI, a label photo and the scanner', async () => {

@@ -3,7 +3,7 @@ import AchievementBadge from './AchievementBadge'
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { demoFoodDay, demoMeasurements, demoPrograms, profile } from './demo'
 import AiSummary from './AiSummary'
-import { CHANGED, enqueue, flush, pending, unreachable } from './offline'
+import { cancel, CHANGED, enqueue, flush, pending, unreachable } from './offline'
 import { known, syncCatalog } from './catalog'
 import Body, { QuickWeight, type MeasurementInput } from './Body'
 import Food from './Food'
@@ -402,7 +402,8 @@ function SetlyApp() {
 
   /** The entry shows in the diary at once (if the product is known — it always is from search, recent, favourites);
    * the server confirms in the background. No network: it waits in the offline queue; a refusal takes it back out. */
-  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }, name = '') {
+  /** Returns an undo: takes the entry back wherever it got to (on screen, in the offline queue, on the server). */
+  async function addFood(productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }, name = ''): Promise<() => Promise<void>> {
     const body = { product_id: productId, amount_g: grams, meal_type: meal, ...(slot ? { snack_slot: slot } : {}), ...(counted ?? {}), ...at }
     const date = foodDate || localDay()
     const p = known.get(productId)
@@ -421,29 +422,41 @@ function SetlyApp() {
       show(true)
       haptic('success')
     }
+    let saved: number | null = null, undone = false
+    const drop = (id: number) => api(`/api/food-logs/${id}`, { method: 'DELETE' })
+    const undo = async () => {
+      undone = true
+      if (p && optimistic.current.has(tempId)) { show(false); optimistic.current.delete(tempId) }
+      cancel(tempId)
+      if (saved) await drop(saved)
+      await refreshFood()
+    }
     const send = async () => {
-      let r: { xp_awarded: number } | null
+      let r: { id: number; xp_awarded: number } | null
       try {
-        r = await api<{ xp_awarded: number }>('/api/food-logs', postJson(body))
+        r = await api<{ id: number; xp_awarded: number }>('/api/food-logs', postJson(body))
       } catch (e) {
         if (!unreachable(e)) {
           if (p) { show(false); optimistic.current.delete(tempId) }
           throw e
         }
         // keep the day and the snack's time as of now: it may be sent tomorrow
-        enqueue({ path: '/api/food-logs', kind: 'food', name, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
+        enqueue({ path: '/api/food-logs', kind: 'food', name, local: tempId, body: { day: localDay(), ...body, ...(meal === 'snack' && !slot ? { snack_slot: new Date().toTimeString().slice(0, 5) } : {}) } })
         setQueued(pending().length)
         flash('Нет связи. Запишем, как только она появится')
         return
       }
       optimistic.current.delete(tempId)
+      saved = r?.id ?? null
+      if (undone && saved) { await drop(saved); return } // taken back while it was on its way
       if (!p) haptic('success')
       await refreshFood()
       if (r?.xp_awarded || !p) flash(r?.xp_awarded ? `Добавлено · +${r.xp_awarded} XP` : 'Добавлено')
     }
-    if (!p) return send()
+    if (!p) { await send(); return undo }
     flash('Добавлено')
     send().catch((e) => flash(e instanceof Error && e.message ? e.message : 'Не добавилось. Попробуй ещё раз'))
+    return undo
   }
 
   /** "Повторить вчерашний завтрак": the meal of this hour is empty today and was logged yesterday. */

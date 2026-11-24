@@ -2183,3 +2183,21 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 .daily-progress-ring::before { display: none; }
 .profile-identity .avatar, .meal-snack, .builder-day, .meal-plan-progress span, .meal-plan-option.selected,
 .q-slider .meal-range-rail::before, .q-slider .meal-range-rail b { box-shadow: none; }
+
+/* search: brand on its own line, figures for the portion shown, portion choices in the row */
+.row-brand { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-title b { font-weight: 700; color: var(--text); }
+.quick-row .row-title { font-weight: 500; }
+.portion-toggle { background: none; border: 0; padding: 4px 2px; color: var(--text); font: inherit; font-weight: 600; cursor: pointer; }
+.portion-toggle small { display: inline-flex; align-items: center; gap: 2px; }
+.portion-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.portion-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 2px 0 10px 48px; }
+.portion-row small { color: var(--muted); font-weight: 500; }
+.list-head { font-size: 13px; color: var(--muted); margin: 6px 0 2px; }
+.query-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; margin: 10px -16px 0; padding: 0 16px; }
+.query-chips .habit-chip { flex: none; }
+.input-wrap .mic { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border: 0; border-radius: 10px;
+  background: none; color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+.input-wrap .mic.on { color: var(--accent); background: var(--card); }
+.many { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.added-bar .link { flex: none; padding: 8px 4px; }

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import './food-date.css'
 import Fasting from './Fasting'
 import type { ProfileData, Targets } from './profile'
@@ -225,8 +225,6 @@ function WhatToEat({ eaten, onLog }: { eaten: number; onLog: (meal: MealType, it
 }
 
 /** Search answers for this session, by URL: typing back over the same letters needs no network. */
-const searchCache = new Map<string, Product[]>()
-
 export default function Food({ day, date = today(), onDate, queued = 0, targets, canEdit, healthConsent = false, profile = null, onAdd, onDelete, onGrams = async () => {}, onMove, onCopyToday, aiEnabled = false, onAiDone = async () => {}, intent = null, onCopy = async () => {}, onLogSet, onSaved, onLogBatch, onPlanLogged = async () => {} }: {
   day: FoodDay
   date?: string // the day on screen, YYYY-MM-DD
@@ -236,7 +234,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   canEdit: boolean
   healthConsent?: boolean
   profile?: ProfileData | null
-  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }, name?: string) => Promise<void>
+  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }, name?: string) => Promise<(() => Promise<void>) | void>
   onDelete: (id: number) => Promise<void>
   onGrams?: (id: number, grams: number) => Promise<void>
   onMove?: (id: number, meal: MealType) => Promise<void>
@@ -434,10 +432,19 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
 }
 
 /** Same-named products together, the first (the plain one, ranked so by the server) shown, the rest behind "ещё N". */
+const low = (s: string) => s.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е')
+
+/** Same product under different brands: «Молоко 2,5%» from five dairies is one line with «ещё 4 бренда». */
+function groupKey(p: Product) {
+  let n = low(p.name)
+  if (p.brand) n = n.replace(low(p.brand), '')
+  return n.replace(/(\d),(\d)/g, '$1.$2').replace(/[«»"'„“]/g, '').replace(/\s+/g, ' ').trim()
+}
+
 function groupByName(list: Product[]): [Product, Product[]][] {
   const groups = new Map<string, [Product, Product[]]>()
   for (const p of list) {
-    const k = p.name.toLowerCase()
+    const k = groupKey(p)
     const g = groups.get(k)
     if (g) g[1].push(p)
     else groups.set(k, [p, []])
@@ -445,6 +452,71 @@ function groupByName(list: Product[]): [Product, Product[]][] {
   return [...groups.values()]
 }
 
+
+/** The typed word starts in bold: the eye finds why a row is here. */
+function Marked({ text, query }: { text: string; query: string }) {
+  const words = low(query).split(/[^a-zа-я0-9]+/).filter((w) => w.length >= 2)
+  const name = low(text) // same length as text: ё → е and lower case keep every index
+  const out: ReactNode[] = []
+  let at = 0
+  for (const m of name.matchAll(/[a-zа-я0-9]+/g)) {
+    let len = 0
+    for (const w of words) { let i = 0; while (i < w.length && w[i] === m[0][i]) i++; if (i >= Math.min(w.length, 3) || i === m[0].length) len = Math.max(len, i) }
+    if (!len) continue
+    out.push(text.slice(at, m.index), <b key={m.index}>{text.slice(m.index, m.index + len)}</b>)
+    at = m.index + len
+  }
+  out.push(text.slice(at))
+  return <>{out}</>
+}
+
+/** Several products at once: «гречка 150, курица 200, огурец». */
+const splitMany = (q: string) => q.split(/[;\n]+|,(?!\d)/).map((x) => x.trim()).filter((x) => x.length >= 2) // «молоко 2,5%» stays one
+
+const QUERIES = 'setly-queries'
+function pastQueries(): string[] { try { return JSON.parse(localStorage.getItem(QUERIES) || '[]') } catch { return [] } }
+function keepQuery(q: string) {
+  const t = q.trim().toLocaleLowerCase('ru-RU')
+  if (t.length < 2 || splitMany(t).length > 1) return
+  try { localStorage.setItem(QUERIES, JSON.stringify([t, ...pastQueries().filter((x) => x !== t)].slice(0, 8))) } catch { /* private mode */ }
+}
+
+/** Portions offered right in a result row: tap one and it's added. */
+function portionsFor(p: Product): { unit: Unit; qty: number }[] {
+  const d = defaultAmount(p)
+  return (d.unit.label === 'г' || d.unit.label === 'мл' ? [100, 150, 200, 300] : [0.5, 1, 2, 3]).map((qty) => ({ unit: d.unit, qty }))
+}
+
+type Rec = { lang: string; interimResults: boolean; start: () => void; stop: () => void; onend: () => void; onerror: () => void
+  onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void }
+// the system's own speech recognition, where the WebView has it (Chrome on Android does, Telegram's iOS view does not)
+const Recognition = (globalThis as unknown as { SpeechRecognition?: new () => Rec; webkitSpeechRecognition?: new () => Rec })
+const Speech = Recognition.SpeechRecognition ?? Recognition.webkitSpeechRecognition
+
+const searchCache = new Map<string, Product[]>()
+/** Signed request also returns the user's own products; outside Telegram fall back to the public catalog. */
+function findProducts(text: string, signal: AbortSignal, quiet = false) {
+  const url = `/api/products/search?q=${encodeURIComponent(text)}${quiet ? '&quiet=1' : ''}`
+  const hit = searchCache.get(url)
+  if (hit) return Promise.resolve(hit) // backspace, or the same word again: no round trip
+  return api<Product[]>(url, { signal }).then((r) => r ?? publicGet<Product[]>(url)).then((r) => {
+    searchCache.set(url, r)
+    if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value!)
+    return r
+  })
+}
+
+/** "яйцо 2": the number may be part of a name ("Творог 9%"), so the whole text is tried too — both at once, the whole one
+ * wins when it finds something. Returns the rows and the amount they are for. */
+async function searchQuery(q: string, signal: AbortSignal): Promise<{ items: Product[]; wanted: Wanted | null }> {
+  const { text, wanted: w } = parseQuery(q)
+  const [whole, stripped] = await Promise.all([
+    w && w.unit ? null : findProducts(q.trim(), signal, Boolean(w)),
+    w && text.length >= 2 ? findProducts(text, signal) : null,
+  ])
+  const r = whole?.length || !w ? whole : stripped
+  return { items: r ?? [], wanted: r === stripped && w ? w : null }
+}
 
 type MealSetData = { id: number; name: string; items: { product_id: number; name: string; amount_g: number }[]; kcal: number }
 
@@ -458,7 +530,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   onLogSet?: (setId: number, meal: MealType, slot: string | null) => Promise<void>
   onAiText?: (text: string) => void // nothing found: describe it to the AI instead
   onClose: () => void
-  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<void>
+  onAdd: (productId: number, grams: number, meal: MealType, slot?: string | null, counted?: { unit: string; qty: number }) => Promise<(() => Promise<void>) | void>
 }) {
   const [meal, setMeal] = useState(initialMeal)
   const [q, setQ] = useState('')
@@ -481,7 +553,11 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   const [code, setCode] = useState('')
   const [scanner, setScanner] = useState(false)
   const [menuMode, setMenuMode] = useState(false)
-  const [added, setAdded] = useState<{ name: string; kcal: number }[]>([])
+  const [added, setAdded] = useState<{ name: string; kcal: number; undo?: () => Promise<void> }[]>([])
+  const [portions, setPortions] = useState<number | null>(null) // product id: its portion choices are open
+  const [many, setMany] = useState<{ q: string; items: { part: string; p: Product | null; qty: number; unit: Unit }[] } | null>(null)
+  const [queries, setQueries] = useState(pastQueries)
+  const [listening, setListening] = useState(false)
   const [justAdded, setJustAdded] = useState<number | null>(null) // product id: a brief ✓ on its "+"
   const search = useRef<HTMLInputElement>(null)
   const addedKcal = added.reduce((n, a) => n + a.kcal, 0)
@@ -496,9 +572,10 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   }
 
   /** Added: stay in the sheet, back to an empty search for the next product. */
-  function done(p: Product, grams: number) {
+  function done(p: Product, grams: number, undo?: (() => Promise<void>) | void) {
     haptic('light')
-    setAdded((a) => [...a, { name: p.name, kcal: Math.round((p.kcal * grams) / 100) }])
+    keepQuery(q); setQueries(pastQueries()); setPortions(null)
+    setAdded((a) => [...a, { name: p.name, kcal: Math.round((p.kcal * grams) / 100), undo: undo || undefined }])
     setJustAdded(p.id)
     setTimeout(() => setJustAdded((id) => (id === p.id ? null : id)), 1200)
     setPicked(null); setQ(''); setFound(null); setWanted(null); setThanks('')
@@ -507,17 +584,17 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
   }
 
   /** "+" on a row: the last amount for recent products, else what the row shows (typed amount, a piece, a portion, 100 g). */
-  async function quickAdd(p: Product | RecentProduct) {
+  async function quickAdd(p: Product | RecentProduct, amount?: { unit: Unit; qty: number }) {
     if (busy) return
-    const shown = 'last_amount_g' in p ? { unit: GRAM, qty: Number(p.last_amount_g) } : (wanted && applyWanted(p, wanted)) || defaultAmount(p)
+    const shown = amount ?? ('last_amount_g' in p ? { unit: GRAM, qty: Number(p.last_amount_g) } : (wanted && applyWanted(p, wanted)) || defaultAmount(p))
     const grams = Math.round(shown.qty * shown.unit.g * 10) / 10
     setBusy(true)
     setError('')
     try {
       const s = meal === 'snack' ? slot : null
       eaten(p); searchCache.clear() // «mine» first: the cached order is out of date
-      await (shown.unit.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: shown.unit.label, qty: shown.qty }))
-      done(p, grams)
+      const undo = await (shown.unit.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: shown.unit.label, qty: shown.qty }))
+      done(p, grams, undo)
     } catch { setError('Не добавилось. Попробуй ещё раз') }
     setBusy(false)
   }
@@ -605,57 +682,107 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     setUnit(u)
   }
 
+  const parts = splitMany(q)
   useEffect(() => {
     if (q.trim().length < 2) return
     const ctrl = new AbortController() // a newer letter cancels the request in flight
-    // signed request also returns the user's own products; outside Telegram fall back to the public catalog
-    const find = (text: string, quiet = false) => {
-      const url = `/api/products/search?q=${encodeURIComponent(text)}${quiet ? '&quiet=1' : ''}`
-      const hit = searchCache.get(url)
-      if (hit) return Promise.resolve(hit) // backspace, or the same word again: no round trip
-      return api<Product[]>(url, { signal: ctrl.signal }).then((r) => r ?? publicGet<Product[]>(url)).then((r) => {
-        searchCache.set(url, r)
-        if (searchCache.size > 200) searchCache.delete(searchCache.keys().next().value!)
-        return r
-      })
-    }
+    const list = splitMany(q)
     const timer = setTimeout(async () => {
       try {
-        // "яйцо 2": the number may be part of a name ("Творог 9%"), so the whole text is tried too — both at once,
-        // the whole one wins when it finds something
-        const { text, wanted: w } = parseQuery(q)
-        const [whole, stripped] = await Promise.all([
-          w && w.unit ? null : find(q.trim(), Boolean(w)),
-          w && text.length >= 2 ? find(text) : null,
-        ])
-        const r = whole?.length || !w ? whole : stripped
+        if (list.length > 1) { // each part's best row, with the amount typed for it
+          const items = await Promise.all(list.map(async (part) => {
+            const r = await searchQuery(part, ctrl.signal)
+            const p = r.items[0] ?? null
+            const a = p ? (r.wanted && applyWanted(p, r.wanted)) || defaultAmount(p) : { unit: GRAM, qty: 0 }
+            return { part, p, ...a }
+          }))
+          if (!ctrl.signal.aborted) setMany({ q, items })
+          return
+        }
+        const r = await searchQuery(q, ctrl.signal)
         if (ctrl.signal.aborted) return
-        setWanted(r === stripped && w ? w : null)
-        setFound({ q, items: r ?? [] }); (r ?? []).forEach(remember)
+        setWanted(r.wanted)
+        setFound({ q, items: r.items }); r.items.forEach(remember)
       } catch (e) { if (!ctrl.signal.aborted && !(e instanceof DOMException)) setError('Поиск недоступен. Проверь интернет') }
     }, 150) // wait for the user to stop typing
     return () => { ctrl.abort(); clearTimeout(timer) }
   }, [q])
 
+  async function addMany() {
+    if (!many || busy) return
+    setBusy(true); setError('')
+    const s = meal === 'snack' ? slot : null
+    try {
+      for (const { p, unit: u, qty: n } of many.items) {
+        if (!p) continue
+        const grams = Math.round(n * u.g * 10) / 10
+        eaten(p)
+        const undo = await (u.label === 'г' ? onAdd(p.id, grams, meal, s) : onAdd(p.id, grams, meal, s, { unit: u.label, qty: n }))
+        setAdded((a) => [...a, { name: p.name, kcal: Math.round((p.kcal * grams) / 100), undo: undo || undefined }])
+      }
+      searchCache.clear(); haptic('light')
+      setQ(''); setMany(null); setFound(null)
+    } catch { setError('Добавилось не всё. Проверь список ниже') }
+    setBusy(false)
+  }
+
+  async function undoLast() {
+    const last = added[added.length - 1]
+    if (!last) return
+    setAdded((a) => a.slice(0, -1))
+    try { await last.undo?.() } catch { setError('Не получилось отменить. Удали запись в дневнике') }
+  }
+
+  function listen() {
+    if (!Speech) return
+    const r = new Speech()
+    r.lang = 'ru-RU'; r.interimResults = true
+    // «гречка 150 и курица 200» said aloud: the «и» splits it into products, like a comma typed
+    r.onresult = (e) => setQ(Array.from(e.results).map((x) => x[0].transcript).join(' ').replace(/\s+и\s+/g, ', '))
+    r.onend = r.onerror = () => setListening(false)
+    setListening(true); setError('')
+    try { r.start() } catch { setListening(false) }
+  }
+
   // the phone's own catalog answers at once; the server's results replace it when they arrive
   const local = useMemo(() => (q.trim().length >= 2 ? localSearch(parseQuery(q).text || q) : []), [q])
   // while the new answer loads: the phone's matches, else the last answer's rows that still fit (no «сгущёнка варёная» for «варенье»)
-  const results = found?.q === q ? found.items : local.length ? local : found ? found.items.filter((p) => fits(p, parseQuery(q).text || q)) : null
+  const results = parts.length > 1 ? null : found?.q === q ? found.items : local.length ? local : found ? found.items.filter((p) => fits(p, parseQuery(q).text || q)) : null
+  const typed = parseQuery(q).text || q.trim()
+  const guessed = found?.q === q && results != null && results.length > 0 && !results.some((p) => fits(p, typed)) // typo fallback rows
 
   function resultRow(p: Product) {
-    // calories for what the user would add: the amount typed ("яйцо 2"), else one piece / portion / 100 g
+    // everything for what the user would add: the amount typed ("яйцо 2"), else one piece / portion / 100 g
     const shown = (wanted && applyWanted(p, wanted)) || defaultAmount(p)
-    const kcal = Math.round((p.kcal * shown.qty * shown.unit.g) / 100)
+    const k = (shown.qty * shown.unit.g) / 100
+    const kcal = Math.round(p.kcal * k)
+    const amount = `${fmtQty(shown.qty)} ${unitWord(shown.unit.label, shown.qty)}`
+    const open = portions === p.id
     return (
-      <div className="row quick-row" key={p.id}>
-        <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(p.name, p.category)} /></span>
-        <button className="row-main row-btn-plain" onClick={() => pick(p)}>
-          <div className="row-title">{p.name}</div>
-          <div className="row-sub">{p.brand ? `${p.brand} · ` : ''}<span className="macro-p">Б {r1(p.protein_g)}</span> на 100 г</div>
-        </button>
-        <div className="row-end result-kcal">{kcal} ккал<small>{fmtQty(shown.qty)} {unitWord(shown.unit.label, shown.qty)}</small>{leftAfter(kcal)}</div>
-        {plusButton(p, `${fmtQty(shown.qty)} ${unitWord(shown.unit.label, shown.qty)}`)}
-      </div>
+      <Fragment key={p.id}>
+        <div className="row quick-row">
+          <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(p.name, p.category)} /></span>
+          <button className="row-main row-btn-plain" onClick={() => pick(p)}>
+            <div className="row-title"><Marked text={p.name} query={typed} /></div>
+            {p.brand && <div className="row-brand">{p.brand}</div>}
+            <div className="row-sub"><span className="macro-p">Б {r1(p.protein_g * k)}</span> · Ж {r1(p.fat_g * k)} · У {r1(p.carbs_g * k)}</div>
+          </button>
+          <button className="row-end result-kcal portion-toggle" aria-expanded={open} aria-label={`${kcal} ккал за ${amount}. Другая порция`}
+            onClick={() => setPortions(open ? null : p.id)}>
+            {kcal} ккал<small>{amount} <Chevron /></small>{leftAfter(kcal)}
+          </button>
+          {plusButton(p, amount)}
+        </div>
+        {open && (
+          <div className="portion-row" role="group" aria-label={`Порция: ${p.name}`}>
+            {portionsFor(p).map((o) => (
+              <button type="button" key={o.qty} className="habit-chip" disabled={busy} onClick={() => quickAdd(p, o)}>
+                {({ 0.5: '½' } as Record<number, string>)[o.qty] ?? o.qty} {o.unit.label}<small> · {Math.round((p.kcal * o.qty * o.unit.g) / 100)}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </Fragment>
     )
   }
 
@@ -679,8 +806,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
     try {
       const s = meal === 'snack' ? slot : null
       eaten(picked); searchCache.clear()
-      await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
-      done(picked, g)
+      const undo = await (unit.label === 'г' ? onAdd(picked.id, g, meal, s) : onAdd(picked.id, g, meal, s, { unit: unit.label, qty }))
+      done(picked, g, undo)
     } catch {
       setError('Не добавилось. Попробуй ещё раз')
     }
@@ -717,9 +844,15 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
               <button type="button" className="link" onClick={() => setAttach(null)}>Отмена</button></p>
           )}
           <div className="input-wrap">
-            <input autoFocus ref={search} placeholder="Поиск: творог, гречка…" value={q}
-              onChange={(e) => { setQ(e.target.value); setError(''); setFromScan(false); if (e.target.value.trim().length < 2) setFound(null) }} />
+            <input autoFocus ref={search} placeholder="Поиск: гречка 150, курица 200" value={q} aria-label="Поиск продукта"
+              onChange={(e) => { setQ(e.target.value); setError(''); setFromScan(false); if (e.target.value.trim().length < 2) { setFound(null); setMany(null) } }} />
+            {Speech && <button type="button" className={listening ? 'mic on' : 'mic'} aria-label="Сказать голосом" aria-pressed={listening} onClick={listen}><Icon name="mic" /></button>}
           </div>
+          {q.trim().length < 2 && queries.length > 0 && (
+            <div className="query-chips" role="group" aria-label="Недавние запросы">
+              {queries.map((x) => <button type="button" key={x} className="habit-chip" onClick={() => setQ(x)}>{x}</button>)}
+            </div>
+          )}
           {recent && (
             <div className="meal-actions">
               <button type="button" className="link" disabled={scan === 'busy'} onClick={() => { setError(''); setScanner(true) }}>
@@ -777,28 +910,58 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
                 <p className="sub">{list === 'recent' ? 'Здесь появятся твои недавние продукты.' : 'Отметь продукт звёздочкой, и он появится здесь.'}</p>
               ) : (
                 <div className="list scroll-list">
-                  {(list === 'recent' ? recentForMeal! : favorites).map((p) => {
+                  {(list === 'recent' ? recentForMeal! : favorites).map((p, i, all) => {
                     const d = 'last_amount_g' in p ? { unit: GRAM, qty: Number(p.last_amount_g) } : defaultAmount(p)
                     const amount = `${fmtQty(d.qty)} ${unitWord(d.unit.label, d.qty)}`
                     const kcal = Math.round((p.kcal * d.qty * d.unit.g) / 100)
+                    // what this meal usually has heads the list; the rest of the recent ones follow under their own line
+                    const usual = (x: Product | RecentProduct) => 'meals' in x && (x.meals?.[meal] ?? 0) > 0
+                    const head = list !== 'recent' ? null : i === 0 && usual(p) ? `Обычно на ${MEALS[meal].toLowerCase()}`
+                      : !usual(p) && (i === 0 ? false : usual(all[i - 1])) ? 'Другие недавние' : null
                     return (
-                      <div className="row quick-row" key={p.id}>
-                        <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(p.name, p.category)} /></span>
-                        <button className="row-main row-btn-plain" onClick={() => pick(p)}>
-                          <div className="row-title">{p.name}</div>
-                          <div className="row-sub">{amount} · {kcal} ккал{kcalLeft !== undefined && <> · {leftAfter(kcal)}</>}</div>
-                        </button>
-                        {plusButton(p, amount)}
-                      </div>
+                      <Fragment key={p.id}>
+                        {head && <p className="list-head">{head}</p>}
+                        <div className="row quick-row">
+                          <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(p.name, p.category)} /></span>
+                          <button className="row-main row-btn-plain" onClick={() => pick(p)}>
+                            <div className="row-title">{p.name}</div>
+                            <div className="row-sub">{amount} · {kcal} ккал{kcalLeft !== undefined && <> · {leftAfter(kcal)}</>}</div>
+                          </button>
+                          {plusButton(p, amount)}
+                        </div>
+                      </Fragment>
                     )
                   })}
                 </div>
               )}
             </>
           )}
+          {parts.length > 1 && (
+            <div className="many">
+              <p className="list-head">{parts.length} {plural(parts.length, 'продукт', 'продукта', 'продуктов')} одной строкой</p>
+              {many?.q !== q ? <p className="sub">Ищем…</p> : (
+                <div className="list">
+                  {many.items.map(({ part, p, qty: n, unit: u }) => p ? (
+                    <div className="row" key={part}>
+                      <span className="food-icon" aria-hidden="true"><FoodEmoji e={foodIcon(p.name, p.category)} /></span>
+                      <div className="row-main"><div className="row-title">{p.name}</div><div className="row-sub">{fmtQty(n)} {unitWord(u.label, n)}</div></div>
+                      <span className="row-end">{Math.round((p.kcal * n * u.g) / 100)} ккал</span>
+                    </div>
+                  ) : <p className="sub" key={part}>«{part}» не нашли. Добавь его отдельно</p>)}
+                </div>
+              )}
+              {many?.q === q && many.items.some((x) => x.p) && (() => {
+                const n = many.items.filter((x) => x.p).length
+                const kcal = many.items.reduce((t, x) => t + (x.p ? (x.p.kcal * x.qty * x.unit.g) / 100 : 0), 0)
+                return <button className="btn" disabled={busy} onClick={addMany}>Добавить {n} {plural(n, 'продукт', 'продукта', 'продуктов')} · {Math.round(kcal)} ккал</button>
+              })()}
+            </div>
+          )}
           {results && results.length === 0 && (
             <div className="not-found">
-              <p className="row-title">Не нашли «{parseQuery(q).text || q.trim()}»</p>
+              <p className="row-title">Не нашли «{typed}»</p>
+              <p className="sub">Проверь написание{typed.includes(' ') ? ' или ищи по одному слову' : ''}. Если продукта нет в базе, добавь его сам.</p>
+              {typed.includes(' ') && <button className="link" onClick={() => setQ(typed.split(' ')[0])}>Искать «{typed.split(' ')[0]}»</button>}
               {aiEnabled && onAiText && <button className="btn" onClick={() => onAiText(q.trim())}>Описать AI: «{q.trim()}»</button>}
               <button className="btn btn-ghost" onClick={() => setCustom(true)}>{aiEnabled ? 'Сфоткать этикетку или ввести вручную' : '+ Добавить свой продукт'}</button>
               <button className="link" onClick={() => { setError(''); setScanner(true) }}>▥ Сканировать штрихкод</button>
@@ -806,15 +969,16 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
           )}
           {results && results.length > 0 && (
             <div className="list scroll-list">
+              {guessed && <p className="list-head">Точно «{typed}» не нашли. Похожие:</p>}
               {groupByName(results).map(([first, rest]) => {
-                const key = first.name.toLowerCase()
+                const key = groupKey(first)
                 const open = openGroups.includes(key)
                 return (
                   <Fragment key={first.id}>
                     {resultRow(first)}
                     {rest.length > 0 && !open && (
                       <button className="link more-brands" onClick={() => setOpenGroups([...openGroups, key])}>
-                        ещё {rest.length} {plural(rest.length, 'вариант', 'варианта', 'вариантов')} ›
+                        ещё {rest.length} {rest.every((r) => r.brand) ? plural(rest.length, 'бренд', 'бренда', 'брендов') : plural(rest.length, 'вариант', 'варианта', 'вариантов')}
                       </button>
                     )}
                     {open && rest.map(resultRow)}
@@ -892,7 +1056,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       {error && <p className="error" role="alert">{error}</p>}
       {added.length > 0 && (
         <div className="added-bar" role="status">
-          <span><strong>✓ Добавлено: {added.length}</strong><small>{addedKcal} ккал · {added.slice(-2).map((a) => a.name).join(', ')}{added.length > 2 ? '…' : ''}</small></span>
+          <span><strong>Добавлено: {added.length}</strong><small>{addedKcal} ккал · {added.slice(-2).map((a) => a.name).join(', ')}{added.length > 2 ? '…' : ''}</small></span>
+          {added[added.length - 1].undo && <button className="link" onClick={undoLast}>Отменить</button>}
           <button className="btn btn-side" onClick={onClose}>Готово</button>
         </div>
       )}

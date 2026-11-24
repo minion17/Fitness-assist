@@ -249,11 +249,11 @@ export default function Workouts({ programs, logs, programId, onSelectProgram, c
 
       <section className="card">
         <div className="card-head"><h2>История</h2>{canEdit && <button className="link" onClick={() => setPast(next.id)}>+ Добавить тренировку</button>}</div>
-        {logs.length === 0 ? <Empty art="workouts" title="Здесь будет история тренировок" text="Проведи первую: подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
+        {logs.length === 0 ? <Empty title="Здесь будет история тренировок" text="Проведи первую: подходы и веса сохранятся, а в следующий раз подскажем, с чего начать." /> : (
           <div className="list">
             {logs.slice(0, 10).map((l) => (
               <button className="row row-btn history-entry" key={l.id} onClick={() => setHistoryLog(l)}>
-                <div className="row-main"><div className="row-title">{l.title.replace(/^(День\s+\d+)\s*:[^·]+·\s*/i, '$1 · ')}</div><div className="row-sub">{dateRu(l.started_at)} · подходов: {l.sets}{l.after ? ' · записано после' : ''}</div></div>
+                <div className="row-main"><div className="row-title">{l.title.replace(/^(День\s+\d+)\s*:[^·]+·\s*/i, '$1 · ')}</div><div className="row-sub">{dateRu(l.started_at)}, подходов: {l.sets}{l.after ? ', записано после' : ''}</div></div>
                 <div className="row-end">{l.completed_at ? '✓' : 'не завершена'}</div>
               </button>
             ))}
@@ -589,7 +589,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
             {hasExerciseGuide(e.name)
               ? <button className="session-guide-trigger" onClick={() => setGuideExercise(e)} aria-label={`Как выполнять ${e.name}`}>
                   <ExerciseThumbnail name={e.name} index={ei} />
-                  <span className="row-title">{e.name}<small>Как выполнять →</small></span>
+                  <span className="row-title">{e.name}<small>Как выполнять</small></span>
                 </button>
               : <div className="row-title">{e.name}</div>}
             {e.superset && !timed && <small className="sub">{program.name.startsWith('Гиря ·') ? 'Круг' : 'Суперсет'} {e.superset}</small>}
@@ -642,7 +642,7 @@ function Session({ program, day, onExit, onChanged, onRecord, onMinimize }: {
       {!list && total > 1 && (
         <div className="player-nav">
           <button className="link" disabled={cur === 0} onClick={() => setCur(cur - 1)}>← Назад</button>
-          {cur < total - 1 && <button className="link" onClick={() => setCur(cur + 1)}>{doneEx(cur) ? 'Следующее →' : 'Дальше →'}</button>}
+          {cur < total - 1 && <button className="link" onClick={() => setCur(cur + 1)}>{doneEx(cur) ? 'Следующее' : 'Дальше →'}</button>}
         </div>
       )}
       {guideExercise && <KettlebellExercise exercise={guideExercise} onClose={() => setGuideExercise(null)} />}

@@ -45,7 +45,7 @@ export default function WeekCard({ week, goal, norm, onRecap }: { week: WeekDay[
       {d && (
         <p className="week-detail" role="status">
           <b>{cap(new Date(d.date + 'T12:00').toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' }))}</b>
-          {' · '}{fmt(d.kcal)} ккал · вода {liters(d.water_ml)} л{d.workouts ? ` · тренировок: ${d.workouts}` : ''}
+          {': '}{fmt(d.kcal)} ккал, вода {liters(d.water_ml)} л{d.workouts ? `, тренировок: ${d.workouts}` : ''}
         </p>
       )}
     </section>

@@ -56,7 +56,7 @@ export default function Friends() {
   return (
     <>
       <section className="card friends-hero">
-        {!friends.length && <Empty art="friends" title="" />}
+        {!friends.length && <Empty title="" />}
         <h2>{friends.length ? 'Друзья' : 'Вместе проще не бросить'}</h2>
         <p className="sub">{friends.length
           ? 'Рейтинг недели, дуэли и общий азарт.'
@@ -87,7 +87,7 @@ export default function Friends() {
             <div key={d.id} className="duel">
               <div className="duel-main">
                 <b>{d.rival}</b>
-                <span className="sub">{METRIC[d.metric]} · {d.days} {dayWord(d.days)}{d.status === 'active' && d.ends_at ? ` · осталось ${daysLeft(d.ends_at)} ${dayWord(daysLeft(d.ends_at))}` : ''}</span>
+                <span className="sub">{METRIC[d.metric]}, {d.days} {dayWord(d.days)}{d.status === 'active' && d.ends_at ? `, осталось ${daysLeft(d.ends_at)} ${dayWord(daysLeft(d.ends_at))}` : ''}</span>
               </div>
               {d.status === 'active' && <span className={`duel-score${(d.me ?? 0) >= (d.them ?? 0) ? ' ahead' : ''}`}>{d.me} : {d.them}</span>}
               {d.status === 'pending' && (d.incoming ? (
@@ -111,7 +111,7 @@ export default function Friends() {
                 <span className="board-place">{i + 1}</span>
                 <div className="board-who">
                   <b>{r.me ? 'Ты' : r.name}</b>
-                  <span className="sub">Ур. {r.level} · 🔥 {r.streak}{r.trained_today ? ' · 💪 тренировка сегодня' : ''}</span>
+                  <span className="sub">Уровень {r.level}, серия {r.streak}{r.trained_today ? ', сегодня тренировка' : ''}</span>
                 </div>
                 {!r.me && r.trained_today && (r.cheered
                   ? <span className="cheer-sent" aria-label="Ты уже поддержал">👏</span>

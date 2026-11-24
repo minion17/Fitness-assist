@@ -266,7 +266,7 @@ function WorkoutPlan({ plan: initial, all, profile, muscles, onBack, onSave }: {
     <div className="library">
       <div className="card-head"><h1>Твоя тренировка</h1><button className="link" onClick={onBack}>Назад</button></div>
       <MuscleMap primary={muscles} secondary={[...new Set(plan.flatMap((e) => [...e.primary, ...e.secondary]))].filter((m) => !muscles.includes(m as Muscle))} compact />
-      <p className="sub">{plan.length ? `${plan.length} ${plural(plan.length, 'упражнение', 'упражнения', 'упражнений')} · 3 подхода по ${reps} · отдых ${rest} с. Любое можно заменить или убрать.` : 'Под твоё оборудование упражнений нет. Отметь его в анкете или выбери другие мышцы.'}</p>
+      <p className="sub">{plan.length ? `${plan.length} ${plural(plan.length, 'упражнение', 'упражнения', 'упражнений')}, 3 подхода по ${reps}, отдых ${rest} с. Любое можно заменить или убрать.` : 'Под твоё оборудование упражнений нет. Отметь его в анкете или выбери другие мышцы.'}</p>
       <div className="lib-list">
         {plan.map((e, i) => (
           <Row key={e.id} e={e} onOpen={() => setOpen(e)} end={

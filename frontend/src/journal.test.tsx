@@ -473,7 +473,7 @@ test('workout player: one exercise at a time, moves on when its sets are done', 
   fireEvent.pointerDown(card, { clientX: 50, clientY: 100 })
   fireEvent.pointerUp(card, { clientX: 200, clientY: 105 })
   expect(screen.getByText('Упражнение 1 из 2')).toBeTruthy()
-  fireEvent.click(screen.getByRole('button', { name: 'Следующее →' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Следующее' }))
   fireEvent.click(screen.getByRole('button', { name: 'Все упражнения' }))
   expect(screen.getByLabelText('Жим лёжа, подход 1, вес')).toBeTruthy()
   expect(screen.getByLabelText('Тяга, подход 1, вес')).toBeTruthy()

@@ -421,7 +421,7 @@ h1 { font-size: 28px; letter-spacing: -.035em; }
 .hello { margin-bottom: 5px; }
 .home-actions .btn { min-height: 48px; }
 .nutrition-summary { padding: 20px; gap: 18px; background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 7%, var(--card)), var(--card) 65%); }
-.nutrition-summary .ring-wrap svg { flex: 0 0 104px; filter: drop-shadow(0 0 12px color-mix(in srgb, var(--accent) 16%, transparent)); }
+.nutrition-summary .ring-wrap svg { flex: 0 0 104px; }
 .nutrition-summary .macro-row { font-size: 13px; gap: 6px; }
 .nutrition-add { box-shadow: none; }  /* a glow under a button read as a smudge */
 .meal-diary { padding: 20px; }
@@ -801,10 +801,8 @@ button:not(:disabled):active, .btn:not(:disabled):active, summary:active { trans
 [data-theme='green'] .nav-inner { border-radius: 999px; }
 
 /* Empty states */
-.empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; padding: 10px 8px 4px; }
-.empty-art { fill: none; stroke: color-mix(in srgb, var(--muted) 70%, transparent); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 4px; }
-.empty-art .accent-fill { fill: var(--accent); stroke: none; }
-.empty .sub { max-width: 280px; }
+.empty { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; padding: 4px 0; }
+.empty .sub { max-width: 34ch; }
 .empty-action { width: auto; margin-top: 8px; padding: 11px 22px; }
 /* green: the accent is also the button text colour, so marks on an accent fill need a dark ink */
 [data-theme='green'] .quest-list li.done .quest-icon, [data-theme='green'] .first-steps-list li.done .step-mark { color: #13200f; }
@@ -1449,7 +1447,7 @@ body:has(.sheet) .toast-undo { display: none; } /* don't cover the sheet's butto
 /* ---- Home layout settings ---- */
 .home-arrange { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 12px; background: var(--card-2); color: var(--muted); cursor: pointer; }
 .home-settings { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.home-settings-h { margin: 6px 0 -2px; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.home-settings-h { margin: 6px 0 -2px; font-size: 14px; font-weight: 600; color: var(--muted); }
 .home-setting { display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--card-border); transition: opacity .2s; }
 .home-setting .step-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .home-setting .step-text .sub { font-size: 12px; }
@@ -1558,9 +1556,6 @@ body:has(.sheet-backdrop) .nav-inner { backdrop-filter: none; -webkit-backdrop-f
 .q-body-summary-intro h2 { font-size: 22px; letter-spacing: -.025em; }
 .q-body-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .q-body-summary .card { display: grid; justify-items: center; gap: 6px; padding: 14px 8px; }
-.q-body-summary .card + .card {
-  background: radial-gradient(ellipse at 50% 55%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 75%), var(--card);
-}
 .q-body-summary .body-figure { height: clamp(126px, 27vh, 204px); }
 .q-body-summary span { color: var(--muted); font-size: 13px; }
 .q-body-summary strong { font-size: 22px; font-variant-numeric: tabular-nums; }
@@ -1688,7 +1683,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .feedback-form { display: flex; flex-direction: column; gap: 10px; }
 .feedback-form textarea { width: 100%; min-height: 80px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--card-border); background: var(--card-2); color: var(--text); font: inherit; resize: vertical; }
 .product-report { align-self: center; color: var(--muted); font-weight: 500; }
-.profile-group { margin: 14px 4px 0; font-size: 13px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.profile-group { margin: 14px 4px 0; font-size: 15px; font-weight: 600; color: var(--muted); }
 /* habits on Home: one swipeable row instead of a wrapping block */
 /* wrapped, not a sideways scroll: on a computer a hidden horizontal scroll can't be reached with the mouse */
 .habits .habit-today .habit-chip { flex: none; }
@@ -1742,7 +1737,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
   padding: calc(28px + env(safe-area-inset-top)) 20px calc(24px + env(safe-area-inset-bottom));
   background: radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--accent) 22%, var(--bg)) 0%, var(--bg) 65%); animation: fade-in .3s ease-out; }
 .recap-close { position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; width: 40px; height: 40px; border-radius: 12px; color: var(--muted); background: var(--card); }
-.recap-kicker { margin: 0; color: var(--accent-text); font-weight: 700; text-transform: uppercase; letter-spacing: .08em; font-size: 13px; }
+.recap-kicker { margin: 0; color: var(--accent-text); font-weight: 600; font-size: 15px; }
 .recap-title { margin: 0; font-size: 32px; line-height: 1.1; }
 .recap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .recap-tile { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-border); animation: up .4s ease-out backwards; }
@@ -1761,12 +1756,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 [data-theme='light'] { --card-edge: rgba(255, 255, 255, .9); --card-shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 10px 26px -14px rgba(16, 24, 40, .18); }
 .card { box-shadow: inset 0 1px 0 var(--card-edge), var(--card-shadow); }
 .screen .card .card { box-shadow: inset 0 1px 0 var(--card-edge); } /* nested tiles: no stacked shadows */
-.day-card, .workout-feature, .nutrition-summary, .progress-weight {
-  background: radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--accent) 11%, var(--card)) 0%, var(--card) 58%),
-    var(--card);
-  border-color: color-mix(in srgb, var(--accent) 16%, var(--card-border));
-  box-shadow: inset 0 1px 0 var(--card-edge), var(--card-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 4%, transparent);
-}
+
 .btn:not(.btn-ghost) { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); } /* a lit top edge, no glow under (it read as a smudge) */
 /* the next workout's title glides into the workout screen's header (motion.ts → morph) */
 .workout-next-title { view-transition-name: workout-title; }
@@ -1776,7 +1766,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 /* a closed day: the ring breathes once with a glow */
 .day-card.closed .daily-progress-ring { animation: day-closed 1.6s ease-out 1; }
 @keyframes day-closed { 0% { filter: drop-shadow(0 0 0 transparent); } 35% { filter: drop-shadow(0 0 22px color-mix(in srgb, var(--accent) 70%, transparent)); transform: scale(1.04); } 100% { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 30%, transparent)); } }
-.day-card.closed .daily-progress-ring { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--accent) 30%, transparent)); }
+
 /* a product added lands in its meal */
 .meal-group .list > * { animation: land .32s cubic-bezier(.2, .8, .2, 1) backwards; }
 @keyframes land { from { opacity: 0; transform: translateY(-8px) scale(.98); background: color-mix(in srgb, var(--accent) 14%, transparent); } }
@@ -2187,3 +2177,9 @@ body:has(.award-overlay) .nav-inner { backdrop-filter: none; -webkit-backdrop-fi
 /* Профиль → Настройки: one row instead of the settings at the profile's tail */
 .profile-settings-entry { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 12px; width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer }
 .profile-settings-entry span { display: flex; flex-direction: column; gap: 2px }
+
+/* No neon: accent glows and washes behind rings, avatars, options and sliders read as a template. Accent is for what
+   the person acts on and for progress itself, not for haloes around it. */
+.daily-progress-ring::before { display: none; }
+.profile-identity .avatar, .meal-snack, .builder-day, .meal-plan-progress span, .meal-plan-option.selected,
+.q-slider .meal-range-rail::before, .q-slider .meal-range-rail b { box-shadow: none; }

@@ -85,7 +85,7 @@ export function CoachClients() {
       <h3>Тренировки за 2 недели</h3>
       {open.workouts.length ? open.workouts.map((w, i) => (
         <div className="row" key={i}><div className="row-main"><span className="row-title">{w.title}</span>
-          <small className="sub"> {dm(w.date)} · {w.minutes} мин · {w.sets} подх.{w.tonnage ? ` · ${n(w.tonnage)} кг` : ''}{w.effort ? ` · ${{ easy: 'легко', ok: 'нормально', hard: 'тяжело' }[w.effort] ?? ''}` : ''}{w.after ? ' · записано после' : ''}</small></div></div>
+          <small className="sub"> {dm(w.date)}, {w.minutes} мин, {w.sets} подх.{w.tonnage ? `, ${n(w.tonnage)} кг` : ''}{w.effort ? `, ${{ easy: 'легко', ok: 'нормально', hard: 'тяжело' }[w.effort] ?? ''}` : ''}{w.after ? ', записано после' : ''}</small></div></div>
       )) : <p className="sub">Не было.</p>}
       <button className="btn btn-ghost" onClick={() => { haptic('success'); api(`/api/coach/clients/${open.id}/report`, postJson({ days: 30 })).then(() => setNote('PDF-отчёт за 30 дней придёт тебе в чат с ботом')).catch(() => setNote('Не получилось. Попробуй ещё раз')) }}>PDF-отчёт за 30 дней</button>
       {note && <p className="sub" role="status">{note}</p>}
@@ -101,9 +101,8 @@ export function CoachClients() {
         <button key={c.id} className="coach-client" onClick={() => api<Detail>(`/api/coach/clients/${c.id}`).then((d) => d && setOpen({ ...d, link_id: c.link_id }))}>
           <span className="coach-client-head"><b>{c.name}</b>{c.flags.map((f) => <i key={f} className="coach-flag">{f}</i>)}</span>
           <small>
-            дневник {c.days_logged}/7{c.kcal ? ` · ${n(c.kcal)} ккал${c.kcal_pct ? ` (${c.kcal_pct} %)` : ''}` : ''}
-            {c.protein_per_kg ? ` · белок ${String(c.protein_per_kg).replace('.', ',')} г/кг` : ''} · трен. {c.workouts}
-            {c.weight_change != null ? ` · вес ${signed(c.weight_change)} кг` : ''}
+            Дневник {c.days_logged} из 7 дней{c.kcal ? `, в среднем ${n(c.kcal)} ккал${c.kcal_pct ? ` (${c.kcal_pct} %)` : ''}` : ''}{c.protein_per_kg ? `, белок ${String(c.protein_per_kg).replace('.', ',')} г/кг` : ''}.
+            {' '}Тренировок: {c.workouts}.{c.weight_change != null ? ` Вес ${signed(c.weight_change)} кг.` : ''}
           </small>
         </button>
       ))}

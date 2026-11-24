@@ -111,7 +111,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
 
       {part === 'food' && <>
         {top}
-        {s && !logged.length && !waterDays.length && <Empty art="chart" title="Здесь появится твоё питание по дням"
+        {s && !logged.length && !waterDays.length && <Empty title="Здесь появится твоё питание по дням"
           text="Три дня с дневником, и здесь появятся средние калории и дни в норме." />}
         {s && (logged.length > 0 || waterDays.length > 0) && <>
           <section className="card progress-overview">
@@ -160,7 +160,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               {delta !== null && <span className={delta <= 0 ? 'sub pos' : 'sub'}>{delta > 0 ? '+' : ''}{fmt(delta, 1)} кг за {PERIODS.find(([n]) => n === days)?.[1].toLowerCase()}</span>}</div>
             {w.length
               ? <LineChart points={w.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={170} goal={weightGoal} />
-              : <Empty art="chart" title="Пока нет записей веса" text="Запиши вес на главной, и здесь появится график." />}
+              : <Empty title="Пока нет записей веса" text="Запиши вес на главной, и здесь появится график." />}
             {weightGoal && w.length > 0 && <p className="sub">До цели {fmt(Math.abs(w[w.length - 1].kg - weightGoal), 1)} кг</p>}
             {(() => { const f = forecast(w, weightGoal); return f && weightGoal ? <p className="sub forecast">{forecastText(f, weightGoal)}</p> : null })()}
           </section>
@@ -197,7 +197,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
               ? <LineChart points={exercise.points.map((p) => ({ date: p.date, value: p.kg }))} color="var(--accent)" unit="кг" height={140} />
               : <p className="sub">Упражнение с собственным весом: лучший подход — {Math.max(...exercise.points.map((p) => p.reps))} повт.</p>}
           </section>
-        ) : <Empty art="workouts" title="Пока нет тренировок за период" text="После первой тренировки здесь появятся рабочие веса и нагрузка на мышцы." />}
+        ) : <Empty title="Пока нет тренировок за период" text="После первой тренировки здесь появятся рабочие веса и нагрузка на мышцы." />}
       </>}
 
       {part === 'awards' && (
@@ -222,7 +222,7 @@ export default function Progress({ canEdit, achievements, freezes, body, top, bo
         </section>
       )}
       </>}
-      {selectedAward && <AchievementUnlocked {...selectedAward} more={0} viewing hint={selectedAward.stage !== undefined ? `${selectedAward.hint} · ступень ${selectedAward.stage} из 5 · ${selectedAward.stage === 5 ? "Все ступени получены" : `${selectedAward.progress} / ${selectedAward.target} · +${selectedAward.stage_xp} XP за ступень`}` : selectedAward.unlocked_at ? selectedAward.hint : `Пока не получено. ${selectedAward.hint}`} extra={canEdit && onShowcase && <div className="award-actions">
+      {selectedAward && <AchievementUnlocked {...selectedAward} more={0} viewing hint={selectedAward.stage !== undefined ? `${selectedAward.hint}. Ступень ${selectedAward.stage} из 5. ${selectedAward.stage === 5 ? "Все ступени получены." : `Прогресс ${selectedAward.progress} из ${selectedAward.target}, +${selectedAward.stage_xp} XP за ступень.`}` : selectedAward.unlocked_at ? selectedAward.hint : `Пока не получено. ${selectedAward.hint}`} extra={canEdit && onShowcase && <div className="award-actions">
         <button className="btn" disabled={!selectedAward.unlocked_at || saving || (!featured.includes(selectedAward.code) && featured.length >= 3)}
           onClick={() => saveDisplay(featured.includes(selectedAward.code) ? featured.filter(c => c !== selectedAward.code) : [...featured, selectedAward.code], pinned)}>
           {featured.includes(selectedAward.code) ? 'Убрать с профиля' : 'На профиль'}

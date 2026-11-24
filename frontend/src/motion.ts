@@ -5,12 +5,13 @@ import { flushSync } from 'react-dom'
 /** Animations are off when the phone asks for less motion (and where it can't be asked, e.g. tests). */
 export const animate = () => typeof window !== 'undefined' && !!window.matchMedia && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-/** A number that counts up (or down) to `value` instead of jumping: 0 -> 1 209 on open, 991 -> 1 191 after a meal. */
+/** A number that glides to `value` when it changes (991 -> 1 191 after a meal). On open, and when data first
+ * arrives after loading, it just shows: counting up from zero on every visit reads as decoration. */
 export function useCountUp(value: number, ms = 650): number {
-  const [shown, setShown] = useState(() => (animate() ? 0 : value))
+  const [shown, setShown] = useState(value)
   const from = useRef(shown)
   useEffect(() => {
-    if (!animate()) { from.current = value; const id = requestAnimationFrame(() => setShown(value)); return () => cancelAnimationFrame(id) }
+    if (!animate() || from.current === 0) { from.current = value; const id = requestAnimationFrame(() => setShown(value)); return () => cancelAnimationFrame(id) }
     const start = performance.now(), a = from.current
     let id = 0
     const step = (t: number) => {

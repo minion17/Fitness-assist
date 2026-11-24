@@ -201,7 +201,7 @@ function Profile({ synced, progress, data, onEdit, top, share, help, privacy, th
         )}
       </section>
       <section className="card profile-overview">
-        <div className="card-head"><h2>Мои данные</h2><button className="link" aria-label={data ? 'Изменить анкету' : 'Заполнить анкету'} onClick={onEdit}>{data ? 'Моя анкета →' : 'Заполнить →'}</button></div>
+        <div className="card-head"><h2>Мои данные</h2><button className="link" aria-label={data ? 'Изменить анкету' : 'Заполнить анкету'} onClick={onEdit}>{data ? 'Моя анкета' : 'Заполнить'}</button></div>
       <div className="grid2 profile-metrics">
         <section className="card"><span className="sub">Возраст</span><div className="stat">{shown.age}<small>лет</small></div></section>
         <section className="card"><span className="sub">Рост</span><div className="stat">{shown.height}<small>см</small></div></section>

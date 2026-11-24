@@ -61,7 +61,7 @@ export default function Month() {
       {showLast && b.last && (
         <section className="card month-final">
           <h2>{b.last.emoji} Итог: «{b.last.title}»</h2>
-          <p>{days(b.last.score ?? 0, b.last.unit)} · {b.last.rank}-е место из {b.last.total}{b.last.done ? ' · цель взята' : ''}</p>
+          <p>{days(b.last.score ?? 0, b.last.unit)}, {b.last.rank}-е место из {b.last.total}.{b.last.done ? ' Цель взята.' : ''}</p>
           {shareRow(true)}
         </section>
       )}
@@ -73,7 +73,7 @@ export default function Month() {
         <p className="sub">{b.hint} Цель — {days(b.goal, b.unit)}: +100 XP. Участников: {b.total}.</p>
         {b.me ? <>
           <div className="month-me">
-            <b>{b.me.score}</b><span>из {b.goal} · {b.me.rank}-е место{b.total >= 10 ? ` · топ-${b.me.top_percent} %` : ''}</span>
+            <b>{b.me.score}</b><span>из {b.goal}, {b.me.rank}-е место{b.total >= 10 ? ` (топ-${b.me.top_percent} %)` : ''}</span>
           </div>
           <Bar value={b.me.score} goal={b.goal} />
           {!showLast && shareRow(false)}

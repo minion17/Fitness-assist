@@ -1533,11 +1533,19 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
     from backend.database.db import SessionLocal
 
     h = new_user_headers()
-    found = client.get("/api/products/search", params={"q": "курица"}, headers=h).json()
-    usual = found[-1]  # something not first by default
-    client.post("/api/food-logs", headers=h, json={"product_id": usual["id"], "amount_g": 150, "meal_type": "lunch"})
-    assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] == usual["id"]  # what I eat comes first
-    assert client.get("/api/products/search", params={"q": "курица"}, headers=new_user_headers()).json()[0]["id"] != usual["id"] or len(found) == 1
+
+    async def own_chicken():  # a fresh shared product each run: no history from earlier runs on the shared test database
+        from backend.database.models import Product
+        async with SessionLocal() as s:
+            c = Product(name=f"Курица тестовая {random.randint(10**6, 10**7)}", kcal=150, protein_g=20, fat_g=7, carbs_g=0)
+            s.add(c)
+            await s.commit()
+            return c.id
+    usual = client.portal.call(own_chicken)
+    assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] != usual  # long, never eaten: not first
+    client.post("/api/food-logs", headers=h, json={"product_id": usual, "amount_g": 150, "meal_type": "lunch"})
+    assert client.get("/api/products/search", params={"q": "курица"}, headers=h).json()[0]["id"] == usual  # what I eat comes first
+    assert client.get("/api/products/search", params={"q": "курица"}, headers=new_user_headers()).json()[0]["id"] != usual  # mine only
 
     async def clean():  # earlier runs' misses would crowd the top 10 of the shared test database
         from sqlalchemy import delete
@@ -1557,6 +1565,24 @@ def test_search_ranks_own_history_and_logs_misses(client, seeded):
     plain = [i for i, p in enumerate(milk) if p["name"] == "Молоко 2.5%" and p["brand"] is None]
     branded = [i for i, p in enumerate(milk) if p["name"] == "Молоко 2.5%" and p["brand"]]
     assert plain and branded and plain[0] < branded[0]  # the plain product before its brands
+
+    # what I ate ranks within the query's own word, not above it: a cookie «…Мёд и фундук» once eaten, «мёд» still
+    # starts with «Мёд»
+    async def cookie():
+        from sqlalchemy import select
+
+        from backend.database.models import Product
+        async with SessionLocal() as s:
+            c = await s.scalar(select(Product).where(Product.name == "Печенье утреннее Мёд и фундук", Product.brand == "Belvita"))
+            if c is None:  # the shared test database keeps it from earlier runs
+                c = Product(name="Печенье утреннее Мёд и фундук", brand="Belvita", kcal=440, protein_g=7.6, fat_g=15, carbs_g=68)
+                s.add(c)
+                await s.commit()
+            return c.id
+    cid = client.portal.call(cookie)
+    client.post("/api/food-logs", headers=h, json={"product_id": cid, "amount_g": 50, "meal_type": "snack"})
+    honey = client.get("/api/products/search", params={"q": "мёд"}, headers=h).json()
+    assert honey[0]["name"].startswith("Мёд") and cid in [x["id"] for x in honey]
 
     async def stats():
         async with SessionLocal() as s:

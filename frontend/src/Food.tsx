@@ -13,7 +13,7 @@ import { readBarcode } from './barcode'
 import MenuImport from './MenuImport'
 import Scanner from './Scanner'
 import Calendar from './Calendar'
-import { eaten, localSearch, remember } from './catalog'
+import { eaten, fits, localSearch, remember } from './catalog'
 import { api, ApiError, postJson, putJson, publicGet } from './telegram'
 import { MEALS, mealNow, type FoodDay, type FoodItem, type MealType, type Product } from './types'
 import { emojiSrc, foodIcon } from './foodIcon'
@@ -624,7 +624,8 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
 
   // the phone's own catalog answers at once; the server's results replace it when they arrive
   const local = useMemo(() => (q.trim().length >= 2 ? localSearch(parseQuery(q).text || q) : []), [q])
-  const results = found?.q === q ? found.items : local.length ? local : found?.items ?? null
+  // while the new answer loads: the phone's matches, else the last answer's rows that still fit (no «сгущёнка варёная» for «варенье»)
+  const results = found?.q === q ? found.items : local.length ? local : found ? found.items.filter((p) => fits(p, parseQuery(q).text || q)) : null
 
   function resultRow(p: Product) {
     // calories for what the user would add: the amount typed ("яйцо 2"), else one piece / portion / 100 g

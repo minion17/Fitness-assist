@@ -44,7 +44,7 @@ export async function syncCatalog(force = false) {
 const norm = (s: string) => s.toLocaleLowerCase('ru-RU').replaceAll('ё', 'е').replace(/[^a-zа-я0-9%.,]+/g, ' ').trim()
 
 /** A typed word matches a name word from its start; a longer one also with a changed ending ("яйца" → "яйцо"). */
-function wordHit(word: string, names: string[]) {
+export function wordHit(word: string, names: string[]) {
   const stem = word.length >= 4 ? word.slice(0, -1) : word
   return names.some((n) => n.startsWith(word) || n.startsWith(stem))
 }
@@ -56,8 +56,15 @@ export function localSearch(text: string, limit = 12): Product[] {
   for (const p of store().items) {
     const names = norm(p.name).split(' ')
     if (!words.every((w) => wordHit(w, names))) continue
-    hits.push({ p, rank: (p.mine ? 0 : 4) + (names[0].startsWith(words[0]) ? 0 : 2) + (p.brand ? 1 : 0) })
+    hits.push({ p, rank: (names[0].startsWith(words[0]) ? 0 : 4) + (p.mine ? 0 : 2) + (p.brand ? 1 : 0) }) // the word first, then what was eaten
   }
   hits.sort((a, b) => a.rank - b.rank || a.p.name.length - b.p.name.length)
   return hits.slice(0, limit).map((h) => h.p)
+}
+
+/** Does a product still fit what's typed? For the previous query's results kept on screen while the new one loads. */
+export function fits(p: Product, text: string): boolean {
+  const words = norm(text).split(' ').filter(Boolean)
+  const names = norm(`${p.name} ${p.brand ?? ''}`).split(' ')
+  return words.length > 0 && words.every((w) => wordHit(w, names))
 }

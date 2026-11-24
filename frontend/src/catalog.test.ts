@@ -4,16 +4,20 @@ const p = (id: number, name: string, extra = {}) => ({ id, name, brand: null, ca
 
 beforeEach(() => { localStorage.clear(); vi.resetModules() })
 
-test('local search: word starts, changed endings, mine first, plain before brands', async () => {
+test('local search: word starts, changed endings, the word before what I ate, plain before brands', async () => {
   localStorage.setItem('setly-catalog', JSON.stringify({ at: Date.now(), items: [
     p(1, 'Яйцо куриное'), p(2, 'Молоко 2.5%', { brand: 'Простоквашино' }), p(3, 'Молоко 2.5%'), p(4, 'Шоколад молочный'),
     p(5, 'Огурец свежий'), p(6, 'Гречка варёная', { mine: true }), p(7, 'Гречневая каша'),
+    p(8, 'Печенье утреннее Мёд и фундук', { brand: 'Belvita', mine: true }), p(9, 'Мёд натуральный'),
   ] }))
-  const { localSearch, eaten } = await import('./catalog')
+  const { localSearch, eaten, fits } = await import('./catalog')
   expect(localSearch('яйца').map((x) => x.id)).toEqual([1]) // "яйца" finds "Яйцо"
   expect(localSearch('молоко').map((x) => x.id)).toEqual([3, 2]) // not "молочный"; the plain one first
   expect(localSearch('греч').map((x) => x.id)).toEqual([6, 7]) // what I eat first
   expect(localSearch('гречка варе').map((x) => x.id)).toEqual([6]) // ё = е, all words must match
+  expect(localSearch('мёд').map((x) => x.id)).toEqual([9, 8]) // the word first, then what I ate
+  expect(fits(p(10, 'Молоко Сгущеное Вареное'), 'варенье')).toBe(false) // the last answer's rows that no longer fit
+  expect(fits(p(10, 'Молоко Сгущеное Вареное'), 'варен')).toBe(true)
   expect(localSearch('о')).toEqual([])
   eaten(p(5, 'Огурец свежий'))
   expect(localSearch('о').length).toBe(0)

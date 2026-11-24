@@ -268,8 +268,9 @@ async def search_products(
     tg: dict | None = Depends(optional_telegram_user),
     session: AsyncSession = Depends(get_session),
 ):
-    """Shared catalog plus the caller's own custom products, ranked: what this user ate before, the query's own word
-    first ("Картофель" before "Пирожное картошка"), what people eat most, shorter names. Typos as the last resort."""
+    """Shared catalog plus the caller's own custom products, ranked: the query's own word first ("Мёд" before
+    "Печенье утреннее Мёд и фундук", "Картофель" before "Пирожное картошка"), within that what this user ate before,
+    the plain product before brands, what people eat most, shorter names. Typos as the last resort."""
     owner = Product.owner_user_id.is_(None)
     user = await get_or_create_user(tg, session) if tg else None
     if user:
@@ -284,9 +285,9 @@ async def search_products(
     eaten = select(func.count(FoodLog.id)).where(FoodLog.product_id == Product.id).scalar_subquery()
     rows = list(await session.scalars(
         select(Product).where(owner, *match)
-        .order_by((mine > 0).desc(),
-                  or_(*(starts_with_word(Product.search_text, w) for w in firsts)).desc(),
+        .order_by(or_(*(starts_with_word(Product.search_text, w) for w in firsts)).desc(),
                   or_(*(has_word(Product.search_text, w) for w in firsts)).desc(),
+                  (mine > 0).desc(),  # inside a tier: a cookie once eaten must not beat «Мёд» for «мёд»
                   Product.brand.is_not(None),  # the plain product before its brands ("Молоко 2.5%" before 12 brands of it)
                   eaten.desc(), func.length(Product.name), Product.name)
         .limit(40)

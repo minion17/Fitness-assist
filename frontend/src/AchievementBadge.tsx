@@ -41,9 +41,12 @@ export default function AchievementBadge({ code, fallback, large = false, stage 
   const positions = item.sheet === 'core'
     ? [2.5, 15.8, 27.9, 40.6, 52.9, 64.6, 76.6, 87.5, 98.9]
     : [2.1, 14.1, 25.9, 38.3, 50.2, 62.6, 74.5, 86.7, 98.9]
+  // Narrow each window around its centre so neighbouring illustrations never appear at its edges.
+  const x = (17.24 + positions[item.column] / 100 * 1930.67) / 1965.14 * 100
+  const y = [3.33, 50, 96.67][row]
   const style: CSSProperties = {
     backgroundImage: `url(/images/achievements/setly/${item.sheet}.png)`,
-    backgroundPosition: `${positions[item.column]}% ${row * 50}%`,
+    backgroundPosition: `${x}% ${y}%`,
   }
   return <span className={`${className} achievement-art-sheet`} style={style} aria-hidden="true" />
 }

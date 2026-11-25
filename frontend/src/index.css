@@ -1799,6 +1799,7 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .stat, .daily-progress-center strong, .overview-value, .hero-num, .amount-kcal strong, .workout-summary-grid b, .recap-tile b, .day-stat-value, .session-prescription dd, .session-clock strong, .chart-read b, .session-progress .sub, .set-go { letter-spacing: -.03em; }
 
 .achievement-art { display: block; flex: none; width: 76px; max-width: 100%; aspect-ratio: 1; object-fit: contain; }
+.achievement-art-individual { background-size: 170% auto; background-position: center; background-repeat: no-repeat; }
 .achievement-art-sheet { background-size: 900% 300%; background-repeat: no-repeat; mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent); }
 .achievement-art-fallback { display: grid; place-items: center; background: none; line-height: 1; }
 .achievement-art-large { width: min(200px, 45vw); }

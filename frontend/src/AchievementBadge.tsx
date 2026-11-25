@@ -2,10 +2,15 @@ import type { CSSProperties } from 'react'
 
 type Artwork = { sheet: 'core' | 'additional'; column: number; row?: number }
 
+const individualArtwork: Record<string, string> = {
+  first_workout: 'first-workout.png',
+  workouts_10: 'ten-workouts.png',
+  workouts_50: 'fifty-workouts.png',
+}
+
 const artwork: Record<string, Artwork> = {
   first_water: { sheet: 'additional', column: 0 },
   first_meal: { sheet: 'core', column: 5 },
-  first_workout: { sheet: 'core', column: 3 },
   streak_3: { sheet: 'additional', column: 1 },
   streak_7: { sheet: 'additional', column: 2 },
   streak_30: { sheet: 'additional', column: 3, row: 1 },
@@ -13,8 +18,6 @@ const artwork: Record<string, Artwork> = {
   water_7: { sheet: 'additional', column: 5, row: 1 },
   glasses_100: { sheet: 'additional', column: 6, row: 2 },
   norm_7: { sheet: 'additional', column: 7, row: 1 },
-  workouts_10: { sheet: 'core', column: 3, row: 1 },
-  workouts_50: { sheet: 'core', column: 3, row: 2 },
   measure_4: { sheet: 'additional', column: 8, row: 1 },
   level_5: { sheet: 'core', column: 2, row: 2 },
   iron_will: { sheet: 'core', column: 3 },
@@ -30,6 +33,7 @@ export default function AchievementBadge({ code, fallback, large = false, stage 
 }) {
   const item = artwork[code]
   const className = `achievement-art${large ? ' achievement-art-large' : ''}`
+  if (individualArtwork[code]) return <span className={`${className} achievement-art-individual`} style={{ backgroundImage: `url(/images/achievements/setly/${individualArtwork[code]})` }} aria-hidden="true" />
   if (!item) return <span className={`${className} achievement-art-fallback`} aria-hidden="true">{fallback}</span>
 
   // Three approved illustrations represent five earned levels, from simplest to most detailed.

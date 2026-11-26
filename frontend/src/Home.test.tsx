@@ -101,6 +101,13 @@ test('in the evening the day card opens with what is left for today', () => {
   expect(screen.getByText('Итог дня')).toBeTruthy()
   expect(screen.getByText('ещё 500 ккал')).toBeTruthy()
   expect(screen.getByText('ещё 40 г')).toBeTruthy() // protein
+  const summaryToggle = screen.getByRole('button', { name: /Итог дня/ })
+  expect(summaryToggle.getAttribute('aria-expanded')).toBe('true')
+  fireEvent.click(summaryToggle)
+  expect(summaryToggle.getAttribute('aria-expanded')).toBe('false')
+  expect(screen.queryByText('ещё 500 ккал')).toBeNull()
+  fireEvent.click(summaryToggle)
+  expect(screen.getByText('ещё 500 ккал')).toBeTruthy()
 })
 
 test('on a day off from the questionnaire the workout row says rest and when the next one is', () => {

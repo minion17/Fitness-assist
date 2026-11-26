@@ -236,6 +236,7 @@ export default function Home(props: {
   // in the evening the card opens with the day's summary: what is done and what can still be made up
   const [evening] = useState(() => new Date().getHours() >= 20)
   const [whyOpen, setWhyOpen] = useState(evening)
+  const [summaryOpen, setSummaryOpen] = useState(true)
   const shownProgress = Math.round(useCountUp(props.loading ? 0 : progress))
   const shownKcal = useCountUp(day.totals.kcal)
   const shownWater = useCountUp(water.ml)
@@ -301,18 +302,18 @@ export default function Home(props: {
 
       {whyOpen && !props.loading && (
         <section className="card day-summary" aria-label="Итоги дня">
-          <div className="day-summary-head">
-            <div><h2>{progress >= 100 ? 'День закрыт' : evening ? 'Итог дня' : 'Прогресс дня'}</h2>
-              <p className="sub">{progress >= 100 ? 'Всё по плану' : evening ? 'Ещё можно успеть' : 'Что уже сделано сегодня'}</p></div>
-            <span className="day-summary-total">{progress}%</span>
-          </div>
-          <ul className="day-summary-list">
+          <button className="day-summary-head" aria-expanded={summaryOpen} aria-controls="day-summary-details" onClick={() => setSummaryOpen(!summaryOpen)}>
+            <span className="day-summary-heading"><strong>{progress >= 100 ? 'День закрыт' : evening ? 'Итог дня' : 'Прогресс дня'}</strong>
+              <span className="sub">{progress >= 100 ? 'Всё по плану' : evening ? 'Ещё можно успеть' : 'Что уже сделано сегодня'}</span></span>
+            <span className="day-summary-total">{progress}%</span><span className="day-summary-chevron"><Chevron /></span>
+          </button>
+          {summaryOpen && <ul id="day-summary-details" className="day-summary-list">
             {parts.map((p) => (
-              <li key={p.label}><span className={`day-summary-dot ${p.value >= 1 ? 'done' : ''}`} aria-hidden="true" /><span className="day-summary-label">{p.label}</span><span className="sub">{p.note}</span><b>{Math.round(p.value * 100)}%</b></li>
+              <li key={p.label}><span className={`day-summary-icon ${p.value >= 1 ? 'done' : ''}`}><Icon name={p.label === 'Питание' ? 'utensils' : p.label === 'Вода' ? 'water' : p.label === 'Привычки' ? 'check' : 'dumbbell'} size={18} /></span><span className="day-summary-label">{p.label}</span><span className="sub">{p.note}</span><b>{Math.round(p.value * 100)}%</b></li>
             ))}
-            {!trained && <li><span className="day-summary-dot" aria-hidden="true" /><span className="day-summary-label">Тренировка</span><span className="sub">ещё не проведена</span><b>—</b></li>}
-            {targets?.protein ? <li><span className={`day-summary-dot ${day.totals.protein_g >= targets.protein * 0.9 ? 'done' : ''}`} aria-hidden="true" /><span className="day-summary-label">Белок</span><span className="sub">{day.totals.protein_g >= targets.protein * 0.9 ? 'в норме' : `ещё ${fmt(targets.protein - day.totals.protein_g)} г`}</span><b>{fmt(day.totals.protein_g)} г</b></li> : null}
-          </ul>
+            {!trained && <li><span className="day-summary-icon"><Icon name="dumbbell" size={18} /></span><span className="day-summary-label">Тренировка</span><span className="sub">ещё не проведена</span><b>—</b></li>}
+            {targets?.protein ? <li><span className={`day-summary-icon ${day.totals.protein_g >= targets.protein * 0.9 ? 'done' : ''}`}><Icon name="target" size={18} /></span><span className="day-summary-label">Белок</span><span className="sub">{day.totals.protein_g >= targets.protein * 0.9 ? 'в норме' : `ещё ${fmt(targets.protein - day.totals.protein_g)} г`}</span><b>{fmt(day.totals.protein_g)} г</b></li> : null}
+          </ul>}
         </section>
       )}
 

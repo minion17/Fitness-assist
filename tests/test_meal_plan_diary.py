@@ -111,3 +111,17 @@ def test_next_plan_waits_for_the_current_one_and_the_bot_walks_through_the_days(
     client.post('/api/consent', headers=other, json={'health': False})
     client.put('/api/meal-plan', headers=other, json={'input': {'allergies': ''}, 'plan': second, 'start': (today + timedelta(days=1)).isoformat()})
     assert client.get('/api/meal-plan/today', headers=other).json() == {'finished': False, 'upcoming': (today + timedelta(days=1)).isoformat(), 'meals': []}
+
+
+def test_eating_out_takes_a_plan_meal_off_today_without_a_diary_entry(client):
+    headers = new_user_headers()
+    client.post('/api/consent', headers=headers, json={'health': False})
+    meal = {'id': 'test', 'name': 'Обед', 'meal': 'lunch', 'ingredients': [{'grams': 200}], 'nutrition': {'kcal': 300, 'protein_g': 25, 'fat_g': 10, 'carbs_g': 30}}
+    client.put('/api/meal-plan', headers=headers, json={'input': {'allergies': ''}, 'plan': {'days': [{'day': 1, 'meals': [meal]}], 'shopping': [], 'warnings': []}})
+    client.put('/api/meal-plan/today/0', headers=headers, json={'completed': True})
+    assert client.put('/api/meal-plan/today/0', headers=headers, json={'completed': False, 'away': True}).json() == {'completed': False, 'away': True}
+    got = client.get('/api/meal-plan/today', headers=headers).json()['meals'][0]
+    assert got['away'] is True and got['completed'] is False
+    assert client.get('/api/food-logs', headers=headers).json()['items'] == []  # the ticked portion went away with it
+    client.put('/api/meal-plan/today/0', headers=headers, json={'completed': False})
+    assert client.get('/api/meal-plan/today', headers=headers).json()['meals'][0]['away'] is False

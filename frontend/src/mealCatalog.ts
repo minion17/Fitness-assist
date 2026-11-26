@@ -29,7 +29,7 @@ const names: Record<string, [string, string[]]> = {
  peanutPaste: ['Арахисовая паста', ['nuts', 'legumes']], tofu: ['Тофу', ['soy', 'legumes']],
  lavash: ['Лаваш', ['gluten', 'wheat']], edamame: ['Эдамаме', ['soy', 'legumes']], soyMilk: ['Молоко соевое', ['soy']],
  feta: ['Сыр Фета', ['dairy']], rawCod: ['Треска', ['fish']], rawTurkey: ['Индейка филе', ['turkey', 'poultry', 'meat']],
- rawBroccoli: ['Брокколи', ['broccoli']],
+ rawBroccoli: ['Брокколи', ['broccoli']], soyProtein: ['Протеин соевый', ['soy', 'proteinPowder']], mung: ['Маш', ['legumes']],
 }
 /** Approximate shop prices (rubles, autumn 2026) and the pack they come in, for the basket and the weekly budget.
  * Cooked items are priced by what it takes to cook them (a kilo of raw chicken gives ~700 g boiled). */
@@ -46,7 +46,7 @@ const PRICES: Record<string, [number, number]> = {
  beef: [1000, 800], mince: [500, 300], tuna: [135, 200], pollock: [1000, 330], oatMilk: [1000, 160],
  walnut: [200, 250], kefir: [930, 100], honey: [250, 250], hummus: [200, 150], crispbread: [100, 80],
  peanutPaste: [300, 230], tofu: [300, 200], lavash: [200, 60], edamame: [400, 350], soyMilk: [1000, 180], feta: [200, 250],
- rawCod: [800, 560], rawTurkey: [1000, 650], rawBroccoli: [400, 200],
+ rawCod: [800, 560], rawTurkey: [1000, 650], rawBroccoli: [400, 200], soyProtein: [900, 1500], mung: [450, 140],
 }
 /** Recipes weigh some things cooked («куриное филе отварное»); the shop sells them raw: what to buy and how many grams
  * of it make a gram of the cooked one. */
@@ -87,6 +87,7 @@ const MINUTES: Record<string, number> = {
  'tofu-buckwheat': 25, 'tofu-rice': 25, 'yogurt-berries': 3, 'kefir-banana': 3, 'cheese-sandwich': 5, 'apple-peanut': 2,
  'hummus-crispbread': 3, 'curd-honey': 3, 'peanut-crispbread': 3, 'eggs-cucumber': 12, 'tofu-scramble': 15, 'chickpea-salad': 10,
  'lavash-tofu': 15, 'lentil-tofu': 30, edamame: 8, 'soy-banana': 3, 'curd-omelette': 15, 'yogurt-oats': 10, 'feta-chickpea-salad': 10,
+ 'soy-protein-shake': 3, 'oats-soy-protein': 10, 'mung-tofu': 35,
 }
 const RECIPE_LIST = [
  recipe('syrniki', 'Сырники со смородиной и йогуртом', 'breakfast',
@@ -211,6 +212,9 @@ const RECIPE_LIST = [
  recipe('soy-banana','Соевое молоко с бананом и арахисом','snack',[['soyMilk',300],['banana',120],['peanut',15]],'1. Очисти банан и разломи на куски. 2. Взбей с соевым молоком и арахисом блендером до однородности. 3. Пей сразу, пока коктейль не расслоился.'),
  recipe('curd-omelette','Омлет с творогом и зеленью','breakfast',[['egg',165],['curd',100],['dill',5],['oil',5],['bread',40]],'1. Взбей яйца с творогом и щепоткой соли, добавь рубленый укроп. 2. Вылей на разогретую сковороду с маслом, накрой крышкой и готовь на слабом огне 6–7 минут. 3. Подай с ломтиком хлеба.'),
  recipe('yogurt-oats','Овсянка с греческим йогуртом и ягодами','breakfast',[['oats',60],['yogurt',200],['berries',80],['honey',8]],'1. Отвесь сухие хлопья и свари на воде по инструкции на упаковке, дай немного остыть. 2. Выложи в миску, сверху греческий йогурт. 3. Добавь ягоды и полей мёдом.'),
+ recipe('soy-protein-shake','Протеиновый коктейль на соевом молоке с бананом','snack',[['soyProtein',30],['soyMilk',250],['banana',100]],'1. Очисти банан и разломи на куски. 2. Взбей блендером с соевым молоком и протеином 30 секунд. 3. Пей сразу; без блендера протеин размешай в шейкере, а банан съешь отдельно.'),
+ recipe('oats-soy-protein','Овсянка на соевом молоке с протеином и ягодами','breakfast',[['oats',60],['soyMilk',250],['soyProtein',25],['berries',80]],'1. Свари хлопья на соевом молоке по инструкции на упаковке. 2. Сними с огня, дай остыть пару минут и вмешай протеин, чтобы не свернулся. 3. Добавь ягоды.'),
+ recipe('mung-tofu','Маш с тофу и овощами','main',[['mung',70],['tofu',180],['rawCarrot',80],['onion',40],['oil',10]],'1. Промой маш и свари в подсоленной воде 25–30 минут до мягкости. 2. Обжарь на масле лук и тёртую морковь, добавь тофу кубиками и подрумянь 5 минут. 3. Смешай с машем и прогрей ещё 2 минуты.'),
  recipe('feta-chickpea-salad','Салат с фетой и нутом','main',[['feta',60],['chickpeas',160],['cucumber',150],['tomato',150],['oil',8],['bread',40]],'1. Слей жидкость с нута и промой его. 2. Нарежь огурец, помидоры и фету кубиками. 3. Смешай всё, заправь маслом и подай с хлебом.'),
 ]
 export const RECIPES = RECIPE_LIST.map(r => ({ ...r, minutes: MINUTES[r.id] ?? 30 }))

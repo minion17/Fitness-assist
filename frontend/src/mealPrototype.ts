@@ -76,6 +76,7 @@ const terms: Record<string, RegExp> = {
   tuna: /тунец|тунца/, dill: /укроп[ау]?/,
   legumes: /бобов(ые|ых|ая|ый)/, honey: /мед[ау]?|медов(ый|ая|ое)/, rye: /рж(аной|аные|аная|ь)/,
   tofu: /тофу/, hummus: /хумус[ау]?/, walnutAny: /грецк(ий|ие)/,
+  proteinPowder: /протеин[ау]?|протеинов(ый|ые|ого)/,
 }
 /** Foods people often name that none of our dishes has: «клубника» is no reason to refuse a plan. A word that is in
  * neither list (say «казеин», which hides in milk) still stops the plan: guessing is not safe with allergies. */
@@ -121,10 +122,12 @@ type Weights = Map<string, number> // what to buy (raw, by the shop's product) -
  * fewer cucumbers; a bigger one is not 600 g of tomatoes. */
 const FIXED = new Set(['tomato', 'cucumber', 'broccoli', 'rawBroccoli', 'carrot', 'rawCarrot', 'pumpkin', 'onion', 'pepper', 'cabbage',
   'dill', 'garlic', 'chili', 'lemon', 'tomatoPaste'])
+/** Bought once and used for months: the plan pays for what it uses, not for the whole jar. */
+const PANTRY = new Set(['soyProtein', 'oil', 'honey', 'sesame', 'flour'])
 function packCost(id: string, grams: number, whole: boolean) {
   const { packRub, packGrams } = INGREDIENTS[id]
   if (!(packGrams > 0 && packRub > 0 && Number.isFinite(packRub) && Number.isFinite(packGrams))) return null
-  return (whole ? Math.ceil(grams / packGrams - 1e-9) : grams / packGrams) * packRub
+  return (whole && !PANTRY.has(id) ? Math.ceil(grams / packGrams - 1e-9) : grams / packGrams) * packRub
 }
 function sumKnown(items: (number | null)[]) {
   let sum = 0
@@ -186,7 +189,9 @@ function setup(input: PlanInput) {
   const dietaryTags: Record<Dietary, string[]> = { omnivore: [], pescatarian: ['meat'], vegetarian: ['meat', 'fish'], vegan: ['meat', 'fish', 'dairy', 'egg'] }
   if (input.dietary && !dietaryTags[input.dietary]) throw new Error('Проверь тип питания.')
   const absent: string[] = []
-  const excluded = new Set([...readTags(input.allergies, true, absent), ...readTags(input.disliked, false, absent), ...dietaryTags[input.dietary ?? 'omnivore']])
+  const excluded = new Set([...readTags(input.allergies, true, absent), ...readTags(input.disliked, false, absent), ...dietaryTags[input.dietary ?? 'omnivore'],
+    // protein powder only where plants alone can't make the norm; everyone else gets it from ordinary food
+    ...(input.dietary === 'vegan' ? [] : ['proteinPowder'])])
   const liked = readTags(input.liked, false)
   // dishes cooked for two meals may be any lunch or dinner one
   const shared = input.cookingMode === 'batch' || input.cookingMode === 'daily'
@@ -217,7 +222,7 @@ function quality(input: PlanInput, meal: Meal, target: Nutrients, liked: Set<str
   const slow = input.quick && (meal.minutes ?? 0) > QUICK ? 1.5 : 0
   // too little protein costs more than too much: it's the macro people fall short of
   const short = Math.max(0, target.protein_g - meal.nutrition.protein_g) / Math.max(5, target.protein_g)
-  return kcalError * 4 + macroError * .45 + short * 2 + (uses.get(meal.id) ?? 0) * .8 - meal.tags.filter(t => liked.has(t)).length * .55 + slow
+  return kcalError * 4 + macroError * .45 + short * 3.5 + (uses.get(meal.id) ?? 0) * .8 - meal.tags.filter(t => liked.has(t)).length * .55 + slow
 }
 type Ctx = { selected: readonly Slot[]; fr: number[]; notes: string[] }
 const selectedShare = (ctx: Ctx) => slots.reduce((sum, s, i) => sum + (ctx.selected.includes(s) ? ctx.fr[i] : 0), 0)

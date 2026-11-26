@@ -63,3 +63,13 @@ def test_batch_days_defaults_round_trips_and_survives_old_client(client):
         assert client.get('/api/meal-preferences', headers=headers).json()['batch_days'] == days
     assert client.put('/api/meal-preferences', headers=headers, json=base).json()['batch_days'] == 7
     assert client.put('/api/meal-preferences', headers=headers, json={**base, 'batch_days': 3}).status_code == 422
+
+
+def test_quick_dishes_round_trip_and_survive_old_client(client):
+    headers = new_user_headers()
+    client.post('/api/consent', headers=headers, json={'health': False})
+    base = {'days': 7, 'goal': 'maintenance'}
+    assert client.put('/api/meal-preferences', headers=headers, json=base).json()['quick'] is False
+    assert client.put('/api/meal-preferences', headers=headers, json={**base, 'quick': True}).json()['quick'] is True
+    assert client.get('/api/meal-preferences', headers=headers).json()['quick'] is True
+    assert client.put('/api/meal-preferences', headers=headers, json=base).json()['quick'] is True  # an old app doesn't reset it

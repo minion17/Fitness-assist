@@ -41,7 +41,7 @@ const MACROS = [
 
 const r1 = (n: number) => (Math.round(n * 10) / 10).toLocaleString('ru-RU') // 35,5, not 35.5
 type RecentProduct = Product & { last_amount_g: number; meals?: Partial<Record<MealType, number>> }
-type TodayPlan = { finished: boolean; day?: number; upcoming?: string; next_start?: string | null; meals: (Meal & { completed: boolean })[] }
+type TodayPlan = { finished: boolean; day?: number; upcoming?: string; next_start?: string | null; meals: (Meal & { completed: boolean; away?: boolean })[] }
 const planDay = (day: string) => new Date(`${day}T12:00`).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
 
 const MEAL_TIME: Record<MealType, string> = { breakfast: '07:00', lunch: '13:00', dinner: '19:00', snack: '16:00' }
@@ -261,11 +261,11 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   const [todayPlan, setTodayPlan] = useState<TodayPlan | null>(null)
   const [planBusy, setPlanBusy] = useState<number | null>(null)
   const [planError, setPlanError] = useState('')
-  const togglePlanMeal = async (index: number, completed: boolean) => {
+  const togglePlanMeal = async (index: number, completed: boolean, away = false) => {
     if (planBusy !== null) return
     setPlanBusy(index); setPlanError('')
     try {
-      await api(`/api/meal-plan/today/${index}`, putJson({ completed }))
+      await api(`/api/meal-plan/today/${index}`, putJson({ completed, away }))
       await onPlanLogged()
       setTodayPlan(await api<TodayPlan>('/api/meal-plan/today'))
     } catch { setPlanError('Приём пищи не обновился: нет связи. Попробуй ещё раз') }
@@ -298,7 +298,10 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   const groups = mealGroups(day)
   const firstSnack = groups.find(g => g.meal === 'snack')?.key
   const plannedSnack = isToday ? todayPlan?.meals.find(p => p.meal === 'snack') : undefined
-  const plannedBlock = (planned: TodayPlan['meals'][number], title: string) => todayPlan && <div className="planned-meal">
+  const plannedBlock = (planned: TodayPlan['meals'][number], title: string) => todayPlan && (planned.away ? <div className="planned-meal planned-away">
+    <span className="sub">{title} по рациону — {planned.name}. Сегодня вне дома.</span>
+    <button className="link" disabled={planBusy !== null} onClick={() => togglePlanMeal(todayPlan.meals.indexOf(planned), false)}>Вернуть</button>
+  </div> : <><div className="planned-meal">
     <button className="planned-recipe-link" aria-label={`Открыть ${title} — ${planned.name}`} onClick={() => setRecipe(planned)}>
       <DishPhoto id={planned.id} name={planned.name} />
       <span className="planned-meal-info"><span className="plan-slot">{title}</span><strong>{planned.name}</strong><small>{Math.round(planned.nutrition.kcal)} ккал · Б {Math.round(planned.nutrition.protein_g)} · Ж {Math.round(planned.nutrition.fat_g)} · У {Math.round(planned.nutrition.carbs_g)}</small></span>
@@ -306,6 +309,9 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
     </button>
     <button className={planned.completed ? 'planned-meal-check is-done' : 'planned-meal-check'} role="checkbox" aria-checked={planned.completed} aria-label={`${planned.completed ? 'Отменить' : 'Отметить'}: ${planned.name}`} disabled={planBusy !== null} onClick={() => togglePlanMeal(todayPlan.meals.indexOf(planned), !planned.completed)}>{planned.completed ? '✓' : ''}</button>
   </div>
+  {!planned.completed && editable && <button className="link planned-away-link" disabled={planBusy !== null}
+    onClick={async () => { await togglePlanMeal(todayPlan.meals.indexOf(planned), false, true); setAdding({ meal: planned.meal, ...(planned.meal === 'snack' ? { slot: nowSlot() } : {}) }) }}>
+    Ем вне дома</button>}</>)
 
   const go = (n: number) => {
     const next = shiftDay(date, n)

@@ -120,6 +120,7 @@ ADDED_COLUMNS = [
         "liked_recipe_ids VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]",
         "disliked_recipe_ids VARCHAR[] NOT NULL DEFAULT ARRAY[]::VARCHAR[]",
         "sex VARCHAR(8)",
+        "quick BOOLEAN NOT NULL DEFAULT false",
     )),
     # name+brand unique only among shared products (was: across all, which blocked users' own dishes)
     "ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_brand_key",

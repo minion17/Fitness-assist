@@ -139,12 +139,12 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       if (!active || !data) return
       setBudgetLimits([data.budget, data.current_spend].map(n => Math.max(30000, Math.ceil((n ?? 0) / 100) * 100)))
       setBudget(data.budget == null ? '' : String(data.budget)); setCurrentSpend(data.current_spend == null ? '' : String(data.current_spend))
-      const extra = data as Preferences & { persons?: number; selected_meals?: Slot[]; shared_meals?: Slot[]; sex?: 'male' | 'female' | null; dietary_type?: Diet; cooking_mode?: 'daily' | 'batch' | 'varied'; batch_days?: 2 | 7; liked_recipe_ids?: string[]; disliked_recipe_ids?: string[] }
+      const extra = data as Preferences & { persons?: number; selected_meals?: Slot[]; shared_meals?: Slot[]; sex?: 'male' | 'female' | null; dietary_type?: Diet; cooking_mode?: 'daily' | 'batch' | 'varied'; batch_days?: 2 | 7; liked_recipe_ids?: string[]; disliked_recipe_ids?: string[]; quick?: boolean }
       setSex(extra.sex ?? profile?.sex ?? null)
       if (showSaved || renew) return
       setDays(DAYS[data.days]); setGoal(GOALS[data.goal]); setAllergies(healthConsent ? data.allergies : '')
       setPersons(extra.persons ?? 1); setSelectedMeals(extra.selected_meals ?? ['breakfast', 'lunch', 'dinner']); setSharedMeals(extra.shared_meals ?? [])
-      setCookingMode(extra.cooking_mode ?? 'daily'); setBatchDays(extra.batch_days ?? 2); setDiet(extra.dietary_type ?? 'omnivore'); setLikedRecipes(extra.liked_recipe_ids ?? []); setDislikedRecipes(extra.disliked_recipe_ids ?? [])
+      setCookingMode(extra.cooking_mode ?? 'daily'); setBatchDays(extra.batch_days ?? 2); setQuick(Boolean(extra.quick)); setDiet(extra.dietary_type ?? 'omnivore'); setLikedRecipes(extra.liked_recipe_ids ?? []); setDislikedRecipes(extra.disliked_recipe_ids ?? [])
       setLiked(data.liked); setDisliked(data.disliked)
     }).catch(() => { if (active) { setLoadFailed(true); setError('Не удалось загрузить сохранённые ответы. Попробуй открыть анкету позже.') } }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -152,7 +152,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const save = async () => {
     if (loadFailed) return
     const asNumber = (v: string) => v.trim() === '' ? null : Number(v)
-    const body = { days: Number.parseInt(days), goal: Object.entries(GOALS).find(([, label]) => label === goal)?.[0], allergies: healthConsent ? allergies : '', liked, disliked, budget: asNumber(budget), current_spend: asNumber(currentSpend), persons, selected_meals: selectedMeals, shared_meals: persons > 1 ? sharedMeals : [], sex, dietary_type: diet, cooking_mode: cookingMode, batch_days: batchDays, liked_recipe_ids: likedRecipes, disliked_recipe_ids: dislikedRecipes }
+    const body = { days: Number.parseInt(days), goal: Object.entries(GOALS).find(([, label]) => label === goal)?.[0], allergies: healthConsent ? allergies : '', liked, disliked, budget: asNumber(budget), current_spend: asNumber(currentSpend), persons, selected_meals: selectedMeals, shared_meals: persons > 1 ? sharedMeals : [], sex, dietary_type: diet, cooking_mode: cookingMode, batch_days: batchDays, quick, liked_recipe_ids: likedRecipes, disliked_recipe_ids: dislikedRecipes }
     if ([body.budget, body.current_spend].some(n => n !== null && (!Number.isInteger(n) || n < 0 || n > 10000000))) { setError('Укажи бюджет целым числом от 0 до 10 000 000 ₽.'); return }
     setError(''); setSaved(false)
     try { const result = await api('/api/meal-preferences', putJson(body)); if (result === null) throw new Error(); setSaved(true) }
@@ -283,7 +283,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
             {Number(currentSpend) > plan.basketCostRub / plan.days.length * 7 && <span className="pos"> · на {rub(Number(currentSpend) - plan.basketCostRub / plan.days.length * 7)} в неделю меньше, чем сейчас</span>}</p>}
           <div className="meal-result-disclaimer">Расчёты и цены примерные: цены средние по магазинам, считаем целыми упаковками. {persons > 1 && 'Общие блюда рассчитаны на одинаковые порции по твоей норме. '}При аллергии проверяй состав и следы аллергенов.</div></div>
         {snack && <p className="sub">Добавили перекус: при {planInput?.calories} ккал три тарелки вышли бы слишком большими.</p>}
-        {diet === 'vegan' && <p className="sub">В растительном меню белок из нута, чечевицы, фасоли, тофу и орехов. Проверь, что тебе хватает белка.</p>}
+        {diet === 'vegan' && <p className="sub">Белок в растительном меню — из тофу, нута, чечевицы, маша, орехов и соевого протеина. Если протеин не нужен, напиши «протеин» в «Что не ешь».</p>}
         {plan.warnings.map(w => <p className="sub" key={w}>{w}</p>)}
         <div className="meal-result-section-head"><h2>Меню по дням</h2><span>{plan.days.length} {plural(plan.days.length, 'день', 'дня', 'дней')}</span></div>
         <div className="meal-result-days plan-days-list">{plan.days.map((day, index) => {

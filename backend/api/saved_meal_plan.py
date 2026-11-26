@@ -115,6 +115,7 @@ SHOP_TIP = ("🛒 Рацион на семью сохранён, список п
 
 class MealConfirmation(BaseModel):
     completed: bool
+    away: bool = False  # «ем вне дома»: not eaten from the plan, not counted as missed either
 
 
 async def _current_plan(session: AsyncSession, user_id: int, lock: bool = False):
@@ -155,7 +156,9 @@ async def plan_today(tg: dict = Depends(telegram_user), session: AsyncSession = 
         return {"finished": True, "next_start": (row.payload.get("queued") or {}).get("start"), "meals": []}
     logs = tracking.get("logs", {}).get(clock.today().isoformat(), {})
     existing = set((await session.scalars(select(FoodLog.id).where(FoodLog.user_id == user.id, FoodLog.id.in_(list(logs.values()))))).all()) if logs else set()
-    return {"finished": False, "day": day.get("day"), "meals": [{**meal, "completed": logs.get(str(i)) in existing} for i, meal in enumerate(day.get("meals", []))]}
+    away = set(tracking.get("away", {}).get(clock.today().isoformat(), []))
+    return {"finished": False, "day": day.get("day"), "meals": [{**meal, "completed": logs.get(str(i)) in existing, "away": str(i) in away}
+                                                               for i, meal in enumerate(day.get("meals", []))]}
 
 
 @router.put("/today/{meal_index}")
@@ -189,10 +192,14 @@ async def confirm_plan_meal(meal_index: int, body: MealConfirmation, tg: dict = 
         if existing:
             await session.delete(existing)
         day_logs.pop(key, None)
-    logs[today] = day_logs; tracking["logs"] = logs; tracking.pop("upcoming", None)
+    away = dict(tracking.get("away", {}))
+    day_away = [k for k in away.get(today, []) if k != key] + ([key] if body.away and not body.completed else [])
+    away = {d: v for d, v in away.items() if d >= (clock.today() - timedelta(days=30)).isoformat()}  # old days drop off
+    away[today] = day_away
+    logs[today] = day_logs; tracking["logs"] = logs; tracking["away"] = away; tracking.pop("upcoming", None)
     row.payload = {**row.payload, "_tracking": tracking}
     await session.commit()
-    return {"completed": body.completed}
+    return {"completed": body.completed, "away": body.away and not body.completed}
 
 
 def plan_end_day(payload: dict) -> date | None:

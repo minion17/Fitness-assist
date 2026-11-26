@@ -12,7 +12,7 @@ test('план на день показывает блюдо и записыва
   render(<Food day={{ date: '2026-11-15', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }} canEdit onAdd={vi.fn()} onDelete={vi.fn()} onPlanLogged={refresh} />)
   const check = await screen.findByRole('checkbox', { name: 'Отметить: Рис с курицей' })
   fireEvent.click(check)
-  await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/meal-plan/today/0', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ completed: true }) })))
+  await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/meal-plan/today/0', expect.objectContaining({ method: 'PUT', body: JSON.stringify({ completed: true, away: false }) })))
   await waitFor(() => expect(refresh).toHaveBeenCalled())
 })
 
@@ -73,4 +73,21 @@ test('перекус из рациона виден, даже когда пер�
   fireEvent.click(await screen.findByRole('button', { name: 'Составить следующий' }))
   expect(await screen.findByText(/Новый рацион с теми же настройками/)).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Сохранить и использовать рацион' })).toBeTruthy()
+})
+
+test('«Ем вне дома» снимает блюдо рациона на сегодня и открывает запись еды', async () => {
+  const meal = { id: 'rice', name: 'Рис с курицей', meal: 'lunch', completed: false, nutrition: { kcal: 420, protein_g: 30, fat_g: 10, carbs_g: 50 } }
+  const mock = vi.mocked(api)
+  let away = false
+  mock.mockReset()
+  mock.mockImplementation(async (path, init) => {
+    if (path === '/api/meal-plan/today/0' && init) { away = JSON.parse(String(init.body)).away; return {} as never }
+    if (path === '/api/meal-plan/today') return { finished: false, day: 1, meals: [{ ...meal, away }] } as never
+    return null
+  })
+  render(<Food day={{ date: '2026-11-15', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Ем вне дома' }))
+  await waitFor(() => expect(mock).toHaveBeenCalledWith('/api/meal-plan/today/0', expect.objectContaining({ body: JSON.stringify({ completed: false, away: true }) })))
+  expect(await screen.findByText(/Сегодня вне дома/)).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Добавить продукт' })).toBeTruthy() // what was eaten instead
 })

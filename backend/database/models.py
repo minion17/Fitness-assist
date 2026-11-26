@@ -101,6 +101,7 @@ class MealPreferences(Base):
     liked_recipe_ids: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
     disliked_recipe_ids: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
     sex: Mapped[str | None] = mapped_column(String(8))
+    quick: Mapped[bool] = mapped_column(Boolean, server_default="false")  # dishes up to 30 minutes
 
 
 class SavedMealPlan(Base):

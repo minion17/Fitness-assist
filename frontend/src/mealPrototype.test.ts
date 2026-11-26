@@ -198,7 +198,7 @@ it('добирает большую калорийность перекусом'
   }
   expect(createMealPlan({ days: 1, calories: 2000, allergies: '', disliked: '', liked: '' }).days[0].meals).toHaveLength(3)
   // every snack excluded: three meals, no error
-  const vegan = createMealPlan({ days: 3, calories: 3000, allergies: '', disliked: '', liked: '', dietary: 'vegan', dislikedRecipeIds: ['apple-peanut', 'hummus-crispbread', 'peanut-crispbread', 'edamame', 'soy-banana'] })
+  const vegan = createMealPlan({ days: 3, calories: 3000, allergies: '', disliked: '', liked: '', dietary: 'vegan', dislikedRecipeIds: ['apple-peanut', 'hummus-crispbread', 'peanut-crispbread', 'edamame', 'soy-banana', 'soy-protein-shake'] })
   expect(vegan.days[0].meals.every(m => m.meal !== 'snack')).toBe(true)
 })
 
@@ -232,4 +232,16 @@ it('считает стоимость корзины по примерным ц�
 it('«нет в наших блюдах» — правда: ни одно слово из этого списка не встречается в продуктах', () => {
   const words = Object.values(INGREDIENTS).flatMap(i => i.name.toLowerCase().replaceAll('ё', 'е').split(/[^a-zа-я]+/).filter(Boolean))
   expect(words.filter(w => ABSENT.exec(w)?.[0] === w)).toEqual([])
+})
+
+it('растительное меню добирает белок', () => {
+  const macros = { protein_g: 125, fat_g: 62, carbs_g: 235 }
+  for (const dietary of ['vegetarian', 'vegan'] as const) for (const cookingMode of ['daily', 'varied'] as const) {
+    const plan = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: '', liked: '', dietary, cookingMode, macros })
+    const protein = plan.days.reduce((n, d) => n + d.totals.protein_g, 0) / 7
+    expect(protein).toBeGreaterThan(125 * .9)
+  }
+  // «протеин» in «не ем» keeps the powder out
+  const plain = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: 'протеин', liked: '', dietary: 'vegan' })
+  expect(plain.days.flatMap(d => d.meals).some(m => m.tags.includes('proteinPowder'))).toBe(false)
 })

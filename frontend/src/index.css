@@ -2228,3 +2228,8 @@ span.plan-recipe-cover.dish-ph > img { width: 96px; }
 .plan-start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 10px; }
 .plan-start .sub { width: 100%; margin: 0; }
 .plan-rebuild { margin-top: 14px; }
+.planned-away { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; }
+.planned-away .sub { margin: 0; }
+.planned-away-link { font-size: 14px; padding: 2px 0 8px; align-self: flex-start; }
+.plan-start .chip { border: 1px solid transparent; font: inherit; font-size: 14px; padding: 8px 14px; cursor: pointer; }
+.plan-start .chip[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); border-color: var(--accent); }

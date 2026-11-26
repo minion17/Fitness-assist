@@ -21,6 +21,8 @@ class SavedPlanIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
     input: dict
     plan: dict
+    # the first day; a later one while the current plan still runs: the new plan waits its turn ("queued")
+    start: date | None = None
 
     @field_validator("input")
     @classmethod
@@ -40,7 +42,7 @@ class SavedPlanIn(BaseModel):
     @model_validator(mode="after")
     def validate_size(self):
         try:
-            encoded = json.dumps(self.model_dump(), ensure_ascii=False, allow_nan=False).encode("utf-8")
+            encoded = json.dumps(self.model_dump(exclude={"start"}), ensure_ascii=False, allow_nan=False).encode("utf-8")
         except (ValueError, UnicodeEncodeError, RecursionError):
             raise ValueError("invalid JSON")
         if len(encoded) > MAX_BYTES:
@@ -48,11 +50,27 @@ class SavedPlanIn(BaseModel):
         return self
 
 
+def promote(payload: dict, today: date) -> dict | None:
+    """The payload with a waiting plan put in place once its day has come; None when nothing changes."""
+    queued = payload.get("queued")
+    if not queued or date.fromisoformat(queued["start"]) > today:
+        return None
+    return {"input": queued["input"], "plan": queued["plan"], "_tracking": {"start": queued["start"], "logs": {}}}
+
+
 @router.get("")
 async def get_saved_plan(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     user = await get_or_create_user(tg, session)
     row = await session.get(SavedMealPlan, user.id)
-    return {k: v for k, v in row.payload.items() if k in ("input", "plan")} if row else None
+    if not row:
+        return None
+    if (promoted := promote(row.payload, clock.today())) is not None:
+        row.payload = promoted
+        await session.commit()
+    out = {k: v for k, v in row.payload.items() if k in ("input", "plan")}
+    out["start"] = (row.payload.get("_tracking") or {}).get("start")
+    out["next_start"] = (row.payload.get("queued") or {}).get("start")
+    return out
 
 
 @router.put("")
@@ -64,10 +82,20 @@ async def put_saved_plan(body: SavedPlanIn, tg: dict = Depends(telegram_user), s
         raise HTTPException(403, "Для сохранения необходимо согласие на обработку данных")
     if body.input["allergies"].strip() and not user.health_consent_at:
         raise HTTPException(403, "Для сохранения аллергий необходимо согласие на обработку данных о здоровье")
-    payload = body.model_dump()
+    today = clock.today()
+    if body.start and not today - timedelta(days=1) <= body.start <= today + timedelta(days=14):
+        raise HTTPException(422, "Начало рациона — от вчера до двух недель вперёд")
+    payload = body.model_dump(exclude={"start"})
     previous = await session.get(SavedMealPlan, user.id)
-    tracking = previous.payload.get("_tracking") if previous and previous.payload.get("plan") == payload["plan"] else None
-    payload["_tracking"] = tracking or {"start": clock.today().isoformat(), "logs": {}}
+    running = previous and (end := plan_end_day(previous.payload)) is not None and end >= today
+    if body.start and body.start > today and running:
+        # the current plan keeps its days; this one starts after it
+        payload = {**{k: v for k, v in previous.payload.items() if k != "queued"},
+                   "queued": {**payload, "start": body.start.isoformat()}}
+    else:
+        same = previous and previous.payload.get("plan") == payload["plan"]
+        tracking = previous.payload.get("_tracking") if same and not body.start else None
+        payload["_tracking"] = tracking or {"start": (body.start or today).isoformat(), "logs": {}}
     stmt = insert(SavedMealPlan).values(user_id=user.id, payload=payload)
     await session.execute(stmt.on_conflict_do_update(index_elements=[SavedMealPlan.user_id], set_={"payload": stmt.excluded.payload}))
     persons = body.input.get("persons")
@@ -76,7 +104,7 @@ async def put_saved_plan(body: SavedPlanIn, tg: dict = Depends(telegram_user), s
         # once: a plan for a family — the list can go to the family chat, where whoever buys ticks it off
         session.add(Outbox(telegram_id=user.telegram_id, user_id=user.id, kind="shoptip", text=SHOP_TIP))
     await session.commit()
-    return body.model_dump()
+    return body.model_dump(exclude={"start"})
 
 
 SHOP_TIP = ("🛒 Рацион на семью сохранён, список покупок готов.\n\n"
@@ -96,6 +124,9 @@ async def _current_plan(session: AsyncSession, user_id: int, lock: bool = False)
     row = await session.scalar(query)
     if not row:
         return None, None, None
+    if (promoted := promote(row.payload, clock.today())) is not None:
+        row.payload = promoted
+        await session.flush()
     payload = dict(row.payload)
     tracking = dict(payload.get("_tracking") or {"start": clock.today().isoformat(), "logs": {}})
     try:
@@ -104,6 +135,8 @@ async def _current_plan(session: AsyncSession, user_id: int, lock: bool = False)
         day = days[index] if 0 <= index < len(days) else None
     except (KeyError, TypeError, ValueError, IndexError):
         raise HTTPException(422, "Не удалось прочитать сохранённый рацион")
+    if index < 0:
+        tracking["upcoming"] = tracking["start"]
     return row, tracking, day
 
 
@@ -114,10 +147,12 @@ async def plan_today(tg: dict = Depends(telegram_user), session: AsyncSession = 
     if not row:
         return None
     if "_tracking" not in row.payload:
-        row.payload = {**row.payload, "_tracking": tracking}
-        await session.commit()
+        row.payload = {**row.payload, "_tracking": {k: v for k, v in tracking.items() if k != "upcoming"}}
+    await session.commit()
     if day is None:
-        return {"finished": True, "meals": []}
+        if tracking.get("upcoming"):
+            return {"finished": False, "upcoming": tracking["upcoming"], "meals": []}
+        return {"finished": True, "next_start": (row.payload.get("queued") or {}).get("start"), "meals": []}
     logs = tracking.get("logs", {}).get(clock.today().isoformat(), {})
     existing = set((await session.scalars(select(FoodLog.id).where(FoodLog.user_id == user.id, FoodLog.id.in_(list(logs.values()))))).all()) if logs else set()
     return {"finished": False, "day": day.get("day"), "meals": [{**meal, "completed": logs.get(str(i)) in existing} for i, meal in enumerate(day.get("meals", []))]}
@@ -154,7 +189,7 @@ async def confirm_plan_meal(meal_index: int, body: MealConfirmation, tg: dict = 
         if existing:
             await session.delete(existing)
         day_logs.pop(key, None)
-    logs[today] = day_logs; tracking["logs"] = logs
+    logs[today] = day_logs; tracking["logs"] = logs; tracking.pop("upcoming", None)
     row.payload = {**row.payload, "_tracking": tracking}
     await session.commit()
     return {"completed": body.completed}
@@ -166,3 +201,16 @@ def plan_end_day(payload: dict) -> date | None:
         return date.fromisoformat(payload["_tracking"]["start"]) + timedelta(days=len(payload["plan"]["days"]) - 1)
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def day_on(payload: dict, on: date) -> tuple[dict | None, dict | None]:
+    """The plan's day for a date and the day before it (None outside the plan), a waiting plan included."""
+    payload = promote(payload, on) or payload
+    try:
+        start = date.fromisoformat(payload["_tracking"]["start"])
+        days = payload["plan"]["days"]
+    except (KeyError, TypeError, ValueError):
+        return None, None
+    at = lambda i: days[i] if 0 <= i < len(days) else None  # noqa: E731
+    i = (on - start).days
+    return at(i), at(i - 1)

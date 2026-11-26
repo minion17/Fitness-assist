@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { haptic } from './haptics'
-import { INGREDIENTS } from './mealCatalog'
+import { INGREDIENTS, PIECES } from './mealCatalog'
 import type { MealPlan } from './mealPrototype'
 import { api, postJson } from './telegram'
 import { Chevron } from './ui'
 
-const qty = (g: number) => (g >= 1000 ? `${(Math.round(g / 100) / 10).toString().replace('.', ',')} кг` : `${Math.round(g)} г`)
+const weight = (g: number) => (g >= 1000 ? `${(Math.round(g / 100) / 10).toString().replace('.', ',')} кг` : `${Math.round(g)} г`)
+/** Eggs and fruit by the piece («12 шт»), the rest by weight. */
+const qty = (id: string, g: number) => (PIECES[id] ? `${Math.max(1, Math.ceil(g / PIECES[id] - .15))} шт` : weight(g))
 
 /** The list goes to a chat as one message with a button per item: in the family group whoever buys it ticks it off. */
 function ShareList({ items, title }: { items: MealPlan['shopping']; title: string }) {
@@ -16,7 +18,7 @@ function ShareList({ items, title }: { items: MealPlan['shopping']; title: strin
   const send = (groupId: number | null, where: string) => {
     haptic('success')
     setError('')
-    api('/api/shopping/share', postJson({ group_id: groupId, title, items: items.slice(0, 90).map((i) => ({ name: i.product.slice(0, 60), qty: qty(i.grams) })) }))
+    api('/api/shopping/share', postJson({ group_id: groupId, title, items: items.slice(0, 90).map((i) => ({ name: i.product.slice(0, 60), qty: qty(i.productId, i.grams) })) }))
       .then(() => setSent(where)).catch(() => setError('Не отправилось. Попробуй ещё раз'))
   }
   if (sent) return <p className="sub pos" role="status">Список отправлен {sent}. Купленное отмечают прямо в сообщении, список обновится у всех.</p>
@@ -51,9 +53,9 @@ export default function PlanShopping({ items, canShare = false, days }: { items:
         <option value="">Все продукты</option>{categories.map(c => <option key={c}>{c}</option>)}
       </select></label>}
     {categories.filter(c => !filter || c === filter).map(c => <section key={c}><h3>{c}</h3>
-      <ul>{groups.get(c)!.map(item => <li key={item.product}><span>{item.product}</span><strong>{item.grams} г</strong></li>)}</ul>
+      <ul>{groups.get(c)!.map(item => <li key={item.product}><span>{item.product}</span><strong>{qty(item.productId, item.grams)}</strong></li>)}</ul>
     </section>)}
-    <p>Вес указан для продукта в том виде, который обозначен в названии.</p>
+    <p>Вес — для сырых продуктов, как в магазине. Яйца и фрукты — в штуках.</p>
   </details>
   {canShare && items.length > 0 && <ShareList items={items} title={days ? `Покупки на ${days} ${days === 1 ? 'день' : days < 5 ? 'дня' : 'дней'}` : 'Список покупок'} />}
   </>

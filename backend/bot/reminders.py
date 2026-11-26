@@ -217,11 +217,52 @@ async def plan_ending(session, user: User, today: date) -> tuple[str, str, Rende
 
     row = await session.get(SavedMealPlan, user.id)
     end = plan_end_day(row.payload) if row else None
-    if end != today + timedelta(days=1):
+    if end != today + timedelta(days=1) or row.payload.get("queued"):  # the next one is already waiting
         return None
     return (f"plan_end:{end}", "🥗 Завтра последний день рациона. Составлю следующий с теми же настройками и новыми блюдами, "
             "а список покупок отправишь себе или в чат семьи и купишь всё заранее.",
             NO_CARD, [("Составить следующий рацион", "app:open=renew")])
+
+
+PLAN_MORNING_AT = "08:30"
+PLAN_COOK_AT = "20:30"
+SLOTS = {"breakfast": "Завтрак", "lunch": "Обед", "snack": "Перекус", "dinner": "Ужин"}
+
+
+async def plan_reminders(session, user: User, now: datetime) -> list[tuple[str, str, Render, Buttons]]:
+    """The saved meal plan in the chat: the morning's menu, and in the evening what to cook tomorrow."""
+    from backend.api.saved_meal_plan import day_on
+    from backend.database.models import SavedMealPlan
+
+    row = await session.get(SavedMealPlan, user.id)
+    if not row:
+        return []
+    today = now.date()
+    out = []
+    if due(PLAN_MORNING_AT, now):
+        day, _ = day_on(row.payload, today)
+        if day and day.get("meals"):
+            lines = [f"{SLOTS.get(m.get('meal'), '')}: {m.get('name')}" + (" (вчерашний ужин)" if m.get("repeat") and m.get("meal") == "lunch" else "")
+                     for m in day["meals"]]
+            kcal = round(sum(float(m.get("nutrition", {}).get("kcal", 0)) for m in day["meals"]))
+            out.append((f"{today}:plan", "🥗 Сегодня по рациону:\n" + "\n".join(lines) + f"\n≈ {kcal} ккал. Съеденное отмечай галочкой в дневнике.",
+                        NO_CARD, [("Открыть рацион", "app:open=plan")]))
+    if due(PLAN_COOK_AT, now):
+        tomorrow, today_day = day_on(row.payload, today + timedelta(days=1))
+        cook = [m for m in (tomorrow or {}).get("meals", []) if m.get("meal") in ("lunch", "dinner") and not m.get("repeat")]
+        if cook:
+            batch = row.payload.get("input", {}).get("cookingMode") == "batch"
+            daily = row.payload.get("input", {}).get("cookingMode") == "daily"
+            names = " и ".join(f"«{m.get('name')}»" for m in cook)
+            if batch:
+                n = row.payload.get("input", {}).get("batchDays") or 2
+                text = f"🍳 Завтра готовим на {n} {'дня' if n < 5 else 'дней'} вперёд: {names}. Проверь, что продукты дома, а мясо или рыбу переложи из морозилки в холодильник."
+            elif daily and any(m.get("meal") == "dinner" for m in cook):
+                text = f"🍳 Завтра на ужин {names}. Готовь сразу 2 порции: вторая — обед на следующий день."
+            else:
+                text = f"🍳 Завтра по рациону готовим {names}. Проверь, что продукты дома."
+            out.append((f"{today}:plancook", text, NO_CARD, [("Рецепт и продукты", "app:open=plan")]))
+    return out
 
 
 async def day_three_tip(session, user: User) -> tuple[str, str, Render, Buttons]:
@@ -360,6 +401,8 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
         tip = await group_tip(session, user, today)
         if tip:
             out.append(tip)
+    if cfg.meals:
+        out += await plan_reminders(session, user, now)
     if due(PLAN_END_AT, now):
         ending = await plan_ending(session, user, today)
         if ending:

@@ -41,7 +41,8 @@ const MACROS = [
 
 const r1 = (n: number) => (Math.round(n * 10) / 10).toLocaleString('ru-RU') // 35,5, not 35.5
 type RecentProduct = Product & { last_amount_g: number; meals?: Partial<Record<MealType, number>> }
-type TodayPlan = { finished: boolean; day?: number; meals: (Meal & { completed: boolean })[] }
+type TodayPlan = { finished: boolean; day?: number; upcoming?: string; next_start?: string | null; meals: (Meal & { completed: boolean })[] }
+const planDay = (day: string) => new Date(`${day}T12:00`).toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
 
 const MEAL_TIME: Record<MealType, string> = { breakfast: '07:00', lunch: '13:00', dinner: '19:00', snack: '16:00' }
 const nowSlot = () => new Date().toTimeString().slice(0, 5)
@@ -366,8 +367,10 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       <h2>Приёмы пищи</h2>
       {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажми продукт, чтобы изменить или перенести. Смахни влево для быстрых действий.</Tip>}
       {queued > 0 && <p className="queued" role="status">Ждут связи: {queued} — отправим автоматически</p>}
-      {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отмечай съеденное.</p>}
-      {isToday && todayPlan?.finished && editable && <div className="plan-finished">
+      {isToday && todayPlan && !todayPlan.finished && !todayPlan.upcoming && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отмечай съеденное.</p>}
+      {isToday && todayPlan?.upcoming && <p className="sub plan-day-label">Рацион начнётся: {planDay(todayPlan.upcoming)}.</p>}
+      {isToday && todayPlan?.finished && todayPlan.next_start && <p className="sub plan-day-label">Новый рацион начнётся: {planDay(todayPlan.next_start)}.</p>}
+      {isToday && todayPlan?.finished && !todayPlan.next_start && editable && <div className="plan-finished">
         <p className="sub">Рацион закончился. Составим следующий с теми же настройками и новыми блюдами?</p>
         <button className="btn btn-ghost" onClick={() => setPlanning('renew')}>Составить следующий</button>
       </div>}

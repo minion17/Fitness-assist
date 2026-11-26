@@ -67,3 +67,47 @@ def test_plan_snack_goes_to_the_diary_and_the_bot_reminds_before_the_plan_ends(c
     ending = [x for x in sent if 'последний день рациона' in x[0]]
     assert ending and ending[0][1] == [('Составить следующий рацион', 'app:open=renew')]
     assert not [x for x in client.portal.call(run, evening + timedelta(minutes=5)) if 'последний день рациона' in x[0]]  # once
+
+
+
+def test_next_plan_waits_for_the_current_one_and_the_bot_walks_through_the_days(client):
+    from datetime import date, datetime, timedelta
+
+    from backend.bot.reminders import collect
+    from backend.database.db import SessionLocal
+
+    headers = new_user_headers()
+    client.post('/api/consent', headers=headers, json={'health': False})
+    assert client.put('/api/profile', headers=headers, json=PROFILE).status_code == 200
+    meal = lambda name, slot, repeat=False: {'id': name, 'name': name, 'meal': slot, 'repeat': repeat, 'ingredients': [{'grams': 300}],  # noqa: E731
+                                              'nutrition': {'kcal': 500, 'protein_g': 30, 'fat_g': 15, 'carbs_g': 60}}
+    first = {'days': [{'day': 1, 'meals': [meal('Овсянка', 'breakfast'), meal('Суп', 'lunch'), meal('Плов', 'dinner')]},
+                      {'day': 2, 'meals': [meal('Овсянка', 'breakfast'), meal('Плов', 'lunch', True), meal('Гуляш', 'dinner')]}],
+             'shopping': [], 'warnings': []}
+    second = {'days': [{'day': 1, 'meals': [meal('Сырники', 'breakfast')]}], 'shopping': [], 'warnings': []}
+    today = date.today()
+    assert client.put('/api/meal-plan', headers=headers, json={'input': {'allergies': '', 'cookingMode': 'daily'}, 'plan': first}).status_code == 200
+    # saved for the day after the current one ends: the current one keeps its days
+    assert client.put('/api/meal-plan', headers=headers, json={'input': {'allergies': ''}, 'plan': second, 'start': (today + timedelta(days=2)).isoformat()}).status_code == 200
+    got = client.get('/api/meal-plan', headers=headers).json()
+    assert got['plan'] == first and got['next_start'] == (today + timedelta(days=2)).isoformat()
+    assert client.get('/api/meal-plan/today', headers=headers).json()['meals'][0]['name'] == 'Овсянка'
+    assert client.put('/api/meal-plan', headers=headers, json={'input': {'allergies': ''}, 'plan': second, 'start': (today + timedelta(days=30)).isoformat()}).status_code == 422
+
+    me = client.post('/api/auth', headers=headers).json()
+    at = lambda h, m: datetime.now().astimezone().replace(hour=h, minute=m, second=0, microsecond=0)  # noqa: E731
+
+    async def run(when):
+        async with SessionLocal() as s:
+            return [t for c, t, _, _ in await collect(s, when) if c == me['telegram_id']]
+    morning = [t for t in client.portal.call(run, at(8, 31)) if 'Сегодня по рациону' in t]
+    assert morning and 'Завтрак: Овсянка' in morning[0] and 'Ужин: Плов' in morning[0]
+    evening = [t for t in client.portal.call(run, at(20, 31)) if t.startswith('🍳')]
+    assert evening == ['🍳 Завтра на ужин «Гуляш». Готовь сразу 2 порции: вторая — обед на следующий день.']
+    assert not [t for t in client.portal.call(run, at(18, 31)) if 'последний день рациона' in t]  # the next one already waits
+
+    # a plan that starts later: the diary says when
+    other = new_user_headers()
+    client.post('/api/consent', headers=other, json={'health': False})
+    client.put('/api/meal-plan', headers=other, json={'input': {'allergies': ''}, 'plan': second, 'start': (today + timedelta(days=1)).isoformat()})
+    assert client.get('/api/meal-plan/today', headers=other).json() == {'finished': False, 'upcoming': (today + timedelta(days=1)).isoformat(), 'meals': []}

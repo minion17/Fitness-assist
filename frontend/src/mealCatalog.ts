@@ -27,6 +27,9 @@ const names: Record<string, [string, string[]]> = {
  walnut: ['Грецкий орех', ['nuts', 'walnut']], kefir: ['Кефир 2.5%', ['dairy']], honey: ['Мёд натуральный', ['honey']],
  hummus: ['Хумус', ['legumes', 'chickpeas', 'sesame']], crispbread: ['Хлебцы ржаные', ['rye']],
  peanutPaste: ['Арахисовая паста', ['nuts', 'legumes']], tofu: ['Тофу', ['soy', 'legumes']],
+ lavash: ['Лаваш', ['gluten', 'wheat']], edamame: ['Эдамаме', ['soy', 'legumes']], soyMilk: ['Молоко соевое', ['soy']],
+ feta: ['Сыр Фета', ['dairy']], rawCod: ['Треска', ['fish']], rawTurkey: ['Индейка филе', ['turkey', 'poultry', 'meat']],
+ rawBroccoli: ['Брокколи', ['broccoli']],
 }
 /** Approximate shop prices (rubles, autumn 2026) and the pack they come in, for the basket and the weekly budget.
  * Cooked items are priced by what it takes to cook them (a kilo of raw chicken gives ~700 g boiled). */
@@ -42,7 +45,26 @@ const PRICES: Record<string, [number, number]> = {
  greenLentils: [450, 110], peas: [800, 70], sesame: [100, 70], garlic: [100, 40], rawChicken: [1000, 450],
  beef: [1000, 800], mince: [500, 300], tuna: [135, 200], pollock: [1000, 330], oatMilk: [1000, 160],
  walnut: [200, 250], kefir: [930, 100], honey: [250, 250], hummus: [200, 150], crispbread: [100, 80],
- peanutPaste: [300, 230], tofu: [300, 200],
+ peanutPaste: [300, 230], tofu: [300, 200], lavash: [200, 60], edamame: [400, 350], soyMilk: [1000, 180], feta: [200, 250],
+ rawCod: [800, 560], rawTurkey: [1000, 650], rawBroccoli: [400, 200],
+}
+/** Recipes weigh some things cooked («куриное филе отварное»); the shop sells them raw: what to buy and how many grams
+ * of it make a gram of the cooked one. */
+export const BUY: Record<string, [string, number]> = {
+ chicken: ['rawChicken', 1.33], potato: ['rawPotato', 1.05], fish: ['pollock', 1.25], cod: ['rawCod', 1.25],
+ turkey: ['rawTurkey', 1.35], carrot: ['rawCarrot', 1.05], broccoli: ['rawBroccoli', 1],
+}
+/** The name on the shopping list where the catalog's one describes a portion or a state. */
+export const SHOP_NAME: Record<string, string> = {
+ bread: 'Хлеб пшеничный', chickpeas: 'Нут консервированный', egg: 'Яйца', rawCarrot: 'Морковь', rawPotato: 'Картофель',
+ oats: 'Овсяные хлопья', pollock: 'Минтай (филе)', rawCod: 'Треска (филе)', rawTurkey: 'Индейка (филе)', rawChicken: 'Куриная грудка',
+ rawBroccoli: 'Брокколи', pepper: 'Перец болгарский', berries: 'Смородина или другие ягоды (можно замороженные)',
+}
+/** Bought by the piece: the list says «12 шт», not «660 г». */
+export const PIECES: Record<string, number> = { egg: 55, banana: 120, apple: 180, orange: 150, lemon: 100, pepper: 150 }
+export function toBuy(productId: string, grams: number): [string, number] {
+ const [id, k] = BUY[productId] ?? [productId, 1]
+ return [id, grams * k]
 }
 export const INGREDIENTS = Object.fromEntries(Object.entries(names).map(([id, [name, tags]]) => {
  const item = products.find(product => product.name === name)
@@ -51,7 +73,22 @@ export const INGREDIENTS = Object.fromEntries(Object.entries(names).map(([id, [n
  return [id, { ...item, tags, packGrams, packRub }]
 }))
 const recipe = (id: string, name: string, meal: 'breakfast' | 'lunch' | 'dinner' | 'main' | 'snack', items: [string, number][], instructions: string) => ({ id, name, meal, ingredients: items.map(([product, grams]) => ({ product, grams })), instructions })
-export const RECIPES = [
+/** About how long a dish takes, hands and stove together, minutes. */
+const MINUTES: Record<string, number> = {
+ syrniki: 30, shakshuka: 25, 'millet-pumpkin': 35, 'curd-casserole': 50, 'apple-pancakes': 25, 'cheese-omelette': 15, 'hummus-toast': 15,
+ 'banana-oat-pancakes': 20, 'chicken-pilaf': 60, 'navy-pasta': 30, 'stuffed-peppers': 60, 'beef-goulash': 90, 'lentil-soup': 35,
+ 'bean-chili': 35, 'chickpea-curry': 30, 'pea-soup': 70, 'lentil-pasta': 35, mujadara: 45, 'potato-mince-bake': 60,
+ 'chicken-noodle-soup': 45, 'fish-chowder': 40, 'tuna-pasta': 20, 'lazy-cabbage-rolls': 60, 'chicken-stroganoff': 40,
+ 'oats-apple': 10, 'curd-banana': 5, 'eggs-potato': 25, 'chicken-rice': 25, 'fish-rice': 25, 'turkey-potato': 30,
+ 'chicken-broccoli': 30, 'fish-potato': 30, 'turkey-rice': 25, 'cod-broccoli': 25, 'oats-banana-peanut': 10, 'chicken-buckwheat': 25,
+ 'buckwheat-apple-peanut': 20, 'oats-apple-peanut': 10, 'curd-apple-peanut': 5, 'egg-buckwheat-tomato': 20,
+ 'buckwheat-vegetables-peanut': 25, 'chicken-potato-salad': 30, 'cod-potato-carrot': 30, 'curd-potato-tomato': 30, 'egg-broccoli': 30,
+ 'egg-potato-cucumber': 30, 'egg-rice': 25, 'fish-buckwheat': 25, 'rice-broccoli-peanut': 25, 'turkey-buckwheat': 25,
+ 'tofu-buckwheat': 25, 'tofu-rice': 25, 'yogurt-berries': 3, 'kefir-banana': 3, 'cheese-sandwich': 5, 'apple-peanut': 2,
+ 'hummus-crispbread': 3, 'curd-honey': 3, 'peanut-crispbread': 3, 'eggs-cucumber': 12, 'tofu-scramble': 15, 'chickpea-salad': 10,
+ 'lavash-tofu': 15, 'lentil-tofu': 30, edamame: 8, 'soy-banana': 3, 'curd-omelette': 15, 'yogurt-oats': 10, 'feta-chickpea-salad': 10,
+}
+const RECIPE_LIST = [
  recipe('syrniki', 'Сырники со смородиной и йогуртом', 'breakfast',
    [['curd', 180], ['egg', 25], ['flour', 35], ['oil', 6], ['berries', 45], ['yogurt', 50]],
    '1. Разомни сухой творог, вмешай взбитое яйцо и большую часть муки. Оставь немного муки для обваливания. 2. Сформируй небольшие шайбы и слегка припудри мукой. Обжарь на масле с обеих сторон, затем подержи под крышкой на слабом огне до готовности. 3. Разомни смородину вилкой и подай с сырниками и йогуртом.'),
@@ -165,7 +202,17 @@ export const RECIPES = [
  recipe('curd-honey','Творог с мёдом и орехами','snack',[['curd',180],['honey',15],['walnut',15]],'1. Выложи творог в миску и разомни вилкой. 2. Полей мёдом. 3. Посыпь порубленными грецкими орехами и перемешай.'),
  recipe('peanut-crispbread','Хлебцы с арахисовой пастой и бананом','snack',[['crispbread',30],['peanutPaste',25],['banana',120]],'1. Намажь хлебцы тонким слоем арахисовой пасты. 2. Очисти банан и нарежь кружками. 3. Выложи банан на хлебцы и ешь сразу, пока хлебцы хрустят.'),
  recipe('eggs-cucumber','Яйца вкрутую с огурцом и хлебом','snack',[['egg',110],['cucumber',120],['bread',30]],'1. Отвари яйца вкрутую 9 минут, остуди в холодной воде и очисти; указан вес без скорлупы. 2. Нарежь огурец. 3. Подай с ломтиком хлеба, яйца посоли по вкусу.'),
+ // more protein for the vegetarian and vegan menus
+ recipe('tofu-scramble','Скрэмбл из тофу с помидорами и тостом','breakfast',[['tofu',220],['tomato',120],['onion',30],['oil',8],['bread',60]],'1. Мелко нарежь лук и обжарь на масле 3 минуты. 2. Раскроши тофу руками прямо в сковороду, добавь нарезанные помидоры, соль и щепотку куркумы, если есть. 3. Готовь 5 минут, помешивая, и подай с подсушенным хлебом.'),
+ recipe('chickpea-salad','Салат с нутом, огурцом и помидорами','main',[['chickpeas',220],['cucumber',150],['tomato',150],['oil',12],['lemon',15],['bread',40]],'1. Слей жидкость с нута и промой его. 2. Нарежь огурец и помидоры кубиками. 3. Смешай с нутом, заправь маслом, лимонным соком и солью, подай с хлебом.'),
+ recipe('lavash-tofu','Лаваш с тофу, хумусом и овощами','lunch',[['lavash',80],['tofu',170],['hummus',40],['cucumber',100],['tomato',100]],'1. Тофу нарежь брусками и обжарь на сухой сковороде до корочки, посоли. 2. Намажь лаваш хумусом, выложи тофу и нарезанные овощи. 3. Сверни плотным рулетом и разрежь пополам.'),
+ recipe('lentil-tofu','Красная чечевица с тофу и морковью','main',[['lentils',80],['tofu',170],['rawCarrot',100],['onion',40],['oil',10]],'1. Промой чечевицу и свари в подсоленной воде 15 минут до мягкости. 2. Обжарь на масле лук и тёртую морковь, добавь тофу кубиками и подрумянь 5 минут. 3. Смешай с чечевицей и прогрей ещё 2 минуты.'),
+ recipe('edamame','Эдамаме с солью','snack',[['edamame',180]],'1. Опусти замороженные бобы эдамаме в кипящую подсоленную воду. 2. Вари 4–5 минут и откинь на дуршлаг. 3. Посоли крупной солью и ешь, выдавливая бобы из стручков.'),
+ recipe('soy-banana','Соевое молоко с бананом и арахисом','snack',[['soyMilk',300],['banana',120],['peanut',15]],'1. Очисти банан и разломи на куски. 2. Взбей с соевым молоком и арахисом блендером до однородности. 3. Пей сразу, пока коктейль не расслоился.'),
+ recipe('curd-omelette','Омлет с творогом и зеленью','breakfast',[['egg',165],['curd',100],['dill',5],['oil',5],['bread',40]],'1. Взбей яйца с творогом и щепоткой соли, добавь рубленый укроп. 2. Вылей на разогретую сковороду с маслом, накрой крышкой и готовь на слабом огне 6–7 минут. 3. Подай с ломтиком хлеба.'),
+ recipe('yogurt-oats','Овсянка с греческим йогуртом и ягодами','breakfast',[['oats',60],['yogurt',200],['berries',80],['honey',8]],'1. Отвесь сухие хлопья и свари на воде по инструкции на упаковке, дай немного остыть. 2. Выложи в миску, сверху греческий йогурт. 3. Добавь ягоды и полей мёдом.'),
+ recipe('feta-chickpea-salad','Салат с фетой и нутом','main',[['feta',60],['chickpeas',160],['cucumber',150],['tomato',150],['oil',8],['bread',40]],'1. Слей жидкость с нута и промой его. 2. Нарежь огурец, помидоры и фету кубиками. 3. Смешай всё, заправь маслом и подай с хлебом.'),
 ]
-
+export const RECIPES = RECIPE_LIST.map(r => ({ ...r, minutes: MINUTES[r.id] ?? 30 }))
 /** Dishes with a photo in public/images/recipes; the rest (snacks, the tofu dishes for now) get a drawn icon. */
 export const RECIPE_PHOTOS: ReadonlySet<string> = new Set(['apple-pancakes', 'banana-oat-pancakes', 'bean-chili', 'beef-goulash', 'buckwheat-apple-peanut', 'buckwheat-vegetables-peanut', 'cheese-omelette', 'chicken-broccoli', 'chicken-buckwheat', 'chicken-noodle-soup', 'chicken-pilaf', 'chicken-potato-salad', 'chicken-rice', 'chicken-stroganoff', 'chickpea-curry', 'cod-broccoli', 'cod-potato-carrot', 'curd-apple-peanut', 'curd-banana', 'curd-casserole', 'curd-potato-tomato', 'egg-broccoli', 'egg-buckwheat-tomato', 'egg-potato-cucumber', 'egg-rice', 'eggs-potato', 'fish-buckwheat', 'fish-chowder', 'fish-potato', 'fish-rice', 'hummus-toast', 'lazy-cabbage-rolls', 'lentil-pasta', 'lentil-soup', 'millet-pumpkin', 'mujadara', 'navy-pasta', 'oats-apple-peanut', 'oats-apple', 'oats-banana-peanut', 'pea-soup', 'potato-mince-bake', 'potato-vegetables', 'rice-broccoli-peanut', 'rice-vegetables', 'shakshuka', 'stuffed-peppers', 'syrniki', 'tuna-pasta', 'turkey-buckwheat', 'turkey-potato', 'turkey-rice'])

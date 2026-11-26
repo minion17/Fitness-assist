@@ -1,4 +1,4 @@
-import { INGREDIENTS, RECIPES } from './mealCatalog'
+import { INGREDIENTS, RECIPES, SHOP_NAME, toBuy } from './mealCatalog'
 
 type Nutrients = { kcal: number; protein_g: number; fat_g: number; carbs_g: number }
 type Macros = Omit<Nutrients, 'kcal'>
@@ -19,7 +19,9 @@ export type PlanInput = {
   cookingMode?: CookingFrequency
   batchDays?: 2 | 7
   goalLabel?: string
+  quick?: boolean // dishes up to QUICK minutes are preferred
 }
+export const QUICK = 30
 const slots = ['breakfast', 'lunch', 'snack', 'dinner'] as const // the order of a day
 const MAIN = ['breakfast', 'lunch', 'dinner'] as const
 /** From this many calories three meals would need oversized plates: a snack takes a share. */
@@ -32,6 +34,8 @@ export type Meal = {
   id: string; name: string; meal: Slot; instructions: string; tags: string[]
   ingredients: { product: string; productId: string; grams: number }[]
   nutrition: Nutrients; costRub: number | null; portions: number
+  minutes?: number
+  repeat?: boolean // cooked earlier: last night's dinner for lunch, or a dish from this batch
 }
 type Day = { day: number; meals: Meal[]; totals: Nutrients }
 type ShoppingItem = { product: string; productId: string; grams: number; packs: number; packGrams: number; costRub: number | null }
@@ -112,11 +116,15 @@ function fractions(withSnack: boolean) {
   return slots.map(s => s === 'snack' ? (withSnack ? .12 : 0) : ({ breakfast: .30, lunch: .38, dinner: .32 })[s] * k)
 }
 type Recipe = typeof RECIPES[number]
-type Weights = Map<string, number>
+type Weights = Map<string, number> // what to buy (raw, by the shop's product) -> grams
+/** Vegetables and herbs keep their amount when a portion grows or shrinks: a smaller plate is less rice and oil, not
+ * fewer cucumbers; a bigger one is not 600 g of tomatoes. */
+const FIXED = new Set(['tomato', 'cucumber', 'broccoli', 'rawBroccoli', 'carrot', 'rawCarrot', 'pumpkin', 'onion', 'pepper', 'cabbage',
+  'dill', 'garlic', 'chili', 'lemon', 'tomatoPaste'])
 function packCost(id: string, grams: number, whole: boolean) {
   const { packRub, packGrams } = INGREDIENTS[id]
   if (!(packGrams > 0 && packRub > 0 && Number.isFinite(packRub) && Number.isFinite(packGrams))) return null
-  return (whole ? Math.ceil(grams / packGrams) : grams / packGrams) * packRub
+  return (whole ? Math.ceil(grams / packGrams - 1e-9) : grams / packGrams) * packRub
 }
 function sumKnown(items: (number | null)[]) {
   let sum = 0
@@ -127,27 +135,43 @@ function sumKnown(items: (number | null)[]) {
   return rub(sum)
 }
 function portion(r: Recipe, slot: number, calories: number, tags: string[]): Meal {
-  const base = r.ingredients.reduce((sum, i) => sum + INGREDIENTS[i.product].kcal * i.grams / 100, 0)
-  const scale = Math.min(2.3, Math.max(.60, calories / base)) // a double plate is what a 3 500 kcal day takes
+  const kcal = (fixed: boolean) => r.ingredients.reduce((sum, i) => sum + (FIXED.has(i.product) === fixed ? INGREDIENTS[i.product].kcal * i.grams / 100 : 0), 0)
+  const scale = Math.min(2.8, Math.max(.35, (calories - kcal(true)) / Math.max(1, kcal(false))))
   const nutrition = emptyTotals()
   const ingredients = r.ingredients.map(({ product: productId, grams: initial }) => {
     const p = INGREDIENTS[productId]
-    const grams = Math.max(1, Math.round(initial * scale))
+    const grams = Math.max(1, Math.round(FIXED.has(productId) ? initial : initial * scale))
     for (const key of nutrientKeys) nutrition[key] += p[key] * grams / 100
     return { product: p.name, productId, grams }
   })
   for (const key of nutrientKeys) nutrition[key] = Math.round(nutrition[key])
-  return { id: r.id, name: r.name, instructions: r.instructions, meal: slots[slot], tags, ingredients, nutrition,
-    portions: 1, costRub: sumKnown(ingredients.map(i => packCost(i.productId, i.grams, false))) }
+  return { id: r.id, name: r.name, instructions: r.instructions, meal: slots[slot], tags, ingredients, nutrition, minutes: r.minutes,
+    portions: 1, costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false))) }
 }
 function addMeal(weights: Weights, meal: Meal) {
-  for (const i of meal.ingredients) weights.set(i.productId, (weights.get(i.productId) ?? 0) + i.grams * meal.portions)
+  for (const i of meal.ingredients) {
+    const [id, grams] = toBuy(i.productId, i.grams * meal.portions)
+    weights.set(id, (weights.get(id) ?? 0) + grams)
+  }
 }
 function totals(meals: Meal[]) {
   const sum = emptyTotals()
   for (const m of meals) for (const key of nutrientKeys) sum[key] += m.nutrition[key]
   return sum
 }
+/** Lunch and dinner cooked together share one dish: `daily` — tonight's dinner in two portions, the second is
+ * tomorrow's lunch; `batch` — one dish for the lunches and another for the dinners of N days. null: cooked on its own. */
+function groupKey(input: PlanInput, selected: readonly Slot[], dayIndex: number, slot: Slot): string | null {
+  if (!isMain(slot)) return null
+  if (input.cookingMode === 'batch') return `${slot}:${Math.floor(dayIndex / (input.batchDays ?? 2))}`
+  if (input.cookingMode === 'daily' && selected.includes('lunch') && selected.includes('dinner')) {
+    if (slot === 'dinner') return `pair:${dayIndex}`
+    return dayIndex > 0 ? `pair:${dayIndex - 1}` : null
+  }
+  return null
+}
+/** How many breakfasts take turns: nobody cooks a new one every morning. */
+const BREAKFASTS: Record<CookingFrequency, number> = { daily: 3, batch: 2, varied: 7 }
 function setup(input: PlanInput) {
   if (![1, 3, 7, 14].includes(input.days)) throw new Error('Выбери срок 1, 3, 7 или 14 дней.')
   if (!Number.isFinite(input.calories) || input.calories < 1200 || input.calories > 6000) throw new Error('Укажи ориентир от 1200 до 6000 ккал.')
@@ -164,13 +188,15 @@ function setup(input: PlanInput) {
   const absent: string[] = []
   const excluded = new Set([...readTags(input.allergies, true, absent), ...readTags(input.disliked, false, absent), ...dietaryTags[input.dietary ?? 'omnivore']])
   const liked = readTags(input.liked, false)
+  // dishes cooked for two meals may be any lunch or dinner one
+  const shared = input.cookingMode === 'batch' || input.cookingMode === 'daily'
   const pick = (withSnack: boolean) => {
     const fr = fractions(withSnack)
     return slots.map((slot, index) => RECIPES.flatMap(r => {
       if (input.dislikedRecipeIds?.includes(r.id)) return []
       if (slot === 'snack' ? r.meal !== 'snack' : r.meal === 'snack') return []
-      const batchMain = input.cookingMode === 'batch' && isMain(slot) && r.meal !== 'breakfast'
-      if (r.meal !== slot && !(isMain(slot) && r.meal === 'main') && !batchMain) return []
+      const anyMain = shared && isMain(slot) && r.meal !== 'breakfast'
+      if (r.meal !== slot && !(isMain(slot) && r.meal === 'main') && !anyMain) return []
       const tags = [...new Set(r.ingredients.flatMap(i => [i.product, ...INGREDIENTS[i.product].tags]))]
       return tags.some(tag => excluded.has(tag)) ? [] : [portion(r, index, input.calories * fr[index], tags)]
     }))
@@ -184,11 +210,14 @@ function setup(input: PlanInput) {
   const notes = [...new Set(absent)].map(w => `«${w}» нет ни в одном нашем блюде, так что в рационе этого нет.`)
   return { choices, liked, selected, excluded, fr, notes }
 }
-function quality(meal: Meal, target: Nutrients, liked: Set<string>, uses: Map<string, number>) {
+function quality(input: PlanInput, meal: Meal, target: Nutrients, liked: Set<string>, uses: Map<string, number>) {
   const kcalError = Math.abs(meal.nutrition.kcal - target.kcal) / Math.max(1, target.kcal)
   let macroError = 0
   for (const key of macroKeys) macroError += Math.abs(meal.nutrition[key] - target[key]) / Math.max(5, target[key])
-  return kcalError * 4 + macroError * .45 + (uses.get(meal.id) ?? 0) * .8 - meal.tags.filter(t => liked.has(t)).length * .55
+  const slow = input.quick && (meal.minutes ?? 0) > QUICK ? 1.5 : 0
+  // too little protein costs more than too much: it's the macro people fall short of
+  const short = Math.max(0, target.protein_g - meal.nutrition.protein_g) / Math.max(5, target.protein_g)
+  return kcalError * 4 + macroError * .45 + short * 2 + (uses.get(meal.id) ?? 0) * .8 - meal.tags.filter(t => liked.has(t)).length * .55 + slow
 }
 type Ctx = { selected: readonly Slot[]; fr: number[]; notes: string[] }
 const selectedShare = (ctx: Ctx) => slots.reduce((sum, s, i) => sum + (ctx.selected.includes(s) ? ctx.fr[i] : 0), 0)
@@ -203,9 +232,10 @@ function targetFor(input: PlanInput, ctx: Ctx, previous: Meal[], share: number) 
 function addedCost(weights: Weights, meal: Meal) {
   let delta = 0
   for (const i of meal.ingredients) {
-    const old = weights.get(i.productId) ?? 0
-    const after = packCost(i.productId, old + i.grams * meal.portions, true)
-    const before = packCost(i.productId, old, true)
+    const [id, grams] = toBuy(i.productId, i.grams * meal.portions)
+    const old = weights.get(id) ?? 0
+    const after = packCost(id, old + grams, true)
+    const before = packCost(id, old, true)
     if (after === null || before === null) return null
     delta += after - before
   }
@@ -215,9 +245,10 @@ function compile(input: PlanInput, ctx: Ctx, days: Day[]): MealPlan {
   const weights: Weights = new Map()
   const meals = days.flatMap(d => d.meals)
   meals.forEach(m => addMeal(weights, m))
-  const shopping = Array.from(weights, ([productId, grams]) => {
-    const { name: product, packGrams } = INGREDIENTS[productId]
-    return { productId, product, grams, packGrams, packs: Math.ceil(grams / packGrams), costRub: packCost(productId, grams, true) }
+  const shopping = Array.from(weights, ([productId, raw]) => {
+    const grams = Math.round(raw)
+    const { name, packGrams } = INGREDIENTS[productId]
+    return { productId, product: SHOP_NAME[productId] ?? name, grams, packGrams, packs: Math.ceil(grams / packGrams), costRub: packCost(productId, grams, true) }
   }).sort((a, b) => a.product.localeCompare(b.product, 'ru'))
   const basketCostRub = sumKnown(shopping.map(i => i.costRub))
   const portionCostRub = sumKnown(meals.map(m => m.costRub))
@@ -234,55 +265,50 @@ function distinct(pool: Meal[], others: Meal[]) {
   const alternatives = pool.filter(m => others.every(other => m.id !== other.id))
   return alternatives.length ? alternatives : pool
 }
-function animalSources(meal: Meal) {
-  // The same meat can appear raw in one recipe and already cooked in another.
-  const sources: Record<string, string> = { rawChicken: 'chicken', mince: 'beef', pollock: 'fish' }
-  return meal.ingredients
-    .filter(i => INGREDIENTS[i.productId].tags.some(t => t === 'meat' || t === 'fish'))
-    .map(i => sources[i.productId] ?? i.productId)
-}
-function fitsDaily(meals: Meal[]) {
-  return new Set(meals.flatMap(animalSources)).size <= 1
-}
+const portionsOf = (input: PlanInput, slot: Slot) => input.sharedMeals?.includes(slot) ? input.persons ?? 1 : 1
 /** `avoid`: dishes of the previous plan, so the next one (the same answers) brings new ones first. */
 export function createMealPlan(input: PlanInput, avoid: readonly string[] = []): MealPlan {
   const { choices, liked, selected, fr, notes } = setup(input)
   const ctx: Ctx = { selected, fr, notes }
-  // First try the preferred menu. If over budget, increase the influence of package
-  // purchases. Return the least expensive attempt with a warning if none fits.
+  const breakfasts = BREAKFASTS[input.cookingMode ?? 'varied']
+  // Price always counts a little: fewer half-used packs and a shorter list. Over budget, it counts more.
+  // Return the least expensive attempt with a warning if none fits.
   let best: MealPlan | undefined
-  for (const priceWeight of [0, .6, 3, 12]) {
+  for (const priceWeight of [.15, 1.5, 4, 12]) {
     const weights: Weights = new Map()
     const uses = new Map<string, number>(avoid.map(id => [id, 1]))
+    const assigned = new Map<string, string>() // cooking group -> its dish
+    const morning = new Set<string>()
     const days: Day[] = []
-    let batchId: string | undefined
     for (let day = 1; day <= input.days; day++) {
       const meals: Meal[] = []
-      if ((day - 1) % (input.batchDays ?? 2) === 0) batchId = undefined
       for (let s = 0; s < slots.length; s++) {
-        if (!selected.includes(slots[s])) continue
-        const target = targetFor(input, ctx, meals, fr[s] / fr.slice(s).reduce((a, b, i) => a + (selected.includes(slots[s + i]) ? b : 0), 0))
+        const slot = slots[s]
+        if (!selected.includes(slot)) continue
+        const key = groupKey(input, selected, day - 1, slot)
+        const forced = key ? assigned.get(key) : undefined
         let pool = choices[s]
-        if (input.cookingMode === 'batch' && isMain(slots[s]) && batchId) pool = pool.filter(m => m.id === batchId)
-        if (input.cookingMode === 'daily') {
-          pool = pool.filter(m => fitsDaily([...meals, m]) && slots.slice(s + 1).every((slot, i) =>
-            !selected.includes(slot) || choices[s + i + 1].some(next => fitsDaily([...meals, m, next]))))
+        if (forced) pool = pool.filter(m => m.id === forced)
+        else {
+          pool = distinct(pool, meals)
+          if (slot === 'breakfast' && morning.size >= breakfasts) pool = pool.filter(m => morning.has(m.id))
         }
-        if (input.cookingMode !== 'batch' || !isMain(slots[s])) pool = distinct(pool, meals)
         if (!pool.length) throw new Error('Не удалось подобрать блюда для выбранной частоты готовки с учётом ограничений.')
+        const target = targetFor(input, ctx, meals, fr[s] / fr.slice(s).reduce((a, b, i) => a + (selected.includes(slots[s + i]) ? b : 0), 0))
         let bestMeal = pool[0]
         let bestScore = Infinity
-        for (const m of pool) {
-          const candidate = { ...m, portions: input.sharedMeals?.includes(slots[s]) ? input.persons ?? 1 : 1 }
+        if (!forced) for (const m of pool) {
+          const candidate = { ...m, portions: portionsOf(input, slot) }
           const delta = addedCost(weights, candidate)
           const costScore = delta === null || m.costRub === null ? 10000 : (delta + m.costRub * .6) / 100
           const previousDay = days.at(-1)?.meals.some(previous => previous.id === m.id)
-          const score = quality(m, target, liked, uses) - (input.likedRecipeIds?.includes(m.id) ? 1 : 0) + (previousDay ? .65 : 0) + priceWeight * costScore
+          const score = quality(input, m, target, liked, uses) - (input.likedRecipeIds?.includes(m.id) ? 1 : 0) + (previousDay ? .65 : 0) + priceWeight * costScore
           if (score < bestScore) { bestScore = score; bestMeal = m }
         }
-        bestMeal = { ...bestMeal, portions: input.sharedMeals?.includes(slots[s]) ? input.persons ?? 1 : 1 }
+        bestMeal = { ...bestMeal, portions: portionsOf(input, slot), ...(forced ? { repeat: true } : {}) }
         meals.push(bestMeal)
-        if (input.cookingMode === 'batch' && isMain(slots[s])) batchId = bestMeal.id
+        if (key && !forced) assigned.set(key, bestMeal.id)
+        if (slot === 'breakfast') morning.add(bestMeal.id)
         uses.set(bestMeal.id, (uses.get(bestMeal.id) ?? 0) + 1)
         addMeal(weights, bestMeal)
       }
@@ -294,8 +320,8 @@ export function createMealPlan(input: PlanInput, avoid: readonly string[] = []):
   }
   return best!
 }
-/** Other dishes for one meal of the plan, best first, each with the plan it would make (a batch dish changes in all
- * its days). */
+/** Other dishes for one meal of the plan, best first, each with the plan it would make. A dish cooked for several meals
+ * (tonight's dinner and tomorrow's lunch, a batch) changes in all of them. */
 export function replacementOptions(input: PlanInput, plan: MealPlan, dayIndex: number, mealIndex: number): { meal: Meal; plan: MealPlan }[] {
   const { choices, liked, selected, excluded, fr, notes } = setup(input)
   const ctx: Ctx = { selected, fr, notes }
@@ -307,75 +333,61 @@ export function replacementOptions(input: PlanInput, plan: MealPlan, dayIndex: n
     })
   const day = plan.days[dayIndex]
   if (plan.days.length !== input.days || !day?.meals[mealIndex]) throw new Error('Выбранное блюдо не найдено.')
-  const otherMeals = day.meals.filter((_, i) => i !== mealIndex)
   const slot = day.meals[mealIndex].meal
-  const slotIndex = slots.indexOf(slot)
   if (!selected.includes(slot)) throw new Error('Приёмы пищи изменились. Составь рацион заново.')
-  const budget = input.budget == null ? Infinity : rub(input.budget * input.days / 7)
-  if (input.cookingMode === 'batch' && isMain(slot)) {
-    const batchLength = input.batchDays ?? 2
-    const batchStart = Math.floor(dayIndex / batchLength) * batchLength
-    const batchEnd = Math.min(plan.days.length, batchStart + batchLength)
-    const weights: Weights = new Map()
-    const uses = new Map<string, number>()
-    for (const [d, current] of plan.days.entries()) for (const meal of current.meals) {
-      if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составь рацион заново.')
-      if (d >= batchStart && d < batchEnd && isMain(meal.meal)) continue
-      addMeal(weights, meal)
-      uses.set(meal.id, (uses.get(meal.id) ?? 0) + 1)
-    }
-    const pool = choices[slotIndex].filter(m => m.id !== day.meals[mealIndex].id)
-    if (!pool.length) throw new Error('С учётом ограничений другой вариант для этого приёма пищи не найден.')
-    const baseCost = sumKnown(Array.from(weights, ([id, g]) => packCost(id, g, true)))
-    return pool.flatMap(candidate => {
-      const candidateWeights = new Map(weights)
-      let score = 0
-      let ok = true
-      const days = plan.days.map((current, d) => {
-        if (d < batchStart || d >= batchEnd) return current
-        const meals = current.meals.map(old => {
-          if (!isMain(old.meal)) return old
-          const replacement = choices[slots.indexOf(old.meal)].find(m => m.id === candidate.id)
-          if (!replacement) { ok = false; return old }
-          const meal = { ...replacement, portions: input.sharedMeals?.includes(old.meal) ? input.persons ?? 1 : 1 }
-          addMeal(candidateWeights, meal)
-          score += quality(meal, targetFor(input, ctx, current.meals.filter(m => !isMain(m.meal)), 1), liked, uses)
-          return meal
-        })
-        return { ...current, meals, totals: totals(meals) }
-      })
-      if (!ok) return []
-      const cost = sumKnown(Array.from(candidateWeights, ([id, g]) => packCost(id, g, true)))
-      const excess = baseCost === null || cost === null ? Infinity : Math.max(0, cost - budget)
-      const next = compile(input, ctx, days)
-      return [{ meal: next.days[dayIndex].meals[mealIndex], plan: next, excess, score: score - (input.likedRecipeIds?.includes(candidate.id) ? 1 : 0) }]
-    }).sort((a, b) => a.excess - b.excess || a.score - b.score).map(({ meal, plan }) => ({ meal, plan }))
-  }
-  let pool = choices[slotIndex].filter(m => m.id !== day.meals[mealIndex].id)
-  if (input.cookingMode === 'daily') pool = pool.filter(m => fitsDaily([...otherMeals, m]))
-  pool = distinct(pool, otherMeals)
-  if (!pool.length) throw new Error('С учётом ограничений другой вариант для этого приёма пищи не найден.')
+  const key = groupKey(input, selected, dayIndex, slot)
+  const cells = key ? plan.days.flatMap((d, di) => d.meals.flatMap((m, mi) => groupKey(input, selected, di, m.meal) === key ? [[di, mi] as const] : []))
+    : [[dayIndex, mealIndex] as const]
+  const inGroup = (di: number, mi: number) => cells.some(([d, m]) => d === di && m === mi)
   const weights: Weights = new Map()
   const uses = new Map<string, number>()
-  for (const [d, current] of plan.days.entries()) for (const [s, meal] of current.meals.entries()) {
-    if (d === dayIndex && s === mealIndex) continue
+  for (const [d, current] of plan.days.entries()) for (const [m, meal] of current.meals.entries()) {
     if (!allowedSavedMeal(meal)) throw new Error('Ограничения изменились. Составь рацион заново.')
+    if (inGroup(d, m)) continue
     addMeal(weights, meal)
     uses.set(meal.id, (uses.get(meal.id) ?? 0) + 1)
   }
+  const others = day.meals.filter((_, i) => !inGroup(dayIndex, i))
+  const pool = distinct(choices[slots.indexOf(slot)].filter(m => m.id !== day.meals[mealIndex].id), others)
+  if (!pool.length) throw new Error('С учётом ограничений другой вариант для этого приёма пищи не найден.')
   const baseCost = sumKnown(Array.from(weights, ([id, g]) => packCost(id, g, true)))
-  const target = targetFor(input, ctx, otherMeals, 1)
-  return pool.map(m => {
-    const meal = { ...m, portions: input.sharedMeals?.includes(m.meal) ? input.persons ?? 1 : 1 }
-    const delta = addedCost(weights, meal)
-    const excess = baseCost === null || delta === null ? Infinity : Math.max(0, baseCost + delta - budget)
-    return { meal, excess, score: quality(m, target, liked, uses) - (input.likedRecipeIds?.includes(m.id) ? 1 : 0) }
-  }).sort((a, b) => a.excess - b.excess || a.score - b.score).map(({ meal }) => {
-    const meals = day.meals.map((m, s) => s === mealIndex ? meal : m)
-    return { meal, plan: compile(input, ctx, plan.days.map((d, i) => i === dayIndex ? { ...d, meals, totals: totals(meals) } : d)) }
-  })
+  const budget = input.budget == null ? Infinity : rub(input.budget * input.days / 7)
+  return pool.flatMap(candidate => {
+    const candidateWeights = new Map(weights)
+    let score = 0
+    let ok = true
+    const days = plan.days.map((current, d) => {
+      if (!current.meals.some((_, m) => inGroup(d, m))) return current
+      const meals = current.meals.map((old, m) => {
+        if (!inGroup(d, m)) return old
+        const replacement = choices[slots.indexOf(old.meal)].find(x => x.id === candidate.id)
+        if (!replacement) { ok = false; return old }
+        const first = cells[0][0] === d && cells[0][1] === m
+        const meal: Meal = { ...replacement, portions: portionsOf(input, old.meal), ...(first ? {} : { repeat: true }) }
+        addMeal(candidateWeights, meal)
+        score += quality(input, meal, targetFor(input, ctx, current.meals.filter((_, i) => !inGroup(d, i)), 1), liked, uses)
+        return meal
+      })
+      return { ...current, meals, totals: totals(meals) }
+    })
+    if (!ok) return []
+    const cost = sumKnown(Array.from(candidateWeights, ([id, g]) => packCost(id, g, true)))
+    const excess = baseCost === null || cost === null ? Infinity : Math.max(0, cost - budget)
+    const next = compile(input, ctx, days)
+    return [{ meal: next.days[dayIndex].meals[mealIndex], plan: next, excess, score: score / cells.length - (input.likedRecipeIds?.includes(candidate.id) ? 1 : 0) }]
+  }).sort((a, b) => a.excess - b.excess || a.score - b.score).map(({ meal, plan }) => ({ meal, plan }))
 }
 
 /** The best other dish for one meal. */
 export const replaceMeal = (input: PlanInput, plan: MealPlan, dayIndex: number, mealIndex: number): MealPlan =>
   replacementOptions(input, plan, dayIndex, mealIndex)[0].plan
+
+/** «Пересобрать день»: every meal of the day swapped for its best other dish (dishes shared with other days change there too). */
+export function rebuildDay(input: PlanInput, plan: MealPlan, dayIndex: number): MealPlan {
+  let next = plan
+  for (let i = 0; i < plan.days[dayIndex].meals.length; i++) {
+    const options = replacementOptions(input, next, dayIndex, i)
+    if (options.length) next = options[0].plan
+  }
+  return next
+}

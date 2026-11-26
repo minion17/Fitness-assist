@@ -39,7 +39,8 @@ export function RecipeCard({ meal, batch = false, error, onClose, options, onPic
       <button autoFocus className="plan-recipe-close" aria-label="Закрыть рецепт" onClick={onClose}>×</button>
       <DishPhoto className="plan-recipe-cover" id={meal.id} name={meal.name} alt={`Пример блюда: ${meal.name}`} />
       <div className="plan-recipe-body">
-        <span className="plan-slot">{labels[meal.meal]}{meal.portions > 1 && ` · на ${meal.portions} чел.`}</span>
+        <span className="plan-slot">{labels[meal.meal]}{meal.portions > 1 && ` · на ${meal.portions} чел.`}{meal.minutes ? ` · ${meal.minutes} мин` : ''}</span>
+        {meal.repeat && <p className="sub">{meal.meal === 'lunch' && !batch ? 'Это вчерашний ужин: его готовили на 2 порции.' : 'Приготовлено заранее, вместе с партией.'}</p>}
         <h2 id="plan-recipe-title">{meal.name}</h2>
         <dl className="plan-nutrients" aria-label="КБЖУ одной порции">
           {[[meal.nutrition.kcal, 'ккал'], [meal.nutrition.protein_g, 'белки, г'], [meal.nutrition.fat_g, 'жиры, г'], [meal.nutrition.carbs_g, 'углеводы, г']].map(([value, label]) =>
@@ -65,8 +66,9 @@ export function RecipeCard({ meal, batch = false, error, onClose, options, onPic
   </dialog>
 }
 
-export default function MealDay({ day, batch, error, options, onPick, onBack, onClearError }: {
+export default function MealDay({ day, batch, error, options, onPick, onBack, onClearError, onRebuild }: {
   day: Day; batch: boolean; error: string; options: (index: number) => Option[]; onPick: (plan: MealPlan) => void; onBack: () => void; onClearError: () => void
+  onRebuild?: () => void // every dish of the day swapped at once
 }) {
   useBack(onBack)
   const [active, setActive] = useState<number | null>(null)
@@ -78,9 +80,12 @@ export default function MealDay({ day, batch, error, options, onPick, onBack, on
     <div className="plan-day-menu">{day.meals.map((meal, index) =>
       <button className="plan-meal-link" key={meal.meal} aria-label={`Открыть ${labels[meal.meal]} — ${meal.name}`} onClick={() => setActive(index)}>
         <DishPhoto id={meal.id} name={meal.name} />
-        <span className="plan-meal-copy"><span className="plan-slot">{labels[meal.meal]}</span><strong>{meal.name}</strong><small>{meal.nutrition.kcal} ккал{meal.portions > 1 && ` · на ${meal.portions} чел.`}</small></span>
+        <span className="plan-meal-copy"><span className="plan-slot">{labels[meal.meal]}</span><strong>{meal.name}</strong><small>{meal.nutrition.kcal} ккал{meal.minutes && !meal.repeat ? ` · ${meal.minutes} мин` : ''}{meal.repeat ? (meal.meal === 'lunch' && !batch ? ' · вчерашний ужин' : ' · из партии') : ''}{meal.portions > 1 && ` · на ${meal.portions} чел.`}</small></span>
         <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
       </button>)}</div>
+    {onRebuild && <button className="btn btn-ghost plan-rebuild" onClick={onRebuild}>Пересобрать день</button>}
+    {error && active === null && <p role="alert">{error}</p>}
+    {onRebuild && <p className="sub">Все блюда дня заменятся другими. Если ужин был на 2 порции или из партии, он поменяется и в соседних днях.</p>}
     {active !== null && <RecipeCard meal={day.meals[active]} batch={batch} error={error}
       onClose={() => { setActive(null); onClearError() }} options={() => options(active)} onPick={onPick} />}
   </div>

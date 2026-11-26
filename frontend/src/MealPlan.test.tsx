@@ -242,3 +242,37 @@ it('при готовке на несколько дней у соседних �
   const photos = screen.getAllByRole('button', { name: /^Открыть день/ }).map(b => b.querySelector('img')?.getAttribute('src'))
   expect(photos.slice(1).every((src, i) => src !== photos[i])).toBe(true)
 })
+
+it('сохраняет рацион с выбранного дня, а список покупок — в штуках и сырым весом', async () => {
+  const sent: Record<string, unknown>[] = []
+  vi.mocked(api).mockImplementation(async (url, options) => {
+    if (url === '/api/meal-plan' && options) { const body = JSON.parse(String(options.body)); sent.push(body); return body }
+    return null
+  })
+  render(<MealPlan onClose={vi.fn()} canEdit />)
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Продолжить' }).hasAttribute('disabled')).toBe(false))
+  for (let i = 0; i < 3 && !screen.queryByRole('heading', { name: /как тебе удобнее готовить/i }); i++) next()
+  fireEvent.click(screen.getByLabelText(/только быстрые блюда/i))
+  build()
+  const basket = screen.getByText('Список продуктов').closest('details')!
+  expect(basket.textContent).not.toMatch(/отварн|запеч|в мундире/i)
+  expect(basket.textContent).toMatch(/Яйца\d+ шт|Банан\d+ шт|Яблоко\d+ шт/)
+  fireEvent.click(screen.getByRole('radio', { name: 'Завтра' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Сохранить и использовать рацион' }))
+  await waitFor(() => expect(sent).toHaveLength(1))
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1)
+  expect(sent[0].start).toBe(tomorrow.toLocaleDateString('sv-SE'))
+  expect((sent[0].input as { quick?: boolean }).quick).toBe(true)
+})
+
+it('пересобирает день одной кнопкой', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  for (let i = 0; i < 3; i++) next()
+  fireEvent.click(screen.getByRole('button', { name: /Разные блюда/ }))
+  build()
+  fireEvent.click(screen.getByRole('button', { name: 'Открыть день 2' }))
+  const before = screen.getAllByRole('button', { name: /^Открыть / }).map(b => b.getAttribute('aria-label'))
+  fireEvent.click(screen.getByRole('button', { name: 'Пересобрать день' }))
+  const after = screen.getAllByRole('button', { name: /^Открыть / }).map(b => b.getAttribute('aria-label'))
+  expect(after.every((label, i) => label !== before[i])).toBe(true)
+})

@@ -2225,3 +2225,6 @@ span.plan-recipe-cover.dish-ph > img { width: 96px; }
 .taste-row .taste-tile { flex: 0 0 92px; scroll-snap-align: start; }
 .taste-row .taste-tile span:not(.dish-ph) { -webkit-line-clamp: 2; }
 .taste-row + .taste-row, .taste-group + .taste-group { margin-top: 12px; }
+.plan-start { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 10px; }
+.plan-start .sub { width: 100%; margin: 0; }
+.plan-rebuild { margin-top: 14px; }

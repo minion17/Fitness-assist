@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { plural } from './plural'
 import { api, putJson } from './telegram'
 import { calculateTargets, type Goal, type ProfileData } from './profile'
-import { createMealPlan, replacementOptions, type PlanInput, type MealPlan as GeneratedPlan } from './mealPrototype'
+import { createMealPlan, rebuildDay, replacementOptions, type PlanInput, type MealPlan as GeneratedPlan } from './mealPrototype'
 import MealRange from './MealRange'
 import PlanShopping from './PlanShopping'
 import './MealOverview.css'
@@ -20,13 +20,17 @@ type Diet = 'omnivore' | 'pescatarian' | 'vegetarian' | 'vegan'
 const MEALS: { id: Slot; label: string }[] = [{ id: 'breakfast', label: 'Завтрак' }, { id: 'lunch', label: 'Обед' }, { id: 'dinner', label: 'Ужин' }]
 const DIETS: { id: Diet; label: string; description: string }[] = [{ id: 'omnivore', label: 'Всеядное', description: 'Ем разные продукты' }, { id: 'pescatarian', label: 'Пескетарианство', description: 'Ем рыбу и морепродукты' }, { id: 'vegetarian', label: 'Вегетарианство', description: 'Без мяса и рыбы' }, { id: 'vegan', label: 'Веганство', description: 'Только растительная пища' }]
 const COOKING = [
-  ['daily', 'Готовить каждый день', 'Один основной продукт на обед и ужин'],
-  ['batch', 'На несколько дней', 'Повторяем блюда, чтобы приготовить порции заранее'],
-  ['varied', 'Разные блюда', 'Больше разнообразия в течение дня'],
+  ['daily', 'Готовить раз в день', 'Ужин на 2 порции: вторая — обед на завтра. Завтраки по кругу'],
+  ['batch', 'На несколько дней', 'Два блюда за раз: одно на обеды, другое на ужины'],
+  ['varied', 'Разные блюда', 'Каждый приём — новое блюдо. Готовить чаще'],
 ] as const
 const dayOptions = Object.values(DAYS)
 const goalOptions = Object.values(GOALS)
 const rub = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
+const iso = (d: Date) => d.toLocaleDateString('sv-SE')
+const shift = (day: string, n: number) => { const d = new Date(`${day}T12:00`); d.setDate(d.getDate() + n); return iso(d) }
+const dayName = (day: string) => new Date(`${day}T12:00`).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })
+type Saved = { input: PlanInput; plan: GeneratedPlan; start?: string | null; next_start?: string | null }
 function AnswerGroup({ title, entries }: { title: string; entries: string[][] }) {
   return <section className="answer-group"><h2>{title}</h2><dl>
     {entries.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
@@ -70,11 +74,14 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const [noAllergies, setNoAllergies] = useState(false)
   const [plan, setPlan] = useState<GeneratedPlan | null>(null)
   const [planInput, setPlanInput] = useState<PlanInput | null>(null)
-  const [savedPlan, setSavedPlan] = useState<{ input: PlanInput; plan: GeneratedPlan } | null>(null)
+  const [savedPlan, setSavedPlan] = useState<Saved | null>(null)
+  const [quick, setQuick] = useState(false)
+  const [start, setStart] = useState('') // the first day of the plan being saved; '' = today
   const [isSaved, setIsSaved] = useState(false) // the plan on screen is the saved one
   const [planMessage, setPlanMessage] = useState('')
   const [savingPlan, setSavingPlan] = useState(false)
   const [calorieOverride, setCalorieOverride] = useState('')
+  const [today] = useState(() => iso(new Date()))
 
   const flow: StepId[] = ['days', ...(profile?.goal ? [] : ['goal' as const]), 'persons', ...(persons > 1 ? ['meals' as const] : []),
     'cooking', 'budget', ...(profile?.sex ? [] : ['sex' as const]), 'diet', 'tastes']
@@ -83,7 +90,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   useEffect(() => {
     if (!canEdit) return
     let active = true
-    api<{ input: PlanInput; plan: GeneratedPlan }>('/api/meal-plan').then(value => {
+    api<Saved>('/api/meal-plan').then(value => {
       if (!active) return
       if (value?.plan?.days && value.input) {
         setSavedPlan(value)
@@ -96,9 +103,10 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
     if (!plan || !planInput || savingPlan) return
     setSavingPlan(true); setPlanMessage('')
     try {
-      const result = await api<{ input: PlanInput; plan: GeneratedPlan }>('/api/meal-plan', putJson({ input: planInput, plan }))
+      const first = start || today
+      const result = await api<Saved>('/api/meal-plan', putJson({ input: planInput, plan, ...(first !== today ? { start: first } : {}) }))
       if (!result) throw new Error()
-      setSavedPlan(result); setPlanMessage('Рацион сохранён в твоём профиле.'); onClose()
+      setSavedPlan(result); setPlanMessage(first === today ? 'Рацион сохранён в твоём профиле.' : `Рацион сохранён и начнётся ${dayName(first)}.`); onClose()
     } catch { setPlanMessage('Не удалось сохранить рацион. Проверь подключение и согласие в профиле.') }
     finally { setSavingPlan(false) }
   }
@@ -109,8 +117,8 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       setIsSaved(false); setPlanMessage('Новый рацион с теми же настройками. Сохрани, чтобы он появился в дневнике.')
     } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось подобрать блюда.') }
   }
-  const openSavedPlan = (saved: { input: PlanInput; plan: GeneratedPlan }, next = false) => {
-    setPlan(saved.plan); setPlanInput(saved.input); setIsSaved(true)
+  const openSavedPlan = (saved: Saved, next = false) => {
+    setPlan(saved.plan); setPlanInput(saved.input); setIsSaved(true); setQuick(Boolean(saved.input.quick))
     setDays(DAYS[saved.input.days] ?? `${saved.input.days} ${plural(saved.input.days, 'день', 'дня', 'дней')}`)
     setDiet(saved.input.dietary ?? 'omnivore')
     setAllergies(healthConsent ? saved.input.allergies : '')
@@ -176,7 +184,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       if (override !== null && (!Number.isInteger(override) || override < 1200 || override > 6000)) { setError('Укажи целое значение от 1200 до 6000 ккал.'); return }
       const calories = override ?? defaultCalories
       const budgetRub = budget.trim() ? Number(budget) : null
-      const input: PlanInput = { days: Number.parseInt(days), calories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, persons, selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budgetRub, ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) }
+      const input: PlanInput = { days: Number.parseInt(days), calories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, ...(quick ? { quick } : {}), persons, selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budgetRub, ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) }
       setPlan(createMealPlan(input))
       setPlanInput(input); setIsSaved(false)
       setPlanMessage(''); setError(''); setView('result')
@@ -195,9 +203,17 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
     return <MealDay day={plan.days[dayIndex]} batch={planInput.cookingMode === 'batch'} error={error}
       onBack={() => { setDayIndex(null); setError('') }}
       options={index => replacementOptions(planInput, plan, dayIndex, index)}
-      onPick={p => { setPlan(p); setIsSaved(false); setPlanMessage('') }} onClearError={() => setError('')} />
+      onPick={p => { setPlan(p); setIsSaved(false); setPlanMessage('') }} onClearError={() => setError('')}
+      onRebuild={() => { try { setPlan(rebuildDay(planInput, plan, dayIndex)); setIsSaved(false) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось пересобрать день.') } }} />
   }
   const snack = plan?.days.some(d => d.meals.some(m => m.meal === 'snack'))
+  // the current plan still runs: the new one can follow it, so the last days are not lost
+  const currentEnd = savedPlan?.start && !savedPlan.next_start ? shift(savedPlan.start, savedPlan.plan.days.length - 1) : null
+  const monday = shift(today, ((8 - new Date(`${today}T12:00`).getDay()) % 7) || 7)
+  const startOptions: [string, string][] = [
+    ...(currentEnd && currentEnd >= today ? [[shift(currentEnd, 1), `После текущего, ${dayName(shift(currentEnd, 1))}`] as [string, string]] : []),
+    [today, 'Сегодня'], [shift(today, 1), 'Завтра'], ...(monday !== shift(today, 1) ? [[monday, 'С понедельника'] as [string, string]] : []),
+  ]
   return <div className="meal-plan">
     <div className="meal-plan-heading"><div>{view === 'form' && <span className="sub">Шаг {step + 1} из {flow.length}</span>}<h1>{view === 'result' ? 'Рацион' : view === 'review' ? 'Проверь ответы' : 'Подбор рациона'}</h1></div><button className="link" onClick={back}>Назад</button></div>
     {view === 'form' && <div className="meal-plan-progress" aria-hidden="true"><span style={{ width: `${(step + 1) * (100 / flow.length)}%` }} /></div>}
@@ -208,7 +224,8 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       {view === 'form' && current === 'goal' && <><h2>Какая у тебя цель?</h2><p className="sub">От неё зависит калорийность.</p><GoalPicker goal={goal} onGoal={setGoal} /></>}
       {view === 'form' && current === 'persons' && <><h2>Кто будет есть?</h2><p className="sub">Укажи общее число людей, включая тебя.</p><div className="meal-q-range-card"><strong className="meal-q-budget-value">{persons} {plural(persons, 'человек', 'человека', 'человек')}</strong><MealRange label="Количество человек" min={1} max={10} step={1} value={persons} onChange={setPersons} /><div className="meal-q-range-ends"><span>1</span><span>10</span></div></div></>}
       {view === 'form' && current === 'meals' && <><h2>Какие приёмы пищи включить?</h2><p className="sub">Выбери приёмы, затем отметь общие с семьёй.</p><div className="meal-q-meals">{MEALS.map(m => <div key={m.id}><button className="meal-q-meal" aria-pressed={selectedMeals.includes(m.id)} onClick={() => toggleMeal(m.id)}>{m.label}</button>{selectedMeals.includes(m.id) && <button className="meal-q-meal" aria-pressed={sharedMeals.includes(m.id)} onClick={() => toggleShared(m.id)}>Для всей семьи</button>}</div>)}</div></>}
-      {view === 'form' && current === 'cooking' && <><h2>Как тебе удобнее готовить?</h2><p className="sub">Учтём это при выборе блюд и продуктов.</p><div className="meal-q-cooking">{COOKING.map(([id, title, hint]) => <button key={id} className="meal-q-option" aria-pressed={cookingMode === id} onClick={() => setCookingMode(id)}><span><strong>{title}</strong><small>{hint}</small></span></button>)}</div>{cookingMode === 'batch' && <><div className="meal-q-options">{([2, 7] as const).map(n => <button key={n} className="meal-plan-option" aria-pressed={batchDays === n} onClick={() => setBatchDays(n)}>На {n} {plural(n, 'день', 'дня', 'дней')}</button>)}</div><p className="sub">Одинаковое основное блюдо повторяется на обед и ужин. Для недели часть порций может потребовать заморозки; проверяй сроки хранения каждого продукта.</p></>}</>}
+      {view === 'form' && current === 'cooking' && <><h2>Как тебе удобнее готовить?</h2><p className="sub">Учтём это при выборе блюд и продуктов.</p><div className="meal-q-cooking">{COOKING.map(([id, title, hint]) => <button key={id} className="meal-q-option" aria-pressed={cookingMode === id} onClick={() => setCookingMode(id)}><span><strong>{title}</strong><small>{hint}</small></span></button>)}</div>{cookingMode === 'batch' && <><div className="meal-q-options">{([2, 7] as const).map(n => <button key={n} className="meal-plan-option" aria-pressed={batchDays === n} onClick={() => setBatchDays(n)}>На {n} {plural(n, 'день', 'дня', 'дней')}</button>)}</div><p className="sub">Готовишь два блюда сразу на {batchDays} {plural(batchDays, 'день', 'дня', 'дней')}: одно на обеды, другое на ужины.{batchDays === 7 ? ' Часть порций нужно заморозить, проверяй сроки хранения.' : ''}</p></>}
+        <label className="meal-plan-confirm"><input type="checkbox" checked={quick} onChange={e => setQuick(e.target.checked)} /> Только быстрые блюда, до 30 минут</label></>}
       {view === 'form' && current === 'budget' && <BudgetStep persons={persons} budget={budget} currentSpend={currentSpend} limits={budgetLimits} onBudget={setBudget} onCurrent={setCurrentSpend} />}
       {view === 'form' && current === 'sex' && <><h2>Твой пол</h2><p className="sub">Нужен для расчёта нормы. Остальные данные можно заполнить в профиле.</p><div className="meal-q-options">{([{ id: 'female', label: 'Женский' }, { id: 'male', label: 'Мужской' }] as const).map(v => <button className="meal-q-option" aria-pressed={sex === v.id} key={v.id} onClick={() => setSex(v.id)}><strong>{v.label}</strong></button>)}</div></>}
       {view === 'form' && current === 'diet' && <><h2>Какой у тебя тип питания?</h2><p className="sub">Подберём подходящие блюда.</p><div className="meal-q-options">{DIETS.map(v => <button className="meal-q-option" aria-pressed={diet === v.id} key={v.id} onClick={() => setDiet(v.id)}><img className="meal-q-diet-photo" src={`/images/diets/${v.id}.jpg`} alt="" /><span><strong>{v.label}</strong><small>{v.description}</small></span></button>)}</div></>}
@@ -246,7 +263,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
           </> : <p className="sub">Чтобы указать аллергии, включи обработку данных о здоровье в профиле.</p>}
         </section>
         <AnswerGroup title="Твой план" entries={[
-          ['Срок', days], ['Человек', String(persons)], ['Готовка', cookingMode === 'daily' ? 'Каждый день' : cookingMode === 'batch' ? `На ${batchDays} ${plural(batchDays, 'день', 'дня', 'дней')}` : 'Разные блюда'],
+          ['Срок', days], ['Человек', String(persons)], ['Готовка', (cookingMode === 'daily' ? 'Раз в день' : cookingMode === 'batch' ? `На ${batchDays} ${plural(batchDays, 'день', 'дня', 'дней')}` : 'Разные блюда') + (quick ? ', быстрые блюда' : '')],
           ['Приёмы пищи', MEALS.filter(m => selectedMeals.includes(m.id)).map(m => m.label).join(', ')],
           ...(persons > 1 ? [['Общие с семьёй', MEALS.filter(m => sharedMeals.includes(m.id)).map(m => m.label).join(', ') || 'Нет']] : []),
         ]} />
@@ -288,6 +305,10 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
     </section>
     {error && <p role="alert">{error}</p>}
     {planMessage && <p role="status">{planMessage}</p>}
+    {view === 'result' && canEdit && !isSaved && <div className="plan-start" role="radiogroup" aria-label="Начать рацион">
+      <span className="sub">Начать</span>
+      {startOptions.map(([day, label]) => <button key={day} className="chip" role="radio" aria-checked={(start || today) === day} onClick={() => setStart(day)}>{label}</button>)}
+    </div>}
     {view === 'result' && canEdit && !isSaved && <button className="btn meal-plan-next" disabled={savingPlan} onClick={savePlan}>{savingPlan ? 'Сохраняем…' : 'Сохранить и использовать рацион'}</button>}
     {view === 'result' && canEdit && isSaved && plan && planInput && <button className="btn meal-plan-next" onClick={() => nextPlan(planInput, plan)}>Составить следующий рацион</button>}
     {view === 'result' && !canEdit && <p className="sub">В деморежиме рацион доступен до закрытия страницы. Чтобы сохранить, открой Setly в своём аккаунте.</p>}

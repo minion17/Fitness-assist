@@ -2,6 +2,9 @@
 # Anything already running is left alone, so double-clicking start.bat twice is safe.
 $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..')
+# start.bat may live on the Desktop: without this `python -m backend.seed.import_data` ran from there, failed to find
+# the module, and the catalog stayed as it was at first install (29 exercises) while everything else started fine
+Set-Location $root
 $py = Join-Path $root '.venv\Scripts\python.exe'
 $pgBin = 'C:\pgsql\bin'
 $pgData = 'C:\pgsql\data'
@@ -37,7 +40,7 @@ if ($LASTEXITCODE -ne 0) {
 # 1b. Reference data from content/ (idempotent: only new rows are added)
 Write-Host "Данные (продукты, упражнения, программы):"
 & $py -m backend.seed.import_data
-if ($LASTEXITCODE -ne 0) { Write-Host "  Импорт не удался — см. сообщение выше. Остальное запускаю." -ForegroundColor Yellow }
+if ($LASTEXITCODE -ne 0) { Write-Host "  ИМПОРТ НЕ УДАЛСЯ — новые продукты и упражнения не добавлены, см. сообщение выше. Остальное запускаю." -ForegroundColor Red }
 
 # 2. API server + Mini App
 if (Running 'uvicorn backend.api.main') { Write-Host "Сервер: уже работает" }

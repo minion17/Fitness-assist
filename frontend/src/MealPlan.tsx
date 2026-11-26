@@ -8,7 +8,7 @@ import PlanShopping from './PlanShopping'
 import './MealOverview.css'
 import MealDay, { labels } from './MealDay'
 import DishPhoto from './DishPhoto'
-import { INGREDIENTS, RECIPES } from './mealCatalog'
+import { INGREDIENTS, PRICES_AS_OF, RECIPES } from './mealCatalog'
 import { useBack } from './back'
 import { Chevron } from './ui'
 
@@ -281,7 +281,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
           {plan.basketCostRub != null && <p className="plan-cost">Продукты ≈ {rub(plan.basketCostRub)} на весь срок{plan.days.length > 7 || persons > 1 ? ` · ≈ ${rub(plan.basketCostRub / plan.days.length * 7 / persons)} в неделю на человека` : ''}
             {plan.budgetRub != null && plan.basketCostRub <= plan.budgetRub && <span className="pos"> · в рамках бюджета</span>}
             {Number(currentSpend) > plan.basketCostRub / plan.days.length * 7 && <span className="pos"> · на {rub(Number(currentSpend) - plan.basketCostRub / plan.days.length * 7)} в неделю меньше, чем сейчас</span>}</p>}
-          <div className="meal-result-disclaimer">Расчёты и цены примерные: цены средние по магазинам, считаем целыми упаковками. {persons > 1 && 'Общие блюда рассчитаны на одинаковые порции по твоей норме. '}При аллергии проверяй состав и следы аллергенов.</div></div>
+          <div className="meal-result-disclaimer">Цены — обычные, без акций, по сайту сети «Магнит» ({PRICES_AS_OF}); в твоём магазине могут отличаться. Считаем целыми упаковками. {persons > 1 && 'Общие блюда рассчитаны на одинаковые порции по твоей норме. '}При аллергии проверяй состав и следы аллергенов.</div></div>
         {snack && <p className="sub">Добавили перекус: при {planInput?.calories} ккал три тарелки вышли бы слишком большими.</p>}
         {diet === 'vegan' && <p className="sub">Белок в растительном меню — из тофу, нута, чечевицы, маша, орехов и соевого протеина. Если протеин не нужен, напиши «протеин» в «Что не ешь».</p>}
         {plan.warnings.map(w => <p className="sub" key={w}>{w}</p>)}

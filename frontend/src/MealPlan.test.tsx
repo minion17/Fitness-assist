@@ -42,7 +42,7 @@ describe('анкета подбора рациона', () => {
     build()
     expect(screen.getByRole('button', { name: 'Открыть день 1' })).toBeTruthy()
     expect(screen.getByText('Список продуктов')).toBeTruthy()
-    expect(screen.getByText(/Расчёты и цены примерные/i)).toBeTruthy()
+    expect(screen.getByText(/по сайту сети «Магнит»/i)).toBeTruthy()
   })
 
   it('загружает и сохраняет ответы в аккаунте', async () => {

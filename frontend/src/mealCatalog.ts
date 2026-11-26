@@ -31,22 +31,29 @@ const names: Record<string, [string, string[]]> = {
  feta: ['Сыр Фета', ['dairy']], rawCod: ['Треска', ['fish']], rawTurkey: ['Индейка филе', ['turkey', 'poultry', 'meat']],
  rawBroccoli: ['Брокколи', ['broccoli']], soyProtein: ['Протеин соевый', ['soy', 'proteinPowder']], mung: ['Маш', ['legumes']],
 }
-/** Approximate shop prices (rubles, autumn 2026) and the pack they come in, for the basket and the weekly budget.
- * Cooked items are priced by what it takes to cook them (a kilo of raw chicken gives ~700 g boiled). */
+/** What a pack costs and weighs (grams; drained weight for tins), from magnit.ru in November 2026: the regular price
+ * without promotions, an ordinary brand. soyProtein and edamame aren't sold there (ozon / VkusVill). Ingredients weighed
+ * cooked have no price of their own: they are bought raw (BUY). Check again every few months. */
+export const PRICES_AS_OF = 'ноябрь 2026'
 const PRICES: Record<string, [number, number]> = {
- oats: [500, 90], apple: [1000, 150], banana: [1000, 150], curd: [200, 120], egg: [550, 130], potato: [1000, 60],
- tomato: [1000, 300], oil: [460, 450], chicken: [700, 450], rice: [900, 150], fish: [800, 330], cod: [700, 600],
- buckwheat: [900, 110], peanut: [150, 110], carrot: [1000, 70], orange: [1000, 200], cucumber: [1000, 250],
- turkey: [700, 650], broccoli: [400, 200], semolina: [800, 80], butter: [180, 220], milk: [930, 95], yogurt: [250, 110],
- sourCream: [300, 110], cheese: [200, 230], flour: [1000, 70], bread: [500, 70], pasta: [450, 90], millet: [800, 80],
- pumpkin: [1000, 80], raisins: [200, 120], berries: [300, 180], onion: [1000, 50], rawCarrot: [1000, 60],
- rawPotato: [1000, 50], chili: [50, 60], pepper: [1000, 400], cabbage: [1000, 40], tomatoPaste: [140, 70],
- lemon: [1000, 250], dill: [50, 50], chickpeas: [240, 130], beans: [240, 120], lentils: [450, 120],
- greenLentils: [450, 110], peas: [800, 70], sesame: [100, 70], garlic: [100, 40], rawChicken: [1000, 450],
- beef: [1000, 800], mince: [500, 300], tuna: [135, 200], pollock: [1000, 330], oatMilk: [1000, 160],
- walnut: [200, 250], kefir: [930, 100], honey: [250, 250], hummus: [200, 150], crispbread: [100, 80],
- peanutPaste: [300, 230], tofu: [300, 200], lavash: [200, 60], edamame: [400, 350], soyMilk: [1000, 180], feta: [200, 250],
- rawCod: [800, 560], rawTurkey: [1000, 650], rawBroccoli: [400, 200], soyProtein: [900, 1500], mung: [450, 140],
+ // groceries
+ oats: [500, 100], buckwheat: [900, 120], rice: [450, 170], millet: [900, 130], semolina: [800, 40], pasta: [450, 70],
+ flour: [1000, 80], lentils: [450, 133], greenLentils: [400, 135], peas: [800, 32], mung: [450, 130], sesame: [150, 116],
+ oil: [745, 220], tomatoPaste: [270, 110], chickpeas: [240, 70], beans: [240, 110], tuna: [135, 300], honey: [500, 300],
+ peanutPaste: [340, 320], peanut: [150, 100], walnut: [200, 280], raisins: [200, 160],
+ // bread
+ bread: [350, 80], lavash: [300, 77], crispbread: [170, 114],
+ // dairy and eggs
+ milk: [930, 95], kefir: [930, 90], curd: [300, 170], sourCream: [300, 72], yogurt: [235, 95], butter: [180, 190],
+ cheese: [190, 260], feta: [200, 170], egg: [550, 130],
+ // meat and fish, raw
+ rawChicken: [1000, 580], rawTurkey: [500, 380], beef: [1000, 1400], mince: [400, 270], pollock: [400, 400], rawCod: [750, 1250],
+ // vegetables, fruit, herbs (loose ones per kilo)
+ rawPotato: [2000, 100], rawCarrot: [1000, 70], onion: [1000, 50], cabbage: [1000, 66], tomato: [1000, 240], cucumber: [500, 100],
+ pepper: [1000, 370], pumpkin: [1000, 120], garlic: [100, 80], chili: [100, 130], dill: [50, 70], rawBroccoli: [400, 210],
+ apple: [1000, 74], banana: [1000, 200], orange: [1000, 190], lemon: [400, 100], berries: [300, 330],
+ // plant-based
+ tofu: [250, 140], hummus: [200, 150], oatMilk: [1000, 150], soyMilk: [1000, 170], edamame: [300, 290], soyProtein: [900, 1500],
 }
 /** Recipes weigh some things cooked («куриное филе отварное»); the shop sells them raw: what to buy and how many grams
  * of it make a gram of the cooked one. */
@@ -56,7 +63,7 @@ export const BUY: Record<string, [string, number]> = {
 }
 /** The name on the shopping list where the catalog's one describes a portion or a state. */
 export const SHOP_NAME: Record<string, string> = {
- bread: 'Хлеб пшеничный', chickpeas: 'Нут консервированный', egg: 'Яйца', rawCarrot: 'Морковь', rawPotato: 'Картофель',
+ bread: 'Батон или хлеб пшеничный', chickpeas: 'Нут консервированный', oil: 'Масло растительное', beans: 'Фасоль красная консервированная', tuna: 'Тунец консервированный', egg: 'Яйца', rawCarrot: 'Морковь', rawPotato: 'Картофель',
  oats: 'Овсяные хлопья', pollock: 'Минтай (филе)', rawCod: 'Треска (филе)', rawTurkey: 'Индейка (филе)', rawChicken: 'Куриная грудка',
  rawBroccoli: 'Брокколи', pepper: 'Перец болгарский', berries: 'Смородина или другие ягоды (можно замороженные)',
 }

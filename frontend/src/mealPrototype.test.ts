@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ABSENT, createMealPlan, rebuildDay, replaceMeal, replacementOptions, SNACK_FROM, type MealPlan } from './mealPrototype'
-import { INGREDIENTS, toBuy } from './mealCatalog'
+import { BUY, INGREDIENTS, toBuy } from './mealCatalog'
 
 describe('подбор блюд', () => {
   it('создаёт выбранное количество дней и суммирует покупки', () => {
@@ -224,7 +224,9 @@ it('считает стоимость корзины по примерным ц�
   const plan = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: '', liked: '' })
   expect(plan.basketCostRub).toBeGreaterThan(1500)
   expect(plan.basketCostRub).toBeLessThan(8000)
-  expect(Object.values(INGREDIENTS).every(i => i.packRub > 0 && i.packGrams > 0)).toBe(true)
+  // everything that goes on the shopping list has a price; what's weighed cooked is bought raw
+  expect(Object.entries(INGREDIENTS).filter(([id]) => !BUY[id]).every(([, i]) => i.packRub > 0 && i.packGrams > 0)).toBe(true)
+  expect(Object.keys(BUY).every(id => INGREDIENTS[id].packRub === 0)).toBe(true)
   const tight = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: '', liked: '', budget: 500 })
   expect(tight.warnings.some(w => w.startsWith('Подобранная корзина превышает бюджет'))).toBe(true)
 })

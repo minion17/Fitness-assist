@@ -279,7 +279,7 @@ export function createMealPlan(input: PlanInput, avoid: readonly string[] = []):
   // Price always counts a little: fewer half-used packs and a shorter list. Over budget, it counts more.
   // Return the least expensive attempt with a warning if none fits.
   let best: MealPlan | undefined
-  for (const priceWeight of [.15, 1.5, 4, 12]) {
+  for (const priceWeight of [.15, .3, .5, .8, 1.2, 2, 4, 12]) {
     const weights: Weights = new Map()
     const uses = new Map<string, number>(avoid.map(id => [id, 1]))
     const assigned = new Map<string, string>() // cooking group -> its dish

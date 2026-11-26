@@ -2,10 +2,19 @@ import type { CSSProperties } from 'react'
 
 type Artwork = { sheet: 'core' | 'additional'; column: number; row?: number }
 
-const individualArtwork: Record<string, string> = {
-  first_workout: 'first-workout.png',
-  workouts_10: 'ten-workouts.png',
-  workouts_50: 'fifty-workouts.png',
+const individualArtwork = new Set([
+  'first_water', 'first_meal', 'first_workout', 'streak_3', 'streak_7',
+  'streak_30', 'streak_100', 'water_7', 'glasses_100', 'norm_7',
+  'workouts_10', 'workouts_50', 'measure_4', 'level_5',
+])
+const progressiveArtwork = new Set(['iron_will', 'personal_best', 'food_habits', 'like_water'])
+// Compensate for transparent margins without clipping the actual illustrations.
+const artworkScale: Record<string, string> = {
+  first_meal: '140%', first_water: '112%', first_workout: '97%',
+  streak_3: '123%', streak_7: '125%', streak_30: '145%', streak_100: '119%',
+  water_7: '101%', glasses_100: '128%', norm_7: '102%',
+  workouts_10: '101%', workouts_50: '144%', measure_4: '128%', level_5: '127%',
+  iron_will: '122%', personal_best: '133%', food_habits: '140%', like_water: '109%',
 }
 
 const artwork: Record<string, Artwork> = {
@@ -33,7 +42,11 @@ export default function AchievementBadge({ code, fallback, large = false, stage 
 }) {
   const item = artwork[code]
   const className = `achievement-art${large ? ' achievement-art-large' : ''}`
-  if (individualArtwork[code]) return <span className={`${className} achievement-art-individual`} style={{ backgroundImage: `url(/images/achievements/setly/${individualArtwork[code]})` }} aria-hidden="true" />
+  if (individualArtwork.has(code) || (progressiveArtwork.has(code) && (stage ?? 1) <= 1)) {
+    const tier = Number.isFinite(stage) ? Math.max(1, Math.min(5, Math.floor(stage!))) : 1
+    const filename = progressiveArtwork.has(code) ? `${code}_${tier}` : code
+    return <span className={`${className} achievement-art-independent`} style={{ backgroundImage: `url(/images/achievements/individual/${filename}.png?v=3)`, backgroundSize: artworkScale[code] ?? 'contain' }} aria-hidden="true" />
+  }
   if (!item) return <span className={`${className} achievement-art-fallback`} aria-hidden="true">{fallback}</span>
 
   // Three approved illustrations represent five earned levels, from simplest to most detailed.

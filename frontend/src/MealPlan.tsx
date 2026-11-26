@@ -8,7 +8,7 @@ import PlanShopping from './PlanShopping'
 import './MealOverview.css'
 import MealDay, { labels } from './MealDay'
 import DishPhoto from './DishPhoto'
-import { RECIPES } from './mealCatalog'
+import { INGREDIENTS, RECIPES } from './mealCatalog'
 import { useBack } from './back'
 import { Chevron } from './ui'
 
@@ -33,6 +33,9 @@ function AnswerGroup({ title, entries }: { title: string; entries: string[][] })
   </dl></section>
 }
 const ALLERGIES: Record<string, string> = { dairy: 'молочное', eggs: 'яйца', gluten: 'глютен', nuts: 'орехи', fish: 'рыба' }
+const FORBIDDEN: Record<Diet, string[]> = { omnivore: [], pescatarian: ['meat'], vegetarian: ['meat', 'fish'], vegan: ['meat', 'fish', 'dairy', 'egg'] }
+/** Only dishes the chosen diet allows are offered to like: no goulash for a vegan. */
+const fitsDiet = (r: typeof RECIPES[number], diet: Diet) => !r.ingredients.some(i => INGREDIENTS[i.product].tags.some((t: string) => FORBIDDEN[diet].includes(t)))
 // what the profile already knows is not asked again: it's on the review screen, where it can be changed
 type StepId = 'days' | 'goal' | 'persons' | 'meals' | 'cooking' | 'budget' | 'sex' | 'diet' | 'tastes'
 
@@ -209,10 +212,10 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       {view === 'form' && current === 'budget' && <BudgetStep persons={persons} budget={budget} currentSpend={currentSpend} limits={budgetLimits} onBudget={setBudget} onCurrent={setCurrentSpend} />}
       {view === 'form' && current === 'sex' && <><h2>Твой пол</h2><p className="sub">Нужен для расчёта нормы. Остальные данные можно заполнить в профиле.</p><div className="meal-q-options">{([{ id: 'female', label: 'Женский' }, { id: 'male', label: 'Мужской' }] as const).map(v => <button className="meal-q-option" aria-pressed={sex === v.id} key={v.id} onClick={() => setSex(v.id)}><strong>{v.label}</strong></button>)}</div></>}
       {view === 'form' && current === 'diet' && <><h2>Какой у тебя тип питания?</h2><p className="sub">Подберём подходящие блюда.</p><div className="meal-q-options">{DIETS.map(v => <button className="meal-q-option" aria-pressed={diet === v.id} key={v.id} onClick={() => setDiet(v.id)}><img className="meal-q-diet-photo" src={`/images/diets/${v.id}.jpg`} alt="" /><span><strong>{v.label}</strong><small>{v.description}</small></span></button>)}</div></>}
-      {view === 'form' && current === 'tastes' && <><h2>Что тебе нравится?</h2><p className="sub">Отметь блюда, которые хочешь есть, и они будут чаще. Можно пропустить.</p>
+      {view === 'form' && current === 'tastes' && <><h2>Что тебе нравится?</h2><p className="sub">Отметь блюда, которые хочешь есть, и они будут чаще. Ряды листаются вбок. Можно пропустить.</p>
         {([['Завтраки', 'breakfast'], ['Обеды и ужины', 'main'], ['Перекусы', 'snack']] as const).map(([title, kind]) => (
           <section className="taste-group" key={title}><h3>{title}</h3>
-            <div className="taste-grid">{RECIPES.filter(r => kind === 'main' ? r.meal !== 'breakfast' && r.meal !== 'snack' : r.meal === kind).map(r => {
+            <div className="taste-row">{RECIPES.filter(r => fitsDiet(r, diet) && (kind === 'main' ? r.meal !== 'breakfast' && r.meal !== 'snack' : r.meal === kind)).map(r => {
               const on = likedRecipes.includes(r.id)
               return <button type="button" key={r.id} className="taste-tile" title={r.name} aria-pressed={on} onClick={() => toggleLike(r.id)}>
                 <DishPhoto id={r.id} name={r.name} alt={`Пример блюда: ${r.name}`} />

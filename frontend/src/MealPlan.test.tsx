@@ -221,3 +221,14 @@ it('открывает отдельный день и карточку блюд�
   fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
   expect(screen.getByRole('button', { name: /открыть день 1/i })).toBeTruthy()
 })
+
+it('блюда для выбора идут рядами по видам и только подходящие типу питания', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  for (let i = 0; i < 12 && !screen.queryByRole('button', { name: /Вегетарианство/ }); i++) next()
+  fireEvent.click(screen.getByRole('button', { name: /Веганство/ }))
+  next()
+  expect(document.querySelectorAll('.taste-row')).toHaveLength(3)
+  expect(screen.queryByRole('button', { name: /Гуляш/ })).toBeNull()
+  expect(screen.queryByRole('button', { name: /Сырники/ })).toBeNull()
+  expect(screen.getByRole('button', { name: /Тофу с гречкой/ })).toBeTruthy()
+})

@@ -2219,3 +2219,9 @@ span.plan-recipe-cover.dish-ph > img { width: 96px; }
 .plan-cost { margin-top: 4px; }
 .plan-finished { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
 .taste-tile span.dish-ph { display: grid; place-items: center; padding: 0; background: var(--card); -webkit-line-clamp: unset; }
+/* the dishes to like: one sideways row per kind, so the step fits a screen instead of five */
+.taste-row { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; margin: 0 -22px; padding: 0 22px 4px; scroll-padding: 0 22px; }
+.taste-row::-webkit-scrollbar { display: none; }
+.taste-row .taste-tile { flex: 0 0 92px; scroll-snap-align: start; }
+.taste-row .taste-tile span:not(.dish-ph) { -webkit-line-clamp: 2; }
+.taste-row + .taste-row, .taste-group + .taste-group { margin-top: 12px; }

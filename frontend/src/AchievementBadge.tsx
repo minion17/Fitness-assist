@@ -1,14 +1,27 @@
-const frames: Record<string, [number, number]> = {
-  workouts_10: [0, 0], level_5: [1, 0], first_workout: [2, 0], future_run: [3, 0],
-  first_meal: [0, 1], streak_7: [1, 1], future_sleep: [2, 1], first_water: [3, 1],
-  measure_4: [0, 2], streak_30: [1, 2], streak_3: [2, 2], streak_100: [3, 2],
-  water_7: [0, 3], glasses_100: [1, 3], norm_7: [2, 3], workouts_50: [3, 3],
+const singleArtwork = new Set([
+  'first_water', 'first_meal', 'first_workout', 'streak_3', 'streak_7',
+  'streak_30', 'streak_100', 'water_7', 'glasses_100', 'norm_7',
+  'workouts_10', 'workouts_50', 'measure_4', 'level_5',
+])
+const progressiveArtwork = new Set(['iron_will', 'personal_best', 'food_habits', 'like_water'])
+const artworkScale: Record<string, string> = {
+  first_meal: '140%', first_water: '112%', first_workout: '97%',
+  streak_3: '123%', streak_7: '125%', streak_30: '145%', streak_100: '119%',
+  water_7: '101%', glasses_100: '128%', norm_7: '102%',
+  workouts_10: '101%', workouts_50: '144%', measure_4: '128%', level_5: '127%',
+  iron_will: '122%', personal_best: '133%', food_habits: '140%', like_water: '109%',
 }
 
-export default function AchievementBadge({ code, fallback, large = false }: { code: string; fallback: string; large?: boolean }) {
-  const name = code === 'iron_will' ? 'workouts_50' : code === 'like_water' ? 'water_7' : code
+export default function AchievementBadge({ code, fallback, large = false }: {
+  code: string; fallback: string; large?: boolean
+}) {
   const className = `achievement-art${large ? ' achievement-art-large' : ''}`
-  return frames[name]
-    ? <img className={className} src={`/images/achievements/glass/${name}.png`} alt="" aria-hidden="true" />
-    : <span className={`${className} achievement-art-fallback`} aria-hidden="true">{fallback}</span>
+  if (singleArtwork.has(code) || progressiveArtwork.has(code)) {
+    const filename = progressiveArtwork.has(code) ? `${code}_1` : code
+    return <span className={`${className} achievement-art-independent`} style={{ backgroundImage: `url(/images/achievements/individual/${filename}.png?v=3)`, backgroundSize: artworkScale[code] ?? 'contain' }} aria-hidden="true" />
+  }
+  if (code === 'future_run' || code === 'future_sleep') {
+    return <img className={className} src={`/images/achievements/glass/${code}.png`} alt="" aria-hidden="true" />
+  }
+  return <span className={`${className} achievement-art-fallback`} aria-hidden="true">{fallback}</span>
 }

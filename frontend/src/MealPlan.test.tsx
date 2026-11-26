@@ -232,3 +232,13 @@ it('блюда для выбора идут рядами по видам и то
   expect(screen.queryByRole('button', { name: /Сырники/ })).toBeNull()
   expect(screen.getByRole('button', { name: /Тофу с гречкой/ })).toBeTruthy()
 })
+
+it('при готовке на несколько дней у соседних дней разные фото', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  for (let i = 0; i < 3; i++) next()
+  fireEvent.click(screen.getByRole('button', { name: /на несколько дней/i }))
+  fireEvent.click(screen.getByRole('button', { name: 'На 7 дней' }))
+  build()
+  const photos = screen.getAllByRole('button', { name: /^Открыть день/ }).map(b => b.querySelector('img')?.getAttribute('src'))
+  expect(photos.slice(1).every((src, i) => src !== photos[i])).toBe(true)
+})

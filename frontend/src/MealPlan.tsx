@@ -270,7 +270,9 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
         {plan.warnings.map(w => <p className="sub" key={w}>{w}</p>)}
         <div className="meal-result-section-head"><h2>Меню по дням</h2><span>{plan.days.length} {plural(plan.days.length, 'день', 'дня', 'дней')}</span></div>
         <div className="meal-result-days plan-days-list">{plan.days.map((day, index) => {
-          const featured = day.meals.find(m => m.meal === 'lunch') ?? day.meals[0]
+          // the dish that's new this day: with cooking for several days lunch repeats, and every row would show the same photo
+          const before = plan.days[index - 1]?.meals.map(m => m.id) ?? []
+          const featured = [day.meals.find(m => m.meal === 'lunch'), ...day.meals].find(m => m && !before.includes(m.id)) ?? day.meals.find(m => m.meal === 'lunch') ?? day.meals[0]
           return <button key={day.day} className="plan-day-link" aria-label={`Открыть день ${day.day}`} onClick={() => setDayIndex(index)}>
             {featured && <DishPhoto id={featured.id} name={featured.name} />}
             <span className="plan-day-copy"><strong>День {day.day}</strong>

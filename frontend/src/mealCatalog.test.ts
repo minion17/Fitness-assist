@@ -18,7 +18,7 @@ it.each(['vegan', 'vegetarian', 'pescatarian'] as const)('составляет �
   const forbidden = dietary === 'vegan' ? ['meat', 'fish', 'dairy', 'egg'] : dietary === 'vegetarian' ? ['meat', 'fish'] : ['meat']
   const plan = createMealPlan({ days: 14, calories: 2000, allergies: '', disliked: '', liked: '', dietary })
   expect(plan.days.every(d => d.meals.length === 3 && d.meals.every(m => !m.tags.some(t => forbidden.includes(t))))).toBe(true)
-  expect(plan.basketCostRub).toBeNull()
+  expect(plan.basketCostRub).toBeGreaterThan(0)
 })
 
 it('содержит разнообразные блюда с однозначными продуктами и весом', async () => {

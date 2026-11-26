@@ -207,6 +207,23 @@ async def group_tip(session, user: User, today: date) -> tuple[str, str, Render,
             NO_CARD, [("👥 Добавить в чат", f"url:https://t.me/{bot}?startgroup=setly")])
 
 
+PLAN_END_AT = "18:30"
+
+
+async def plan_ending(session, user: User, today: date) -> tuple[str, str, Render, Buttons] | None:
+    """The evening before a saved meal plan's last day: time to make the next one and do the shopping."""
+    from backend.api.saved_meal_plan import plan_end_day
+    from backend.database.models import SavedMealPlan
+
+    row = await session.get(SavedMealPlan, user.id)
+    end = plan_end_day(row.payload) if row else None
+    if end != today + timedelta(days=1):
+        return None
+    return (f"plan_end:{end}", "🥗 Завтра последний день рациона. Составлю следующий с теми же настройками и новыми блюдами, "
+            "а список покупок отправишь себе или в чат семьи и купишь всё заранее.",
+            NO_CARD, [("Составить следующий рацион", "app:open=renew")])
+
+
 async def day_three_tip(session, user: User) -> tuple[str, str, Render, Buttons]:
     """Day 3: one feature they haven't tried yet."""
     from backend.database.models import AiRequest, Friendship
@@ -343,6 +360,10 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
         tip = await group_tip(session, user, today)
         if tip:
             out.append(tip)
+    if due(PLAN_END_AT, now):
+        ending = await plan_ending(session, user, today)
+        if ending:
+            out.append(ending)
     out += await habit_reminders(session, user, now)
     return out
 

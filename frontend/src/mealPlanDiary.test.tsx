@@ -50,3 +50,27 @@ test('дневник открывает рецепт без записи еды 
   fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
   expect(screen.getByRole('heading', { name: 'Питание' })).toBeTruthy()
 })
+
+test('перекус из рациона виден, даже когда перекусов ещё не было; законченный рацион предлагает следующий', async () => {
+  const { createMealPlan } = await import('./mealPrototype')
+  const input = { days: 3, calories: 3000, allergies: '', liked: '', disliked: '' }
+  const plan = createMealPlan(input)
+  const meals = plan.days[0].meals.map(meal => ({ ...meal, completed: false }))
+  const snack = meals.find(m => m.meal === 'snack')!
+  const mock = vi.mocked(api)
+  let finished = false
+  mock.mockImplementation(async path => {
+    if (path === '/api/meal-plan/today') return (finished ? { finished: true, meals: [] } : { finished: false, day: 1, meals }) as never
+    if (path === '/api/meal-plan') return { plan, input } as never
+    return null
+  })
+  const day = { date: '2026-11-15', items: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0 } }
+  const view = render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  expect(await screen.findByRole('button', { name: `Открыть Перекус — ${snack.name}` })).toBeTruthy()
+  view.unmount()
+  finished = true
+  render(<Food day={day} canEdit onAdd={vi.fn()} onDelete={vi.fn()} />)
+  fireEvent.click(await screen.findByRole('button', { name: 'Составить следующий' }))
+  expect(await screen.findByText(/Новый рацион с теми же настройками/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Сохранить и использовать рацион' })).toBeTruthy()
+})

@@ -24,13 +24,33 @@ const names: Record<string, [string, string[]]> = {
  rawChicken: ['Куриная грудка', ['chicken', 'poultry', 'meat']], beef: ['Говядина постная', ['beef', 'meat']],
  mince: ['Говяжий фарш 15% жира', ['beef', 'meat']], tuna: ['Тунец в с/с', ['fish', 'tuna']],
  pollock: ['Минтай', ['fish']], oatMilk: ['Молоко овсяное', ['oats', 'gluten']],
+ walnut: ['Грецкий орех', ['nuts', 'walnut']], kefir: ['Кефир 2.5%', ['dairy']], honey: ['Мёд натуральный', ['honey']],
+ hummus: ['Хумус', ['legumes', 'chickpeas', 'sesame']], crispbread: ['Хлебцы ржаные', ['rye']],
+ peanutPaste: ['Арахисовая паста', ['nuts', 'legumes']], tofu: ['Тофу', ['soy', 'legumes']],
+}
+/** Approximate shop prices (rubles, autumn 2026) and the pack they come in, for the basket and the weekly budget.
+ * Cooked items are priced by what it takes to cook them (a kilo of raw chicken gives ~700 g boiled). */
+const PRICES: Record<string, [number, number]> = {
+ oats: [500, 90], apple: [1000, 150], banana: [1000, 150], curd: [200, 120], egg: [550, 130], potato: [1000, 60],
+ tomato: [1000, 300], oil: [460, 450], chicken: [700, 450], rice: [900, 150], fish: [800, 330], cod: [700, 600],
+ buckwheat: [900, 110], peanut: [150, 110], carrot: [1000, 70], orange: [1000, 200], cucumber: [1000, 250],
+ turkey: [700, 650], broccoli: [400, 200], semolina: [800, 80], butter: [180, 220], milk: [930, 95], yogurt: [250, 110],
+ sourCream: [300, 110], cheese: [200, 230], flour: [1000, 70], bread: [500, 70], pasta: [450, 90], millet: [800, 80],
+ pumpkin: [1000, 80], raisins: [200, 120], berries: [300, 180], onion: [1000, 50], rawCarrot: [1000, 60],
+ rawPotato: [1000, 50], chili: [50, 60], pepper: [1000, 400], cabbage: [1000, 40], tomatoPaste: [140, 70],
+ lemon: [1000, 250], dill: [50, 50], chickpeas: [240, 130], beans: [240, 120], lentils: [450, 120],
+ greenLentils: [450, 110], peas: [800, 70], sesame: [100, 70], garlic: [100, 40], rawChicken: [1000, 450],
+ beef: [1000, 800], mince: [500, 300], tuna: [135, 200], pollock: [1000, 330], oatMilk: [1000, 160],
+ walnut: [200, 250], kefir: [930, 100], honey: [250, 250], hummus: [200, 150], crispbread: [100, 80],
+ peanutPaste: [300, 230], tofu: [300, 200],
 }
 export const INGREDIENTS = Object.fromEntries(Object.entries(names).map(([id, [name, tags]]) => {
  const item = products.find(product => product.name === name)
  if (!item) throw new Error(`Нет данных КБЖУ: ${name}`)
- return [id, { ...item, tags, packGrams: 100, packRub: 0 }]
+ const [packGrams, packRub] = PRICES[id] ?? [100, 0]
+ return [id, { ...item, tags, packGrams, packRub }]
 }))
-const recipe = (id: string, name: string, meal: 'breakfast' | 'lunch' | 'dinner' | 'main', items: [string, number][], instructions: string) => ({ id, name, meal, ingredients: items.map(([product, grams]) => ({ product, grams })), instructions })
+const recipe = (id: string, name: string, meal: 'breakfast' | 'lunch' | 'dinner' | 'main' | 'snack', items: [string, number][], instructions: string) => ({ id, name, meal, ingredients: items.map(([product, grams]) => ({ product, grams })), instructions })
 export const RECIPES = [
  recipe('syrniki', 'Сырники со смородиной и йогуртом', 'breakfast',
    [['curd', 180], ['egg', 25], ['flour', 35], ['oil', 6], ['berries', 45], ['yogurt', 50]],
@@ -118,5 +138,34 @@ export const RECIPES = [
 
  recipe('oats-banana-peanut','Овсянка с бананом и арахисом','breakfast',[['oats',90],['banana',150],['peanut',30]],'1. Отвесь сухие хлопья и свари на воде по инструкции на упаковке. 2. Очисти и нарежь банан. 3. Посыпь кашу бананом и рубленым арахисом.'),
  recipe('chicken-buckwheat','Курица с гречкой и морковью','lunch',[['chicken',180],['buckwheat',90],['carrot',150],['oil',10]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Отвесь уже отваренные куриное филе и морковь. 3. Нарежь филе и морковь, подай с гречкой и маслом.'),
-
+ // dishes for the photos that were waiting for them
+ recipe('buckwheat-apple-peanut','Гречка с яблоком и арахисом','breakfast',[['buckwheat',70],['apple',150],['peanut',25],['honey',10]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Вымой яблоко и нарежь кубиками. 3. Выложи гречку в тарелку, сверху яблоко и арахис, полей мёдом.'),
+ recipe('oats-apple-peanut','Овсянка с яблоком и арахисом','breakfast',[['oats',80],['apple',150],['peanut',25]],'1. Отвесь сухие хлопья и свари на воде по инструкции на упаковке. 2. Вымой яблоко и нарежь кубиками. 3. Добавь яблоко к готовой каше и посыпь арахисом.'),
+ recipe('curd-apple-peanut','Творог с яблоком и арахисом','breakfast',[['curd',220],['apple',150],['peanut',20],['honey',10]],'1. Вымой яблоко и нарежь кубиками. 2. Выложи творог в тарелку, добавь яблоко и арахис. 3. Полей мёдом и перемешай.'),
+ recipe('egg-buckwheat-tomato','Гречка с яйцами и помидорами','breakfast',[['buckwheat',60],['egg',110],['tomato',150],['oil',5]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Отвари яйца вкрутую 9 минут, остуди в холодной воде и очисти; указан вес без скорлупы. 3. Нарежь помидоры. Выложи гречку, яйца половинками и помидоры, гречку заправь маслом.'),
+ recipe('buckwheat-vegetables-peanut','Гречка с брокколи, морковью и арахисом','main',[['buckwheat',80],['broccoli',150],['carrot',120],['peanut',30],['oil',8]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Приготовь брокколи на пару 5–6 минут и отвари морковь кружками до мягкости. 3. Выложи гречку и овощи, заправь маслом и посыпь арахисом.'),
+ recipe('chicken-potato-salad','Курица с картофелем и огурцом','lunch',[['chicken',170],['potato',250],['cucumber',150],['oil',10]],'1. Отвесь уже отваренное куриное филе и картофель, отваренный в мундире. 2. Курицу нарежь пластинами и подрумянь на сухой сковороде. 3. Картофель очисти и нарежь, огурец — кружками. Заправь овощи маслом.'),
+ recipe('cod-potato-carrot','Треска с картофелем и морковью','dinner',[['cod',220],['potato',250],['carrot',150],['oil',10]],'1. Отвесь уже запечённую треску без костей и картофель, отваренный в мундире. 2. Отвари морковь кружками до мягкости. 3. Очисти картофель, выложи всё на тарелку и сбрызни маслом.'),
+ recipe('curd-potato-tomato','Картофель с творогом и помидорами','main',[['potato',300],['curd',180],['tomato',150],['dill',5],['oil',8]],'1. Отвесь картофель, отваренный в мундире, очисти и нарежь крупными кубиками. 2. Творог разомни вилкой с мелко нарезанным укропом и щепоткой соли. 3. Подай картофель с творогом и нарезанными помидорами, сбрызни маслом.'),
+ recipe('egg-broccoli','Яйца с брокколи и картофелем','main',[['egg',110],['broccoli',180],['potato',250],['oil',8]],'1. Отвари яйца вкрутую 9 минут, остуди и очисти; указан вес без скорлупы. 2. Приготовь брокколи на пару 5–6 минут. 3. Отвесь картофель, отваренный в мундире, очисти и нарежь. Выложи всё вместе и заправь маслом.'),
+ recipe('egg-potato-cucumber','Картофельный салат с яйцом и огурцом','main',[['potato',280],['egg',110],['cucumber',150],['sourCream',40],['dill',5]],'1. Отвесь картофель, отваренный в мундире, очисти и нарежь кубиками. 2. Отвари яйца вкрутую, остуди, очисти и нарежь; указан вес без скорлупы. 3. Нарежь огурец и укроп, смешай всё со сметаной и посоли по вкусу.'),
+ recipe('egg-rice','Рис с яйцами и помидорами','main',[['rice',80],['egg',110],['tomato',150],['oil',8]],'1. Отвесь сухой рис и свари на воде по инструкции на упаковке. 2. Отвари яйца вкрутую 9 минут, остуди и очисти; указан вес без скорлупы. 3. Нарежь помидоры. Выложи рис, яйца половинками и помидоры, рис заправь маслом.'),
+ recipe('fish-buckwheat','Минтай с гречкой и брокколи','dinner',[['fish',220],['buckwheat',70],['broccoli',150],['oil',10]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Приготовь брокколи на пару 5–6 минут. 3. Отвесь уже запечённый минтай без костей и подай с гречкой и брокколи, сбрызни маслом.'),
+ recipe('rice-broccoli-peanut','Рис с овощами и арахисом','main',[['rice',80],['broccoli',150],['carrot',100],['peanut',30],['oil',8]],'1. Отвесь сухой рис и свари на воде по инструкции на упаковке. 2. Приготовь брокколи на пару и отвари морковь кружками до мягкости. 3. Смешай рис с овощами, заправь маслом и посыпь арахисом.'),
+ recipe('turkey-buckwheat','Индейка с гречкой и огурцом','lunch',[['turkey',180],['buckwheat',80],['cucumber',150],['oil',8]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Отвесь уже запечённую индейку и нарежь пластинами. 3. Подай с гречкой и нарезанным огурцом, гречку заправь маслом.'),
+ // plant protein for the vegan and vegetarian menus
+ recipe('tofu-buckwheat','Тофу с гречкой и брокколи','main',[['tofu',200],['buckwheat',70],['broccoli',150],['oil',12],['garlic',4]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Тофу промокни салфеткой, нарежь кубиками и обжарь на масле с рубленым чесноком до корочки. 3. Приготовь брокколи на пару и подай всё вместе.'),
+ recipe('tofu-rice','Жареный тофу с рисом, перцем и морковью','main',[['tofu',200],['rice',70],['pepper',100],['rawCarrot',80],['oil',12]],'1. Отвесь сухой рис и свари на воде по инструкции на упаковке. 2. Тофу промокни, нарежь кубиками и обжарь на масле до корочки, затем переложи. 3. На той же сковороде обжарь соломкой перец и морковь 5 минут, верни тофу и подай с рисом.'),
+ // snacks: added on their own when the day's calories don't fit into three meals
+ recipe('yogurt-berries','Греческий йогурт с ягодами и орехами','snack',[['yogurt',200],['berries',80],['walnut',15]],'1. Если ягоды замороженные, разморозь их в холодильнике или 1 минуту в микроволновке. 2. Выложи йогурт в миску. 3. Добавь ягоды и порубленные грецкие орехи.'),
+ recipe('kefir-banana','Кефир с бананом','snack',[['kefir',300],['banana',120]],'1. Очисти банан и разломи на куски. 2. Взбей с кефиром блендером до однородности или просто съешь банан, запивая кефиром. 3. Пей сразу, пока не расслоилось.'),
+ recipe('cheese-sandwich','Бутерброд с сыром и огурцом','snack',[['bread',60],['cheese',30],['cucumber',100]],'1. Нарежь хлеб и сыр тонкими ломтиками. 2. Выложи сыр на хлеб, при желании подогрей минуту в духовке или микроволновке. 3. Подай с нарезанным огурцом.'),
+ recipe('apple-peanut','Яблоко с арахисом','snack',[['apple',200],['peanut',30]],'1. Вымой яблоко и нарежь дольками, удали сердцевину. 2. Отмерь порцию арахиса заранее, чтобы не съесть лишнего. 3. Ешь вместе: орехи дают сытость, яблоко — сладость.'),
+ recipe('hummus-crispbread','Хумус с хлебцами и огурцом','snack',[['hummus',80],['crispbread',30],['cucumber',120]],'1. Нарежь огурец брусками. 2. Выложи хумус в небольшую миску. 3. Макай хлебцы и огурец в хумус или намажь хумус на хлебцы.'),
+ recipe('curd-honey','Творог с мёдом и орехами','snack',[['curd',180],['honey',15],['walnut',15]],'1. Выложи творог в миску и разомни вилкой. 2. Полей мёдом. 3. Посыпь порубленными грецкими орехами и перемешай.'),
+ recipe('peanut-crispbread','Хлебцы с арахисовой пастой и бананом','snack',[['crispbread',30],['peanutPaste',25],['banana',120]],'1. Намажь хлебцы тонким слоем арахисовой пасты. 2. Очисти банан и нарежь кружками. 3. Выложи банан на хлебцы и ешь сразу, пока хлебцы хрустят.'),
+ recipe('eggs-cucumber','Яйца вкрутую с огурцом и хлебом','snack',[['egg',110],['cucumber',120],['bread',30]],'1. Отвари яйца вкрутую 9 минут, остуди в холодной воде и очисти; указан вес без скорлупы. 2. Нарежь огурец. 3. Подай с ломтиком хлеба, яйца посоли по вкусу.'),
 ]
+
+/** Dishes with a photo in public/images/recipes; the rest (snacks, the tofu dishes for now) get a drawn icon. */
+export const RECIPE_PHOTOS: ReadonlySet<string> = new Set(['apple-pancakes', 'banana-oat-pancakes', 'bean-chili', 'beef-goulash', 'buckwheat-apple-peanut', 'buckwheat-vegetables-peanut', 'cheese-omelette', 'chicken-broccoli', 'chicken-buckwheat', 'chicken-noodle-soup', 'chicken-pilaf', 'chicken-potato-salad', 'chicken-rice', 'chicken-stroganoff', 'chickpea-curry', 'cod-broccoli', 'cod-potato-carrot', 'curd-apple-peanut', 'curd-banana', 'curd-casserole', 'curd-potato-tomato', 'egg-broccoli', 'egg-buckwheat-tomato', 'egg-potato-cucumber', 'egg-rice', 'eggs-potato', 'fish-buckwheat', 'fish-chowder', 'fish-potato', 'fish-rice', 'hummus-toast', 'lazy-cabbage-rolls', 'lentil-pasta', 'lentil-soup', 'millet-pumpkin', 'mujadara', 'navy-pasta', 'oats-apple-peanut', 'oats-apple', 'oats-banana-peanut', 'pea-soup', 'potato-mince-bake', 'potato-vegetables', 'rice-broccoli-peanut', 'rice-vegetables', 'shakshuka', 'stuffed-peppers', 'syrniki', 'tuna-pasta', 'turkey-buckwheat', 'turkey-potato', 'turkey-rice'])

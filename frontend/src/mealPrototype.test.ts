@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { createMealPlan, replaceMeal } from './mealPrototype'
+import { ABSENT, createMealPlan, replaceMeal, replacementOptions, SNACK_FROM } from './mealPrototype'
+import { INGREDIENTS } from './mealCatalog'
 
 describe('подбор блюд', () => {
   it('создаёт выбранное количество дней и суммирует покупки', () => {
@@ -13,7 +14,10 @@ describe('подбор блюд', () => {
     const result = createMealPlan({ days: 1, calories: 2000, allergies: 'молоко', disliked: '', liked: '' })
     expect(result.days.flatMap(day => day.meals).every(meal => !meal.tags.includes('dairy'))).toBe(true)
     expect(() => createMealPlan({ days: 1, calories: 2000, allergies: 'редкий аллерген', disliked: '', liked: '' })).toThrow(/не удалось распознать/i)
-    expect(() => createMealPlan({ days: 1, calories: 2000, allergies: 'молоко и клубника', disliked: '', liked: '' })).toThrow(/не удалось распознать/i)
+    // a food none of our dishes has is not a reason to refuse: the plan says it's not there
+    const berry = createMealPlan({ days: 1, calories: 2000, allergies: 'молоко и клубника', disliked: '', liked: '' })
+    expect(berry.warnings).toContain('«клубника» нет ни в одном нашем блюде, так что в рационе этого нет.')
+    expect(() => createMealPlan({ days: 1, calories: 2000, allergies: 'казеин', disliked: '', liked: '' })).toThrow(/не удалось распознать/i)
   })
   it('не включает исключённый пользователем продукт', () => {
     const result = createMealPlan({ days: 1, calories: 2000, allergies: '', disliked: 'курица', liked: '' })
@@ -21,7 +25,8 @@ describe('подбор блюд', () => {
   })
   it('распознаёт несколько продуктов через пробел и не скрывает неизвестные', () => {
     expect(() => createMealPlan({ days: 1, calories: 2000, allergies: '', disliked: 'греча макароны', liked: '' })).not.toThrow()
-    expect(() => createMealPlan({ days: 1, calories: 2000, allergies: 'греча клубника', disliked: '', liked: '' })).toThrow(/не удалось распознать/i)
+    expect(() => createMealPlan({ days: 1, calories: 2000, allergies: 'греча казеин', disliked: '', liked: '' })).toThrow(/не удалось распознать/i)
+    expect(() => createMealPlan({ days: 1, calories: 2000, allergies: '', disliked: 'греча казеин', liked: '' })).not.toThrow() // a dislike is no danger
   })
 })
 
@@ -152,4 +157,49 @@ it('планирует одну партию на семь дней, включ�
       expect(item.grams).toBe(amount)
     }
   }
+})
+
+it('добирает большую калорийность перекусом', () => {
+  for (const calories of [SNACK_FROM, 3200, 3800]) {
+    const plan = createMealPlan({ days: 14, calories, allergies: '', disliked: '', liked: '' })
+    expect(plan.days.every(d => d.meals.map(m => m.meal).join() === 'breakfast,lunch,snack,dinner')).toBe(true)
+    const avg = plan.days.reduce((n, d) => n + d.totals.kcal, 0) / plan.days.length
+    expect(Math.abs(avg - calories) / calories).toBeLessThan(.05)
+  }
+  expect(createMealPlan({ days: 1, calories: 2000, allergies: '', disliked: '', liked: '' }).days[0].meals).toHaveLength(3)
+  // every snack excluded: three meals, no error
+  const vegan = createMealPlan({ days: 3, calories: 3000, allergies: '', disliked: '', liked: '', dietary: 'vegan', dislikedRecipeIds: ['apple-peanut', 'hummus-crispbread', 'peanut-crispbread'] })
+  expect(vegan.days[0].meals.every(m => m.meal !== 'snack')).toBe(true)
+})
+
+it('предлагает несколько замен на выбор', () => {
+  const input = { days: 7, calories: 2000, allergies: '', disliked: '', liked: '' }
+  const plan = createMealPlan(input)
+  const options = replacementOptions(input, plan, 2, 1)
+  expect(options.length).toBeGreaterThanOrEqual(3)
+  expect(new Set(options.map(o => o.meal.id)).size).toBe(options.length)
+  expect(options.every(o => o.meal.id !== plan.days[2].meals[1].id && o.plan.days[2].meals[1].id === o.meal.id)).toBe(true)
+  expect(replaceMeal(input, plan, 2, 1)).toEqual(options[0].plan)
+})
+
+it('следующий рацион с теми же ответами начинает с других блюд', () => {
+  const input = { days: 7, calories: 2000, allergies: '', disliked: '', liked: '' }
+  const first = createMealPlan(input)
+  const ids = first.days.flatMap(d => d.meals.map(m => m.id))
+  const next = createMealPlan(input, ids)
+  expect(next.days[0].meals.map(m => m.id)).not.toEqual(first.days[0].meals.map(m => m.id))
+})
+
+it('считает стоимость корзины по примерным ценам', () => {
+  const plan = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: '', liked: '' })
+  expect(plan.basketCostRub).toBeGreaterThan(1500)
+  expect(plan.basketCostRub).toBeLessThan(8000)
+  expect(Object.values(INGREDIENTS).every(i => i.packRub > 0 && i.packGrams > 0)).toBe(true)
+  const tight = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: '', liked: '', budget: 500 })
+  expect(tight.warnings.some(w => w.startsWith('Подобранная корзина превышает бюджет'))).toBe(true)
+})
+
+it('«нет в наших блюдах» — правда: ни одно слово из этого списка не встречается в продуктах', () => {
+  const words = Object.values(INGREDIENTS).flatMap(i => i.name.toLowerCase().replaceAll('ё', 'е').split(/[^a-zа-я]+/).filter(Boolean))
+  expect(words.filter(w => ABSENT.exec(w)?.[0] === w)).toEqual([])
 })

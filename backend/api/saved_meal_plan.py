@@ -1,7 +1,7 @@
 """Durable snapshot of a user's generated meal plan and its inputs."""
 import json
 import math
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
@@ -141,13 +141,14 @@ async def confirm_plan_meal(meal_index: int, body: MealConfirmation, tg: dict = 
             slot = meal["meal"]
             grams = sum(float(item["grams"]) for item in meal["ingredients"])
             nutrition = {k: float(meal["nutrition"][k]) for k in ("kcal", "protein_g", "fat_g", "carbs_g")}
-            if not isinstance(name, str) or not name.strip() or len(name) > 200 or slot not in ("breakfast", "lunch", "dinner") or not math.isfinite(grams) or not 0 < grams <= 5000 or any(not math.isfinite(v) or v < 0 or v > 10000 for v in nutrition.values()):
+            if not isinstance(name, str) or not name.strip() or len(name) > 200 or slot not in ("breakfast", "lunch", "snack", "dinner") or not math.isfinite(grams) or not 0 < grams <= 5000 or any(not math.isfinite(v) or v < 0 or v > 10000 for v in nutrition.values()):
                 raise ValueError()
         except (TypeError, KeyError, ValueError, OverflowError):
             raise HTTPException(422, "В блюде не хватает корректных данных для записи")
         product = Product(name=name, owner_user_id=user.id, category="Блюда из рациона", portion_g=grams, portion_name="порция", **{k: v * 100 / grams for k, v in nutrition.items()})
         session.add(product); await session.flush()
-        entry = FoodLog(user_id=user.id, product_id=product.id, amount_g=grams, unit="порция", qty=1, meal_type=slot)
+        entry = FoodLog(user_id=user.id, product_id=product.id, amount_g=grams, unit="порция", qty=1, meal_type=slot,
+                        snack_slot="16:00" if slot == "snack" else None)
         session.add(entry); await session.flush(); day_logs[key] = entry.id
     elif not body.completed:
         if existing:
@@ -157,3 +158,11 @@ async def confirm_plan_meal(meal_index: int, body: MealConfirmation, tg: dict = 
     row.payload = {**row.payload, "_tracking": tracking}
     await session.commit()
     return {"completed": body.completed}
+
+
+def plan_end_day(payload: dict) -> date | None:
+    """The plan's last day, by when it was saved."""
+    try:
+        return date.fromisoformat(payload["_tracking"]["start"]) + timedelta(days=len(payload["plan"]["days"]) - 1)
+    except (KeyError, TypeError, ValueError):
+        return None

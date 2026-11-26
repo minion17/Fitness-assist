@@ -23,12 +23,13 @@ import { Bar, Chevron, Ring, Sheet, Tip } from './ui'
 import { plural } from './plural'
 import { Icon } from './icons'
 import { RECIPES } from './mealCatalog'
+import DishPhoto, { dishPhoto } from './DishPhoto'
 import { haptic } from './haptics'
 
 const DEFAULT_GOALS: Targets = { calories: 2000, protein: 120, fat: 70, carbs: 230 }
 // a rough split of the day for an empty meal's hint («≈ 550 ккал»)
 // dishes from the meal plan are logged under the recipe's name: the diary shows their photo
-const RECIPE_PHOTO = new Map(RECIPES.map((r) => [r.name, `/images/recipes/${r.id}.jpg`]))
+const RECIPE_PHOTO = new Map(RECIPES.flatMap((r) => { const src = dishPhoto(r.id); return src ? [[r.name, src] as const] : [] }))
 
 const MEAL_SHARE: Record<MealType, number> = { breakfast: 0.25, lunch: 0.35, dinner: 0.3, snack: 0.1 }
 
@@ -254,7 +255,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
   const [saving, setSaving] = useState<{ meal: MealType; slot?: string | null; name: string } | null>(null)
   const [saveError, setSaveError] = useState('')
   // ?open=plan (the bot's "send the list to the family chat" tip): straight to the saved plan
-  const [planning, setPlanning] = useState<'new' | 'saved' | null>(() => (new URLSearchParams(window.location.search).get('open') === 'plan' ? 'saved' : null))
+  const [planning, setPlanning] = useState<'new' | 'saved' | 'renew' | null>(() => ({ plan: 'saved', renew: 'renew' } as const)[new URLSearchParams(window.location.search).get('open') as 'plan' | 'renew'] ?? null)
   const [recipe, setRecipe] = useState<Meal | null>(null)
   const [todayPlan, setTodayPlan] = useState<TodayPlan | null>(null)
   const [planBusy, setPlanBusy] = useState<number | null>(null)
@@ -291,7 +292,19 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
     return () => { active = false }
   }, [canEdit, planning, day])
 
-  if (planning) return <MealPlan showSaved={planning === 'saved'} onClose={() => setPlanning(null)} canEdit={canEdit} healthConsent={healthConsent || !canEdit} profile={profile} />
+  if (planning) return <MealPlan showSaved={planning === 'saved'} renew={planning === 'renew'} onClose={() => setPlanning(null)} canEdit={canEdit} healthConsent={healthConsent || !canEdit} profile={profile} />
+
+  const groups = mealGroups(day)
+  const firstSnack = groups.find(g => g.meal === 'snack')?.key
+  const plannedSnack = isToday ? todayPlan?.meals.find(p => p.meal === 'snack') : undefined
+  const plannedBlock = (planned: TodayPlan['meals'][number], title: string) => todayPlan && <div className="planned-meal">
+    <button className="planned-recipe-link" aria-label={`Открыть ${title} — ${planned.name}`} onClick={() => setRecipe(planned)}>
+      <DishPhoto id={planned.id} name={planned.name} />
+      <span className="planned-meal-info"><span className="plan-slot">{title}</span><strong>{planned.name}</strong><small>{Math.round(planned.nutrition.kcal)} ккал · Б {Math.round(planned.nutrition.protein_g)} · Ж {Math.round(planned.nutrition.fat_g)} · У {Math.round(planned.nutrition.carbs_g)}</small></span>
+      <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
+    </button>
+    <button className={planned.completed ? 'planned-meal-check is-done' : 'planned-meal-check'} role="checkbox" aria-checked={planned.completed} aria-label={`${planned.completed ? 'Отменить' : 'Отметить'}: ${planned.name}`} disabled={planBusy !== null} onClick={() => togglePlanMeal(todayPlan.meals.indexOf(planned), !planned.completed)}>{planned.completed ? '✓' : ''}</button>
+  </div>
 
   const go = (n: number) => {
     const next = shiftDay(date, n)
@@ -354,24 +367,21 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
       {editable && day.items.length > 0 && <Tip id="row-menu" after={onDate ? 'days' : undefined}>Зажми продукт, чтобы изменить или перенести. Смахни влево для быстрых действий.</Tip>}
       {queued > 0 && <p className="queued" role="status">Ждут связи: {queued} — отправим автоматически</p>}
       {isToday && todayPlan && !todayPlan.finished && <p className="sub plan-day-label">Рацион · день {todayPlan.day}. Отмечай съеденное.</p>}
-      {isToday && todayPlan?.finished && <p className="sub">Рацион завершён.</p>}
+      {isToday && todayPlan?.finished && editable && <div className="plan-finished">
+        <p className="sub">Рацион закончился. Составим следующий с теми же настройками и новыми блюдами?</p>
+        <button className="btn btn-ghost" onClick={() => setPlanning('renew')}>Составить следующий</button>
+      </div>}
       {planError && <p className="error" role="alert">{planError}</p>}
-      {mealGroups(day).map(({ key, meal, slot, title, items }) => {
+      {groups.map(({ key, meal, slot, title, items }) => {
         const kcal = items.reduce((s, i) => s + i.kcal, 0)
         const main = meal !== 'snack'
-        const planned = isToday ? todayPlan?.meals.find(p => p.meal === meal) : undefined
+        // the plan's snack sits with the first snack of the day, or on its own below when none is written yet
+        const planned = isToday && (main || key === firstSnack) ? todayPlan?.meals.find(p => p.meal === meal) : undefined
         const shut = collapsed.includes(key)
         const repeat = main && items.length === 0 && before?.items.some((i) => i.meal_type === meal)
         return (
           <section className={items.length ? 'meal-group' : 'meal-group meal-empty'} key={key}>
-            {planned && todayPlan && <div className="planned-meal">
-              <button className="planned-recipe-link" aria-label={`Открыть ${title} — ${planned.name}`} onClick={() => setRecipe(planned)}>
-                <img src={`/images/recipes/${planned.id}.jpg`} alt="" />
-                <span className="planned-meal-info"><span className="plan-slot">{title}</span><strong>{planned.name}</strong><small>{Math.round(planned.nutrition.kcal)} ккал · Б {Math.round(planned.nutrition.protein_g)} · Ж {Math.round(planned.nutrition.fat_g)} · У {Math.round(planned.nutrition.carbs_g)}</small></span>
-                <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
-              </button>
-              <button className={planned.completed ? 'planned-meal-check is-done' : 'planned-meal-check'} role="checkbox" aria-checked={planned.completed} aria-label={`${planned.completed ? 'Отменить' : 'Отметить'}: ${planned.name}`} disabled={planBusy !== null} onClick={() => togglePlanMeal(todayPlan.meals.indexOf(planned), !planned.completed)}>{planned.completed ? '✓' : ''}</button>
-            </div>}
+            {planned && plannedBlock(planned, title)}
             <div className="meal-head">
               <button className="meal-toggle" aria-expanded={items.length ? !shut : undefined} disabled={!items.length}
                 onClick={() => setCollapsed((c) => (c.includes(key) ? c.filter((k) => k !== key) : [...c, key]))}>
@@ -404,6 +414,7 @@ export default function Food({ day, date = today(), onDate, queued = 0, targets,
           </section>
         )
       })}
+      {plannedSnack && !firstSnack && <section className="meal-group meal-empty">{plannedBlock(plannedSnack, 'Перекус')}</section>}
       {editable && <button className="link meal-snack" onClick={() => setAdding({ meal: 'snack', slot: isToday ? nowSlot() : null })}>+ Перекус</button>}
       </section>
       <button className="card meal-plan-entry" onClick={() => setPlanning(todayPlan ? 'saved' : 'new')}><span className="meal-plan-icon" aria-hidden="true"><Icon name="leaf" size={22} /></span><span className="meal-plan-text"><strong>{todayPlan ? 'Весь рацион' : 'Подбор рациона'}</strong><small>{todayPlan ? 'Меню по дням и список покупок' : 'По твоим предпочтениям'}</small></span><span className="meal-plan-go"><Chevron /></span></button>

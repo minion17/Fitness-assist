@@ -3,15 +3,24 @@ import type { MealPlan } from './mealPrototype'
 import './MealDay.css'
 import { useBack } from './back'
 import { Chevron } from './ui'
+import DishPhoto from './DishPhoto'
 
 type Day = MealPlan['days'][number]
 type Meal = Day['meals'][number]
-const labels = { breakfast: 'Завтрак', lunch: 'Обед', dinner: 'Ужин' }
+export const labels = { breakfast: 'Завтрак', lunch: 'Обед', snack: 'Перекус', dinner: 'Ужин' }
+type Option = { meal: Meal; plan: MealPlan }
 
-export function RecipeCard({ meal, batch = false, error, onClose, onReplace }: {
-  meal: Meal; batch?: boolean; error?: string; onClose: () => void; onReplace?: () => void
+export function RecipeCard({ meal, batch = false, error, onClose, options, onPick }: {
+  meal: Meal; batch?: boolean; error?: string; onClose: () => void
+  options?: () => Option[] // other dishes for this meal, best first: shown on «Заменить блюдо»
+  onPick?: (plan: MealPlan) => void
 }) {
   const dialog = useRef<HTMLDialogElement>(null)
+  const [choices, setChoices] = useState<Option[] | null>(null)
+  const [failed, setFailed] = useState('')
+  const openChoices = () => {
+    try { setChoices(options!().slice(0, 3)); setFailed('') } catch (e) { setFailed(e instanceof Error ? e.message : 'Другого варианта не нашлось.') }
+  }
   useEffect(() => {
     const element = dialog.current!
     const trigger = document.activeElement
@@ -28,7 +37,7 @@ export function RecipeCard({ meal, batch = false, error, onClose, onReplace }: {
     onClick={event => { if (event.target === dialog.current) onClose() }}>
     <div className="plan-recipe-scroll">
       <button autoFocus className="plan-recipe-close" aria-label="Закрыть рецепт" onClick={onClose}>×</button>
-      <img className="plan-recipe-cover" src={`/images/recipes/${meal.id}.jpg`} alt={`Пример блюда: ${meal.name}`} />
+      <DishPhoto className="plan-recipe-cover" id={meal.id} name={meal.name} alt={`Пример блюда: ${meal.name}`} />
       <div className="plan-recipe-body">
         <span className="plan-slot">{labels[meal.meal]}{meal.portions > 1 && ` · на ${meal.portions} чел.`}</span>
         <h2 id="plan-recipe-title">{meal.name}</h2>
@@ -40,15 +49,24 @@ export function RecipeCard({ meal, batch = false, error, onClose, onReplace }: {
           {meal.ingredients.map(i => <div key={i.productId ?? i.product}><span>{i.product}</span><span>{i.grams} г</span></div>)}
         </section>
         <section className="meal-result-steps"><h3>Как приготовить</h3><ol>{steps.map((text, i) => <li key={i}>{text}</li>)}</ol></section>
-        {onReplace && <button className="link meal-result-replace" aria-label={`Заменить блюдо ${meal.name}`} onClick={onReplace}>{batch && meal.meal !== 'breakfast' ? 'Заменить во всей партии' : 'Заменить блюдо'} ↻</button>}
-        {error && <p role="alert">{error}</p>}
+        {options && onPick && !choices && <button className="btn btn-ghost meal-result-replace" aria-label={`Заменить блюдо ${meal.name}`} onClick={openChoices}>
+          {batch && (meal.meal === 'lunch' || meal.meal === 'dinner') ? 'Заменить во всей партии' : 'Заменить блюдо'}</button>}
+        {choices && <section className="replace-choices" aria-label="Чем заменить">
+          <h3>Чем заменить</h3>
+          {choices.map(o => <button key={o.meal.id} className="replace-choice" onClick={() => { onPick!(o.plan); setChoices(null) }}>
+            <DishPhoto id={o.meal.id} name={o.meal.name} />
+            <span><strong>{o.meal.name}</strong><small>{o.meal.nutrition.kcal} ккал · Б {o.meal.nutrition.protein_g} г</small></span>
+          </button>)}
+          <button className="link" onClick={() => setChoices(null)}>Оставить как есть</button>
+        </section>}
+        {(failed || error) && <p role="alert">{failed || error}</p>}
       </div>
     </div>
   </dialog>
 }
 
-export default function MealDay({ day, batch, error, onReplace, onBack, onClearError }: {
-  day: Day; batch: boolean; error: string; onReplace: (index: number) => void; onBack: () => void; onClearError: () => void
+export default function MealDay({ day, batch, error, options, onPick, onBack, onClearError }: {
+  day: Day; batch: boolean; error: string; options: (index: number) => Option[]; onPick: (plan: MealPlan) => void; onBack: () => void; onClearError: () => void
 }) {
   useBack(onBack)
   const [active, setActive] = useState<number | null>(null)
@@ -59,11 +77,11 @@ export default function MealDay({ day, batch, error, onReplace, onBack, onClearE
     <p className="plan-day-total">≈ {day.totals.kcal} ккал <span>· Б {day.totals.protein_g} · Ж {day.totals.fat_g} · У {day.totals.carbs_g} г</span></p>
     <div className="plan-day-menu">{day.meals.map((meal, index) =>
       <button className="plan-meal-link" key={meal.meal} aria-label={`Открыть ${labels[meal.meal]} — ${meal.name}`} onClick={() => setActive(index)}>
-        <img src={`/images/recipes/${meal.id}.jpg`} alt="" />
+        <DishPhoto id={meal.id} name={meal.name} />
         <span className="plan-meal-copy"><span className="plan-slot">{labels[meal.meal]}</span><strong>{meal.name}</strong><small>{meal.nutrition.kcal} ккал{meal.portions > 1 && ` · на ${meal.portions} чел.`}</small></span>
         <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
       </button>)}</div>
     {active !== null && <RecipeCard meal={day.meals[active]} batch={batch} error={error}
-      onClose={() => { setActive(null); onClearError() }} onReplace={() => onReplace(active)} />}
+      onClose={() => { setActive(null); onClearError() }} options={() => options(active)} onPick={onPick} />}
   </div>
 }

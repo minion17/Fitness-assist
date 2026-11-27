@@ -21,6 +21,7 @@ export type PlanInput = {
   batchDays?: 2 | 7
   goalLabel?: string
   quick?: boolean // dishes up to QUICK minutes are preferred
+  dayFactors?: number[] // per plan day: how much bigger its portions are (training days), see trainingFactors
 }
 export const QUICK = 30
 const slots = ['breakfast', 'lunch', 'snack', 'dinner'] as const // the order of a day
@@ -38,6 +39,7 @@ export type Meal = {
   minutes?: number
   repeat?: boolean // cooked earlier: last night's dinner for lunch, or a dish from this batch
   children?: number // of the people it's cooked for
+  swaps?: { from: string; to: string }[] // ingredients the user swapped, by name: the recipe text still names the old ones
 }
 /** A child's portion of a shared dish, of an adult's. */
 export const CHILD = .6
@@ -81,7 +83,7 @@ const terms: Record<string, RegExp> = {
   semolina: /манк[аиу]|манн(ая|ую|ой)/, yogurt: /йогурт[ау]?/, sourCream: /сметан[аыуе]/,
   tuna: /тунец|тунца/, dill: /укроп[ау]?/,
   legumes: /бобов(ые|ых|ая|ый)/, honey: /мед[ау]?|медов(ый|ая|ое)/, rye: /рж(аной|аные|аная|ь)/,
-  tofu: /тофу/, hummus: /хумус[ау]?/, walnutAny: /грецк(ий|ие)/,
+  tofu: /тофу/, liver: /печен(ь|и|ью)|печенк[аиу]/, hummus: /хумус[ау]?/, walnutAny: /грецк(ий|ие)/,
   proteinPowder: /протеин[ау]?|протеинов(ый|ые|ого)/,
 }
 /** Foods people often name that none of our dishes has: «клубника» is no reason to refuse a plan. A word that is in
@@ -90,7 +92,7 @@ export const ABSENT = /клубник[аиу]?|земляник[аиу]?|мал�
 
 /** Quick picks for the questionnaire: every word is one the parser knows; every dislike is in some dish. */
 export const ALLERGY_CHIPS = ['орехи', 'арахис', 'глютен', 'молочное', 'яйца', 'рыба', 'морепродукты', 'соя', 'кунжут', 'мёд', 'цитрусы']
-export const DISLIKE_CHIPS = ['рыба', 'говядина', 'курица', 'индейка', 'творог', 'бобовые', 'тофу', 'гречка', 'лук', 'чеснок', 'капуста', 'тыква', 'перец']
+export const DISLIKE_CHIPS = ['рыба', 'говядина', 'курица', 'индейка', 'творог', 'бобовые', 'тофу', 'гречка', 'лук', 'чеснок', 'капуста', 'тыква', 'перец', 'печень']
 /** What a restriction written as text excludes; throws on a word it doesn't know, like an allergy would. */
 export const tagsOf = (text: string) => [...readTags(text, true)]
 
@@ -186,6 +188,9 @@ function groupKey(input: PlanInput, selected: readonly Slot[], dayIndex: number,
   return null
 }
 /** How many breakfasts take turns: nobody cooks a new one every morning. */
+/** How many times a week a lunch, dinner or snack is cooked anew: cooked for two meals at once — twice, one at a time — three times. */
+const MAX_COOKS: Record<CookingFrequency, number> = { daily: 2, batch: 2, varied: 3 }
+const PROTEIN_K = 6 // a fifth short of protein weighs like ~120 ₽ more for one meal
 const BREAKFASTS: Record<CookingFrequency, number> = { daily: 3, batch: 2, varied: 7 }
 function setup(input: PlanInput) {
   if (![1, 3, 7, 14].includes(input.days)) throw new Error('Выбери срок 1, 3, 7 или 14 дней.')
@@ -275,9 +280,40 @@ function compile(input: PlanInput, ctx: Ctx, days: Day[]): MealPlan {
   if (basketCostRub === null) warnings.push('Для части продуктов цена неизвестна. Стоимость корзины и соответствие бюджету не определены.')
   else if (budgetRub !== null && basketCostRub > budgetRub) warnings.push(`Подобранная корзина превышает бюджет на ${rub(basketCostRub - budgetRub)} ₽. Учтены целые упаковки на выбранный срок.`)
   const share = selectedShare(ctx)
-  if (days.some(d => Math.abs(d.totals.kcal - input.calories * share) > input.calories * share * .10)) warnings.push('В отдельные дни калорийность отличается от твоего ориентира более чем на 10%.')
-  if (input.macros && days.some(d => macroKeys.some(k => Math.abs(d.totals[k] - input.macros![k] * share) > input.macros![k] * share * .20))) warnings.push('В отдельные дни количество белков, жиров или углеводов отличается от ориентира более чем на 20%.')
+  const f = (d: Day) => factorOf(input, d.day - 1)
+  if (days.some(d => Math.abs(d.totals.kcal - input.calories * share * f(d)) > input.calories * share * f(d) * .10)) warnings.push('В отдельные дни калорийность отличается от твоего ориентира более чем на 10%.')
+  if (input.macros && days.some(d => macroKeys.some(k => Math.abs(d.totals[k] - input.macros![k] * share * f(d)) > input.macros![k] * share * f(d) * .20))) warnings.push('В отдельные дни количество белков, жиров или углеводов отличается от ориентира более чем на 20%.')
   return { days, shopping, warnings, budgetRub, basketCostRub, portionCostRub, persons: input.persons ?? 1, sharedMeals: input.sharedMeals ?? [] }
+}
+const factorOf = (input: PlanInput, dayIndex: number) => input.dayFactors?.[dayIndex] ?? 1
+/** A portion f times as big: what fills the plate grows, vegetables and herbs stay (see FIXED). */
+function scaleMeal(meal: Meal, f: number): Meal {
+  if (Math.abs(f - 1) < 1e-6) return meal
+  const nutrition = emptyTotals()
+  const ingredients = meal.ingredients.map(i => {
+    const grams = FIXED.has(i.productId) ? i.grams : Math.max(1, Math.round(i.grams * f))
+    for (const key of nutrientKeys) nutrition[key] += INGREDIENTS[i.productId][key] * grams / 100
+    return { ...i, grams }
+  })
+  for (const key of nutrientKeys) nutrition[key] = Math.round(nutrition[key])
+  return { ...meal, ingredients, nutrition, costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false))) }
+}
+const scaleDay = (day: Day, f: number): Day => { const meals = day.meals.map(m => scaleMeal(m, f)); return { ...day, meals, totals: totals(meals) } }
+/** Training days eat TRAINING times more; the other days of the week a little less, so a week holds the same norm.
+ * `weekdays`: of each plan day, 0 = Mon; `training`: the training weekdays. */
+export const TRAINING = 1.1
+export function trainingFactors(weekdays: number[], training: readonly number[]): number[] | undefined {
+  const t = new Set(training).size
+  if (!t || t >= 7) return undefined
+  const rest = Math.max(.9, (7 - TRAINING * t) / (7 - t))
+  return weekdays.map(w => training.includes(w) ? TRAINING : Math.round(rest * 1000) / 1000)
+}
+/** The same plan moved to other dates: each day's portions rescaled from its old factor to the new one. */
+export function retime(input: PlanInput, plan: MealPlan, dayFactors: number[] | undefined): { input: PlanInput; plan: MealPlan } {
+  const next: PlanInput = { ...input, dayFactors }
+  const { selected, fr, notes } = setup(next)
+  const days = plan.days.map((d, i) => scaleDay(d, factorOf(next, i) / factorOf(input, i)))
+  return { input: next, plan: compile(next, { selected, fr, notes }, days) }
 }
 function distinct(pool: Meal[], others: Meal[]) {
   const alternatives = pool.filter(m => others.every(other => m.id !== other.id))
@@ -321,6 +357,7 @@ function* attempts(input: PlanInput, avoid: readonly string[]): Generator<MealPl
     const uses = new Map<string, number>(avoid.map(id => [id, 1]))
     const assigned = new Map<string, string>() // cooking group -> its dish
     const morning = new Set<string>()
+    const cooked = new Map<string, number>() // dish -> times cooked (not eaten): a cheap menu must not be two soups all week
     const days: Day[] = []
     for (let day = 1; day <= input.days; day++) {
       const meals: Meal[] = []
@@ -333,7 +370,11 @@ function* attempts(input: PlanInput, avoid: readonly string[]): Generator<MealPl
         if (forced) pool = pool.filter(m => m.id === forced)
         else {
           pool = distinct(pool, meals)
-          if (slot === 'breakfast' && morning.size >= breakfasts) pool = pool.filter(m => morning.has(m.id))
+          // breakfasts take turns, each up to its share of the days; others up to MAX_COOKS times a week
+          const cap = slot === 'breakfast' ? Math.max(2, Math.ceil(input.days / breakfasts)) : MAX_COOKS[input.cookingMode ?? 'varied'] * Math.ceil(input.days / 7)
+          const fresh = pool.filter(m => (cooked.get(m.id) ?? 0) < cap)
+          const turn = slot === 'breakfast' && morning.size >= breakfasts ? fresh.filter(m => morning.has(m.id)) : fresh
+          pool = turn.length ? turn : fresh.length ? fresh : slot === 'breakfast' && morning.size >= breakfasts ? pool.filter(m => morning.has(m.id)) : pool
         }
         if (!pool.length) throw new Error('Не удалось подобрать блюда для выбранной частоты готовки с учётом ограничений.')
         const target = targetFor(input, ctx, meals, fr[s] / fr.slice(s).reduce((a, b, i) => a + (selected.includes(slots[s + i]) ? b : 0), 0))
@@ -344,17 +385,20 @@ function* attempts(input: PlanInput, avoid: readonly string[]): Generator<MealPl
           const delta = addedCost(weights, candidate)
           const costScore = delta === null || m.costRub === null ? 10000 : (delta + m.costRub * .6) / 100
           const previousDay = days.at(-1)?.meals.some(previous => previous.id === m.id)
-          const score = quality(input, m, target, liked, uses) - (input.likedRecipeIds?.includes(m.id) ? 1 : 0) + (previousDay ? .65 : 0) + priceWeight * costScore
+          // saving money must not cost protein: its shortfall weighs as much more as the price does
+          const short = Math.max(0, target.protein_g - m.nutrition.protein_g) / Math.max(5, target.protein_g)
+          const score = quality(input, m, target, liked, uses) - (input.likedRecipeIds?.includes(m.id) ? 1 : 0) + (previousDay ? .65 : 0) + priceWeight * (costScore + short * PROTEIN_K)
           if (score < bestScore) { bestScore = score; bestMeal = m }
         }
         bestMeal = { ...bestMeal, ...portionsOf(input, slot), ...(forced ? { repeat: true } : {}) }
         meals.push(bestMeal)
         if (key && !forced) assigned.set(key, bestMeal.id)
+        if (!forced) cooked.set(bestMeal.id, (cooked.get(bestMeal.id) ?? 0) + 1)
         if (slot === 'breakfast') morning.add(bestMeal.id)
         uses.set(bestMeal.id, (uses.get(bestMeal.id) ?? 0) + 1)
         addMeal(weights, bestMeal)
       }
-      days.push({ day, meals, totals: totals(meals) })
+      days.push(scaleDay({ day, meals, totals: totals(meals) }, factorOf(input, day - 1)))
     }
     yield compile(input, ctx, days)
   }
@@ -402,9 +446,10 @@ export function replacementOptions(input: PlanInput, plan: MealPlan, dayIndex: n
         const replacement = choices[slots.indexOf(old.meal)].find(x => x.id === candidate.id)
         if (!replacement) { ok = false; return old }
         const first = cells[0][0] === d && cells[0][1] === m
-        const meal: Meal = { ...replacement, ...portionsOf(input, old.meal), ...(first ? {} : { repeat: true }) }
+        const base: Meal = { ...replacement, ...portionsOf(input, old.meal), ...(first ? {} : { repeat: true }) }
+        score += quality(input, base, targetFor(input, ctx, current.meals.filter((_, i) => !inGroup(d, i)), 1), liked, uses)
+        const meal = scaleMeal(base, factorOf(input, d))
         addMeal(candidateWeights, meal)
-        score += quality(input, meal, targetFor(input, ctx, current.meals.filter((_, i) => !inGroup(d, i)), 1), liked, uses)
         return meal
       })
       return { ...current, meals, totals: totals(meals) }
@@ -429,4 +474,54 @@ export function rebuildDay(input: PlanInput, plan: MealPlan, dayIndex: number): 
     if (options.length) next = options[0].plan
   }
   return next
+}
+
+/** Ingredients that stand in for each other in a dish, same grams: a group is one kind of food. */
+const SWAPS = [['chicken', 'turkey'], ['rawChicken', 'rawTurkey'], ['fish', 'cod'], ['pollock', 'rawCod'], ['rice', 'buckwheat', 'millet'],
+  ['milk', 'soyMilk', 'oatMilk'], ['apple', 'banana'], ['peanut', 'walnut']]
+/** What can replace this ingredient, given the answers (no allergen or disliked food). */
+export function swapOptions(input: PlanInput, productId: string): { id: string; name: string }[] {
+  const { excluded } = setup(input)
+  return (SWAPS.find(g => g.includes(productId)) ?? []).filter(id => id !== productId && INGREDIENTS[id]
+    && ![id, ...INGREDIENTS[id].tags].some(t => excluded.has(t))).map(id => ({ id, name: INGREDIENTS[id].name }))
+}
+/** Where one cooking of the dish at (day, meal) is eaten: that meal and the portions kept from it (repeats), in order. */
+export function cookedFor(plan: MealPlan, dayIndex: number, mealIndex: number): [number, number][] {
+  const id = plan.days[dayIndex].meals[mealIndex].id
+  const cells: [number, number][] = [[dayIndex, mealIndex]]
+  for (let d = dayIndex; d < plan.days.length; d++) {
+    for (let m = d === dayIndex ? mealIndex + 1 : 0; m < plan.days[d].meals.length; m++) {
+      const meal = plan.days[d].meals[m]
+      if (meal.id !== id) continue
+      if (!meal.repeat) return cells
+      cells.push([d, m])
+    }
+  }
+  return cells
+}
+/** One ingredient of a dish swapped for another everywhere this cooking of it is eaten. */
+export function swapIngredient(input: PlanInput, plan: MealPlan, dayIndex: number, mealIndex: number, from: string, to: string): MealPlan {
+  if (!swapOptions(input, from).some(o => o.id === to)) throw new Error('Эту замену сделать нельзя.')
+  const cells = cookedFor(plan, dayIndex, mealIndex)
+  const days = plan.days.map((day, d) => {
+    if (!cells.some(([cd]) => cd === d)) return day
+    const meals = day.meals.map((meal, m) => {
+      if (!cells.some(([cd, cm]) => cd === d && cm === m)) return meal
+      const nutrition = emptyTotals()
+      const ingredients = meal.ingredients.map(i => {
+        const productId = i.productId === from ? to : i.productId
+        for (const key of nutrientKeys) nutrition[key] += INGREDIENTS[productId][key] * i.grams / 100
+        return { ...i, productId, product: INGREDIENTS[productId].name }
+      })
+      for (const key of nutrientKeys) nutrition[key] = Math.round(nutrition[key])
+      const prev = meal.swaps?.find(w => w.to === INGREDIENTS[from].name) // swapped before: keep what the recipe text names
+      const swaps = [...(meal.swaps ?? []).filter(w => w !== prev), { from: prev?.from ?? INGREDIENTS[from].name, to: INGREDIENTS[to].name }]
+        .filter(w => w.from !== w.to)
+      return { ...meal, ingredients, nutrition, swaps, tags: [...new Set(ingredients.flatMap(i => [i.productId, ...INGREDIENTS[i.productId].tags]))],
+        costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false))) }
+    })
+    return { ...day, meals, totals: totals(meals) }
+  })
+  const { selected, fr, notes } = setup(input)
+  return compile(input, { selected, fr, notes }, days)
 }

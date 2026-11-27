@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ABSENT, ALLERGY_CHIPS, budgetRange, CHILD, createMealPlan, forWhom, DISLIKE_CHIPS, rebuildDay, replaceMeal, replacementOptions, SNACK_FROM, tagsOf, type MealPlan } from './mealPrototype'
+import { ABSENT, ALLERGY_CHIPS, budgetRange, CHILD, cookedFor, createMealPlan, forWhom, DISLIKE_CHIPS, rebuildDay, replaceMeal, replacementOptions, retime, SNACK_FROM, swapIngredient, swapOptions, tagsOf, trainingFactors, type MealPlan } from './mealPrototype'
 import { BUY, INGREDIENTS, RECIPES, toBuy } from './mealCatalog'
 
 describe('подбор блюд', () => {
@@ -257,7 +257,7 @@ it('быстрые варианты аллергий и «не ем» распо
 it('вилка бюджета: самое дешёвое меню ≤ меню с нормой белка ≤ меню без лимита', () => {
   const input = { days: 3, calories: 2000, allergies: '', disliked: '', liked: '', macros: { protein_g: 130, fat_g: 65, carbs_g: 220 } }
   const range = budgetRange(input)!
-  expect(range.cheapest).toBeLessThan(range.balanced)
+  expect(range.cheapest).toBeLessThanOrEqual(range.balanced)
   expect(range.balanced).toBeLessThanOrEqual(range.full)
   // a plan made for the balanced sum fits it; the cheapest sum is what a zero budget gets
   const plan = createMealPlan({ ...input, days: 7, budget: range.balanced })
@@ -277,4 +277,58 @@ it('детям в общих блюдах — порция меньше, и ко
   expect(forWhom(withKid.days[0].meals.find(m => m.meal === 'breakfast')!)).toBeNull() // breakfast is not shared
   expect(withKid.basketCostRub!).toBeLessThan(adults.basketCostRub!)
   expect(() => createMealPlan({ ...family, children: 3 })).toThrow(/Детей/)
+})
+
+it('экономное меню держит белок и не повторяет одно блюдо всю неделю', () => {
+  const macros = { protein_g: 130, fat_g: 65, carbs_g: 220 }
+  for (const cookingMode of ['daily', 'varied'] as const) {
+    const plan = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: '', liked: '', cookingMode, macros, budget: 0 })
+    const protein = plan.days.reduce((n, d) => n + d.totals.protein_g, 0) / 7
+    expect(protein, cookingMode).toBeGreaterThan(130 * .85)
+    const cooked = new Map<string, number>()
+    for (const m of plan.days.flatMap(d => d.meals)) if (!m.repeat) cooked.set(m.id, (cooked.get(m.id) ?? 0) + 1)
+    for (const [id, n] of cooked) expect(n, id).toBeLessThanOrEqual(3)
+  }
+})
+
+it('в дни тренировок порции больше, а за неделю калорий столько же', () => {
+  const f = trainingFactors([0, 1, 2, 3, 4, 5, 6], [0, 2, 4])!
+  expect(f[0]).toBe(1.1)
+  expect(f.reduce((a, b) => a + b, 0)).toBeCloseTo(7, 1)
+  expect(trainingFactors([0, 1], [])).toBeUndefined()
+  const input = { days: 7, calories: 2000, allergies: '', disliked: '', liked: '', cookingMode: 'varied' as const }
+  const plain = createMealPlan(input)
+  const trained = createMealPlan({ ...input, dayFactors: f })
+  expect(trained.days[0].totals.kcal).toBeGreaterThan(trained.days[1].totals.kcal)
+  expect(trained.warnings.some(w => w.includes('калорийность'))).toBe(plain.warnings.some(w => w.includes('калорийность')))
+  // the same plan two days later: the dishes stay, the big portions move with the training days
+  const moved = retime({ ...input, dayFactors: f }, trained, trainingFactors([2, 3, 4, 5, 6, 0, 1], [0, 2, 4]))
+  expect(moved.plan.days.map(d => d.meals.map(m => m.id))).toEqual(trained.days.map(d => d.meals.map(m => m.id)))
+  expect(moved.plan.days[1].totals.kcal).toBeLessThan(trained.days[1].totals.kcal * 1.02) // Thu: rest
+  expect(moved.plan.days[0].totals.kcal).toBeGreaterThan(moved.plan.days[1].totals.kcal) // Wed: training
+  // a replacement keeps the day's size
+  const options = replacementOptions({ ...input, dayFactors: f }, trained, 0, 1)
+  expect(options[0].meal.nutrition.kcal).toBeGreaterThan(createMealPlan(input).days[0].meals[1].nutrition.kcal * .9)
+})
+
+it('замена ингредиента: во всей готовке блюда, с учётом ограничений', () => {
+  const input = { days: 3, calories: 2000, allergies: '', disliked: '', liked: '', cookingMode: 'daily' as const }
+  const plan = createMealPlan(input)
+  const d = plan.days.findIndex(day => day.meals.some(m => m.meal === 'dinner' && m.ingredients.some(i => swapOptions(input, i.productId).length)))
+  const m = plan.days[d].meals.findIndex(x => x.meal === 'dinner')
+  const from = plan.days[d].meals[m].ingredients.find(i => swapOptions(input, i.productId).length)!.productId
+  const to = swapOptions(input, from)[0].id
+  const cells = cookedFor(plan, d, m)
+  expect(cells.length).toBeGreaterThanOrEqual(1)
+  const next = swapIngredient(input, plan, d, m, from, to)
+  for (const [cd, cm] of cells) {
+    expect(next.days[cd].meals[cm].ingredients.some(i => i.productId === to)).toBe(true)
+    expect(next.days[cd].meals[cm].swaps?.[0].to).toBe(INGREDIENTS[to].name)
+  }
+  // swapping back leaves no note
+  const back = swapIngredient(input, next, d, m, to, from)
+  expect(back.days[d].meals[m].swaps).toEqual([])
+  // an allergen is never offered
+  expect(swapOptions({ ...input, allergies: 'рыба' }, 'chicken').every(o => !['fish', 'cod'].includes(o.id))).toBe(true)
+  expect(swapOptions({ ...input, disliked: 'индейка' }, 'chicken')).toEqual([])
 })

@@ -29,7 +29,7 @@ const names: Record<string, [string, string[]]> = {
  peanutPaste: ['Арахисовая паста', ['nuts', 'legumes']], tofu: ['Тофу', ['soy', 'legumes']],
  lavash: ['Лаваш', ['gluten', 'wheat']], edamame: ['Эдамаме', ['soy', 'legumes']], soyMilk: ['Молоко соевое', ['soy']],
  feta: ['Сыр Фета', ['dairy']], rawCod: ['Треска', ['fish']], rawTurkey: ['Индейка филе', ['turkey', 'poultry', 'meat']],
- rawBroccoli: ['Брокколи', ['broccoli']], soyProtein: ['Протеин соевый', ['soy', 'proteinPowder']], mung: ['Маш', ['legumes']],
+ rawBroccoli: ['Брокколи', ['broccoli']], soyProtein: ['Протеин соевый', ['soy', 'proteinPowder']], mung: ['Маш', ['legumes']], liver: ['Куриная печень', ['chicken', 'poultry', 'meat', 'liver']],
 }
 /** What a pack costs and weighs (grams; drained weight for tins), from magnit.ru in November 2026: the regular price
  * without promotions, an ordinary brand. soyProtein and edamame aren't sold there (ozon / VkusVill). Ingredients weighed
@@ -47,7 +47,7 @@ const PRICES: Record<string, [number, number]> = {
  milk: [930, 95], kefir: [930, 90], curd: [300, 170], sourCream: [300, 72], yogurt: [235, 95], butter: [180, 190],
  cheese: [190, 260], feta: [200, 170], egg: [550, 130],
  // meat and fish, raw
- rawChicken: [1000, 580], rawTurkey: [500, 380], beef: [1000, 1400], mince: [400, 270], pollock: [400, 400], rawCod: [750, 1250],
+ rawChicken: [1000, 580], liver: [490, 210], rawTurkey: [500, 380], beef: [1000, 1400], mince: [400, 270], pollock: [400, 400], rawCod: [750, 1250],
  // vegetables, fruit, herbs (loose ones per kilo)
  rawPotato: [2000, 100], rawCarrot: [1000, 70], onion: [1000, 50], cabbage: [1000, 66], tomato: [1000, 240], cucumber: [500, 100],
  pepper: [1000, 370], pumpkin: [1000, 120], garlic: [100, 80], chili: [100, 130], dill: [50, 70], rawBroccoli: [400, 210],
@@ -65,7 +65,7 @@ export const BUY: Record<string, [string, number]> = {
 export const SHOP_NAME: Record<string, string> = {
  bread: 'Батон или хлеб пшеничный', chickpeas: 'Нут консервированный', oil: 'Масло растительное', beans: 'Фасоль красная консервированная', tuna: 'Тунец консервированный', egg: 'Яйца', rawCarrot: 'Морковь', rawPotato: 'Картофель',
  oats: 'Овсяные хлопья', pollock: 'Минтай (филе)', rawCod: 'Треска (филе)', rawTurkey: 'Индейка (филе)', rawChicken: 'Куриная грудка',
- rawBroccoli: 'Брокколи', pepper: 'Перец болгарский', berries: 'Смородина или другие ягоды (можно замороженные)',
+ rawBroccoli: 'Брокколи', liver: 'Печень куриная', pepper: 'Перец болгарский', berries: 'Смородина или другие ягоды (можно замороженные)',
 }
 /** Bought by the piece: the list says «12 шт», not «660 г». */
 export const PIECES: Record<string, number> = { egg: 55, banana: 120, apple: 180, orange: 150, lemon: 100, pepper: 150 }
@@ -94,7 +94,7 @@ const MINUTES: Record<string, number> = {
  'tofu-buckwheat': 25, 'tofu-rice': 25, 'yogurt-berries': 3, 'kefir-banana': 3, 'cheese-sandwich': 5, 'apple-peanut': 2,
  'hummus-crispbread': 3, 'curd-honey': 3, 'peanut-crispbread': 3, 'eggs-cucumber': 12, 'tofu-scramble': 15, 'chickpea-salad': 10,
  'lavash-tofu': 15, 'lentil-tofu': 30, edamame: 8, 'soy-banana': 3, 'curd-omelette': 15, 'yogurt-oats': 10, 'feta-chickpea-salad': 10,
- 'soy-protein-shake': 3, 'oats-soy-protein': 10, 'mung-tofu': 35,
+ 'soy-protein-shake': 3, 'oats-soy-protein': 10, 'mung-tofu': 35, 'liver-buckwheat': 30, 'lentil-egg': 25, 'chicken-lentils': 40,
 }
 const RECIPE_LIST = [
  recipe('syrniki', 'Сырники со смородиной и йогуртом', 'breakfast',
@@ -215,6 +215,9 @@ const RECIPE_LIST = [
  recipe('chickpea-salad','Салат с нутом, огурцом и помидорами','main',[['chickpeas',220],['cucumber',150],['tomato',150],['oil',12],['lemon',15],['bread',40]],'1. Слей жидкость с нута и промой его. 2. Нарежь огурец и помидоры кубиками. 3. Смешай с нутом, заправь маслом, лимонным соком и солью, подай с хлебом.'),
  recipe('lavash-tofu','Лаваш с тофу, хумусом и овощами','lunch',[['lavash',80],['tofu',170],['hummus',40],['cucumber',100],['tomato',100]],'1. Тофу нарежь брусками и обжарь на сухой сковороде до корочки, посоли. 2. Намажь лаваш хумусом, выложи тофу и нарезанные овощи. 3. Сверни плотным рулетом и разрежь пополам.'),
  recipe('lentil-tofu','Красная чечевица с тофу и морковью','main',[['lentils',80],['tofu',170],['rawCarrot',100],['onion',40],['oil',10]],'1. Промой чечевицу и свари в подсоленной воде 15 минут до мягкости. 2. Обжарь на масле лук и тёртую морковь, добавь тофу кубиками и подрумянь 5 минут. 3. Смешай с чечевицей и прогрей ещё 2 минуты.'),
+ recipe('liver-buckwheat','Куриная печень с луком и гречкой','main',[['liver',170],['buckwheat',80],['onion',60],['rawCarrot',60],['sourCream',30],['oil',8]],'1. Отвесь сухую гречку и свари на воде по инструкции на упаковке. 2. Обжарь на масле нарезанный лук и тёртую морковь 5 минут. Добавь печень, срезав плёнки, и жарь 5–6 минут, переворачивая: внутри она должна стать светлой, без крови. 3. Вмешай сметану, посоли и прогрей минуту. Подавай с гречкой.'),
+ recipe('lentil-egg','Красная чечевица с яйцом и жареным луком','main',[['lentils',90],['egg',110],['onion',60],['tomato',150],['oil',10]],'1. Промой чечевицу и свари в подсоленной воде 15 минут до мягкости. 2. Отвари яйца вкрутую 9 минут; указан вес без скорлупы. Пока варятся, обжарь лук на масле до золотистого цвета. 3. Смешай чечевицу с луком, выложи сверху яйца половинками, рядом нарезанный помидор.'),
+ recipe('chicken-lentils','Курица с зелёной чечевицей и морковью','main',[['chicken',150],['greenLentils',70],['rawCarrot',80],['onion',40],['oil',8]],'1. Промой зелёную чечевицу и вари 25–30 минут до мягкости, в конце посоли. 2. Отвесь уже отваренное куриное филе и нарежь кубиками. 3. Обжарь на масле лук и тёртую морковь, добавь курицу и чечевицу, прогрей 3 минуты.'),
  recipe('edamame','Эдамаме с солью','snack',[['edamame',180]],'1. Опусти замороженные бобы эдамаме в кипящую подсоленную воду. 2. Вари 4–5 минут и откинь на дуршлаг. 3. Посоли крупной солью и ешь, выдавливая бобы из стручков.'),
  recipe('soy-banana','Соевое молоко с бананом и арахисом','snack',[['soyMilk',300],['banana',120],['peanut',15]],'1. Очисти банан и разломи на куски. 2. Взбей с соевым молоком и арахисом блендером до однородности. 3. Пей сразу, пока коктейль не расслоился.'),
  recipe('curd-omelette','Омлет с творогом и зеленью','breakfast',[['egg',165],['curd',100],['dill',5],['oil',5],['bread',40]],'1. Взбей яйца с творогом и щепоткой соли, добавь рубленый укроп. 2. Вылей на разогретую сковороду с маслом, накрой крышкой и готовь на слабом огне 6–7 минут. 3. Подай с ломтиком хлеба.'),

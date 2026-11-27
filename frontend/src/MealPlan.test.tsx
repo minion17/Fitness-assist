@@ -304,8 +304,6 @@ it('бюджет подсказывает, на что хватит суммы',
   render(<MealPlan onClose={vi.fn()} />)
   for (let i = 0; i < 8 && !screen.queryByRole('slider', { name: 'Желаемый бюджет' }); i++) next()
   expect(screen.getByRole('status').textContent).toMatch(/без лимита выходит ≈/)
-  fireEvent.click(screen.getByRole('button', { name: /Минимум/ }))
-  expect(screen.getByRole('status').textContent).toMatch(/белка будет меньше нормы/)
   fireEvent.click(screen.getByRole('button', { name: /Сбалансированно/ }))
   expect(screen.getByRole('status').textContent).toMatch(/Норма белка есть|Хватит на любое меню/)
   fireEvent.change(screen.getByRole('slider', { name: 'Желаемый бюджет' }), { target: { value: '300' } })
@@ -326,4 +324,60 @@ it('в семье можно указать детей, их число не б�
   expect(screen.getByText('2, из них детей 1')).toBeTruthy()
   fireEvent.click(screen.getByRole('button', { name: 'Составить рацион' }))
   expect(screen.getByText(/детские — около 60% взрослой/)).toBeTruthy()
+})
+
+it('отмеченное «есть дома» уходит из суммы, отделы идут по ходу магазина', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  build()
+  const basket = screen.getByText('Список продуктов').closest('details')!
+  const titles = [...basket.querySelectorAll('section h3')].map(h => h.textContent)
+  expect(titles.indexOf('Овощи')).toBeLessThan(titles.indexOf('Молочные продукты'))
+  const box = within(basket).getAllByRole('checkbox')[0]
+  fireEvent.click(box)
+  expect(screen.getByText(/Докупить ≈ .* ₽: часть продуктов есть дома/)).toBeTruthy()
+  expect(basket.textContent).toMatch(/1 дома/)
+  fireEvent.click(box)
+  expect(screen.queryByText(/Докупить ≈/)).toBeNull()
+  localStorage.clear()
+})
+
+it('дни тренировок из профиля помечены, порции на них больше', () => {
+  render(<MealPlan onClose={vi.fn()} profile={{ sex: 'male', birth_year: 1995, height_cm: 180, weight_kg: 80, activity: 'moderate', goal: 'maintenance', training_days: [0, 2, 4] }} />)
+  build()
+  expect(screen.getByText(/В дни тренировок порции на 10% больше/)).toBeTruthy()
+  expect(screen.getAllByText(/· тренировка/)).toHaveLength(3)
+})
+
+it('следующий рацион берёт норму, обновлённую по весу', async () => {
+  const saved = { input: { days: 1, calories: 2400, allergies: '', disliked: '', liked: '', macros: { protein_g: 150, fat_g: 80, carbs_g: 270 } }, plan: null as unknown }
+  saved.plan = (await import('./mealPrototype')).createMealPlan(saved.input)
+  vi.mocked(api).mockImplementation(async (url) => url === '/api/meal-plan' ? saved : null)
+  render(<MealPlan onClose={vi.fn()} canEdit renew profile={{ sex: 'male', birth_year: 1995, height_cm: 180, weight_kg: 80, activity: 'moderate', goal: 'weight_loss', targets: { calories: 2200, protein: 150, fat: 70, carbs: 240 } }} />)
+  expect(await screen.findByText(/Норма обновилась по твоему весу: 2400 → 2200 ккал/)).toBeTruthy()
+  expect(screen.getByText('Ориентир — 2200 ккал в день')).toBeTruthy()
+})
+
+it('в дне есть план готовки, ингредиент можно заменить', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  fireEvent.click(screen.getByRole('button', { name: '3 дня' }))
+  build()
+  fireEvent.click(screen.getByRole('button', { name: 'Открыть день 1' }))
+  const cooking = screen.getByRole('region', { name: 'План готовки' })
+  expect(cooking.textContent).toMatch(/на 2 приёма пищи/)
+  expect(cooking.textContent).toMatch(/в контейнер/)
+  // a dish with something to swap
+  for (const link of screen.getAllByRole('button', { name: /^Открыть / })) {
+    fireEvent.click(link)
+    const swap = screen.queryAllByRole('button', { name: /^Заменить: / })[0]
+    if (swap) {
+      fireEvent.click(swap)
+      const choice = within(screen.getByRole('group', { name: /^Чем заменить: / })).getAllByRole('button')[0]
+      const to = choice.textContent
+      fireEvent.click(choice)
+      expect(screen.getByRole('dialog').textContent).toContain(`— «${to}».`)
+      return
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Закрыть рецепт' }))
+  }
+  throw new Error('no swappable ingredient')
 })

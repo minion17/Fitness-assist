@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { plural } from './plural'
 import { api, putJson } from './telegram'
 import { calculateTargets, type Goal, type ProfileData } from './profile'
-import { ALLERGY_CHIPS, budgetRange, CHILD, createMealPlan, DISLIKE_CHIPS, rebuildDay, replacementOptions, tagsOf, type PlanInput, type MealPlan as GeneratedPlan } from './mealPrototype'
+import { ALLERGY_CHIPS, budgetRange, CHILD, cookedFor, createMealPlan, DISLIKE_CHIPS, rebuildDay, replacementOptions, retime, swapIngredient, swapOptions, tagsOf, TRAINING, trainingFactors, type PlanInput, type MealPlan as GeneratedPlan } from './mealPrototype'
 import MealRange from './MealRange'
 import PlanShopping from './PlanShopping'
 import './MealOverview.css'
@@ -30,6 +30,7 @@ const rub = (n: number) => `${Math.round(n).toLocaleString('ru-RU')} ₽`
 const iso = (d: Date) => d.toLocaleDateString('sv-SE')
 const shift = (day: string, n: number) => { const d = new Date(`${day}T12:00`); d.setDate(d.getDate() + n); return iso(d) }
 const dayName = (day: string) => new Date(`${day}T12:00`).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })
+const PANTRY_KEY = 'nextly-pantry'
 type Saved = { input: PlanInput; plan: GeneratedPlan; start?: string | null; next_start?: string | null }
 function AnswerGroup({ title, entries }: { title: string; entries: string[][] }) {
   return <section className="answer-group"><h2>{title}</h2><dl>
@@ -83,6 +84,16 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const [savingPlan, setSavingPlan] = useState(false)
   const [calorieOverride, setCalorieOverride] = useState('')
   const [today] = useState(() => iso(new Date()))
+  /** Bigger portions on the profile's training days, for a plan starting on `first`. */
+  const factorsFrom = (first: string, n: number) => trainingFactors(Array.from({ length: n }, (_, i) => (new Date(`${shift(first, i)}T12:00`).getDay() + 6) % 7), profile?.training_days ?? [])
+  // products already at home, ticked in the shopping list; kept on this device for the next plans too
+  const [home, setHome] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(PANTRY_KEY) ?? '[]')) } catch { return new Set() } })
+  const toggleHome = (id: string) => setHome(prev => {
+    const next = new Set(prev)
+    if (!next.delete(id)) next.add(id)
+    try { localStorage.setItem(PANTRY_KEY, JSON.stringify([...next])) } catch { /* private mode */ }
+    return next
+  })
 
   // the budget comes after sex and diet: what a week costs depends on both
   const flow: StepId[] = ['days', ...(profile?.goal ? [] : ['goal' as const]), 'persons', ...(persons > 1 ? ['meals' as const] : []),
@@ -115,8 +126,12 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   /** The same answers, new dishes first: for when the current plan has run out. */
   const nextPlan = (input: PlanInput, previous: GeneratedPlan) => {
     try {
-      setPlan(createMealPlan(input, previous.days.flatMap(d => d.meals.map(m => m.id))))
-      setIsSaved(false); setPlanMessage('Новый рацион с теми же настройками. Сохрани, чтобы он появился в дневнике.')
+      // the norm follows the weight (it's recalculated weekly in the profile): a plan made by it takes the new one
+      const norm = input.macros && profile?.targets
+      const fresh: PlanInput = { ...input, ...(norm ? { calories: norm.calories, macros: { protein_g: norm.protein, fat_g: norm.fat, carbs_g: norm.carbs } } : {}), dayFactors: factorsFrom(start || today, input.days) }
+      setPlan(createMealPlan(fresh, previous.days.flatMap(d => d.meals.map(m => m.id)))); setPlanInput(fresh); setCalorieOverride(String(fresh.calories))
+      setIsSaved(false)
+      setPlanMessage(fresh.calories !== input.calories ? `Норма обновилась по твоему весу: ${input.calories} → ${fresh.calories} ккал в день. Сохрани новый рацион, чтобы он появился в дневнике.` : 'Новый рацион с теми же настройками. Сохрани, чтобы он появился в дневнике.')
     } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось подобрать блюда.') }
   }
   const openSavedPlan = (saved: Saved, next = false) => {
@@ -163,7 +178,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const selectedGoal: Goal = goal === GOALS.weight_loss ? (profile?.goal === 'fat_loss' ? 'fat_loss' : 'weight_loss') : goal === GOALS.mass_gain ? (profile?.goal === 'muscle_gain' ? 'muscle_gain' : 'mass_gain') : 'maintenance'
   const targets = profile ? (selectedGoal === profile.goal && profile.targets && (!sex || sex === profile.sex) ? profile.targets : calculateTargets({ ...profile, sex: sex ?? profile.sex }, selectedGoal)) : null
   const defaultCalories = targets?.calories ?? (goal === GOALS.weight_loss ? 1800 : goal === GOALS.mass_gain ? 2200 : 2000)
-  const inputFor = (override: number | null): PlanInput => ({ days: Number.parseInt(days), calories: override ?? defaultCalories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, ...(quick ? { quick } : {}), persons, ...(persons > 1 && children ? { children } : {}), selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budget.trim() ? Number(budget) : null, ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) })
+  const inputFor = (override: number | null): PlanInput => ({ days: Number.parseInt(days), calories: override ?? defaultCalories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, ...(quick ? { quick } : {}), persons, ...(persons > 1 && children ? { children } : {}), selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budget.trim() ? Number(budget) : null, dayFactors: factorsFrom(start || today, Number.parseInt(days)), ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) })
   // what a week of these answers costs, for the budget step; the key leaves out the budget, so dragging doesn't recount
   const draftKey = view === 'form' && current === 'budget' ? JSON.stringify({ ...inputFor(calorieOverride.trim() ? Number(calorieOverride) : null), budget: null }) : ''
   const range = useMemo(() => { try { return draftKey ? budgetRange(JSON.parse(draftKey)) : null } catch { return null } }, [draftKey])
@@ -212,8 +227,21 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       onBack={() => { setDayIndex(null); setError('') }}
       options={index => replacementOptions(planInput, plan, dayIndex, index)}
       onPick={p => { setPlan(p); setIsSaved(false); setPlanMessage('') }} onClearError={() => setError('')}
-      onRebuild={() => { try { setPlan(rebuildDay(planInput, plan, dayIndex)); setIsSaved(false) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось пересобрать день.') } }} />
+      onRebuild={() => { try { setPlan(rebuildDay(planInput, plan, dayIndex)); setIsSaved(false) } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось пересобрать день.') } }}
+      cooking={plan.days[dayIndex].meals.flatMap((m, i) => m.repeat ? [] : [{ name: m.name, minutes: m.minutes, meals: cookedFor(plan, dayIndex, i).length }])}
+      swaps={id => { try { return swapOptions(planInput, id) } catch { return [] } }}
+      onSwap={(index, from, to) => { try { setPlan(swapIngredient(planInput, plan, dayIndex, index, from, to)); setIsSaved(false); setPlanMessage('') } catch (e) { setError(e instanceof Error ? e.message : 'Не удалось заменить.') } }} />
   }
+  /** Another first day moves the training days: their portions are rescaled, the dishes stay. */
+  const pickStart = (day: string) => {
+    setStart(day)
+    if (!plan || !planInput) return
+    const f = factorsFrom(day, plan.days.length)
+    if (JSON.stringify(f) === JSON.stringify(planInput.dayFactors)) return
+    const moved = retime(planInput, plan, f)
+    setPlan(moved.plan); setPlanInput(moved.input)
+  }
+  const homeRub = plan?.shopping.reduce((sum, i) => sum + (home.has(i.productId) ? i.costRub ?? 0 : 0), 0) ?? 0
   const snack = plan?.days.some(d => d.meals.some(m => m.meal === 'snack'))
   // the current plan still runs: the new one can follow it, so the last days are not lost
   const currentEnd = savedPlan?.start && !savedPlan.next_start ? shift(savedPlan.start, savedPlan.plan.days.length - 1) : null
@@ -290,10 +318,12 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
         {saved && <p role="status">Ответы сохранены</p>}</>}
       {view === 'result' && plan && <>
         <div className="meal-result-intro"><h2>Рацион на {days}</h2><p>{`Ориентир — ${planInput?.calories ?? '—'} ккал в день`}</p>
+          {plan.basketCostRub != null && homeRub > 0 && <p className="plan-cost">Докупить ≈ {rub(plan.basketCostRub - homeRub)}: часть продуктов есть дома</p>}
           {plan.basketCostRub != null && <p className="plan-cost">Продукты ≈ {rub(plan.basketCostRub)} на весь срок{plan.days.length > 7 || persons > 1 ? ` · ≈ ${rub(plan.basketCostRub / plan.days.length * 7 / persons)} в неделю на человека` : ''}
             {plan.budgetRub != null && plan.basketCostRub <= plan.budgetRub && <span className="pos"> · в рамках бюджета</span>}
             {Number(currentSpend) > plan.basketCostRub / plan.days.length * 7 && <span className="pos"> · на {rub(Number(currentSpend) - plan.basketCostRub / plan.days.length * 7)} в неделю меньше, чем сейчас</span>}</p>}
           <div className="meal-result-disclaimer">Цены — обычные, без акций, по сайту сети «Магнит» ({PRICES_AS_OF}); в твоём магазине могут отличаться. Считаем целыми упаковками. {persons > 1 && `Общие блюда рассчитаны на порции по твоей норме${children ? `, детские — около ${Math.round(CHILD * 100)}% взрослой` : ''}. `}При аллергии проверяй состав и следы аллергенов.</div></div>
+        {planInput?.dayFactors && <p className="sub">В дни тренировок порции на {Math.round((TRAINING - 1) * 100)}% больше, в остальные — чуть меньше: за неделю выходит та же норма.</p>}
         {snack && <p className="sub">Добавили перекус: при {planInput?.calories} ккал три тарелки вышли бы слишком большими.</p>}
         {diet === 'vegan' && <p className="sub">Белок в растительном меню — из тофу, нута, чечевицы, маша, орехов и соевого протеина. Если протеин не нужен, напиши «протеин» в «Что не ешь».</p>}
         {plan.warnings.map(w => <p className="sub" key={w}>{w}</p>)}
@@ -304,7 +334,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
           const featured = [day.meals.find(m => m.meal === 'lunch'), ...day.meals].find(m => m && !before.includes(m.id)) ?? day.meals.find(m => m.meal === 'lunch') ?? day.meals[0]
           return <button key={day.day} className="plan-day-link" aria-label={`Открыть день ${day.day}`} onClick={() => setDayIndex(index)}>
             {featured && <DishPhoto id={featured.id} name={featured.name} />}
-            <span className="plan-day-copy"><strong>День {day.day}</strong>
+            <span className="plan-day-copy"><strong>День {day.day}{(planInput?.dayFactors?.[index] ?? 1) > 1 && <span className="plan-day-tag"> · тренировка</span>}</strong>
               {day.meals.map(m => <small key={m.meal}>{labels[m.meal]}: {m.name}</small>)}
               <span>Б {day.totals.protein_g} · Ж {day.totals.fat_g} · У {day.totals.carbs_g} г</span>
             </span>
@@ -312,14 +342,14 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
             <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
           </button>
         })}</div>
-        <PlanShopping items={plan.shopping} canShare={canEdit} days={plan.days.length} />
+        <PlanShopping items={plan.shopping} canShare={canEdit} days={plan.days.length} home={home} onHome={toggleHome} />
       </>}
     </section>
     {error && <p role="alert">{error}</p>}
     {planMessage && <p role="status">{planMessage}</p>}
     {view === 'result' && canEdit && !isSaved && <div className="plan-start" role="radiogroup" aria-label="Начать рацион">
       <span className="sub">Начать</span>
-      {startOptions.map(([day, label]) => <button key={day} className="chip" role="radio" aria-checked={(start || today) === day} onClick={() => setStart(day)}>{label}</button>)}
+      {startOptions.map(([day, label]) => <button key={day} className="chip" role="radio" aria-checked={(start || today) === day} onClick={() => pickStart(day)}>{label}</button>)}
     </div>}
     {view === 'result' && canEdit && !isSaved && <button className="btn meal-plan-next" disabled={savingPlan} onClick={savePlan}>{savingPlan ? 'Сохраняем…' : 'Сохранить и использовать рацион'}</button>}
     {view === 'result' && canEdit && isSaved && plan && planInput && <button className="btn meal-plan-next" onClick={() => nextPlan(planInput, plan)}>Составить следующий рацион</button>}
@@ -350,12 +380,13 @@ function BudgetStep({ range, persons, budget, currentSpend, limits, onBudget, on
   const max = (i: number) => Math.max(persons * 10000, Math.min(limits[i], Math.ceil(Number(i ? currentSpend : budget) / 1000) * 1000))
   const b = Number(budget)
   // presets from what menus for these answers really cost; the fixed ones if a price is unknown
-  const presets = range ? [['Минимум', up(range.cheapest)], ['Сбалансированно', up(range.balanced)], ['Свободно', up(range.full)]]
-    .filter(([, sum], i, all) => all.findIndex(p => p[1] === sum) === i) as [string, number][]
+  // a preset equal to «Сбалансированно» is left out: the cheapest menu may already keep the protein
+  const presets = range ? ([['Минимум', up(range.cheapest)], ['Сбалансированно', up(range.balanced)], ['Свободно', up(range.full)]] as [string, number][])
+    .filter(([label, sum]) => label === 'Сбалансированно' || sum !== up(range.balanced))
     : BUDGET_PRESETS.map(p => [p.label, p.per * persons] as [string, number])
   const note = !range ? null : !budget ? `Меню без лимита выходит ≈ ${rub(range.full)} в неделю.`
     : b < range.cheapest ? `Дешевле ≈ ${rub(range.cheapest)} меню не собрать: подберём самое дешёвое.`
-    : b < range.balanced ? `Хватит на каши и супы из бобовых, но белка будет меньше нормы. Норма белка — от ≈ ${rub(up(range.balanced))}.`
+    : b < range.balanced ? `Хватит на простые блюда, но белка будет меньше нормы. Норма белка — от ≈ ${rub(up(range.balanced))}.`
     : b < range.full ? 'Норма белка есть, блюда попроще.' : 'Хватит на любое меню.'
   return <>
     <h2>Бюджет на неделю</h2>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { plural } from './plural'
 import { api, putJson } from './telegram'
 import { calculateTargets, type Goal, type ProfileData } from './profile'
-import { ALLERGY_CHIPS, budgetRange, createMealPlan, DISLIKE_CHIPS, rebuildDay, replacementOptions, tagsOf, type PlanInput, type MealPlan as GeneratedPlan } from './mealPrototype'
+import { ALLERGY_CHIPS, budgetRange, CHILD, createMealPlan, DISLIKE_CHIPS, rebuildDay, replacementOptions, tagsOf, type PlanInput, type MealPlan as GeneratedPlan } from './mealPrototype'
 import MealRange from './MealRange'
 import PlanShopping from './PlanShopping'
 import './MealOverview.css'
@@ -61,6 +61,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const [cookingMode, setCookingMode] = useState<'daily' | 'batch' | 'varied'>('daily')
   const [batchDays, setBatchDays] = useState<2 | 7>(2)
   const [persons, setPersons] = useState(1)
+  const [children, setChildren] = useState(0) // of the persons
   const [selectedMeals, setSelectedMeals] = useState<Slot[]>(['breakfast', 'lunch', 'dinner'])
   const [sharedMeals, setSharedMeals] = useState<Slot[]>([])
   const [sex, setSex] = useState<'male' | 'female' | null>(profile?.sex ?? null)
@@ -126,7 +127,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
     setNoAllergies(!saved.input.allergies.trim())
     setDisliked(saved.input.disliked); setLiked(saved.input.liked)
     setCookingMode(saved.input.cookingMode ?? 'daily'); setBatchDays(saved.input.batchDays ?? 2)
-    setPersons(saved.input.persons ?? 1); setSelectedMeals([...(saved.input.selectedMeals ?? ['breakfast', 'lunch', 'dinner'])].filter((m): m is Slot => m !== 'snack')); setSharedMeals([...(saved.input.sharedMeals ?? [])].filter((m): m is Slot => m !== 'snack'))
+    setPersons(saved.input.persons ?? 1); setChildren(saved.input.children ?? 0); setSelectedMeals([...(saved.input.selectedMeals ?? ['breakfast', 'lunch', 'dinner'])].filter((m): m is Slot => m !== 'snack')); setSharedMeals([...(saved.input.sharedMeals ?? [])].filter((m): m is Slot => m !== 'snack'))
     setLikedRecipes(saved.input.likedRecipeIds ?? []); setDislikedRecipes(saved.input.dislikedRecipeIds ?? [])
     setCalorieOverride(String(saved.input.calories))
     if (saved.input.goalLabel && Object.values(GOALS).includes(saved.input.goalLabel)) setGoal(saved.input.goalLabel)
@@ -140,11 +141,11 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       if (!active || !data) return
       setBudgetLimits([data.budget, data.current_spend].map(n => Math.max(30000, Math.ceil((n ?? 0) / 100) * 100)))
       setBudget(data.budget == null ? '' : String(data.budget)); setCurrentSpend(data.current_spend == null ? '' : String(data.current_spend))
-      const extra = data as Preferences & { persons?: number; selected_meals?: Slot[]; shared_meals?: Slot[]; sex?: 'male' | 'female' | null; dietary_type?: Diet; cooking_mode?: 'daily' | 'batch' | 'varied'; batch_days?: 2 | 7; liked_recipe_ids?: string[]; disliked_recipe_ids?: string[]; quick?: boolean }
+      const extra = data as Preferences & { persons?: number; children?: number; selected_meals?: Slot[]; shared_meals?: Slot[]; sex?: 'male' | 'female' | null; dietary_type?: Diet; cooking_mode?: 'daily' | 'batch' | 'varied'; batch_days?: 2 | 7; liked_recipe_ids?: string[]; disliked_recipe_ids?: string[]; quick?: boolean }
       setSex(extra.sex ?? profile?.sex ?? null)
       if (showSaved || renew) return
       setDays(DAYS[data.days]); setGoal(GOALS[data.goal]); setAllergies(healthConsent ? data.allergies : '')
-      setPersons(extra.persons ?? 1); setSelectedMeals(extra.selected_meals ?? ['breakfast', 'lunch', 'dinner']); setSharedMeals(extra.shared_meals ?? [])
+      setPersons(extra.persons ?? 1); setChildren(extra.children ?? 0); setSelectedMeals(extra.selected_meals ?? ['breakfast', 'lunch', 'dinner']); setSharedMeals(extra.shared_meals ?? [])
       setCookingMode(extra.cooking_mode ?? 'daily'); setBatchDays(extra.batch_days ?? 2); setQuick(Boolean(extra.quick)); setDiet(extra.dietary_type ?? 'omnivore'); setLikedRecipes(extra.liked_recipe_ids ?? []); setDislikedRecipes(extra.disliked_recipe_ids ?? [])
       setLiked(data.liked); setDisliked(data.disliked)
     }).catch(() => { if (active) { setLoadFailed(true); setError('Не удалось загрузить сохранённые ответы. Попробуй открыть анкету позже.') } }).finally(() => { if (active) setLoading(false) })
@@ -153,7 +154,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const save = async () => {
     if (loadFailed) return
     const asNumber = (v: string) => v.trim() === '' ? null : Number(v)
-    const body = { days: Number.parseInt(days), goal: Object.entries(GOALS).find(([, label]) => label === goal)?.[0], allergies: healthConsent ? allergies : '', liked, disliked, budget: asNumber(budget), current_spend: asNumber(currentSpend), persons, selected_meals: selectedMeals, shared_meals: persons > 1 ? sharedMeals : [], sex, dietary_type: diet, cooking_mode: cookingMode, batch_days: batchDays, quick, liked_recipe_ids: likedRecipes, disliked_recipe_ids: dislikedRecipes }
+    const body = { days: Number.parseInt(days), goal: Object.entries(GOALS).find(([, label]) => label === goal)?.[0], allergies: healthConsent ? allergies : '', liked, disliked, budget: asNumber(budget), current_spend: asNumber(currentSpend), persons, children: persons > 1 ? children : 0, selected_meals: selectedMeals, shared_meals: persons > 1 ? sharedMeals : [], sex, dietary_type: diet, cooking_mode: cookingMode, batch_days: batchDays, quick, liked_recipe_ids: likedRecipes, disliked_recipe_ids: dislikedRecipes }
     if ([body.budget, body.current_spend].some(n => n !== null && (!Number.isInteger(n) || n < 0 || n > 10000000))) { setError('Укажи бюджет целым числом от 0 до 10 000 000 ₽.'); return }
     setError(''); setSaved(false)
     try { const result = await api('/api/meal-preferences', putJson(body)); if (result === null) throw new Error(); setSaved(true) }
@@ -162,7 +163,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const selectedGoal: Goal = goal === GOALS.weight_loss ? (profile?.goal === 'fat_loss' ? 'fat_loss' : 'weight_loss') : goal === GOALS.mass_gain ? (profile?.goal === 'muscle_gain' ? 'muscle_gain' : 'mass_gain') : 'maintenance'
   const targets = profile ? (selectedGoal === profile.goal && profile.targets && (!sex || sex === profile.sex) ? profile.targets : calculateTargets({ ...profile, sex: sex ?? profile.sex }, selectedGoal)) : null
   const defaultCalories = targets?.calories ?? (goal === GOALS.weight_loss ? 1800 : goal === GOALS.mass_gain ? 2200 : 2000)
-  const inputFor = (override: number | null): PlanInput => ({ days: Number.parseInt(days), calories: override ?? defaultCalories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, ...(quick ? { quick } : {}), persons, selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budget.trim() ? Number(budget) : null, ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) })
+  const inputFor = (override: number | null): PlanInput => ({ days: Number.parseInt(days), calories: override ?? defaultCalories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, ...(quick ? { quick } : {}), persons, ...(persons > 1 && children ? { children } : {}), selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budget.trim() ? Number(budget) : null, ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) })
   // what a week of these answers costs, for the budget step; the key leaves out the budget, so dragging doesn't recount
   const draftKey = view === 'form' && current === 'budget' ? JSON.stringify({ ...inputFor(calorieOverride.trim() ? Number(calorieOverride) : null), budget: null }) : ''
   const range = useMemo(() => { try { return draftKey ? budgetRange(JSON.parse(draftKey)) : null } catch { return null } }, [draftKey])
@@ -229,7 +230,8 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
         <MealRange label="Срок рациона" min={0} max={dayOptions.length - 1} step={1} value={dayOptions.indexOf(days)} valueText={days} onChange={i => setDays(dayOptions[i])} />
         <div className="meal-q-range-labels">{dayOptions.map(v => <button key={v} type="button" className={days === v ? 'selected' : ''} aria-pressed={days === v} onClick={() => setDays(v)}>{v}</button>)}</div></div></>}
       {view === 'form' && current === 'goal' && <><h2>Какая у тебя цель?</h2><p className="sub">От неё зависит калорийность.</p><GoalPicker goal={goal} onGoal={setGoal} /></>}
-      {view === 'form' && current === 'persons' && <><h2>Кто будет есть?</h2><p className="sub">Укажи общее число людей, включая тебя.</p><div className="meal-q-range-card"><strong className="meal-q-budget-value">{persons} {plural(persons, 'человек', 'человека', 'человек')}</strong><MealRange label="Количество человек" min={1} max={10} step={1} value={persons} onChange={setPersons} /><div className="meal-q-range-ends"><span>1</span><span>10</span></div></div></>}
+      {view === 'form' && current === 'persons' && <><h2>Кто будет есть?</h2><p className="sub">Укажи общее число людей, включая тебя.</p><div className="meal-q-range-card"><strong className="meal-q-budget-value">{persons} {plural(persons, 'человек', 'человека', 'человек')}</strong><MealRange label="Количество человек" min={1} max={10} step={1} value={persons} onChange={n => { setPersons(n); setChildren(c => Math.min(c, n - 1)) }} /><div className="meal-q-range-ends"><span>1</span><span>10</span></div></div>
+        {persons > 1 && <div className="meal-q-range-card meal-q-children"><strong className="meal-q-budget-value">{children ? `Из них детей: ${children}` : 'Детей нет'}</strong><MealRange label="Из них детей" min={0} max={persons - 1} step={1} value={children} onChange={setChildren} /><p className="sub">Детская порция общего блюда — около {Math.round(CHILD * 100)}% взрослой: меньше продуктов и трат.</p></div>}</>}
       {view === 'form' && current === 'meals' && <><h2>Какие приёмы пищи включить?</h2><p className="sub">Общие готовим сразу на всех, остальное — одной порцией для тебя.</p><div className="meal-q-meals">{MEALS.map(m => <div key={m.id}><button className="meal-q-meal" aria-pressed={selectedMeals.includes(m.id)} onClick={() => toggleMeal(m.id)}>{m.label}</button>{selectedMeals.includes(m.id) && <button className="meal-q-meal" aria-pressed={sharedMeals.includes(m.id)} onClick={() => toggleShared(m.id)}>Для всей семьи</button>}</div>)}</div></>}
       {view === 'form' && current === 'cooking' && <><h2>Как тебе удобнее готовить?</h2><p className="sub">Учтём это при выборе блюд и продуктов.</p><div className="meal-q-cooking">{COOKING.map(([id, title, hint]) => <button key={id} className="meal-q-option" aria-pressed={cookingMode === id} onClick={() => setCookingMode(id)}><span><strong>{title}</strong><small>{hint}</small></span></button>)}</div>{cookingMode === 'batch' && <><div className="meal-q-options">{([2, 7] as const).map(n => <button key={n} className="meal-plan-option" aria-pressed={batchDays === n} onClick={() => setBatchDays(n)}>На {n} {plural(n, 'день', 'дня', 'дней')}</button>)}</div><p className="sub">Готовишь два блюда сразу на {batchDays} {plural(batchDays, 'день', 'дня', 'дней')}: одно на обеды, другое на ужины.{batchDays === 7 ? ' Часть порций нужно заморозить, проверяй сроки хранения.' : ''}</p></>}
         <label className="meal-plan-confirm"><input type="checkbox" checked={quick} onChange={e => setQuick(e.target.checked)} /> Только быстрые блюда, до 30 минут</label></>}
@@ -270,7 +272,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
         </section>
         <section className="answer-group"><h2>Цель</h2><GoalPicker goal={goal} onGoal={g => { setGoal(g); setCalorieOverride('') }} /></section>
         <AnswerGroup title="Твой план" entries={[
-          ['Срок', days], ['Человек', String(persons)], ['Готовка', (cookingMode === 'daily' ? 'Раз в день' : cookingMode === 'batch' ? `На ${batchDays} ${plural(batchDays, 'день', 'дня', 'дней')}` : 'Разные блюда') + (quick ? ', быстрые блюда' : '')],
+          ['Срок', days], ['Человек', persons > 1 && children ? `${persons}, из них детей ${children}` : String(persons)], ['Готовка', (cookingMode === 'daily' ? 'Раз в день' : cookingMode === 'batch' ? `На ${batchDays} ${plural(batchDays, 'день', 'дня', 'дней')}` : 'Разные блюда') + (quick ? ', быстрые блюда' : '')],
           ['Приёмы пищи', MEALS.filter(m => selectedMeals.includes(m.id)).map(m => m.label).join(', ')],
           ...(persons > 1 ? [['Общие с семьёй', MEALS.filter(m => sharedMeals.includes(m.id)).map(m => m.label).join(', ') || 'Нет']] : []),
         ]} />
@@ -284,14 +286,14 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
         <AnswerGroup title="Расходы в неделю" entries={[
           ['Бюджет', budget ? `${budget} ₽` : 'Без лимита'], ['Сейчас', currentSpend ? `${currentSpend} ₽ в неделю` : 'Не указано'],
         ]} />
-        <p className="sub">{persons > 1 && 'Общие блюда рассчитываются одинаковыми порциями по твоей норме. '}{canEdit ? 'Ответы можно сохранить.' : 'В деморежиме ответы не сохраняются.'}</p>
+        <p className="sub">{persons > 1 && `Общие блюда рассчитываются порциями по твоей норме${children ? ', детские — меньше' : ''}. `}{canEdit ? 'Ответы можно сохранить.' : 'В деморежиме ответы не сохраняются.'}</p>
         {saved && <p role="status">Ответы сохранены</p>}</>}
       {view === 'result' && plan && <>
         <div className="meal-result-intro"><h2>Рацион на {days}</h2><p>{`Ориентир — ${planInput?.calories ?? '—'} ккал в день`}</p>
           {plan.basketCostRub != null && <p className="plan-cost">Продукты ≈ {rub(plan.basketCostRub)} на весь срок{plan.days.length > 7 || persons > 1 ? ` · ≈ ${rub(plan.basketCostRub / plan.days.length * 7 / persons)} в неделю на человека` : ''}
             {plan.budgetRub != null && plan.basketCostRub <= plan.budgetRub && <span className="pos"> · в рамках бюджета</span>}
             {Number(currentSpend) > plan.basketCostRub / plan.days.length * 7 && <span className="pos"> · на {rub(Number(currentSpend) - plan.basketCostRub / plan.days.length * 7)} в неделю меньше, чем сейчас</span>}</p>}
-          <div className="meal-result-disclaimer">Цены — обычные, без акций, по сайту сети «Магнит» ({PRICES_AS_OF}); в твоём магазине могут отличаться. Считаем целыми упаковками. {persons > 1 && 'Общие блюда рассчитаны на одинаковые порции по твоей норме. '}При аллергии проверяй состав и следы аллергенов.</div></div>
+          <div className="meal-result-disclaimer">Цены — обычные, без акций, по сайту сети «Магнит» ({PRICES_AS_OF}); в твоём магазине могут отличаться. Считаем целыми упаковками. {persons > 1 && `Общие блюда рассчитаны на порции по твоей норме${children ? `, детские — около ${Math.round(CHILD * 100)}% взрослой` : ''}. `}При аллергии проверяй состав и следы аллергенов.</div></div>
         {snack && <p className="sub">Добавили перекус: при {planInput?.calories} ккал три тарелки вышли бы слишком большими.</p>}
         {diet === 'vegan' && <p className="sub">Белок в растительном меню — из тофу, нута, чечевицы, маша, орехов и соевого протеина. Если протеин не нужен, напиши «протеин» в «Что не ешь».</p>}
         {plan.warnings.map(w => <p className="sub" key={w}>{w}</p>)}

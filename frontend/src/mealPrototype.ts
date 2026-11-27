@@ -12,6 +12,7 @@ export type PlanInput = {
   macros?: Macros
   dietary?: Dietary
   persons?: number
+  children?: number // of the persons; a child's portion is CHILD of an adult's
   sharedMeals?: readonly Slot[]
   selectedMeals?: readonly Slot[]
   likedRecipeIds?: string[]
@@ -36,7 +37,12 @@ export type Meal = {
   nutrition: Nutrients; costRub: number | null; portions: number
   minutes?: number
   repeat?: boolean // cooked earlier: last night's dinner for lunch, or a dish from this batch
+  children?: number // of the people it's cooked for
 }
+/** A child's portion of a shared dish, of an adult's. */
+export const CHILD = .6
+/** «на 3 чел.» / «на 2 взр. и 1 реб.»; null for a portion for one. */
+export const forWhom = (m: Meal) => m.children ? `на ${Math.round(m.portions - m.children * CHILD)} взр. и ${m.children} реб.` : m.portions > 1 ? `на ${m.portions} чел.` : null
 type Day = { day: number; meals: Meal[]; totals: Nutrients }
 type ShoppingItem = { product: string; productId: string; grams: number; packs: number; packGrams: number; costRub: number | null }
 export type MealPlan = {
@@ -187,6 +193,7 @@ function setup(input: PlanInput) {
   if (input.budget != null && (!Number.isFinite(input.budget) || input.budget < 0)) throw new Error('Проверь недельный бюджет.')
   if (input.macros && macroKeys.some(k => !(Number.isFinite(input.macros![k]) && input.macros![k] > 0))) throw new Error('Проверь ориентиры БЖУ.')
   if (input.persons !== undefined && (!Number.isInteger(input.persons) || input.persons < 1)) throw new Error('Укажи число человек не меньше одного.')
+  if (input.children !== undefined && (!Number.isInteger(input.children) || input.children < 0 || input.children >= (input.persons ?? 1))) throw new Error('Детей должно быть меньше, чем всех, кто ест.')
   const chosen = input.selectedMeals ?? MAIN
   if (!chosen.length || chosen.some(s => !slots.includes(s)) || new Set(chosen).size !== chosen.length) throw new Error('Выбери хотя бы один приём пищи.')
   if (input.sharedMeals?.some(s => !slots.includes(s))) throw new Error('Проверь общие приёмы пищи.')
@@ -276,7 +283,12 @@ function distinct(pool: Meal[], others: Meal[]) {
   const alternatives = pool.filter(m => others.every(other => m.id !== other.id))
   return alternatives.length ? alternatives : pool
 }
-const portionsOf = (input: PlanInput, slot: Slot) => input.sharedMeals?.includes(slot) ? input.persons ?? 1 : 1
+/** Portions of a dish for this slot: everyone at a shared meal, a child's plate smaller. */
+function portionsOf(input: PlanInput, slot: Slot): Pick<Meal, 'portions' | 'children'> {
+  if (!input.sharedMeals?.includes(slot)) return { portions: 1 }
+  const persons = input.persons ?? 1, children = input.children ?? 0
+  return children ? { portions: Math.round((persons - children + children * CHILD) * 10) / 10, children } : { portions: persons }
+}
 /** `avoid`: dishes of the previous plan, so the next one (the same answers) brings new ones first. */
 export function createMealPlan(input: PlanInput, avoid: readonly string[] = []): MealPlan {
   // Return the least expensive attempt with a warning if none fits.
@@ -328,14 +340,14 @@ function* attempts(input: PlanInput, avoid: readonly string[]): Generator<MealPl
         let bestMeal = pool[0]
         let bestScore = Infinity
         if (!forced) for (const m of pool) {
-          const candidate = { ...m, portions: portionsOf(input, slot) }
+          const candidate = { ...m, ...portionsOf(input, slot) }
           const delta = addedCost(weights, candidate)
           const costScore = delta === null || m.costRub === null ? 10000 : (delta + m.costRub * .6) / 100
           const previousDay = days.at(-1)?.meals.some(previous => previous.id === m.id)
           const score = quality(input, m, target, liked, uses) - (input.likedRecipeIds?.includes(m.id) ? 1 : 0) + (previousDay ? .65 : 0) + priceWeight * costScore
           if (score < bestScore) { bestScore = score; bestMeal = m }
         }
-        bestMeal = { ...bestMeal, portions: portionsOf(input, slot), ...(forced ? { repeat: true } : {}) }
+        bestMeal = { ...bestMeal, ...portionsOf(input, slot), ...(forced ? { repeat: true } : {}) }
         meals.push(bestMeal)
         if (key && !forced) assigned.set(key, bestMeal.id)
         if (slot === 'breakfast') morning.add(bestMeal.id)
@@ -390,7 +402,7 @@ export function replacementOptions(input: PlanInput, plan: MealPlan, dayIndex: n
         const replacement = choices[slots.indexOf(old.meal)].find(x => x.id === candidate.id)
         if (!replacement) { ok = false; return old }
         const first = cells[0][0] === d && cells[0][1] === m
-        const meal: Meal = { ...replacement, portions: portionsOf(input, old.meal), ...(first ? {} : { repeat: true }) }
+        const meal: Meal = { ...replacement, ...portionsOf(input, old.meal), ...(first ? {} : { repeat: true }) }
         addMeal(candidateWeights, meal)
         score += quality(input, meal, targetFor(input, ctx, current.meals.filter((_, i) => !inGroup(d, i)), 1), liked, uses)
         return meal

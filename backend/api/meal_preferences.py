@@ -9,7 +9,7 @@ from backend.database.models import MealPreferences
 
 router = APIRouter(prefix="/api/meal-preferences")
 Meal = Literal["breakfast", "lunch", "dinner"]
-NEW_FIELDS = {"persons", "selected_meals", "shared_meals", "dietary_type", "liked_recipe_ids", "disliked_recipe_ids", "sex", "cooking_mode", "batch_days", "quick"}
+NEW_FIELDS = {"persons", "selected_meals", "shared_meals", "dietary_type", "liked_recipe_ids", "disliked_recipe_ids", "sex", "cooking_mode", "batch_days", "quick", "children"}
 
 
 class PreferencesIn(BaseModel):
@@ -21,6 +21,7 @@ class PreferencesIn(BaseModel):
     budget: int | None = Field(default=None, ge=0, le=10000000)
     current_spend: int | None = Field(default=None, ge=0, le=10000000)
     persons: int = Field(default=1, ge=1, le=10, strict=True)
+    children: int = Field(default=0, ge=0, le=9, strict=True)  # of the persons: they get a smaller portion
     selected_meals: list[Meal] = Field(default_factory=lambda: ["breakfast", "lunch", "dinner"], max_length=3)
     shared_meals: list[Meal] = Field(default_factory=list, max_length=3)
     dietary_type: Literal["omnivore", "pescatarian", "vegetarian", "vegan"] = "omnivore"
@@ -35,6 +36,8 @@ class PreferencesIn(BaseModel):
     def validate_meals(self):
         if not set(self.shared_meals).issubset(self.selected_meals):
             raise ValueError("shared_meals must be a subset of selected_meals")
+        if self.children >= self.persons:
+            raise ValueError("children must be fewer than persons")
         return self
 
 
@@ -59,10 +62,12 @@ async def save_preferences(body: PreferencesIn, tg: dict = Depends(telegram_user
     if row is not None:
         for key in NEW_FIELDS - body.model_fields_set:
             data[key] = getattr(row, key)
+        if "children" not in body.model_fields_set:  # an old client lowered persons: the kept children must still fit
+            data["children"] = min(data["children"], data["persons"] - 1)
         try:
             PreferencesIn.model_validate(data)
         except ValidationError:
-            raise HTTPException(422, "shared_meals must be a subset of selected_meals")
+            raise HTTPException(422, "Проверь общие приёмы пищи и число детей")
     if row is None:
         row = MealPreferences(user_id=user.id)
         session.add(row)

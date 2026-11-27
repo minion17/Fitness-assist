@@ -2239,3 +2239,4 @@ span.plan-recipe-cover.dish-ph > img { width: 96px; }
 .planned-away-link { font-size: 14px; padding: 2px 0 8px; align-self: flex-start; }
 .plan-start .chip { border: 1px solid transparent; font: inherit; font-size: 14px; padding: 8px 14px; cursor: pointer; }
 .plan-start .chip[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); border-color: var(--accent); }
+.meal-q-children .sub { margin: 0; }

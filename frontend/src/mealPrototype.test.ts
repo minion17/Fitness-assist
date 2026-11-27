@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ABSENT, ALLERGY_CHIPS, budgetRange, createMealPlan, DISLIKE_CHIPS, rebuildDay, replaceMeal, replacementOptions, SNACK_FROM, tagsOf, type MealPlan } from './mealPrototype'
+import { ABSENT, ALLERGY_CHIPS, budgetRange, CHILD, createMealPlan, forWhom, DISLIKE_CHIPS, rebuildDay, replaceMeal, replacementOptions, SNACK_FROM, tagsOf, type MealPlan } from './mealPrototype'
 import { BUY, INGREDIENTS, RECIPES, toBuy } from './mealCatalog'
 
 describe('подбор блюд', () => {
@@ -265,4 +265,16 @@ it('вилка бюджета: самое дешёвое меню ≤ меню �
   expect(createMealPlan({ ...input, days: 7, budget: 0 }).basketCostRub).toBe(range.cheapest)
   // with family meals the week costs more
   expect(budgetRange({ ...input, persons: 3, sharedMeals: ['lunch', 'dinner'] })!.full).toBeGreaterThan(range.full)
+})
+
+it('детям в общих блюдах — порция меньше, и корзина дешевле', () => {
+  const family = { days: 7, calories: 2000, allergies: '', disliked: '', liked: '', persons: 3, sharedMeals: ['lunch', 'dinner'] as const, cookingMode: 'varied' as const }
+  const adults = createMealPlan(family)
+  const withKid = createMealPlan({ ...family, children: 1 })
+  const dinner = withKid.days[0].meals.find(m => m.meal === 'dinner')!
+  expect(dinner.portions).toBe(2 + CHILD)
+  expect(forWhom(dinner)).toBe('на 2 взр. и 1 реб.')
+  expect(forWhom(withKid.days[0].meals.find(m => m.meal === 'breakfast')!)).toBeNull() // breakfast is not shared
+  expect(withKid.basketCostRub!).toBeLessThan(adults.basketCostRub!)
+  expect(() => createMealPlan({ ...family, children: 3 })).toThrow(/Детей/)
 })

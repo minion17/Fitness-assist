@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { MealPlan } from './mealPrototype'
+import { forWhom, type MealPlan } from './mealPrototype'
 import './MealDay.css'
 import { useBack } from './back'
 import { Chevron } from './ui'
@@ -39,7 +39,7 @@ export function RecipeCard({ meal, batch = false, error, onClose, options, onPic
       <button autoFocus className="plan-recipe-close" aria-label="Закрыть рецепт" onClick={onClose}>×</button>
       <DishPhoto className="plan-recipe-cover" id={meal.id} name={meal.name} alt={`Пример блюда: ${meal.name}`} />
       <div className="plan-recipe-body">
-        <span className="plan-slot">{labels[meal.meal]}{meal.portions > 1 && ` · на ${meal.portions} чел.`}{meal.minutes ? ` · ${meal.minutes} мин` : ''}</span>
+        <span className="plan-slot">{labels[meal.meal]}{forWhom(meal) && ` · ${forWhom(meal)}`}{meal.minutes ? ` · ${meal.minutes} мин` : ''}</span>
         {meal.repeat && <p className="sub">{meal.meal === 'lunch' && !batch ? 'Это вчерашний ужин: его готовили на 2 порции.' : 'Приготовлено заранее, вместе с партией.'}</p>}
         <h2 id="plan-recipe-title">{meal.name}</h2>
         <dl className="plan-nutrients" aria-label="КБЖУ одной порции">
@@ -80,7 +80,7 @@ export default function MealDay({ day, batch, error, options, onPick, onBack, on
     <div className="plan-day-menu">{day.meals.map((meal, index) =>
       <button className="plan-meal-link" key={meal.meal} aria-label={`Открыть ${labels[meal.meal]} — ${meal.name}`} onClick={() => setActive(index)}>
         <DishPhoto id={meal.id} name={meal.name} />
-        <span className="plan-meal-copy"><span className="plan-slot">{labels[meal.meal]}</span><strong>{meal.name}</strong><small>{meal.nutrition.kcal} ккал{meal.minutes && !meal.repeat ? ` · ${meal.minutes} мин` : ''}{meal.repeat ? (meal.meal === 'lunch' && !batch ? ' · вчерашний ужин' : ' · из партии') : ''}{meal.portions > 1 && ` · на ${meal.portions} чел.`}</small></span>
+        <span className="plan-meal-copy"><span className="plan-slot">{labels[meal.meal]}</span><strong>{meal.name}</strong><small>{meal.nutrition.kcal} ккал{meal.minutes && !meal.repeat ? ` · ${meal.minutes} мин` : ''}{meal.repeat ? (meal.meal === 'lunch' && !batch ? ' · вчерашний ужин' : ' · из партии') : ''}{forWhom(meal) && ` · ${forWhom(meal)}`}</small></span>
         <span className="plan-arrow" aria-hidden="true"><Chevron dir="right" /></span>
       </button>)}</div>
     {onRebuild && <button className="btn btn-ghost plan-rebuild" onClick={onRebuild}>Пересобрать день</button>}

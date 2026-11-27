@@ -311,3 +311,19 @@ it('бюджет подсказывает, на что хватит суммы',
   fireEvent.change(screen.getByRole('slider', { name: 'Желаемый бюджет' }), { target: { value: '300' } })
   expect(screen.getByRole('status').textContent).toMatch(/Дешевле ≈ .* не собрать/)
 })
+
+it('в семье можно указать детей, их число не больше остальных', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  next(); next()
+  expect(screen.queryByRole('slider', { name: 'Из них детей' })).toBeNull()
+  fireEvent.change(screen.getByRole('slider', { name: 'Количество человек' }), { target: { value: '3' } })
+  fireEvent.change(screen.getByRole('slider', { name: 'Из них детей' }), { target: { value: '2' } })
+  fireEvent.change(screen.getByRole('slider', { name: 'Количество человек' }), { target: { value: '2' } })
+  expect(screen.getByText('Из них детей: 1')).toBeTruthy() // clamped
+  next()
+  fireEvent.click(screen.getAllByRole('button', { name: 'Для всей семьи' })[2]) // dinner
+  toReview()
+  expect(screen.getByText('2, из них детей 1')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Составить рацион' }))
+  expect(screen.getByText(/детские — около 60% взрослой/)).toBeTruthy()
+})

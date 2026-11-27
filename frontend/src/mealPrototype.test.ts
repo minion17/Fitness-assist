@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { ABSENT, createMealPlan, rebuildDay, replaceMeal, replacementOptions, SNACK_FROM, type MealPlan } from './mealPrototype'
-import { BUY, INGREDIENTS, toBuy } from './mealCatalog'
+import { ABSENT, ALLERGY_CHIPS, budgetRange, createMealPlan, DISLIKE_CHIPS, rebuildDay, replaceMeal, replacementOptions, SNACK_FROM, tagsOf, type MealPlan } from './mealPrototype'
+import { BUY, INGREDIENTS, RECIPES, toBuy } from './mealCatalog'
 
 describe('подбор блюд', () => {
   it('создаёт выбранное количество дней и суммирует покупки', () => {
@@ -246,4 +246,23 @@ it('растительное меню добирает белок', () => {
   // «протеин» in «не ем» keeps the powder out
   const plain = createMealPlan({ days: 7, calories: 2000, allergies: '', disliked: 'протеин', liked: '', dietary: 'vegan' })
   expect(plain.days.flatMap(d => d.meals).some(m => m.tags.includes('proteinPowder'))).toBe(false)
+})
+
+it('быстрые варианты аллергий и «не ем» распознаются и убирают блюда', () => {
+  const dishTags = new Set(RECIPES.flatMap(r => r.ingredients.flatMap(i => [i.product, ...INGREDIENTS[i.product].tags])))
+  for (const word of ALLERGY_CHIPS) expect(tagsOf(word).length, word).toBeGreaterThan(0)
+  for (const word of DISLIKE_CHIPS) expect(tagsOf(word).some(t => dishTags.has(t)), word).toBe(true)
+})
+
+it('вилка бюджета: самое дешёвое меню ≤ меню с нормой белка ≤ меню без лимита', () => {
+  const input = { days: 3, calories: 2000, allergies: '', disliked: '', liked: '', macros: { protein_g: 130, fat_g: 65, carbs_g: 220 } }
+  const range = budgetRange(input)!
+  expect(range.cheapest).toBeLessThan(range.balanced)
+  expect(range.balanced).toBeLessThanOrEqual(range.full)
+  // a plan made for the balanced sum fits it; the cheapest sum is what a zero budget gets
+  const plan = createMealPlan({ ...input, days: 7, budget: range.balanced })
+  expect(plan.basketCostRub!).toBeLessThanOrEqual(range.balanced)
+  expect(createMealPlan({ ...input, days: 7, budget: 0 }).basketCostRub).toBe(range.cheapest)
+  // with family meals the week costs more
+  expect(budgetRange({ ...input, persons: 3, sharedMeals: ['lunch', 'dinner'] })!.full).toBeGreaterThan(range.full)
 })

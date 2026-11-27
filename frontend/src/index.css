@@ -1665,6 +1665,12 @@ details[open] > :not(summary) { animation: fade .22s ease-out; }
 .budget-presets button small { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
 .budget-presets button[aria-pressed='true'] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, var(--card-2)); }
 .budget-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.budget-note { margin: 10px 0 0; }
+.budget-note.low { color: var(--text); padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, var(--card-2)); }
+.limit-group h3 { margin: 18px 0 8px; font-size: 15px; }
+.limit-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.limit-chips button { min-height: 44px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--card-border); background: var(--card-2); color: var(--text); font: inherit; font-size: 14px; }
+.limit-chips button[aria-pressed='true'] { border-color: var(--accent); color: var(--accent-text); background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); }
 .budget-current { margin-top: 12px; padding: 14px 16px; border-radius: 18px; background: var(--card-2); border: 1px solid var(--card-border); }
 .budget-current summary { cursor: pointer; font-weight: 600; list-style: none; }
 .budget-current summary small { display: block; margin-top: 2px; color: var(--muted); font-weight: 400; font-size: 13px; }

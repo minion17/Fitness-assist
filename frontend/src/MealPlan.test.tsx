@@ -10,14 +10,19 @@ vi.mock('./telegram', () => ({ api: vi.fn(), putJson: (body: unknown) => ({ meth
 afterEach(() => { cleanup(); vi.clearAllMocks() })
 
 const next = () => fireEvent.click(screen.getByRole('button', { name: 'Продолжить' }))
-/** Through the remaining questions to the review screen. */
-function toReview() {
+/** Through the remaining questions to the last one, about allergies. */
+function toLimits() {
   for (let i = 0; i < 12 && !screen.queryByRole('button', { name: 'Посмотреть ответы' }); i++) next()
+}
+/** …and on to the review screen, with "no allergy" ticked if nothing is chosen. */
+function toReview() {
+  toLimits()
+  const none = screen.queryByLabelText(/у меня нет пищевой аллергии/i) as HTMLInputElement | null
+  if (none && !none.checked) fireEvent.click(none)
   fireEvent.click(screen.getByRole('button', { name: 'Посмотреть ответы' }))
 }
 function build() {
   toReview()
-  fireEvent.click(screen.getByLabelText(/у меня нет пищевой аллергии/i))
   fireEvent.click(screen.getByRole('button', { name: 'Составить рацион' }))
 }
 
@@ -27,11 +32,11 @@ describe('анкета подбора рациона', () => {
     fireEvent.click(screen.getByRole('button', { name: '7 дней' }))
     next()
     fireEvent.click(screen.getByRole('button', { name: 'Снизить вес' }))
-    for (let i = 0; i < 12 && !screen.queryByLabelText('Что не ешь'); i++) next()
-    fireEvent.change(screen.getByLabelText('Что не ешь'), { target: { value: 'грибы' } })
+    toLimits()
+    fireEvent.change(screen.getByLabelText('Что ещё не ешь'), { target: { value: 'грибы' } })
+    fireEvent.change(screen.getByLabelText('Другая аллергия'), { target: { value: 'орехи' } })
     fireEvent.click(screen.getByRole('button', { name: 'Посмотреть ответы' }))
     expect(screen.getByText('грибы')).toBeTruthy()
-    fireEvent.change(screen.getByLabelText('Аллергии и ограничения'), { target: { value: 'орехи' } })
     fireEvent.click(screen.getByRole('button', { name: 'Составить рацион' }))
     expect(screen.getByText('Список продуктов')).toBeTruthy()
     expect(screen.getByText(/Продукты ≈ .* ₽ на весь срок/)).toBeTruthy()
@@ -58,7 +63,7 @@ describe('анкета подбора рациона', () => {
 
 it('не спрашивает то, что есть в профиле, а цель меняется на проверке', () => {
   render(<MealPlan onClose={vi.fn()} profile={{ sex: 'male', birth_year: 1995, height_cm: 185, weight_kg: 93, activity: 'very_high', goal: 'maintenance' }} />)
-  expect(screen.getByText('Шаг 1 из 6')).toBeTruthy() // no goal, no sex
+  expect(screen.getByText('Шаг 1 из 7')).toBeTruthy() // no goal, no sex
   toReview()
   fireEvent.click(screen.getByRole('button', { name: 'Набрать вес' }))
   expect(screen.getByText(/ориентир.*4[0-9]{3} ккал/i)).toBeTruthy()
@@ -140,7 +145,6 @@ it('сохраняет рацион, открывает его повторно 
   fireEvent.click(screen.getByRole('button', { name: '1 день' }))
   toReview()
   fireEvent.change(screen.getByLabelText('Свой дневной ориентир, ккал'), { target: { value: '3300' } })
-  fireEvent.click(screen.getByLabelText(/у меня нет пищевой аллергии/i))
   fireEvent.click(screen.getByRole('button', { name: 'Составить рацион' }))
   expect(screen.getByText('Ориентир — 3300 ккал в день')).toBeTruthy()
   expect(screen.getByText(/Добавили перекус/)).toBeTruthy()
@@ -179,7 +183,7 @@ it('ползунки сохраняют цель, число людей и об�
   expect(screen.getByRole('button', { name: 'Набрать вес' }).getAttribute('aria-pressed')).toBe('true')
   next()
   fireEvent.change(screen.getByRole('slider', { name: 'Количество человек' }), { target: { value: '2' } })
-  for (let i = 0; i < 3; i++) next()
+  for (let i = 0; i < 6 && !screen.queryByRole('slider', { name: 'Желаемый бюджет' }); i++) next()
   fireEvent.change(screen.getByRole('slider', { name: 'Желаемый бюджет' }), { target: { value: '8000' } })
   fireEvent.change(screen.getByRole('slider', { name: 'Сколько тратишь сейчас' }), { target: { value: '5000' } })
   toReview()
@@ -190,7 +194,7 @@ it('ползунки сохраняют цель, число людей и об�
 
 it('каждая карточка вкуса показывает фото блюда, а блюдо без фото — значок', () => {
   render(<MealPlan onClose={vi.fn()} />)
-  for (let i = 0; i < 12 && !screen.queryByLabelText('Что не ешь'); i++) next()
+  for (let i = 0; i < 12 && !screen.queryByText('Что тебе нравится?'); i++) next()
   for (const recipe of RECIPES) {
     const image = screen.getByRole('img', { name: `Пример блюда: ${recipe.name}` })
     const photo = RECIPE_PHOTOS.has(recipe.id)
@@ -226,7 +230,7 @@ it('блюда для выбора идут рядами по видам и то
   render(<MealPlan onClose={vi.fn()} />)
   for (let i = 0; i < 12 && !screen.queryByRole('button', { name: /Вегетарианство/ }); i++) next()
   fireEvent.click(screen.getByRole('button', { name: /Веганство/ }))
-  next()
+  for (let i = 0; i < 3 && !screen.queryByText('Что тебе нравится?'); i++) next()
   expect(document.querySelectorAll('.taste-row')).toHaveLength(3)
   expect(screen.queryByRole('button', { name: /Гуляш/ })).toBeNull()
   expect(screen.queryByRole('button', { name: /Сырники/ })).toBeNull()
@@ -275,4 +279,35 @@ it('пересобирает день одной кнопкой', () => {
   fireEvent.click(screen.getByRole('button', { name: 'Пересобрать день' }))
   const after = screen.getAllByRole('button', { name: /^Открыть / }).map(b => b.getAttribute('aria-label'))
   expect(after.every((label, i) => label !== before[i])).toBe(true)
+})
+
+it('аллергии и «не ем» отмечаются кнопками, непонятная аллергия останавливает', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  toLimits()
+  fireEvent.click(screen.getByRole('button', { name: 'Посмотреть ответы' }))
+  expect(screen.getByRole('alert').textContent).toMatch(/подтверди, что её нет/)
+  fireEvent.click(within(screen.getByRole('group', { name: 'Аллергия' })).getByRole('button', { name: 'Орехи' }))
+  fireEvent.change(screen.getByLabelText('Другая аллергия'), { target: { value: 'казеин' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Посмотреть ответы' }))
+  expect(screen.getByRole('alert').textContent).toMatch(/казеин/)
+  fireEvent.change(screen.getByLabelText('Другая аллергия'), { target: { value: '' } })
+  fireEvent.click(within(screen.getByRole('group', { name: 'Не ем' })).getByRole('button', { name: 'Рыба' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Посмотреть ответы' }))
+  expect(screen.getByText('орехи')).toBeTruthy()
+  expect(screen.getByText('рыба')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Составить рацион' }))
+  const basket = screen.getByText('Список продуктов').closest('details')!.textContent
+  expect(basket).not.toMatch(/Арахис|Грецкий|Минтай|Треска|Тунец/)
+})
+
+it('бюджет подсказывает, на что хватит суммы', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  for (let i = 0; i < 8 && !screen.queryByRole('slider', { name: 'Желаемый бюджет' }); i++) next()
+  expect(screen.getByRole('status').textContent).toMatch(/без лимита выходит ≈/)
+  fireEvent.click(screen.getByRole('button', { name: /Минимум/ }))
+  expect(screen.getByRole('status').textContent).toMatch(/белка будет меньше нормы/)
+  fireEvent.click(screen.getByRole('button', { name: /Сбалансированно/ }))
+  expect(screen.getByRole('status').textContent).toMatch(/Норма белка есть|Хватит на любое меню/)
+  fireEvent.change(screen.getByRole('slider', { name: 'Желаемый бюджет' }), { target: { value: '300' } })
+  expect(screen.getByRole('status').textContent).toMatch(/Дешевле ≈ .* не собрать/)
 })

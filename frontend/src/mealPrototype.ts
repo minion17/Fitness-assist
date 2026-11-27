@@ -82,6 +82,12 @@ const terms: Record<string, RegExp> = {
  * neither list (say «казеин», which hides in milk) still stops the plan: guessing is not safe with allergies. */
 export const ABSENT = /клубник[аиу]?|земляник[аиу]?|малин[аыу]|черник[аиу]|голубик[аиу]|ежевик[аиу]|киви|ананас(ы|ов)?|манго|персик(и|ов)?|абрикос(ы|ов)?|слив[аыу]|хурм[аыу]|гранат(ы|ов)?|дын[яиюь]|арбуз(ы|ов|а)?|шоколад[ау]?|какао|кофе|чай|горчиц[аыу]|сельдере[йя]|кальмар(ы|ов)?|краб(ы|ов)?|мидии|мидий|устриц[аы]?|моллюск(и|ов)?|свинин[аыу]|баранин[аыу]|утк[аиу]|кролик[а]?|авокадо|кукуруз[аыу]|баклажан(ы|ов)?|кабач(ок|ки|ков)|шпинат[а]?|алкогол[ья]|вино|пиво|желатин[а]?|ваниль|корица|имбир[ья]|мак[а]?|лен|льна|кедров(ые|ых)|фисташк(и|ек)|пекан|кокос[а]?|авокадо/
 
+/** Quick picks for the questionnaire: every word is one the parser knows; every dislike is in some dish. */
+export const ALLERGY_CHIPS = ['орехи', 'арахис', 'глютен', 'молочное', 'яйца', 'рыба', 'морепродукты', 'соя', 'кунжут', 'мёд', 'цитрусы']
+export const DISLIKE_CHIPS = ['рыба', 'говядина', 'курица', 'индейка', 'творог', 'бобовые', 'тофу', 'гречка', 'лук', 'чеснок', 'капуста', 'тыква', 'перец']
+/** What a restriction written as text excludes; throws on a word it doesn't know, like an allergy would. */
+export const tagsOf = (text: string) => [...readTags(text, true)]
+
 /** Tags of what's written. Words for foods we never use go to `absent`; for allergies (strict) any other unknown word
  * is an error, for dislikes it's just left out. */
 function readTags(text: string, strict: boolean, absent: string[] = []) {
@@ -273,12 +279,31 @@ function distinct(pool: Meal[], others: Meal[]) {
 const portionsOf = (input: PlanInput, slot: Slot) => input.sharedMeals?.includes(slot) ? input.persons ?? 1 : 1
 /** `avoid`: dishes of the previous plan, so the next one (the same answers) brings new ones first. */
 export function createMealPlan(input: PlanInput, avoid: readonly string[] = []): MealPlan {
+  // Return the least expensive attempt with a warning if none fits.
+  let best: MealPlan | undefined
+  for (const plan of attempts(input, avoid)) {
+    if (plan.budgetRub === null || (plan.basketCostRub !== null && plan.basketCostRub <= plan.budgetRub)) return plan
+    if (!best || (plan.basketCostRub ?? Infinity) < (best.basketCostRub ?? Infinity)) best = plan
+  }
+  return best!
+}
+/** What a week costs for these answers, in rubles: the cheapest menu, the cheapest one that still keeps 90 % of the
+ * protein target, and the menu with no budget. null when a price is unknown. */
+export function budgetRange(input: PlanInput): { cheapest: number; balanced: number; full: number } | null {
+  const week = { ...input, days: 7, budget: null }
+  const protein = (input.macros?.protein_g ?? input.calories * .20 / 4) * 7
+  const plans = [...attempts(week, [])]
+  if (plans.some(p => p.basketCostRub === null)) return null
+  const cost = (p: MealPlan) => p.basketCostRub!
+  const share = plans[0].days.reduce((sum, d) => sum + d.totals.kcal, 0) / (input.calories * 7) // the selected meals' part of the day
+  const enough = plans.filter(p => p.days.reduce((sum, d) => sum + d.totals.protein_g, 0) >= protein * share * .9)
+  return { cheapest: Math.min(...plans.map(cost)), balanced: Math.min(...(enough.length ? enough : plans.slice(0, 1)).map(cost)), full: cost(plans[0]) }
+}
+/** One plan per price weight. Price always counts a little: fewer half-used packs and a shorter list. Over budget, it counts more. */
+function* attempts(input: PlanInput, avoid: readonly string[]): Generator<MealPlan> {
   const { choices, liked, selected, fr, notes } = setup(input)
   const ctx: Ctx = { selected, fr, notes }
   const breakfasts = BREAKFASTS[input.cookingMode ?? 'varied']
-  // Price always counts a little: fewer half-used packs and a shorter list. Over budget, it counts more.
-  // Return the least expensive attempt with a warning if none fits.
-  let best: MealPlan | undefined
   for (const priceWeight of [.15, .3, .5, .8, 1.2, 2, 4, 12]) {
     const weights: Weights = new Map()
     const uses = new Map<string, number>(avoid.map(id => [id, 1]))
@@ -319,11 +344,8 @@ export function createMealPlan(input: PlanInput, avoid: readonly string[] = []):
       }
       days.push({ day, meals, totals: totals(meals) })
     }
-    const plan = compile(input, ctx, days)
-    if (plan.budgetRub === null || (plan.basketCostRub !== null && plan.basketCostRub <= plan.budgetRub)) return plan
-    if (!best || (plan.basketCostRub ?? Infinity) < (best.basketCostRub ?? Infinity)) best = plan
+    yield compile(input, ctx, days)
   }
-  return best!
 }
 /** Other dishes for one meal of the plan, best first, each with the plan it would make. A dish cooked for several meals
  * (tonight's dinner and tomorrow's lunch, a batch) changes in all of them. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { ABSENT, ALLERGY_CHIPS, budgetRange, CHILD, cookedFor, createMealPlan, forWhom, DISLIKE_CHIPS, rebuildDay, replaceMeal, replacementOptions, retime, SNACK_FROM, swapIngredient, swapOptions, tagsOf, trainingFactors, type MealPlan } from './mealPrototype'
-import { BUY, INGREDIENTS, RECIPES, toBuy } from './mealCatalog'
+import { BUY, INGREDIENTS, packOf, RECIPES, toBuy } from './mealCatalog'
 
 describe('подбор блюд', () => {
   it('создаёт выбранное количество дней и суммирует покупки', () => {
@@ -331,4 +331,14 @@ it('замена ингредиента: во всей готовке блюда
   // an allergen is never offered
   expect(swapOptions({ ...input, allergies: 'рыба' }, 'chicken').every(o => !['fish', 'cod'].includes(o.id))).toBe(true)
   expect(swapOptions({ ...input, disliked: 'индейка' }, 'chicken')).toEqual([])
+})
+
+it('цены другой сети: свои, где есть, остальное — по «Магниту»', () => {
+  expect(packOf('buckwheat', 'auchan')).toEqual([900, 105])
+  expect(packOf('edamame', 'auchan')).toEqual(packOf('edamame'))
+  const input = { days: 7, calories: 2000, allergies: '', disliked: '', liked: '' }
+  const magnit = createMealPlan(input)
+  const vv = createMealPlan({ ...input, shop: 'vkusvill' })
+  expect(vv.basketCostRub!).toBeGreaterThan(magnit.basketCostRub!)
+  expect(budgetRange({ ...input, shop: 'auchan' })!.full).not.toBe(budgetRange(input)!.full)
 })

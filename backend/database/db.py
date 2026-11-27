@@ -122,6 +122,7 @@ ADDED_COLUMNS = [
         "sex VARCHAR(8)",
         "quick BOOLEAN NOT NULL DEFAULT false",
         "children INTEGER NOT NULL DEFAULT 0",
+        "shop VARCHAR(16) NOT NULL DEFAULT 'magnit'",
     )),
     # name+brand unique only among shared products (was: across all, which blocked users' own dishes)
     "ALTER TABLE products DROP CONSTRAINT IF EXISTS products_name_brand_key",

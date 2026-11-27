@@ -19,13 +19,13 @@ def test_preferences_are_private_and_health_consent_is_respected(client):
 def test_questionnaire_preferences_round_trip_and_old_client_update(client):
     headers = new_user_headers()
     client.post('/api/consent', headers=headers, json={'health': False})
-    body = {'days': 7, 'goal': 'maintenance', 'persons': 3, 'children': 1,
+    body = {'days': 7, 'goal': 'maintenance', 'persons': 3, 'children': 1, 'shop': 'auchan',
             'selected_meals': ['breakfast', 'dinner'], 'shared_meals': ['dinner'],
             'dietary_type': 'vegetarian', 'liked_recipe_ids': ['recipe-1'],
             'disliked_recipe_ids': ['recipe-2'], 'sex': 'female'}
     assert client.put('/api/meal-preferences', headers=headers, json=body).status_code == 200
     saved = client.get('/api/meal-preferences', headers=headers).json()
-    for key in ('persons', 'children', 'selected_meals', 'shared_meals', 'dietary_type', 'liked_recipe_ids', 'disliked_recipe_ids', 'sex'):
+    for key in ('persons', 'children', 'shop', 'selected_meals', 'shared_meals', 'dietary_type', 'liked_recipe_ids', 'disliked_recipe_ids', 'sex'):
         assert saved[key] == body[key]
     assert client.put('/api/meal-preferences', headers=headers, json={'days': 3, 'goal': 'maintenance'}).status_code == 200
     assert client.get('/api/meal-preferences', headers=headers).json()['children'] == 1  # an old client keeps the children
@@ -40,7 +40,7 @@ def test_questionnaire_preferences_reject_invalid_combinations(client):
     for invalid in ({'persons': 0}, {'persons': 11}, {'persons': 1.5},
                     {'selected_meals': ['snack']}, {'dietary_type': 'other'},
                     {'sex': 'other'}, {'selected_meals': ['breakfast'], 'shared_meals': ['dinner']},
-                    {'children': 1}, {'persons': 2, 'children': 2}, {'persons': 3, 'children': -1}):
+                    {'children': 1}, {'persons': 2, 'children': 2}, {'shop': 'lenta'}, {'persons': 3, 'children': -1}):
         assert client.put('/api/meal-preferences', headers=headers, json={**base, **invalid}).status_code == 422
 
 

@@ -94,6 +94,7 @@ class MealPreferences(Base):
     current_spend: Mapped[int | None] = mapped_column(Integer)
     persons: Mapped[int] = mapped_column(Integer, server_default="1")
     children: Mapped[int] = mapped_column(Integer, server_default="0")  # of the persons
+    shop: Mapped[str] = mapped_column(String(16), server_default="magnit")  # whose prices cost the plan
     selected_meals: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{breakfast,lunch,dinner}")
     shared_meals: Mapped[list[str]] = mapped_column(ARRAY(String), server_default="{}")
     dietary_type: Mapped[str] = mapped_column(String(16), server_default="omnivore")

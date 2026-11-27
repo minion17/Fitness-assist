@@ -8,7 +8,7 @@ import PlanShopping from './PlanShopping'
 import './MealOverview.css'
 import MealDay, { labels } from './MealDay'
 import DishPhoto from './DishPhoto'
-import { INGREDIENTS, PRICES_AS_OF, RECIPES } from './mealCatalog'
+import { INGREDIENTS, PRICES_AS_OF, RECIPES, shopCoverage, SHOPS, type Shop } from './mealCatalog'
 import { useBack } from './back'
 import { Chevron } from './ui'
 
@@ -31,6 +31,7 @@ const iso = (d: Date) => d.toLocaleDateString('sv-SE')
 const shift = (day: string, n: number) => { const d = new Date(`${day}T12:00`); d.setDate(d.getDate() + n); return iso(d) }
 const dayName = (day: string) => new Date(`${day}T12:00`).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' })
 const PANTRY_KEY = 'nextly-pantry'
+const SHOP_OF: Record<Shop, string> = { magnit: 'Магнита', auchan: 'Ашана', vkusvill: 'ВкусВилла' }
 type Saved = { input: PlanInput; plan: GeneratedPlan; start?: string | null; next_start?: string | null }
 function AnswerGroup({ title, entries }: { title: string; entries: string[][] }) {
   return <section className="answer-group"><h2>{title}</h2><dl>
@@ -78,6 +79,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const [planInput, setPlanInput] = useState<PlanInput | null>(null)
   const [savedPlan, setSavedPlan] = useState<Saved | null>(null)
   const [quick, setQuick] = useState(false)
+  const [shop, setShop] = useState<Shop>('magnit')
   const [start, setStart] = useState('') // the first day of the plan being saved; '' = today
   const [isSaved, setIsSaved] = useState(false) // the plan on screen is the saved one
   const [planMessage, setPlanMessage] = useState('')
@@ -141,7 +143,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
     setAllergies(healthConsent ? saved.input.allergies : '')
     setNoAllergies(!saved.input.allergies.trim())
     setDisliked(saved.input.disliked); setLiked(saved.input.liked)
-    setCookingMode(saved.input.cookingMode ?? 'daily'); setBatchDays(saved.input.batchDays ?? 2)
+    setCookingMode(saved.input.cookingMode ?? 'daily'); setBatchDays(saved.input.batchDays ?? 2); setShop(saved.input.shop ?? 'magnit')
     setPersons(saved.input.persons ?? 1); setChildren(saved.input.children ?? 0); setSelectedMeals([...(saved.input.selectedMeals ?? ['breakfast', 'lunch', 'dinner'])].filter((m): m is Slot => m !== 'snack')); setSharedMeals([...(saved.input.sharedMeals ?? [])].filter((m): m is Slot => m !== 'snack'))
     setLikedRecipes(saved.input.likedRecipeIds ?? []); setDislikedRecipes(saved.input.dislikedRecipeIds ?? [])
     setCalorieOverride(String(saved.input.calories))
@@ -156,12 +158,12 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       if (!active || !data) return
       setBudgetLimits([data.budget, data.current_spend].map(n => Math.max(30000, Math.ceil((n ?? 0) / 100) * 100)))
       setBudget(data.budget == null ? '' : String(data.budget)); setCurrentSpend(data.current_spend == null ? '' : String(data.current_spend))
-      const extra = data as Preferences & { persons?: number; children?: number; selected_meals?: Slot[]; shared_meals?: Slot[]; sex?: 'male' | 'female' | null; dietary_type?: Diet; cooking_mode?: 'daily' | 'batch' | 'varied'; batch_days?: 2 | 7; liked_recipe_ids?: string[]; disliked_recipe_ids?: string[]; quick?: boolean }
+      const extra = data as Preferences & { persons?: number; children?: number; selected_meals?: Slot[]; shared_meals?: Slot[]; sex?: 'male' | 'female' | null; dietary_type?: Diet; shop?: Shop; cooking_mode?: 'daily' | 'batch' | 'varied'; batch_days?: 2 | 7; liked_recipe_ids?: string[]; disliked_recipe_ids?: string[]; quick?: boolean }
       setSex(extra.sex ?? profile?.sex ?? null)
       if (showSaved || renew) return
       setDays(DAYS[data.days]); setGoal(GOALS[data.goal]); setAllergies(healthConsent ? data.allergies : '')
       setPersons(extra.persons ?? 1); setChildren(extra.children ?? 0); setSelectedMeals(extra.selected_meals ?? ['breakfast', 'lunch', 'dinner']); setSharedMeals(extra.shared_meals ?? [])
-      setCookingMode(extra.cooking_mode ?? 'daily'); setBatchDays(extra.batch_days ?? 2); setQuick(Boolean(extra.quick)); setDiet(extra.dietary_type ?? 'omnivore'); setLikedRecipes(extra.liked_recipe_ids ?? []); setDislikedRecipes(extra.disliked_recipe_ids ?? [])
+      setCookingMode(extra.cooking_mode ?? 'daily'); setBatchDays(extra.batch_days ?? 2); setQuick(Boolean(extra.quick)); setShop(extra.shop ?? 'magnit'); setDiet(extra.dietary_type ?? 'omnivore'); setLikedRecipes(extra.liked_recipe_ids ?? []); setDislikedRecipes(extra.disliked_recipe_ids ?? [])
       setLiked(data.liked); setDisliked(data.disliked)
     }).catch(() => { if (active) { setLoadFailed(true); setError('Не удалось загрузить сохранённые ответы. Попробуй открыть анкету позже.') } }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
@@ -169,7 +171,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const save = async () => {
     if (loadFailed) return
     const asNumber = (v: string) => v.trim() === '' ? null : Number(v)
-    const body = { days: Number.parseInt(days), goal: Object.entries(GOALS).find(([, label]) => label === goal)?.[0], allergies: healthConsent ? allergies : '', liked, disliked, budget: asNumber(budget), current_spend: asNumber(currentSpend), persons, children: persons > 1 ? children : 0, selected_meals: selectedMeals, shared_meals: persons > 1 ? sharedMeals : [], sex, dietary_type: diet, cooking_mode: cookingMode, batch_days: batchDays, quick, liked_recipe_ids: likedRecipes, disliked_recipe_ids: dislikedRecipes }
+    const body = { days: Number.parseInt(days), goal: Object.entries(GOALS).find(([, label]) => label === goal)?.[0], allergies: healthConsent ? allergies : '', liked, disliked, budget: asNumber(budget), current_spend: asNumber(currentSpend), persons, children: persons > 1 ? children : 0, selected_meals: selectedMeals, shared_meals: persons > 1 ? sharedMeals : [], sex, dietary_type: diet, cooking_mode: cookingMode, batch_days: batchDays, quick, shop, liked_recipe_ids: likedRecipes, disliked_recipe_ids: dislikedRecipes }
     if ([body.budget, body.current_spend].some(n => n !== null && (!Number.isInteger(n) || n < 0 || n > 10000000))) { setError('Укажи бюджет целым числом от 0 до 10 000 000 ₽.'); return }
     setError(''); setSaved(false)
     try { const result = await api('/api/meal-preferences', putJson(body)); if (result === null) throw new Error(); setSaved(true) }
@@ -178,7 +180,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
   const selectedGoal: Goal = goal === GOALS.weight_loss ? (profile?.goal === 'fat_loss' ? 'fat_loss' : 'weight_loss') : goal === GOALS.mass_gain ? (profile?.goal === 'muscle_gain' ? 'muscle_gain' : 'mass_gain') : 'maintenance'
   const targets = profile ? (selectedGoal === profile.goal && profile.targets && (!sex || sex === profile.sex) ? profile.targets : calculateTargets({ ...profile, sex: sex ?? profile.sex }, selectedGoal)) : null
   const defaultCalories = targets?.calories ?? (goal === GOALS.weight_loss ? 1800 : goal === GOALS.mass_gain ? 2200 : 2000)
-  const inputFor = (override: number | null): PlanInput => ({ days: Number.parseInt(days), calories: override ?? defaultCalories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, ...(quick ? { quick } : {}), persons, ...(persons > 1 && children ? { children } : {}), selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budget.trim() ? Number(budget) : null, dayFactors: factorsFrom(start || today, Number.parseInt(days)), ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) })
+  const inputFor = (override: number | null): PlanInput => ({ days: Number.parseInt(days), calories: override ?? defaultCalories, allergies, disliked, liked, goalLabel: goal, cookingMode, batchDays, ...(quick ? { quick } : {}), persons, ...(persons > 1 && children ? { children } : {}), selectedMeals, sharedMeals: persons > 1 ? sharedMeals : [], dietary: diet, likedRecipeIds: likedRecipes, dislikedRecipeIds: dislikedRecipes, budget: budget.trim() ? Number(budget) : null, dayFactors: factorsFrom(start || today, Number.parseInt(days)), ...(shop !== 'magnit' ? { shop } : {}), ...(targets && override === null ? { macros: { protein_g: targets.protein, fat_g: targets.fat, carbs_g: targets.carbs } } : {}) })
   // what a week of these answers costs, for the budget step; the key leaves out the budget, so dragging doesn't recount
   const draftKey = view === 'form' && current === 'budget' ? JSON.stringify({ ...inputFor(calorieOverride.trim() ? Number(calorieOverride) : null), budget: null }) : ''
   const range = useMemo(() => { try { return draftKey ? budgetRange(JSON.parse(draftKey)) : null } catch { return null } }, [draftKey])
@@ -263,7 +265,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
       {view === 'form' && current === 'meals' && <><h2>Какие приёмы пищи включить?</h2><p className="sub">Общие готовим сразу на всех, остальное — одной порцией для тебя.</p><div className="meal-q-meals">{MEALS.map(m => <div key={m.id}><button className="meal-q-meal" aria-pressed={selectedMeals.includes(m.id)} onClick={() => toggleMeal(m.id)}>{m.label}</button>{selectedMeals.includes(m.id) && <button className="meal-q-meal" aria-pressed={sharedMeals.includes(m.id)} onClick={() => toggleShared(m.id)}>Для всей семьи</button>}</div>)}</div></>}
       {view === 'form' && current === 'cooking' && <><h2>Как тебе удобнее готовить?</h2><p className="sub">Учтём это при выборе блюд и продуктов.</p><div className="meal-q-cooking">{COOKING.map(([id, title, hint]) => <button key={id} className="meal-q-option" aria-pressed={cookingMode === id} onClick={() => setCookingMode(id)}><span><strong>{title}</strong><small>{hint}</small></span></button>)}</div>{cookingMode === 'batch' && <><div className="meal-q-options">{([2, 7] as const).map(n => <button key={n} className="meal-plan-option" aria-pressed={batchDays === n} onClick={() => setBatchDays(n)}>На {n} {plural(n, 'день', 'дня', 'дней')}</button>)}</div><p className="sub">Готовишь два блюда сразу на {batchDays} {plural(batchDays, 'день', 'дня', 'дней')}: одно на обеды, другое на ужины.{batchDays === 7 ? ' Часть порций нужно заморозить, проверяй сроки хранения.' : ''}</p></>}
         <label className="meal-plan-confirm"><input type="checkbox" checked={quick} onChange={e => setQuick(e.target.checked)} /> Только быстрые блюда, до 30 минут</label></>}
-      {view === 'form' && current === 'budget' && <BudgetStep range={range} persons={persons} budget={budget} currentSpend={currentSpend} limits={budgetLimits} onBudget={setBudget} onCurrent={setCurrentSpend} />}
+      {view === 'form' && current === 'budget' && <BudgetStep range={range} shop={shop} onShop={setShop} persons={persons} budget={budget} currentSpend={currentSpend} limits={budgetLimits} onBudget={setBudget} onCurrent={setCurrentSpend} />}
       {view === 'form' && current === 'sex' && <><h2>Твой пол</h2><p className="sub">Нужен для расчёта нормы. Остальные данные можно заполнить в профиле.</p><div className="meal-q-options">{([{ id: 'female', label: 'Женский' }, { id: 'male', label: 'Мужской' }] as const).map(v => <button className="meal-q-option" aria-pressed={sex === v.id} key={v.id} onClick={() => setSex(v.id)}><strong>{v.label}</strong></button>)}</div></>}
       {view === 'form' && current === 'diet' && <><h2>Какой у тебя тип питания?</h2><p className="sub">Подберём подходящие блюда.</p><div className="meal-q-options">{DIETS.map(v => <button className="meal-q-option" aria-pressed={diet === v.id} key={v.id} onClick={() => setDiet(v.id)}><img className="meal-q-diet-photo" src={`/images/diets/${v.id}.jpg`} alt="" /><span><strong>{v.label}</strong><small>{v.description}</small></span></button>)}</div></>}
       {view === 'form' && current === 'tastes' && <><h2>Что тебе нравится?</h2><p className="sub">Отметь блюда, которые хочешь есть, и они будут чаще. Ряды листаются вбок. Можно пропустить.</p>
@@ -322,7 +324,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
           {plan.basketCostRub != null && <p className="plan-cost">Продукты ≈ {rub(plan.basketCostRub)} на весь срок{plan.days.length > 7 || persons > 1 ? ` · ≈ ${rub(plan.basketCostRub / plan.days.length * 7 / persons)} в неделю на человека` : ''}
             {plan.budgetRub != null && plan.basketCostRub <= plan.budgetRub && <span className="pos"> · в рамках бюджета</span>}
             {Number(currentSpend) > plan.basketCostRub / plan.days.length * 7 && <span className="pos"> · на {rub(Number(currentSpend) - plan.basketCostRub / plan.days.length * 7)} в неделю меньше, чем сейчас</span>}</p>}
-          <div className="meal-result-disclaimer">Цены — обычные, без акций, по сайту сети «Магнит» ({PRICES_AS_OF}); в твоём магазине могут отличаться. Считаем целыми упаковками. {persons > 1 && `Общие блюда рассчитаны на порции по твоей норме${children ? `, детские — около ${Math.round(CHILD * 100)}% взрослой` : ''}. `}При аллергии проверяй состав и следы аллергенов.</div></div>
+          <div className="meal-result-disclaimer">Цены — обычные, без акций, по сайту сети «{SHOPS[planInput?.shop ?? 'magnit']}» ({PRICES_AS_OF}){planInput?.shop && planInput.shop !== 'magnit' ? `, около ${Math.round(shopCoverage(planInput.shop) * 10) * 10}% продуктов; остальные — по «Магниту»` : ''}; в твоём магазине могут отличаться. Считаем целыми упаковками. {persons > 1 && `Общие блюда рассчитаны на порции по твоей норме${children ? `, детские — около ${Math.round(CHILD * 100)}% взрослой` : ''}. `}При аллергии проверяй состав и следы аллергенов.</div></div>
         {planInput?.dayFactors && <p className="sub">В дни тренировок порции на {Math.round((TRAINING - 1) * 100)}% больше, в остальные — чуть меньше: за неделю выходит та же норма.</p>}
         {snack && <p className="sub">Добавили перекус: при {planInput?.calories} ккал три тарелки вышли бы слишком большими.</p>}
         {diet === 'vegan' && <p className="sub">Белок в растительном меню — из тофу, нута, чечевицы, маша, орехов и соевого протеина. Если протеин не нужен, напиши «протеин» в «Что не ешь».</p>}
@@ -372,8 +374,8 @@ const BUDGET_PRESETS = [{ label: 'Экономно', per: 2000 }, { label: 'Ср
 type Range = { cheapest: number; balanced: number; full: number }
 const up = (n: number) => Math.ceil(n / 100) * 100
 
-function BudgetStep({ range, persons, budget, currentSpend, limits, onBudget, onCurrent }: {
-  range: Range | null; persons: number; budget: string; currentSpend: string; limits: number[]
+function BudgetStep({ range, shop, onShop, persons, budget, currentSpend, limits, onBudget, onCurrent }: {
+  range: Range | null; shop: Shop; onShop: (s: Shop) => void; persons: number; budget: string; currentSpend: string; limits: number[]
   onBudget: (v: string) => void; onCurrent: (v: string) => void
 }) {
   // the scale follows the household: 10 000 ₽ a week per person, more if a saved answer was bigger
@@ -390,7 +392,10 @@ function BudgetStep({ range, persons, budget, currentSpend, limits, onBudget, on
     : b < range.full ? 'Норма белка есть, блюда попроще.' : 'Хватит на любое меню.'
   return <>
     <h2>Бюджет на неделю</h2>
-    <p className="sub">{persons > 1 ? `На всех, ${persons} чел.: подберём` : 'Подберём'} блюда под эту сумму по ценам «Магнита». Можно пропустить.</p>
+    <div className="shop-pick" role="radiogroup" aria-label="Где покупаешь продукты">
+      {(Object.keys(SHOPS) as Shop[]).map(s => <button type="button" key={s} role="radio" aria-checked={shop === s} onClick={() => onShop(s)}>{SHOPS[s]}</button>)}
+    </div>
+    <p className="sub">{persons > 1 ? `На всех, ${persons} чел.: подберём` : 'Подберём'} блюда под эту сумму по ценам «{SHOP_OF[shop]}». Можно пропустить.</p>
     <div className="budget-presets" role="group" aria-label="Готовые варианты">
       {presets.map(([label, sum]) => <button type="button" key={label} aria-pressed={b === sum} onClick={() => onBudget(String(sum))}><b>{label}</b><small>{rub(sum)}</small></button>)}
       <button type="button" aria-pressed={!budget} onClick={() => onBudget('')}><b>Без лимита</b><small>не важно</small></button>

@@ -9,7 +9,7 @@ from backend.database.models import MealPreferences
 
 router = APIRouter(prefix="/api/meal-preferences")
 Meal = Literal["breakfast", "lunch", "dinner"]
-NEW_FIELDS = {"persons", "selected_meals", "shared_meals", "dietary_type", "liked_recipe_ids", "disliked_recipe_ids", "sex", "cooking_mode", "batch_days", "quick", "children"}
+NEW_FIELDS = {"persons", "selected_meals", "shared_meals", "dietary_type", "liked_recipe_ids", "disliked_recipe_ids", "sex", "cooking_mode", "batch_days", "quick", "children", "shop"}
 
 
 class PreferencesIn(BaseModel):
@@ -31,6 +31,7 @@ class PreferencesIn(BaseModel):
     cooking_mode: Literal["daily", "batch", "varied"] = "daily"
     batch_days: Literal[2, 7] = 2
     quick: bool = False
+    shop: Literal["magnit", "auchan", "vkusvill"] = "magnit"  # whose prices cost the plan
 
     @model_validator(mode="after")
     def validate_meals(self):

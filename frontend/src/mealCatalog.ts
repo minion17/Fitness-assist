@@ -55,6 +55,38 @@ const PRICES: Record<string, [number, number]> = {
  // plant-based
  tofu: [250, 140], hummus: [200, 150], oatMilk: [1000, 150], soyMilk: [1000, 170], edamame: [300, 290], soyProtein: [900, 1500],
 }
+/** Other chains (regular prices): what the plan is costed by when the user picks the shop. A product
+ * missing here costs as at «Магнит». Auchan's from its product pages as search engines show them, VkusVill's from its site. */
+export type Shop = 'magnit' | 'auchan' | 'vkusvill'
+export const SHOPS: Record<Shop, string> = { magnit: 'Магнит', auchan: 'Ашан', vkusvill: 'ВкусВилл' }
+export const SHOP_PRICES_AS_OF = 'ноябрь 2026'
+const SHOP_PRICES: Record<Exclude<Shop, 'magnit'>, Record<string, [number, number]>> = {
+ auchan: {
+  chickpeas: [400, 146], beans: [400, 77], lentils: [450, 102], greenLentils: [500, 60], peas: [900, 62], hummus: [200, 125], tofu: [250, 112],
+  mung: [450, 126], oats: [500, 51], rice: [500, 90], buckwheat: [900, 105], semolina: [800, 52], pasta: [450, 61], millet: [900, 99],
+  oil: [920, 110], curd: [200, 109], butter: [180, 139], milk: [950, 85], yogurt: [300, 60], sourCream: [300, 72], kefir: [300, 29],
+  cheese: [200, 148], rawTurkey: [1000, 469], beef: [800, 550], mince: [400, 221], liver: [675, 157], soyMilk: [1000, 118],
+  rawPotato: [2500, 160], rawCarrot: [1000, 60], cucumber: [1000, 139], rawBroccoli: [400, 92], onion: [2000, 100], egg: [550, 74],
+  pollock: [1000, 331], apple: [1000, 69], bread: [400, 30],
+ },
+ vkusvill: {
+  chickpeas: [375, 185], beans: [400, 116], lentils: [450, 140], greenLentils: [450, 165], peas: [500, 78], tofu: [250, 172], mung: [400, 200],
+  oats: [400, 54], rice: [500, 210], buckwheat: [900, 93], millet: [500, 48], oil: [920, 216], butter: [200, 265], milk: [900, 100],
+  yogurt: [250, 118], sourCream: [200, 94], cheese: [200, 252], kefir: [900, 115], feta: [200, 257], rawChicken: [1000, 676],
+  rawTurkey: [1000, 928], beef: [400, 488], mince: [360, 383], liver: [500, 292], oatMilk: [1000, 155], rawPotato: [1000, 54],
+  tomato: [1000, 295], rawCarrot: [1000, 62], cucumber: [1000, 235], rawBroccoli: [400, 235], pumpkin: [1000, 98], onion: [1000, 62],
+  pepper: [1000, 390], cabbage: [1000, 58], dill: [50, 85], garlic: [100, 120], peanut: [300, 157], walnut: [300, 458],
+  peanutPaste: [340, 378], pollock: [400, 495], rawCod: [400, 625], tuna: [140, 215], honey: [500, 418], tomatoPaste: [140, 66],
+  raisins: [150, 148], apple: [1000, 180], banana: [1000, 168], orange: [1000, 194], lemon: [1000, 240], flour: [1000, 96],
+  bread: [400, 99], lavash: [150, 74], egg: [650, 155],
+ },
+}
+/** A pack of the product at the shop: [grams, rubles]. */
+export function packOf(id: string, shop: Shop = 'magnit'): [number, number] {
+ return (shop !== 'magnit' && SHOP_PRICES[shop][id]) || [INGREDIENTS[id].packGrams, INGREDIENTS[id].packRub]
+}
+/** How many of a shop's products have its own price, of all bought: shown so a «Ашан» total isn't read as exact. */
+export const shopCoverage = (shop: Exclude<Shop, 'magnit'>) => Object.keys(SHOP_PRICES[shop]).length / Object.keys(PRICES).length
 /** Recipes weigh some things cooked («куриное филе отварное»); the shop sells them raw: what to buy and how many grams
  * of it make a gram of the cooked one. */
 export const BUY: Record<string, [string, number]> = {

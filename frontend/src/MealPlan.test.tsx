@@ -381,3 +381,14 @@ it('в дне есть план готовки, ингредиент можно 
   }
   throw new Error('no swappable ingredient')
 })
+
+it('магазин выбирается на шаге бюджета и меняет расчёт', () => {
+  render(<MealPlan onClose={vi.fn()} />)
+  for (let i = 0; i < 8 && !screen.queryByRole('radiogroup', { name: 'Где покупаешь продукты' }); i++) next()
+  const before = screen.getByRole('status').textContent
+  fireEvent.click(screen.getByRole('radio', { name: 'ВкусВилл' }))
+  expect(screen.getByText(/по ценам «ВкусВилла»/)).toBeTruthy()
+  expect(screen.getByRole('status').textContent).not.toBe(before)
+  build()
+  expect(screen.getByText(/по сайту сети «ВкусВилл».*остальные — по «Магниту»/)).toBeTruthy()
+})

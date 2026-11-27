@@ -2240,3 +2240,6 @@ span.plan-recipe-cover.dish-ph > img { width: 96px; }
 .plan-start .chip { border: 1px solid transparent; font: inherit; font-size: 14px; padding: 8px 14px; cursor: pointer; }
 .plan-start .chip[aria-checked="true"] { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-text); border-color: var(--accent); }
 .meal-q-children .sub { margin: 0; }
+.shop-pick { display: flex; gap: 8px; flex-wrap: wrap; margin: 4px 0 8px; }
+.shop-pick button { min-height: 44px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--card-border); background: var(--card-2); color: var(--text); font: inherit; font-size: 14px; }
+.shop-pick button[aria-checked='true'] { border-color: var(--accent); color: var(--accent-text); background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); }

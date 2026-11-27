@@ -1,4 +1,4 @@
-import { INGREDIENTS, RECIPES, SHOP_NAME, toBuy } from './mealCatalog'
+import { INGREDIENTS, packOf, RECIPES, SHOP_NAME, toBuy, type Shop } from './mealCatalog'
 
 type Nutrients = { kcal: number; protein_g: number; fat_g: number; carbs_g: number }
 type Macros = Omit<Nutrients, 'kcal'>
@@ -21,6 +21,7 @@ export type PlanInput = {
   batchDays?: 2 | 7
   goalLabel?: string
   quick?: boolean // dishes up to QUICK minutes are preferred
+  shop?: Shop // whose prices cost the plan; magnit by default
   dayFactors?: number[] // per plan day: how much bigger its portions are (training days), see trainingFactors
 }
 export const QUICK = 30
@@ -138,8 +139,8 @@ const FIXED = new Set(['tomato', 'cucumber', 'broccoli', 'rawBroccoli', 'carrot'
   'dill', 'garlic', 'chili', 'lemon', 'tomatoPaste'])
 /** Bought once and used for months: the plan pays for what it uses, not for the whole jar. */
 const PANTRY = new Set(['soyProtein', 'oil', 'honey', 'sesame', 'flour'])
-function packCost(id: string, grams: number, whole: boolean) {
-  const { packRub, packGrams } = INGREDIENTS[id]
+function packCost(id: string, grams: number, whole: boolean, shop?: Shop) {
+  const [packGrams, packRub] = packOf(id, shop)
   if (!(packGrams > 0 && packRub > 0 && Number.isFinite(packRub) && Number.isFinite(packGrams))) return null
   return (whole && !PANTRY.has(id) ? Math.ceil(grams / packGrams - 1e-9) : grams / packGrams) * packRub
 }
@@ -151,7 +152,7 @@ function sumKnown(items: (number | null)[]) {
   }
   return rub(sum)
 }
-function portion(r: Recipe, slot: number, calories: number, tags: string[]): Meal {
+function portion(r: Recipe, slot: number, calories: number, tags: string[], shop?: Shop): Meal {
   const kcal = (fixed: boolean) => r.ingredients.reduce((sum, i) => sum + (FIXED.has(i.product) === fixed ? INGREDIENTS[i.product].kcal * i.grams / 100 : 0), 0)
   const scale = Math.min(2.8, Math.max(.35, (calories - kcal(true)) / Math.max(1, kcal(false))))
   const nutrition = emptyTotals()
@@ -163,7 +164,7 @@ function portion(r: Recipe, slot: number, calories: number, tags: string[]): Mea
   })
   for (const key of nutrientKeys) nutrition[key] = Math.round(nutrition[key])
   return { id: r.id, name: r.name, instructions: r.instructions, meal: slots[slot], tags, ingredients, nutrition, minutes: r.minutes,
-    portions: 1, costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false))) }
+    portions: 1, costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false, shop))) }
 }
 function addMeal(weights: Weights, meal: Meal) {
   for (const i of meal.ingredients) {
@@ -221,7 +222,7 @@ function setup(input: PlanInput) {
       const anyMain = shared && isMain(slot) && r.meal !== 'breakfast'
       if (r.meal !== slot && !(isMain(slot) && r.meal === 'main') && !anyMain) return []
       const tags = [...new Set(r.ingredients.flatMap(i => [i.product, ...INGREDIENTS[i.product].tags]))]
-      return tags.some(tag => excluded.has(tag)) ? [] : [portion(r, index, input.calories * fr[index], tags)]
+      return tags.some(tag => excluded.has(tag)) ? [] : [portion(r, index, input.calories * fr[index], tags, input.shop)]
     }))
   }
   let withSnack = input.calories >= SNACK_FROM && !chosen.includes('snack')
@@ -252,13 +253,13 @@ function targetFor(input: PlanInput, ctx: Ctx, previous: Meal[], share: number) 
   for (const key of nutrientKeys) goal[key] = Math.max(1, (goal[key] * selectedShare(ctx) - total[key]) * share)
   return goal
 }
-function addedCost(weights: Weights, meal: Meal) {
+function addedCost(weights: Weights, meal: Meal, shop?: Shop) {
   let delta = 0
   for (const i of meal.ingredients) {
     const [id, grams] = toBuy(i.productId, i.grams * meal.portions)
     const old = weights.get(id) ?? 0
-    const after = packCost(id, old + grams, true)
-    const before = packCost(id, old, true)
+    const after = packCost(id, old + grams, true, shop)
+    const before = packCost(id, old, true, shop)
     if (after === null || before === null) return null
     delta += after - before
   }
@@ -270,8 +271,9 @@ function compile(input: PlanInput, ctx: Ctx, days: Day[]): MealPlan {
   meals.forEach(m => addMeal(weights, m))
   const shopping = Array.from(weights, ([productId, raw]) => {
     const grams = Math.round(raw)
-    const { name, packGrams } = INGREDIENTS[productId]
-    return { productId, product: SHOP_NAME[productId] ?? name, grams, packGrams, packs: Math.ceil(grams / packGrams), costRub: packCost(productId, grams, true) }
+    const { name } = INGREDIENTS[productId]
+    const [packGrams] = packOf(productId, input.shop)
+    return { productId, product: SHOP_NAME[productId] ?? name, grams, packGrams, packs: Math.ceil(grams / packGrams), costRub: packCost(productId, grams, true, input.shop) }
   }).sort((a, b) => a.product.localeCompare(b.product, 'ru'))
   const basketCostRub = sumKnown(shopping.map(i => i.costRub))
   const portionCostRub = sumKnown(meals.map(m => m.costRub))
@@ -287,7 +289,7 @@ function compile(input: PlanInput, ctx: Ctx, days: Day[]): MealPlan {
 }
 const factorOf = (input: PlanInput, dayIndex: number) => input.dayFactors?.[dayIndex] ?? 1
 /** A portion f times as big: what fills the plate grows, vegetables and herbs stay (see FIXED). */
-function scaleMeal(meal: Meal, f: number): Meal {
+function scaleMeal(meal: Meal, f: number, shop?: Shop): Meal {
   if (Math.abs(f - 1) < 1e-6) return meal
   const nutrition = emptyTotals()
   const ingredients = meal.ingredients.map(i => {
@@ -296,9 +298,9 @@ function scaleMeal(meal: Meal, f: number): Meal {
     return { ...i, grams }
   })
   for (const key of nutrientKeys) nutrition[key] = Math.round(nutrition[key])
-  return { ...meal, ingredients, nutrition, costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false))) }
+  return { ...meal, ingredients, nutrition, costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false, shop))) }
 }
-const scaleDay = (day: Day, f: number): Day => { const meals = day.meals.map(m => scaleMeal(m, f)); return { ...day, meals, totals: totals(meals) } }
+const scaleDay = (day: Day, f: number, shop?: Shop): Day => { const meals = day.meals.map(m => scaleMeal(m, f, shop)); return { ...day, meals, totals: totals(meals) } }
 /** Training days eat TRAINING times more; the other days of the week a little less, so a week holds the same norm.
  * `weekdays`: of each plan day, 0 = Mon; `training`: the training weekdays. */
 export const TRAINING = 1.1
@@ -312,7 +314,7 @@ export function trainingFactors(weekdays: number[], training: readonly number[])
 export function retime(input: PlanInput, plan: MealPlan, dayFactors: number[] | undefined): { input: PlanInput; plan: MealPlan } {
   const next: PlanInput = { ...input, dayFactors }
   const { selected, fr, notes } = setup(next)
-  const days = plan.days.map((d, i) => scaleDay(d, factorOf(next, i) / factorOf(input, i)))
+  const days = plan.days.map((d, i) => scaleDay(d, factorOf(next, i) / factorOf(input, i), next.shop))
   return { input: next, plan: compile(next, { selected, fr, notes }, days) }
 }
 function distinct(pool: Meal[], others: Meal[]) {
@@ -382,7 +384,7 @@ function* attempts(input: PlanInput, avoid: readonly string[]): Generator<MealPl
         let bestScore = Infinity
         if (!forced) for (const m of pool) {
           const candidate = { ...m, ...portionsOf(input, slot) }
-          const delta = addedCost(weights, candidate)
+          const delta = addedCost(weights, candidate, input.shop)
           const costScore = delta === null || m.costRub === null ? 10000 : (delta + m.costRub * .6) / 100
           const previousDay = days.at(-1)?.meals.some(previous => previous.id === m.id)
           // saving money must not cost protein: its shortfall weighs as much more as the price does
@@ -398,7 +400,7 @@ function* attempts(input: PlanInput, avoid: readonly string[]): Generator<MealPl
         uses.set(bestMeal.id, (uses.get(bestMeal.id) ?? 0) + 1)
         addMeal(weights, bestMeal)
       }
-      days.push(scaleDay({ day, meals, totals: totals(meals) }, factorOf(input, day - 1)))
+      days.push(scaleDay({ day, meals, totals: totals(meals) }, factorOf(input, day - 1), input.shop))
     }
     yield compile(input, ctx, days)
   }
@@ -433,7 +435,7 @@ export function replacementOptions(input: PlanInput, plan: MealPlan, dayIndex: n
   const others = day.meals.filter((_, i) => !inGroup(dayIndex, i))
   const pool = distinct(choices[slots.indexOf(slot)].filter(m => m.id !== day.meals[mealIndex].id), others)
   if (!pool.length) throw new Error('С учётом ограничений другой вариант для этого приёма пищи не найден.')
-  const baseCost = sumKnown(Array.from(weights, ([id, g]) => packCost(id, g, true)))
+  const baseCost = sumKnown(Array.from(weights, ([id, g]) => packCost(id, g, true, input.shop)))
   const budget = input.budget == null ? Infinity : rub(input.budget * input.days / 7)
   return pool.flatMap(candidate => {
     const candidateWeights = new Map(weights)
@@ -448,14 +450,14 @@ export function replacementOptions(input: PlanInput, plan: MealPlan, dayIndex: n
         const first = cells[0][0] === d && cells[0][1] === m
         const base: Meal = { ...replacement, ...portionsOf(input, old.meal), ...(first ? {} : { repeat: true }) }
         score += quality(input, base, targetFor(input, ctx, current.meals.filter((_, i) => !inGroup(d, i)), 1), liked, uses)
-        const meal = scaleMeal(base, factorOf(input, d))
+        const meal = scaleMeal(base, factorOf(input, d), input.shop)
         addMeal(candidateWeights, meal)
         return meal
       })
       return { ...current, meals, totals: totals(meals) }
     })
     if (!ok) return []
-    const cost = sumKnown(Array.from(candidateWeights, ([id, g]) => packCost(id, g, true)))
+    const cost = sumKnown(Array.from(candidateWeights, ([id, g]) => packCost(id, g, true, input.shop)))
     const excess = baseCost === null || cost === null ? Infinity : Math.max(0, cost - budget)
     const next = compile(input, ctx, days)
     return [{ meal: next.days[dayIndex].meals[mealIndex], plan: next, excess, score: score / cells.length - (input.likedRecipeIds?.includes(candidate.id) ? 1 : 0) }]
@@ -518,7 +520,7 @@ export function swapIngredient(input: PlanInput, plan: MealPlan, dayIndex: numbe
       const swaps = [...(meal.swaps ?? []).filter(w => w !== prev), { from: prev?.from ?? INGREDIENTS[from].name, to: INGREDIENTS[to].name }]
         .filter(w => w.from !== w.to)
       return { ...meal, ingredients, nutrition, swaps, tags: [...new Set(ingredients.flatMap(i => [i.productId, ...INGREDIENTS[i.productId].tags]))],
-        costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false))) }
+        costRub: sumKnown(ingredients.map(i => packCost(...toBuy(i.productId, i.grams), false, input.shop))) }
     })
     return { ...day, meals, totals: totals(meals) }
   })

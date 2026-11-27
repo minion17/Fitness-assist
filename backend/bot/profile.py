@@ -14,10 +14,10 @@ log = logging.getLogger("bot.profile")
 AVATAR = Path(__file__).parent / "assets" / "avatar.jpg"
 STAMP = Path(__file__).resolve().parents[2] / ".bot_profile"  # in the project root, git-ignored
 
-NAME = "Setly"
-SHORT_DESCRIPTION = "Setly — питание, тренировки и вода в одном приложении. Сканер штрихкодов, AI по фото, напоминания."
+NAME = "Nextly"
+SHORT_DESCRIPTION = "Nextly — питание, тренировки и вода в одном приложении. Сканер штрихкодов, AI по фото, напоминания."
 
-DESCRIPTION = """Setly считает калории, ведёт тренировки и не даёт сливаться. Без таблиц и бумажек.
+DESCRIPTION = """Nextly считает калории, ведёт тренировки и не даёт сливаться. Без таблиц и бумажек.
 
 🍽 Питание: норма КБЖУ под твою цель, сканер штрихкодов, еда по фото и меню ресторанов с AI
 💪 Тренировки: программа под ваш уровень и инвентарь

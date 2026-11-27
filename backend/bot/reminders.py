@@ -123,7 +123,7 @@ async def day_one(session, user: User, today) -> tuple[str, str, Render, Buttons
     ml = await session.scalar(select(WaterIntake.ml).where(WaterIntake.user_id == user.id, WaterIntake.day == today)) or 0
     if eaten or ml:
         parts = [f"записано приёмов пищи: {len(eaten)}, {round(t['kcal'])} ккал" if eaten else "", f"воды {liters(ml)} л" if ml else ""]
-        text = f"🌙 Первый день с Setly: {', '.join(p for p in parts if p)}. Завтра повтори, со второго дня уже легче."
+        text = f"🌙 Первый день с Nextly: {', '.join(p for p in parts if p)}. Завтра повтори, со второго дня уже легче."
     else:
         text = ("🌙 Первый день позади, а записей нет. Завтра начни с завтрака: напиши «овсянка 60 г, банан», "
                 "остальное посчитаю.")
@@ -189,7 +189,7 @@ GROUP_TIP_AT = "19:30"  # not on Sunday: that evening has the week's summary
 
 
 async def group_tip(session, user: User, today: date) -> tuple[str, str, Render, Buttons] | None:
-    """Once ever, when they've settled in (a week with Setly, 3+ active days of the last 7) and aren't in a group
+    """Once ever, when they've settled in (a week with Nextly, 3+ active days of the last 7) and aren't in a group
     chat yet: the bot in their friends' / family / office chat. "onb:group" keeps it to one message."""
     from backend.api.social import bot_username
     from backend.database.models import GroupMember, XpEvent
@@ -201,10 +201,10 @@ async def group_tip(session, user: User, today: date) -> tuple[str, str, Render,
     bot = bot_username()
     if active < 3 or not bot:
         return None
-    return ("onb:group", "👥 Неделя с Setly позади. Дальше держаться проще компанией.\n\nДобавь меня в чат друзей, семьи или офиса: "
+    return ("onb:group", "👥 Неделя с Nextly позади. Дальше держаться проще компанией.\n\nДобавь меня в чат друзей, семьи или офиса: "
             "буду вести рейтинг недели, в понедельник объявлять чемпиона, а в четверг подначивать отстающих. "
-            "Кто ещё не в Setly, присоединится по кнопке из чата.",
-            NO_CARD, [("👥 Добавить в чат", f"url:https://t.me/{bot}?startgroup=setly")])
+            "Кто ещё не в Nextly, присоединится по кнопке из чата.",
+            NO_CARD, [("👥 Добавить в чат", f"url:https://t.me/{bot}?startgroup=nextly")])
 
 
 PLAN_END_AT = "18:30"
@@ -380,7 +380,7 @@ async def candidates(session, user: User, cfg: ReminderSettings, now: datetime) 
                 out.append(close)
         elif n > 0:
             week = [today - timedelta(days=i) in days and is_active(days[today - timedelta(days=i)]) for i in range(6, -1, -1)]
-            out.append((f"{today}:streak", f"🔥 {n} {cards.plural_days(n)} подряд с Setly. Не обрывай серию: хватит одной записи еды, воды или тренировки."
+            out.append((f"{today}:streak", f"🔥 {n} {cards.plural_days(n)} подряд с Nextly. Не обрывай серию: хватит одной записи еды, воды или тренировки."
                         f" До конца дня {24 - now.hour} ч.",
                         Render(cards.streak, n, week, **look), None))
     if getattr(cfg, "workout", True) and due(cfg.workout_at or "09:00", now):

@@ -43,7 +43,7 @@ export default function Friends() {
 
   function invite() {
     if (!link) return
-    const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Давай вместе в Setly: дневник, тренировки и дуэли')}`
+    const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Давай вместе в Nextly: дневник, тренировки и дуэли')}`
     if (tg?.openTelegramLink) tg.openTelegramLink(url)
     else window.open(url, '_blank')
   }
@@ -61,7 +61,7 @@ export default function Friends() {
         <p className="sub">{friends.length
           ? 'Рейтинг недели, дуэли и общий азарт.'
           : 'Отправь другу ссылку. Когда он её откроет, ты появишься друг у друга в списке: будет общий рейтинг недели и дуэли.'}
-          {' '}+50 XP за каждого нового друга, который пользуется Setly хотя бы 3 дня.</p>
+          {' '}+50 XP за каждого нового друга, который пользуется Nextly хотя бы 3 дня.</p>
         <div className="friends-actions">
           <button className="btn" disabled={!link} onClick={invite}>Пригласить друга</button>
           {canStory() && <button className="btn btn-ghost" onClick={() => act(() => shareStory({ kind: 'week' }))}>Неделя в историю</button>}
@@ -72,7 +72,7 @@ export default function Friends() {
       {groupLink && (
         <section className="card friends-group">
           <h2>Рейтинг в вашем чате</h2>
-          <p className="sub">Добавь Setly в чат друзей, семьи или коллег: бот ведёт общий рейтинг недели, по понедельникам объявляет
+          <p className="sub">Добавь Nextly в чат друзей, семьи или коллег: бот ведёт общий рейтинг недели, по понедельникам объявляет
             чемпиона, в четверг подначивает отстающих, а после тренировок пишет в чат.</p>
           <button className="btn btn-ghost" onClick={() => { if (tg?.openTelegramLink) tg.openTelegramLink(groupLink); else window.open(groupLink, '_blank') }}>Добавить в чат</button>
         </section>
@@ -130,7 +130,7 @@ export default function Friends() {
       {challenge && (
         <section className="card duel-form" aria-label="Новая дуэль">
           <h2>Дуэль с {challenge.friend.name}</h2>
-          <p className="sub">Без ставок: победитель получает +40 XP и бустер ×1,5 XP на 24 часа (до +50 XP). Награда — если вы друзья больше недели, оба по-настоящему пользуетесь Setly (дневник или тренировки 5 дней из последних 14) и оба участвовали; с одним другом — раз в 2 недели, всего — до 2 наград в месяц.</p>
+          <p className="sub">Без ставок: победитель получает +40 XP и бустер ×1,5 XP на 24 часа (до +50 XP). Награда — если вы друзья больше недели, оба по-настоящему пользуетесь Nextly (дневник или тренировки 5 дней из последних 14) и оба участвовали; с одним другом — раз в 2 недели, всего — до 2 наград в месяц.</p>
           <div className="seg seg-row" role="group" aria-label="Что считаем">
             {(['xp', 'workouts'] as const).map((m) => <button key={m} aria-pressed={challenge.metric === m} onClick={() => setChallenge({ ...challenge, metric: m })}>{m === 'xp' ? 'XP' : 'Тренировки'}</button>)}
           </div>

@@ -77,7 +77,7 @@ async def lifespan(_: FastAPI):
 
 
 log = logging.getLogger("api")
-app = FastAPI(title="Setly API", lifespan=lifespan)
+app = FastAPI(title="Nextly API", lifespan=lifespan)
 
 
 @app.exception_handler(Exception)

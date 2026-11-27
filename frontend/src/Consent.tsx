@@ -30,7 +30,7 @@ export default function Consent({ url, onDone }: { url: string | null; onDone: (
   return (
     <main className="screen consent">
       <h1 className="home-title">Перед началом</h1>
-      <p className="sub">Setly хранит анкету, дневник питания, воду, тренировки и замеры, чтобы считать твою норму и напоминать о важном. Данные не продаём и не передаём рекламным сетям.</p>
+      <p className="sub">Nextly хранит анкету, дневник питания, воду, тренировки и замеры, чтобы считать твою норму и напоминать о важном. Данные не продаём и не передаём рекламным сетям.</p>
       <section className="card">
         <label className="consent-check">
           <input type="checkbox" checked={main} onChange={(e) => setMain(e.target.checked)} />

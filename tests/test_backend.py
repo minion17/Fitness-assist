@@ -955,7 +955,7 @@ def test_friends_leaderboard_duels_and_share(client, seeded, monkeypatch):
     assert client.post("/api/duels", headers=ha, json={"friend_id": b_id, "metric": "xp", "days": 3}).status_code == 403
     client.put("/api/profile", headers=hb, json=PROFILE)
 
-    # invite XP only after the invited friend really used Setly on 3 days: a glass of water a day from a second
+    # invite XP only after the invited friend really used Nextly on 3 days: a glass of water a day from a second
     # account is not that; a workout (or a full diary) is
     async def invite_check(s, active_days, water=False):
         from backend.database.models import WorkoutLog
@@ -1328,7 +1328,7 @@ def test_broadcast_reaches_everyone_after_confirmation(client, seeded, monkeypat
 
     owner = random.randint(6 * 10**9, 7 * 10**9)
     monkeypatch.setattr(settings, "admin_ids", str(owner))
-    text = f"Новое в Setly {owner}"
+    text = f"Новое в Nextly {owner}"
 
     def msg(uid):
         return SimpleNamespace(from_user=SimpleNamespace(id=uid), answer=AsyncMock())
@@ -2973,7 +2973,7 @@ def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
     from backend.database.models import GroupChat, Outbox, User, XpEvent
     from conftest import USER, make_init_data
 
-    monkeypatch.setattr(groups, "bot_username", lambda: "SetlyBot")
+    monkeypatch.setattr(groups, "bot_username", lambda: "NextlyBot")
     ids = [random.randint(10**10, 2 * 10**10) for _ in range(3)]
     hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Борис", "Вера"))]
     for h in hs[:2]:
@@ -2983,7 +2983,7 @@ def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
     async def users(s):
         return [await s.scalar(select(User).where(User.telegram_id == i)) for i in ids]
 
-    # Аня adds the bot: the group exists with her in it; Борис joins by the button, Вера (no Setly yet) gets the bot link
+    # Аня adds the bot: the group exists with her in it; Борис joins by the button, Вера (no Nextly yet) gets the bot link
     async def add():
         async with SessionLocal() as s:
             ann = (await users(s))[0]
@@ -2996,7 +2996,7 @@ def test_group_chat_rating_posts_and_joining(client, seeded, monkeypatch):
     assert call.answer.call_args.args[0] == "Ты в рейтинге! 💪" and "Участников: 2" in call.message.answer.call_args.args[0]
     stranger = SimpleNamespace(from_user=SimpleNamespace(id=ids[2]), message=SimpleNamespace(chat=chat, answer=AsyncMock()), answer=AsyncMock())
     client.portal.call(bot_groups.join_button, stranger)
-    assert stranger.answer.call_args.kwargs["url"] == f"https://t.me/SetlyBot?start=g{code}"
+    assert stranger.answer.call_args.kwargs["url"] == f"https://t.me/NextlyBot?start=g{code}"
     # Вера opens the bot by that link: /start g<code> joins her (the account is created on /start)
     client.put("/api/profile", headers=hs[2], json=PROFILE)
 
@@ -3090,11 +3090,11 @@ def test_group_feature_is_discoverable(client, monkeypatch):
     from backend.database.models import User, XpEvent
     from conftest import USER, make_init_data
 
-    monkeypatch.setattr(social, "bot_username", lambda: "SetlyBot")
+    monkeypatch.setattr(social, "bot_username", lambda: "NextlyBot")
     msg = SimpleNamespace(from_user=SimpleNamespace(id=1), answer=AsyncMock())
     client.portal.call(chat.group_command, msg)
     assert "рейтинг недели" in msg.answer.call_args.args[0]
-    assert msg.answer.call_args.kwargs["reply_markup"].inline_keyboard[0][0].url == "https://t.me/SetlyBot?startgroup=setly"
+    assert msg.answer.call_args.kwargs["reply_markup"].inline_keyboard[0][0].url == "https://t.me/NextlyBot?startgroup=nextly"
     assert cards.TOUR[3][1] == "всем чатом" and len(chat.TOUR_CAPTIONS) == len(cards.TOUR)
     assert cards.tour(3)[:4] == b"\x89PNG"
 
@@ -3120,8 +3120,8 @@ def test_group_feature_is_discoverable(client, monkeypatch):
     assert not any(t.startswith("👥") for t, _ in client.portal.call(run))  # 2 active days: not yet
     client.portal.call(settle, 3)
     tip = [(t, b) for t, b in client.portal.call(run) if t.startswith("👥")]
-    assert len(tip) == 1 and tip[0][1][0][1] == "url:https://t.me/SetlyBot?startgroup=setly"
-    assert markup(tip[0][1], lambda: None, "").inline_keyboard[0][0].url == "https://t.me/SetlyBot?startgroup=setly"
+    assert len(tip) == 1 and tip[0][1][0][1] == "url:https://t.me/NextlyBot?startgroup=nextly"
+    assert markup(tip[0][1], lambda: None, "").inline_keyboard[0][0].url == "https://t.me/NextlyBot?startgroup=nextly"
     assert not any(t.startswith("👥") for t, _ in client.portal.call(run))  # once ever
 
 
@@ -3178,7 +3178,7 @@ def test_log_and_delete_pays_nothing(client):
 
 
 def test_duel_alts_and_boost_farming(client):
-    """A second account made for duels: no reward unless friends for a week and both really used Setly 5 of 14 days;
+    """A second account made for duels: no reward unless friends for a week and both really used Nextly 5 of 14 days;
     a won boost adds at most 50 XP in all."""
     import random
     from datetime import datetime, timedelta, timezone
@@ -3468,7 +3468,7 @@ def test_coach_sees_clients_by_invite_only(client, monkeypatch):
     from backend.database.models import CoachLink, Outbox, User
     from conftest import USER, make_init_data
 
-    monkeypatch.setattr(coach_api, "bot_username", lambda: "SetlyBot")
+    monkeypatch.setattr(coach_api, "bot_username", lambda: "NextlyBot")
     ids = [random.randint(7 * 10**10, 8 * 10**10) for _ in range(3)]
     hs = [{"Authorization": f"tma {make_init_data({**USER, 'id': i, 'first_name': n})}"} for i, n in zip(ids, ("Аня", "Тренер Иван", "Чужой"))]
     for h in hs:
@@ -3476,7 +3476,7 @@ def test_coach_sees_clients_by_invite_only(client, monkeypatch):
     assert social  # noqa
 
     inv = client.post("/api/coach/invite", headers=hs[0]).json()
-    assert inv["link"] == f"https://t.me/SetlyBot?start=c{inv['code']}"
+    assert inv["link"] == f"https://t.me/NextlyBot?start=c{inv['code']}"
     assert client.post("/api/coach/invite", headers=hs[0]).json()["code"] == inv["code"]  # the same until taken
     pid = client.get("/api/products/search", params={"q": "тестовый творог 5%"}).json()
     if pid:

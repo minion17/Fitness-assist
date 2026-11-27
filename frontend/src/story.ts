@@ -7,6 +7,6 @@ export async function shareStory(body: { kind: 'week' } | { kind: 'month' } | { 
   const r = await api<{ url: string; text: string; link: string | null }>('/api/story', postJson(body))
   if (!r || !tg?.shareToStory) return
   // a link sticker is for Premium only; others get the invite link in the caption
-  const widget = tgUser?.is_premium && r.link ? { widget_link: { url: r.link, name: 'Setly' } } : {}
+  const widget = tgUser?.is_premium && r.link ? { widget_link: { url: r.link, name: 'Nextly' } } : {}
   tg.shareToStory(new URL(r.url, window.location.href).href, { text: r.text.slice(0, tgUser?.is_premium ? 2048 : 200), ...widget })
 }

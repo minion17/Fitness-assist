@@ -85,7 +85,7 @@ async def create_challenge(body: ChallengeIn, tg: dict = Depends(telegram_user),
     session.add(ChallengeMember(challenge_id=c.id, user_id=user.id, joined=True))
     for f in invited:
         session.add(ChallengeMember(challenge_id=c.id, user_id=f.id, joined=False))
-        notify(session, f, f"{c.emoji} {name(user)} зовёт тебя в челлендж «{c.title}» на {plural_days(c.days)}. Принять — в Setly: Прогресс → Друзья.")
+        notify(session, f, f"{c.emoji} {name(user)} зовёт тебя в челлендж «{c.title}» на {plural_days(c.days)}. Принять — в Nextly: Прогресс → Друзья.")
     await session.commit()
     return await challenge_out(session, c, user)
 

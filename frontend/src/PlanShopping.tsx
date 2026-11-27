@@ -27,8 +27,8 @@ function ShareList({ items, title }: { items: MealPlan['shopping']; title: strin
     <div className="share-list-to">
       <p className="sub">Куда отправить? Покупки отмечаются кнопками прямо в сообщении.</p>
       {chats.map((c) => <button key={c.id} className="btn btn-ghost" onClick={() => send(c.id, `в чат «${c.title}»`)}>{c.title}</button>)}
-      <button className="btn btn-ghost" onClick={() => send(null, 'тебе в чат с Setly')}>Себе в чат с Setly</button>
-      {!chats.length && <p className="sub">Чтобы покупать вместе с семьёй, добавь Setly в общий чат (команда /group в боте) и нажмите там «Участвую».</p>}
+      <button className="btn btn-ghost" onClick={() => send(null, 'тебе в чат с Nextly')}>Себе в чат с Nextly</button>
+      {!chats.length && <p className="sub">Чтобы покупать вместе с семьёй, добавь Nextly в общий чат (команда /group в боте) и нажмите там «Участвую».</p>}
       {error && <p className="error" role="alert">{error}</p>}
     </div>
   )

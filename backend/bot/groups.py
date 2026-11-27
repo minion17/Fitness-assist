@@ -1,4 +1,4 @@
-"""The bot in group chats: added → a hello with "Участвую"; /top, /join, /leave, /setly. Everything else in a group is
+"""The bot in group chats: added → a hello with "Участвую"; /top, /join, /leave, /nextly (/setly still works). Everything else in a group is
 ignored (privacy mode leaves the bot only commands and replies anyway; the food parser is for private chats only).
 The weekly posts are in backend.api.groups."""
 import html
@@ -20,24 +20,24 @@ GROUPS = {"group", "supergroup"}
 router.message.filter(F.chat.type.in_(GROUPS))
 router.callback_query.filter(F.message.chat.type.in_(GROUPS))
 
-HELLO = ("Всем привет! 👋 Я Setly, считаю калории, тренировки и воду.\n\n"
-         "Давайте соревноваться: я веду рейтинг этого чата за неделю. Очки — это XP Setly: за тренировки, записи еды, воду "
+HELLO = ("Всем привет! 👋 Я Nextly, считаю калории, тренировки и воду.\n\n"
+         "Давайте соревноваться: я веду рейтинг этого чата за неделю. Очки — это XP Nextly: за тренировки, записи еды, воду "
          "и привычки. В понедельник утром итоги и чемпион недели, в четверг сводка, кто кого догоняет.\n\n"
-         "Сюда же можно прислать список покупок из рациона Setly, купленное отмечается кнопками.\n\n"
-         "Жмите «Участвую». Кто ещё не в Setly, жмите «Открыть Setly».\n\n"
+         "Сюда же можно прислать список покупок из рациона Nextly, купленное отмечается кнопками.\n\n"
+         "Жмите «Участвую». Кто ещё не в Nextly, жмите «Открыть Nextly».\n\n"
          "/top — рейтинг сейчас · /join — участвовать · /leave — выйти")
 
 
 def keyboard(g: GroupChat) -> InlineKeyboardMarkup:
     rows = [[InlineKeyboardButton(text="✋ Участвую", callback_data="gj")]]
     if link := groups.join_link(g):
-        rows.append([InlineKeyboardButton(text="Открыть Setly", url=link)])
+        rows.append([InlineKeyboardButton(text="Открыть Nextly", url=link)])
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def link_keyboard(g: GroupChat) -> InlineKeyboardMarkup | None:
     link = groups.join_link(g)
-    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть Setly", url=link)]]) if link else None
+    return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть Nextly", url=link)]]) if link else None
 
 
 @router.my_chat_member()
@@ -76,7 +76,7 @@ async def migrated(message: Message) -> None:
 
 
 async def enter(s, g: GroupChat, tg_user) -> tuple[User | None, bool]:
-    """(user, joined now). None: not a Setly user yet."""
+    """(user, joined now). None: not a Nextly user yet."""
     user = await s.scalar(select(User).where(User.telegram_id == tg_user.id))
     if user is None:
         return None, False
@@ -96,7 +96,7 @@ async def join_button(call: CallbackQuery) -> None:
         user, new = await enter(s, g, call.from_user)
         n = await count(s, g)
     if user is None:  # Telegram opens the bot with the parameter: /start there joins this chat
-        await call.answer(url=groups.join_link(g)) if groups.join_link(g) else await call.answer("Сначала открой @Setly в личке", show_alert=True)
+        await call.answer(url=groups.join_link(g)) if groups.join_link(g) else await call.answer("Сначала открой @Nextly в личке", show_alert=True)
         return
     await call.answer("Ты в рейтинге! 💪" if new else "Ты уже участвуешь")
     if new:
@@ -110,7 +110,7 @@ async def join_command(message: Message) -> None:
         user, new = await enter(s, g, message.from_user)
         n = await count(s, g)
     if user is None:
-        await message.reply("Сначала открой Setly, и сразу попадёшь в рейтинг этого чата.", reply_markup=link_keyboard(g))
+        await message.reply("Сначала открой Nextly, и сразу попадёшь в рейтинг этого чата.", reply_markup=link_keyboard(g))
     else:
         await message.reply(f"✋ {html.escape(name(user))} в игре! Участников: {n}." if new else "Ты уже в рейтинге. Как дела: /top")
 
@@ -135,7 +135,7 @@ async def top_command(message: Message) -> None:
     await message.answer(text, reply_markup=link_keyboard(g))
 
 
-@router.message(Command("setly", "help"))  # not "start": adding by a startgroup link sends it right after the hello
+@router.message(Command("nextly", "setly", "help"))  # not "start": adding by a startgroup link sends it right after the hello
 async def help_command(message: Message) -> None:
     async with SessionLocal() as s:
         g = await group_of(s, message.chat)

@@ -5,13 +5,13 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#0e0f12" />
-    <title>Setly</title>
+    <title>Nextly</title>
     <script src="/telegram-web-app.js"></script>
   </head>
   <body>
-    <div id="root"><div id="splash" aria-label="Setly загружается">
+    <div id="root"><div id="splash" aria-label="Nextly загружается">
       <svg width="72" height="72" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#16171a"/><path d="M9 12v8M6 14v4M23 12v8M26 14v4M9 16h14" stroke="#c8f169" stroke-width="2.4" stroke-linecap="round" fill="none"/></svg>
-      <b>Setly</b>
+      <b>Nextly</b>
     </div></div>
     <style>
       /* shown until React draws the first screen: the logo instead of a blank page */
@@ -34,7 +34,7 @@
           var r = document.getElementById('root')
           if (!r || !document.getElementById('splash')) return // React has drawn the app
           r.innerHTML = '<div style="padding:32px 20px;font:16px/1.45 system-ui,sans-serif;color:#e8e8ea;background:#0e0f12;min-height:100vh">' +
-            '<h2 style="margin:0 0 12px">Setly не загрузился</h2><p>Проверь интернет и обнови Telegram, затем открой приложение снова.</p>' +
+            '<h2 style="margin:0 0 12px">Nextly не загрузился</h2><p>Проверь интернет и обнови Telegram, затем открой приложение снова.</p>' +
             '<button onclick="location.reload()" style="margin:12px 0;padding:12px 20px;border:0;border-radius:12px;background:#c6f36b;font-weight:700">Обновить</button>' +
             '<p style="color:#888;font-size:12px;word-break:break-all">' + (why || 'нет ответа') + '<br>' + navigator.userAgent + '</p></div>'
         }, 12000)

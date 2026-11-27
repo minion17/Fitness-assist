@@ -665,7 +665,7 @@ function AddFood({ meal: initialMeal, slot = null, dayTitle = null, kcalLeft, on
       if (p) { pick(p); setScan('idle'); return }
     } catch (e) {
       if (e instanceof ApiError && e.status === 404) { setScan('idle'); setLastCode(c); setCustom('notFound'); return }
-      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly. Попробуй через минуту')
+      setError(e instanceof ApiError ? e.message : 'Нет связи с Nextly. Попробуй через минуту')
     }
     setScan('manual')
   }

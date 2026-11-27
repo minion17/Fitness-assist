@@ -64,7 +64,7 @@ async def send_group(bot, session, m) -> None:
 
     g = await session.scalar(select(GroupChat).where(GroupChat.chat_id == m.telegram_id))
     link = g and join_link(g)
-    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть Setly", url=link)]]) if link else None
+    markup = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="Открыть Nextly", url=link)]]) if link else None
     try:
         await bot.send_message(m.telegram_id, m.text, reply_markup=markup)
     except (TelegramForbiddenError, TelegramBadRequest) as e:  # removed from the chat, or the chat is gone
@@ -87,7 +87,7 @@ async def send_report(bot, session, m) -> None:
     finally:
         clock.use_tz(None)
     pdf = await asyncio.to_thread(render, data)
-    await bot.send_document(m.telegram_id, BufferedInputFile(pdf, f"setly-report-{data['since']:%Y-%m-%d}-{data['until']:%Y-%m-%d}.pdf"),
+    await bot.send_document(m.telegram_id, BufferedInputFile(pdf, f"nextly-report-{data['since']:%Y-%m-%d}-{data['until']:%Y-%m-%d}.pdf"),
                             caption=f"📄 Отчёт за {m.text} {cards.plural_days(int(m.text))} для врача, диетолога или тренера: масса тела и обхваты с ориентирами, "
                                     "нормы и реальный расход, питание по дням и дневник за последние 2 недели, тренировки, вода и сон. "
                                     "Перешли этот файл специалисту.")
@@ -104,7 +104,7 @@ async def send_export(bot, session, m) -> None:
         data = await build_export(session, user)
     finally:
         clock.use_tz(None)
-    await bot.send_document(m.telegram_id, BufferedInputFile(data, f"setly-{clock.today():%Y-%m-%d}.zip"),
+    await bot.send_document(m.telegram_id, BufferedInputFile(data, f"nextly-{clock.today():%Y-%m-%d}.zip"),
                             caption="📦 Все твои записи: питание, вес и замеры, вода, тренировки — в таблицах CSV (открываются в Excel и Google Таблицах).")
 
 
@@ -148,7 +148,7 @@ async def send_pending(bot, keyboard) -> None:
             try:
                 if m.kind == "share" and m.user_id:
                     png = await share_card(session, await session.get(User, m.user_id))
-                    await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly.png"), caption=m.text)
+                    await bot.send_photo(m.telegram_id, BufferedInputFile(png, "nextly.png"), caption=m.text)
                     await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу — по ссылке в подписи он сразу попадёт к тебе в друзья.")
                 elif m.kind in ("month_card", "month_end") and m.user_id:
                     try:
@@ -157,7 +157,7 @@ async def send_pending(bot, keyboard) -> None:
                         log.warning("month card for %s failed", m.user_id, exc_info=True)
                         await bot.send_message(m.telegram_id, m.text, reply_markup=keyboard())
                         continue
-                    await bot.send_photo(m.telegram_id, BufferedInputFile(png, "setly-month.png"), caption=m.text[:1024],
+                    await bot.send_photo(m.telegram_id, BufferedInputFile(png, "nextly-month.png"), caption=m.text[:1024],
                                          reply_markup=keyboard() if m.kind == "month_end" else None)
                     if m.kind == "month_card":
                         await bot.send_message(m.telegram_id, "☝️ Перешли карточку другу или сохрани и выложи в истории.")

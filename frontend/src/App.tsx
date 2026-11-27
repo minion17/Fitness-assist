@@ -174,7 +174,7 @@ function Profile({ synced, progress, data, onEdit, top, share, help, privacy, th
       {canEdit && <Reminders />}
       <ThemeCard t={theme} />
       {privacy}
-      <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Setly.</p>
+      <p className="sub credits">Данные о продуктах: <a href="https://world.openfoodfacts.org" target="_blank" rel="noreferrer">Open Food Facts</a> (лицензия ODbL), USDA FoodData и пользователи Nextly.</p>
     </>
   )
   return (
@@ -234,10 +234,10 @@ function Profile({ synced, progress, data, onEdit, top, share, help, privacy, th
 }
 
 export default function App() {
-  return new URLSearchParams(window.location.search).get('preview') === 'achievement' ? <AchievementPreview /> : <SetlyApp />
+  return new URLSearchParams(window.location.search).get('preview') === 'achievement' ? <AchievementPreview /> : <NextlyApp />
 }
 
-function SetlyApp() {
+function NextlyApp() {
   // the last server answer kept on this phone: the screen starts from it instead of zeros (see snapshot.ts)
   const [boot] = useState(() => { const b = loadSnapshot<Bootstrap>(); return b && fresh(b) })
   const kcalRef = useRef<number | null>(null) // last known kcal, to notice the moment the norm is reached

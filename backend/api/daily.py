@@ -224,7 +224,7 @@ async def get_next_reminder(tg: dict = Depends(telegram_user), session: AsyncSes
 async def test_reminder(tg: dict = Depends(telegram_user), session: AsyncSession = Depends(get_session)):
     """A message through the bot right now: shows the whole path works (the bot is running and may write to the chat)."""
     user = await get_or_create_user(tg, session)
-    m = Outbox(telegram_id=user.telegram_id, kind="text", text="🔔 Проверка: напоминания Setly приходят в этот чат.")
+    m = Outbox(telegram_id=user.telegram_id, kind="text", text="🔔 Проверка: напоминания Nextly приходят в этот чат.")
     session.add(m)
     await session.commit()
     return {"id": m.id}

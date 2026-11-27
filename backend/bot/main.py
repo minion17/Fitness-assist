@@ -38,7 +38,7 @@ router.message.filter(F.chat.type == "private")  # group chats: backend.bot.grou
 
 WELCOME = (
     "Привет, {name}! 👋\n\n"
-    "Я Setly, дневник питания и тренер в Telegram.\n\n"
+    "Я Nextly, дневник питания и тренер в Telegram.\n\n"
     "Пишешь «гречка 150 г, курица» или шлёшь фото тарелки, я считаю калории. "
     "Даю программу тренировок и не даю бросить.\n\n"
     "Начнём с анкеты. Две минуты, и у тебя своя норма и план."
@@ -96,7 +96,7 @@ async def welcome(message: Message, command: CommandObject | None, as_new: bool 
     async with SessionLocal() as s:  # the account exists from the first /start: the onboarding messages need it
         existed = await s.scalar(select(User.id).where(User.telegram_id == message.from_user.id))
         user, prof = await chat.me(s, message.from_user)
-        if command and command.args and command.args.startswith("g"):  # "Открыть Setly" in a group chat: t.me/<bot>?start=g<code>
+        if command and command.args and command.args.startswith("g"):  # "Открыть Nextly" in a group chat: t.me/<bot>?start=g<code>
             group = await join_by_code(s, command.args[1:13], user)
         if command and command.args and command.args.startswith("c"):  # a client's invite for their coach
             from backend.api.coach import accept
@@ -104,14 +104,14 @@ async def welcome(message: Message, command: CommandObject | None, as_new: bool 
 
             client, said = await accept(s, command.args[1:17], user)
             await message.answer(said, reply_markup=kb([app_button("📋 Мои клиенты", "open=coach")]) if client else None)
-            if prof:  # a coach who already uses Setly needs no onboarding here
+            if prof:  # a coach who already uses Nextly needs no onboarding here
                 return
         day = await chat.day_greeting(s, user, prof, hello_name) if prof and not as_new else None
     theme, accent = user.theme, user.accent
     if day:
         caption, card, workout_due = day
         keyboard = chat.kb([chat.app_button("💪 Начать тренировку", "open=workout") if workout_due else None],
-                           [chat.app_button("Открыть Setly")]) or open_app_keyboard(url, "Открыть Setly")
+                           [chat.app_button("Открыть Nextly")]) or open_app_keyboard(url, "Открыть Nextly")
         render = lambda: cards.today(**card, theme=theme, accent=accent)  # noqa: E731
     else:
         unfinished = existed and not prof and not as_new and not friend
@@ -173,7 +173,7 @@ async def broadcast(message: Message, command: CommandObject) -> None:
         return
     text = (command.args or "").strip()
     if not text:
-        await message.answer("Напиши текст после команды, например:\n/broadcast Новое в Setly: задания недели 🏆")
+        await message.answer("Напиши текст после команды, например:\n/broadcast Новое в Nextly: задания недели 🏆")
         return
     _drafts[uid] = text
     async with SessionLocal() as s:
@@ -199,7 +199,7 @@ async def broadcast_answer(call: CallbackQuery) -> None:
 @router.message(Command("delete"))
 async def delete_cmd(message: Message) -> None:
     await message.answer(
-        "Удалить аккаунт Setly и все данные — анкету, дневник, тренировки, замеры, друзей и XP? "
+        "Удалить аккаунт Nextly и все данные — анкету, дневник, тренировки, замеры, друзей и XP? "
         "Это нельзя отменить. Из резервных копий данные исчезнут в течение 14 дней.",
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
             InlineKeyboardButton(text="Удалить всё", callback_data="del:yes"), InlineKeyboardButton(text="Отмена", callback_data="del:no")]]))
@@ -249,11 +249,11 @@ async def on_error(event: ErrorEvent) -> bool:
 
 
 async def sync_menu_button(bot: Bot, shown: str | None) -> str | None:
-    """Point the shared "Setly" menu button at the current address if it changed; returns the address shown."""
+    """Point the shared "Nextly" menu button at the current address if it changed; returns the address shown."""
     url = current_webapp_url()
     if not url.startswith("https://") or url == shown:
         return shown
-    await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="Setly", web_app=WebAppInfo(url=url)))
+    await bot.set_chat_menu_button(menu_button=MenuButtonWebApp(text="Nextly", web_app=WebAppInfo(url=url)))
     log.info("Кнопка меню обновлена: %s", url)
     return url
 
@@ -271,7 +271,7 @@ async def reset_chat_menu_buttons(bot: Bot) -> None:
 
 
 async def keep_menu_button(bot: Bot) -> None:
-    """The "Setly" button next to the message box always opens the current tunnel address.
+    """The "Nextly" button next to the message box always opens the current tunnel address.
     Message buttons keep the address they were sent with, so after a reconnect old ones show "no tunnel";
     this one follows every address change within ~10 s, no /start needed."""
     shown, reset = None, False

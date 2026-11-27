@@ -1,8 +1,8 @@
 """Challenges in group chats: the bot added to a chat of friends, family or an office keeps a weekly rating of the
-members who joined (by Setly XP — workouts, the food diary, water, habits all earn it), posts the results on Monday
+members who joined (by Nextly XP — workouts, the food diary, water, habits all earn it), posts the results on Monday
 morning, a "кто кого догоняет" in the middle of the week and a short cheer when someone finishes a workout.
 
-Every post carries "Открыть Setly" (t.me/<bot>?start=g<code>): whoever in the chat isn't using Setly yet joins the
+Every post carries "Открыть Nextly" (t.me/<bot>?start=g<code>): whoever in the chat isn't using Nextly yet joins the
 rating from there — each chat brings new people. Posts go through the outbox (kind "group").
 """
 import secrets
@@ -18,7 +18,7 @@ from backend.database.models import GroupChat, GroupMember, Outbox, Profile, Use
 RESULTS_AT = (0, 10)  # Monday 10:00 in the chat's zone: last week's results
 TEASE_AT = (3, 19)  # Thursday 19:00: the middle of the week
 MEDALS = ("🥇", "🥈", "🥉")
-HOW = "Очки — это XP Setly: за тренировку, записи еды, воду и привычки."
+HOW = "Очки — это XP Nextly: за тренировку, записи еды, воду и привычки."
 DEFAULT_TZ = "Europe/Moscow"
 
 

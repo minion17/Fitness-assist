@@ -311,7 +311,7 @@ export default function MealPlan({ onClose, showSaved = false, renew = false, ca
     </div>}
     {view === 'result' && canEdit && !isSaved && <button className="btn meal-plan-next" disabled={savingPlan} onClick={savePlan}>{savingPlan ? 'Сохраняем…' : 'Сохранить и использовать рацион'}</button>}
     {view === 'result' && canEdit && isSaved && plan && planInput && <button className="btn meal-plan-next" onClick={() => nextPlan(planInput, plan)}>Составить следующий рацион</button>}
-    {view === 'result' && !canEdit && <p className="sub">В деморежиме рацион доступен до закрытия страницы. Чтобы сохранить, открой Setly в своём аккаунте.</p>}
+    {view === 'result' && !canEdit && <p className="sub">В деморежиме рацион доступен до закрытия страницы. Чтобы сохранить, открой Nextly в своём аккаунте.</p>}
     {view === 'form' ? <button className="btn meal-plan-next" disabled={loading} onClick={next}>{step >= flow.length - 1 ? 'Посмотреть ответы' : 'Продолжить'}</button>
       : view === 'review' ? <><button className="btn meal-plan-next" onClick={generate}>Составить рацион</button>{canEdit && <button className="btn btn-ghost meal-plan-next" disabled={loadFailed} onClick={save}>Сохранить ответы</button>}<button className="btn btn-ghost meal-plan-next" onClick={() => { setSaved(false); setStep(0); setView('form') }}>Изменить ответы</button></>
       : <button className="btn btn-ghost meal-plan-next" onClick={() => setView('review')}>К ответам</button>}

@@ -17,7 +17,7 @@ export default function AiSummary() {
       const s = await api<Summary>(`/api/ai/summary?period=${period}${refresh ? '&refresh=true' : ''}`)
       if (s) setData((d) => ({ ...d, [period]: s }))
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Нет связи с Setly. Попробуй через минуту')
+      setError(e instanceof ApiError ? e.message : 'Нет связи с Nextly. Попробуй через минуту')
     } finally {
       setBusy(false)
     }

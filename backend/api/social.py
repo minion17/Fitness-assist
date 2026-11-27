@@ -31,7 +31,7 @@ METRICS = {"xp": "XP", "workouts": "тренировок"}
 # Anti-abuse. A second (fake) Telegram account costs nothing, so rewards go only for real, sustained activity:
 INVITE_ACTIVE_DAYS = 3        # an invited friend earns the inviter XP after 3 active days within 14 days of joining
 INVITE_WINDOW_DAYS = 14
-MIN_ACCOUNT_AGE_DAYS = 7      # both duelists must have used Setly for a week before the duel starts
+MIN_ACCOUNT_AGE_DAYS = 7      # both duelists must have used Nextly for a week before the duel starts
 WIN_MIN = {"xp": 25, "workouts": 1}    # per 3 days: the winner must really have done something...
 LOSER_MIN = {"xp": 10, "workouts": 0}  # ...and so must the loser (an idle fake opponent gives no reward)
 WORKOUT_MIN_SETS = 3          # a duel workout counts with 3+ sets, at most one per day
@@ -81,7 +81,7 @@ async def befriend(session: AsyncSession, code: str, telegram_id: int, first_nam
     if await session.scalar(select(func.count()).where(Friendship.user_id == inviter.id)) >= MAX_FRIENDS:
         return None
     session.add_all([Friendship(user_id=me.id, friend_id=inviter.id), Friendship(user_id=inviter.id, friend_id=me.id)])
-    if new:  # only people who never used Setly before count as invited (no re-inviting existing friends for XP)
+    if new:  # only people who never used Nextly before count as invited (no re-inviting existing friends for XP)
         me.invited_by_id = inviter.id
     notify(session, inviter, f"🤝 {name(me)} теперь у тебя в друзьях. Загляни в рейтинг недели или вызови на дуэль.")
     await session.commit()
@@ -124,7 +124,7 @@ async def friends(tg: dict = Depends(telegram_user), session: AsyncSession = Dep
     board.sort(key=lambda r: (-r["week_xp"], -r["streak"], not r["me"]))
     code, bot = await invite_code(session, user), bot_username()
     return {"invite_link": f"https://t.me/{bot}?start=f{code}" if bot else None, "board": board,
-            "group_link": f"https://t.me/{bot}?startgroup=setly" if bot else None}  # add the bot to a group chat
+            "group_link": f"https://t.me/{bot}?startgroup=nextly" if bot else None}  # add the bot to a group chat
 
 
 class CheerIn(BaseModel):
@@ -139,7 +139,7 @@ async def cheer(friend_id: int, body: CheerIn, tg: dict = Depends(telegram_user)
     user = await get_or_create_user(tg, session)
     friend = next((f for f in await friends_of(session, user) if f.id == friend_id), None)
     if friend is None:
-        raise HTTPException(404, "Это не твой друг в Setly")
+        raise HTTPException(404, "Это не твой друг в Nextly")
     fresh = await session.scalar(insert(Cheer).values(from_user_id=user.id, to_user_id=friend.id, day=clock.today(), emoji=body.emoji)
                                  .on_conflict_do_nothing().returning(Cheer.day))
     if fresh:
@@ -160,7 +160,7 @@ async def remove_friend(friend_id: int, tg: dict = Depends(telegram_user), sessi
 
 
 async def reward_invites(session: AsyncSession) -> int:
-    """Inviters get XP once their invited friend has really used Setly: registered and with a full diary or a workout on INVITE_ACTIVE_DAYS
+    """Inviters get XP once their invited friend has really used Nextly: registered and with a full diary or a workout on INVITE_ACTIVE_DAYS
     different days within INVITE_WINDOW_DAYS of joining (up to MAX_INVITE_REWARDS friends). Run by the bot."""
     since = clock.now() - timedelta(days=INVITE_WINDOW_DAYS)
     given = 0
@@ -182,7 +182,7 @@ async def reward_invites(session: AsyncSession) -> int:
         ) >= MAX_INVITE_REWARDS:
             continue
         if await award_xp(session, inviter.id, "friend_invited", key):
-            notify(session, inviter, f"🎉 {name(user)} уже {INVITE_ACTIVE_DAYS} дня с Setly по твоему приглашению — +50 XP!")
+            notify(session, inviter, f"🎉 {name(user)} уже {INVITE_ACTIVE_DAYS} дня с Nextly по твоему приглашению — +50 XP!")
             await session.commit()
             given += 1
     return given
@@ -208,7 +208,7 @@ async def no_reward_reason(session: AsyncSession, d: Duel, winner: User, loser: 
     scale = d.days / 3
     for u in (winner, loser):
         if not await session.get(Profile, u.id) or u.created_at > d.starts_at - timedelta(days=MIN_ACCOUNT_AGE_DAYS):
-            return "награда — только когда оба пользуются Setly хотя бы неделю"
+            return "награда — только когда оба пользуются Nextly хотя бы неделю"
     if won < WIN_MIN[d.metric] * scale:
         return "для награды победителю нужно больше активности"
     if lost < LOSER_MIN[d.metric] * scale:
@@ -218,7 +218,7 @@ async def no_reward_reason(session: AsyncSession, d: Duel, winner: User, loser: 
         return f"награда — когда вы друзья хотя бы {FRIENDS_BEFORE_DAYS} дней до дуэли"
     for u in (winner, loser):
         if await real_days(session, u, d.starts_at) < REAL_DAYS_BEFORE:
-            return "награда — когда оба по-настоящему пользуются Setly: дневник или тренировки хотя бы 5 дней из 14 до дуэли"
+            return "награда — когда оба по-настоящему пользуются Nextly: дневник или тренировки хотя бы 5 дней из 14 до дуэли"
     pair = or_((Duel.challenger_id == d.challenger_id) & (Duel.opponent_id == d.opponent_id),
                (Duel.challenger_id == d.opponent_id) & (Duel.opponent_id == d.challenger_id))
     if await session.scalar(select(Duel.id).where(pair, Duel.rewarded, Duel.ends_at > d.ends_at - timedelta(days=PAIR_COOLDOWN_DAYS)).limit(1)):
@@ -365,12 +365,12 @@ async def share(body: ShareIn | None = None, tg: dict = Depends(telegram_user), 
     """The card to the chat with the bot (no Stories on desktop): the week, or the challenge of the month."""
     user = await get_or_create_user(tg, session)
     kind = "month_card" if body and body.kind == "month" else "share"
-    text = "Моя неделя в Setly 💪"
+    text = "Моя неделя в Nextly 💪"
     if kind == "month_card":
         from backend.api.monthly import days, story_numbers
 
         m = await story_numbers(session, user)  # 404 when they aren't taking part
-        text = f"{m['emoji']} {m['title']} в Setly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
+        text = f"{m['emoji']} {m['title']} в Nextly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
     waiting = await session.scalar(select(Outbox.id).where(Outbox.user_id == user.id, Outbox.kind == kind, Outbox.sent_at.is_(None)).limit(1))
     if not waiting:  # a double tap doesn't send two cards
         code, bot = await invite_code(session, user), bot_username()
@@ -421,18 +421,18 @@ async def story(body: StoryIn, tg: dict = Depends(telegram_user), session: Async
         out = await duel_out(session, d, user)
         png = await asyncio.to_thread(cards.story_duel, name(user), out["rival"], out["me"], out["them"], d.metric, d.days,
                                       d.rewarded, bot, theme, user.accent)
-        text = f"Победа в дуэли в Setly 🏆 {out['me']} : {out['them']}"
+        text = f"Победа в дуэли в Nextly 🏆 {out['me']} : {out['them']}"
     elif body.kind == "month":
         from backend.api.monthly import days, story_numbers
 
         m = await story_numbers(session, user)
         png = await asyncio.to_thread(cards.story_month, name(user), m, bot, theme, user.accent)
-        text = f"{m['emoji']} {m['title']} в Setly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
+        text = f"{m['emoji']} {m['title']} в Nextly: {days(m['score'], m)}, {m['rank']}-е место из {m['total']}"
     else:
         w = await week_numbers(session, user)
         png = await asyncio.to_thread(cards.story_week, name(user), w["streak"], w["week_xp"], w["workouts"], w["level"], bot,
                                       theme, user.accent)
-        text = f"Моя неделя в Setly 💪 {w['streak']} {cards.plural_days(w['streak'])} подряд"
+        text = f"Моя неделя в Nextly 💪 {w['streak']} {cards.plural_days(w['streak'])} подряд"
     now = time.monotonic()
     for k in [k for k, (t, _) in _stories.items() if now - t > STORY_TTL]:
         del _stories[k]

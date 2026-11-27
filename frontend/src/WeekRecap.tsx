@@ -18,7 +18,7 @@ export default function WeekRecap({ days, goal, streak, weightDelta, onClose }: 
   const workouts = days.reduce((n, d) => n + d.workouts, 0)
   const water = days.filter((d) => d.water_ml > 0)
   const best = logged.length ? logged.reduce((a, d) => Math.abs(d.kcal - goal) < Math.abs(a.kcal - goal) ? d : a) : null
-  const text = `Моя неделя в Setly: ${norm} из 7 дней в норме, ${workouts} ${plural(workouts, 'тренировка', 'тренировки', 'тренировок')}${streak > 1 ? `, серия ${streak} ${plural(streak, 'день', 'дня', 'дней')}` : ''}`
+  const text = `Моя неделя в Nextly: ${norm} из 7 дней в норме, ${workouts} ${plural(workouts, 'тренировка', 'тренировки', 'тренировок')}${streak > 1 ? `, серия ${streak} ${plural(streak, 'день', 'дня', 'дней')}` : ''}`
 
   function share() {
     if (canStory()) { shareStory({ kind: 'week' }).catch(() => {}); return }

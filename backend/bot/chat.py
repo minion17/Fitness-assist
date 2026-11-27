@@ -57,7 +57,7 @@ HELP = (
     f"Пиши, что ешь, например {EXAMPLE}, или пришли фото тарелки. Посчитаю и запишу.\n\n"
     "Вода: «500 мл». Вес: «вес 76,4». Поправить: «убери хлеб» или «риса было 200».\n\n"
     "Можно позвать тренера к дневнику, отправить список покупок в семейный чат и соревноваться с друзьями. "
-    "Команды в меню слева от поля ввода, остальное в приложении (кнопка «Setly»)."
+    "Команды в меню слева от поля ввода, остальное в приложении (кнопка «Nextly»)."
 )
 
 
@@ -732,7 +732,7 @@ async def tour_card(tg_id: int, i: int) -> BufferedInputFile:
         user = await session.scalar(select(User).where(User.telegram_id == tg_id))
     theme = user.theme if user and user.theme in cards.THEMES else None
     png = await asyncio.to_thread(cards.tour, i, theme, user and user.accent)
-    return BufferedInputFile(png, f"setly-{i + 1}.png")
+    return BufferedInputFile(png, f"nextly-{i + 1}.png")
 
 
 TOUR_POST = Path(__file__).resolve().parents[2] / ".tour_post"  # project root, git-ignored: {"chat_id", "ids"}
@@ -749,7 +749,7 @@ def tour_post() -> dict | None:
 
 @router.callback_query(F.data == "tour")
 async def tour(call: CallbackQuery, bot: Bot) -> None:
-    """The owner's carousel post from the Setly channel, copied (no "forwarded from"); bots can't send a carousel
+    """The owner's carousel post from the Nextly channel, copied (no "forwarded from"); bots can't send a carousel
     themselves. Without that post, or if copying fails: one slide flipped with arrows."""
     await call.answer()
     post = tour_post()
@@ -1103,13 +1103,13 @@ async def help_cmd(message: Message) -> None:
 
 
 GROUP_TEXT = ("👥 Соревнуйтесь всем чатом!\n\n"
-              "Добавь меня в чат друзей, семьи или офиса, и я буду вести рейтинг недели по очкам Setly: за тренировки, "
+              "Добавь меня в чат друзей, семьи или офиса, и я буду вести рейтинг недели по очкам Nextly: за тренировки, "
               "записи еды, воду и привычки.\n\n"
               "• в понедельник утром итоги и чемпион недели\n"
               "• в четверг сводка, кто кого догоняет\n"
               "• после чьей-то тренировки пишу в чат\n"
               "• общий список покупок из рациона, купленное отмечают кнопкой\n\n"
-              "Кто ещё не в Setly, присоединится по кнопке прямо из чата. Команды в чате: /top, /join, /leave.")
+              "Кто ещё не в Nextly, присоединится по кнопке прямо из чата. Команды в чате: /top, /join, /leave.")
 
 
 @router.message(Command("group"))
@@ -1117,7 +1117,7 @@ async def group_command(message: Message) -> None:
     from backend.api.social import bot_username
 
     bot = bot_username()
-    button = [InlineKeyboardButton(text="👥 Выбрать чат", url=f"https://t.me/{bot}?startgroup=setly")] if bot else None
+    button = [InlineKeyboardButton(text="👥 Выбрать чат", url=f"https://t.me/{bot}?startgroup=nextly")] if bot else None
     await message.answer(GROUP_TEXT, reply_markup=kb(button or []))
 
 

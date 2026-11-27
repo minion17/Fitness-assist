@@ -7,7 +7,7 @@ import httpx
 URL = "https://world.openfoodfacts.org/api/v2/product/{code}.json"
 UNIT_FIELDS = "quantity,product_quantity,product_quantity_unit,serving_size,serving_quantity"
 FIELDS = f"product_name,product_name_ru,generic_name_ru,brands,nutriments,categories_tags,{UNIT_FIELDS}"
-HEADERS = {"User-Agent": "Setly/1.0 (Telegram Mini App)"}  # OFF asks apps to identify themselves
+HEADERS = {"User-Agent": "Nextly/1.0 (Telegram Mini App)"}  # OFF asks apps to identify themselves
 
 
 def _num(n: dict, key: str) -> float | None:

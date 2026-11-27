@@ -105,7 +105,7 @@ class Card:
 
     def brand(self, right: str = "") -> None:
         self.d.ellipse([64 * K, 62 * K, 84 * K, 82 * K], fill=self.p["accent"])
-        self.text((98, 56), "Setly", 26, "text", 700)
+        self.text((98, 56), "Nextly", 26, "text", 700)
         if right:
             self.text((self.w - 64, 56), right, 24, "muted", 500, anchor="ra")
 
@@ -275,7 +275,7 @@ def weekly(days: list[dict], goal: float | None, streak_days: int, workouts: int
 def share(name: str, streak: int, week_xp: int, workouts: int, level: int, theme=None, accent=None) -> bytes:
     """"Моя неделя" card a user forwards to friends (with their invite link in the caption)."""
     c = Card(theme, accent, glow=(930, 380, "streak"))
-    c.brand(right="неделя в Setly")
+    c.brand(right="неделя в Nextly")
     c.text((64, 170), name[:22], 34, "muted", 600)
     c.text((64, 220), "Моя неделя", 76, "text", 700, "Unbounded")
     c.text((64, 330), f"Уровень {level}", 30, "accent_text", 700)
@@ -302,7 +302,7 @@ def _story_base(theme, accent, glow) -> Card:
     if c.p["glow"]:
         c.glow(glow[0], glow[1], 420, c.p[glow[2]], 80)
     c.d.ellipse([90 * K, 288 * K, 118 * K, 316 * K], fill=c.p["accent"])
-    c.text((136, 280), "Setly", 38, "text", 700)
+    c.text((136, 280), "Nextly", 38, "text", 700)
     return c
 
 

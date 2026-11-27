@@ -32,7 +32,7 @@ export function CoachAccess() {
       const r = await api<{ link: string | null }>('/api/coach/invite', { method: 'POST' })
       if (!r?.link) { setError('Бот пока не настроен. Попробуй позже'); return }
       haptic('success')
-      const url = `https://t.me/share/url?url=${encodeURIComponent(r.link)}&text=${encodeURIComponent('Мой дневник питания и тренировки в Setly')}`
+      const url = `https://t.me/share/url?url=${encodeURIComponent(r.link)}&text=${encodeURIComponent('Мой дневник питания и тренировки в Nextly')}`
       if (tg?.openTelegramLink) tg.openTelegramLink(url)
       else window.open(url, '_blank')
     } catch (e) { setError(e instanceof Error && e.message ? e.message : 'Не получилось. Попробуй ещё раз') }

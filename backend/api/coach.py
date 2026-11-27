@@ -83,7 +83,7 @@ async def accept(session: AsyncSession, code: str, coach: User) -> tuple[User | 
     """The coach opened the invite link: (the client, what to tell the coach)."""
     cl = await session.scalar(select(CoachLink).where(CoachLink.code == code))
     if cl is None:
-        return None, "Ссылка устарела — попроси клиента прислать новую из Setly: Профиль → Тренер."
+        return None, "Ссылка устарела — попроси клиента прислать новую из Nextly: Профиль → Тренер."
     client = await session.get(User, cl.client_id)
     if cl.client_id == coach.id:
         return None, "Это ссылка для твоего тренера — перешли её ему."

@@ -57,15 +57,15 @@ class Report(FPDF):
         self.set_margins(16, 18, 16)
         self.set_auto_page_break(True, 18)
         self.alias_nb_pages()
-        self.set_title(f"Отчёт Setly {d(data['since'])}–{d(data['until'])}")
-        self.set_creator("Setly")
+        self.set_title(f"Отчёт Nextly {d(data['since'])}–{d(data['until'])}")
+        self.set_creator("Nextly")
 
     def header(self):
         if self.page_no() == 1:
             return
         self.set_font("Manrope", "I", 8)
         self.set_text_color(*MUTED)
-        self.cell(0, 5, f"Setly · {self.who()} · {d(self.data['since'])} — {d(self.data['until'])}", new_x="LMARGIN", new_y="NEXT")
+        self.cell(0, 5, f"Nextly · {self.who()} · {d(self.data['since'])} — {d(self.data['until'])}", new_x="LMARGIN", new_y="NEXT")
         self.set_draw_color(*LINE)
         self.line(self.l_margin, self.get_y() + 1, self.w - self.r_margin, self.get_y() + 1)
         self.ln(5)
@@ -74,7 +74,7 @@ class Report(FPDF):
         self.set_y(-12)
         self.set_font("Manrope", "", 7.5)
         self.set_text_color(*MUTED)
-        self.cell(0, 4, "Данные внесены пользователем в приложение Setly. Не является медицинским заключением.")
+        self.cell(0, 4, "Данные внесены пользователем в приложение Nextly. Не является медицинским заключением.")
         self.cell(0, 4, f"стр. {self.page_no()} из {{nb}}", align="R")
 
     def who(self) -> str:
@@ -375,7 +375,7 @@ def render(data: dict) -> bytes:
 
     pdf.h2("Методика и ограничения", need=30)
     pdf.para("Все данные внесены пользователем: еда — через поиск по базе продуктов, фото или текст, масса и обхваты — "
-             "самостоятельными измерениями. Пищевая ценность — по базе Setly (USDA, Open Food Facts, производители); "
+             "самостоятельными измерениями. Пищевая ценность — по базе Nextly (USDA, Open Food Facts, производители); "
              "погрешность самостоятельного учёта питания обычно 10–20 %, чаще в сторону занижения. "
              "Основной обмен — формула Миффлина — Сан Жеора; реальный расход — из энергобаланса: среднее потребление минус "
              "изменение массы по тренду × 7700 ккал/кг. Отчёт не является медицинским заключением.")

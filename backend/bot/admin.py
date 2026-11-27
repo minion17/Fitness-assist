@@ -54,7 +54,7 @@ async def summary(session, now: datetime | None = None) -> str:
     misses = ["", "🔎 <b>Искали и не нашли</b> (30 дней) — кандидаты в каталог:",
               *(f"• {html.escape(q)} — {n}" for q, n in missed)] if missed else []
     return "\n".join([
-        "📊 <b>Setly — статистика</b>",
+        "📊 <b>Nextly — статистика</b>",
         "",
         f"👥 Пользователей: <b>{users}</b>, заполнили анкету: {registered} ({pct(registered, users)})",
         f"🆕 Новых: за сутки {new_1}, за 7 дней {new_7}",

@@ -255,7 +255,7 @@ async def review(session: AsyncSession, shared: Product) -> bool:
         got = await award_xp(session, uid, "product_shared", f"product:{shared.id}")
         if got:
             notify(session, await session.get(User, uid),
-                   f"🙌 «{shared.name}» проверили другие — цифры подтверждены, товар в общем каталоге Setly. +{got} XP, спасибо!")
+                   f"🙌 «{shared.name}» проверили другие — цифры подтверждены, товар в общем каталоге Nextly. +{got} XP, спасибо!")
     await session.commit()
     return True
 
@@ -337,7 +337,7 @@ async def create_product(body: ProductIn, tg: dict = Depends(telegram_user), ses
             xp += got if uid == user.id else 0
             if got and uid != user.id:
                 notify(session, await session.get(User, uid),
-                       f"🙌 «{shared.name}» подтвердили другие — товар теперь в общем каталоге Setly. +{got} XP, спасибо!")
+                       f"🙌 «{shared.name}» подтвердили другие — товар теперь в общем каталоге Nextly. +{got} XP, спасибо!")
         await session.commit()
     published = False
     if body.barcode and not promoted:  # a barcode nobody has: everyone scanning it sees it from now on, marked

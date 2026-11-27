@@ -1,5 +1,5 @@
 ﻿# Keeps a public https tunnel to the local server up and writes its address into .env (WEBAPP_URL).
-# The bot follows .env by itself (menu button "Setly"), so nothing needs a restart after a reconnect.
+# The bot follows .env by itself (menu button "Nextly"), so nothing needs a restart after a reconnect.
 #
 # Providers, tried in turn:
 #   tuna.am      - when TUNA_API_KEY (or the older TUNA_TOKEN) is in .env; not blocked in Russia/CIS.
@@ -78,7 +78,7 @@ while ($true) {
                     (Get-Content $envFile) -replace '^WEBAPP_URL=.*', "WEBAPP_URL=$url" | Set-Content $envFile
                     Write-Host ""
                     Write-Host "  $(Get-Date -Format HH:mm) Работает: $url" -ForegroundColor Green
-                    Write-Host "  Открывайте приложение кнопкой Setly слева от поля ввода в чате с ботом." -ForegroundColor Green
+                    Write-Host "  Открывайте приложение кнопкой Nextly слева от поля ввода в чате с ботом." -ForegroundColor Green
                     Write-Host ""
                 }
                 $fails = -1  # -1 = published and healthy

@@ -1,30 +1,31 @@
 {
   "snapshot_date": "2026-11-28",
   "file": "ru_core_2026-11-28.json",
-  "sha256": "bc58cf2b68ab8d7cf9398514426e8c184c44eb3b8a50bdb2b71cae9f29e2e7b0",
-  "record_count": 6878,
-  "distinct_source_url_count": 6671,
+  "sha256": "49a8a9bdb1b7af7aae5ac1ab89fe33a91ffd83f3c51a42420f5cf7637a8ba82e",
+  "record_count": 6964,
+  "distinct_source_url_count": 6757,
   "records_by_store": {
     "ВкусВилл": 554,
-    "Магнит": 2319,
+    "Магнит": 2379,
     "Перекрёсток": 3967,
-    "Пятёрочка": 38
+    "Пятёрочка": 38,
+    "Лента": 26
   },
   "records_by_category": {
-    "Молоко и кисломолочные продукты": 1516,
-    "Яйца": 66,
-    "Сыры": 854,
-    "Мясо и птица": 464,
-    "Крупы, макароны, мука и бобовые": 1045,
-    "Колбасы, ветчина и мясная гастрономия": 792,
-    "Хлеб и хлебцы": 522,
+    "Молоко и кисломолочные продукты": 1529,
+    "Яйца": 69,
+    "Сыры": 867,
+    "Мясо и птица": 467,
+    "Крупы, макароны, мука и бобовые": 1076,
+    "Колбасы, ветчина и мясная гастрономия": 802,
+    "Хлеб и хлебцы": 526,
     "Овощи, фрукты, ягоды и грибы": 637,
-    "Рыба и морепродукты": 547,
-    "Масла и жиры": 266,
+    "Рыба и морепродукты": 554,
+    "Масла и жиры": 268,
     "Орехи, семена и сухофрукты": 169
   },
   "records_by_review_status": {
-    "pending": 6336,
+    "pending": 6422,
     "incomplete": 542
   },
   "records_with_confirmed_barcode": 1,
@@ -33,13 +34,33 @@
     "protein_g": 141,
     "fat_g": 70,
     "carbs_g": 462,
-    "sugar_g": 6843,
-    "salt_g": 6757,
-    "fiber_g": 6878
+    "sugar_g": 6929,
+    "salt_g": 6843,
+    "fiber_g": 6964
   },
   "scope": "Основные продукты питания из ранее собранных российских розничных карточек. Категории предварительные.",
   "unit": "Nutrients are per 100 g as recorded by the collection pipeline; source basis requires review before publication.",
   "publication_status": "review_only",
   "auto_import": false,
-  "source_csv_sha256": "8f943c8c292c084918955c6c9fe2ec365d529c258cbf6da0a55a61be5bf31747"
+  "batches": [
+    {
+      "id": "initial-2026-11-28",
+      "record_count": 6878,
+      "source_csv_sha256": "8f943c8c292c084918955c6c9fe2ec365d529c258cbf6da0a55a61be5bf31747"
+    },
+    {
+      "id": "2026-11-28-02",
+      "record_count": 86,
+      "records_by_store": {
+        "Магнит": 60,
+        "Лента": 26
+      },
+      "source_csv_sha256": "0ae0864edb65660059d4fee7e09ba74b2c164744c27ae7452289bb2d6e48e25c",
+      "source_kinds": {
+        "direct_page": 60,
+        "search_cache": 26
+      },
+      "possible_duplicates_held_separately": 3
+    }
+  ]
 }

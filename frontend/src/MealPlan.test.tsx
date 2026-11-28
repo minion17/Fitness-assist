@@ -192,13 +192,22 @@ it('ползунки сохраняют цель, число людей и об�
   expect(screen.getByRole('button', { name: 'Набрать вес' }).getAttribute('aria-pressed')).toBe('true')
 })
 
+it('подготовлены фотографии для 25 блюд рациона', () => {
+  const ids = ['tofu-buckwheat', 'tofu-rice', 'yogurt-berries', 'kefir-banana', 'cheese-sandwich', 'apple-peanut',
+    'hummus-crispbread', 'curd-honey', 'peanut-crispbread', 'eggs-cucumber', 'tofu-scramble', 'chickpea-salad',
+    'lavash-tofu', 'lentil-tofu', 'liver-buckwheat', 'lentil-egg', 'chicken-lentils', 'edamame', 'soy-banana',
+    'curd-omelette', 'yogurt-oats', 'soy-protein-shake', 'oats-soy-protein', 'mung-tofu', 'feta-chickpea-salad']
+  for (const id of ids) expect(existsSync(`public/images/recipes/${id}.jpg`), id).toBe(true)
+})
+
 it('каждая карточка вкуса показывает фото блюда, а блюдо без фото — значок', () => {
   render(<MealPlan onClose={vi.fn()} />)
   for (let i = 0; i < 12 && !screen.queryByText('Что тебе нравится?'); i++) next()
   for (const recipe of RECIPES) {
     const image = screen.getByRole('img', { name: `Пример блюда: ${recipe.name}` })
     const photo = RECIPE_PHOTOS.has(recipe.id)
-    expect(existsSync(`public/images/recipes/${recipe.id}.jpg`)).toBe(photo) // the list matches the files
+    // A photo may be staged before its ID is enabled; enabled photos must always exist.
+    if (photo) expect(existsSync(`public/images/recipes/${recipe.id}.jpg`)).toBe(true)
     if (photo) expect(image.getAttribute('src')).toBe(`/images/recipes/${recipe.id}.jpg`)
   }
   expect(RECIPES.filter(r => r.meal === 'snack').length).toBeGreaterThanOrEqual(6)

@@ -100,6 +100,11 @@ cd frontend && npm test
 | `content/exercises/exercises.json` | `name`, `muscle_groups[]`, `equipment[]`, `difficulty`, `description`, `is_bodyweight` |
 | `content/programs/programs.json` | `name`, `goal`, `level`, `days_per_week`, `description`, `days[]` → `day_name`, `day_order`, `exercises[]` → `name` (из exercises.json), `sets`, `reps`, `rest_seconds`, `notes` |
 
+Дополнительно в [`content/products/retail/`](content/products/retail/README.md)
+сохранён срез из 6 878 записей основных продуктов российских магазинов
+со ссылками на источники и статусами проверки. Этот набор пока не участвует
+в автоматическом импорте в общий каталог.
+
 API:
 
 | Метод | Путь | Описание |

@@ -1,0 +1,45 @@
+{
+  "snapshot_date": "2026-11-28",
+  "file": "ru_core_2026-11-28.json",
+  "sha256": "bc58cf2b68ab8d7cf9398514426e8c184c44eb3b8a50bdb2b71cae9f29e2e7b0",
+  "record_count": 6878,
+  "distinct_source_url_count": 6671,
+  "records_by_store": {
+    "ВкусВилл": 554,
+    "Магнит": 2319,
+    "Перекрёсток": 3967,
+    "Пятёрочка": 38
+  },
+  "records_by_category": {
+    "Молоко и кисломолочные продукты": 1516,
+    "Яйца": 66,
+    "Сыры": 854,
+    "Мясо и птица": 464,
+    "Крупы, макароны, мука и бобовые": 1045,
+    "Колбасы, ветчина и мясная гастрономия": 792,
+    "Хлеб и хлебцы": 522,
+    "Овощи, фрукты, ягоды и грибы": 637,
+    "Рыба и морепродукты": 547,
+    "Масла и жиры": 266,
+    "Орехи, семена и сухофрукты": 169
+  },
+  "records_by_review_status": {
+    "pending": 6336,
+    "incomplete": 542
+  },
+  "records_with_confirmed_barcode": 1,
+  "missing_nutrients": {
+    "kcal": 1,
+    "protein_g": 141,
+    "fat_g": 70,
+    "carbs_g": 462,
+    "sugar_g": 6843,
+    "salt_g": 6757,
+    "fiber_g": 6878
+  },
+  "scope": "Основные продукты питания из ранее собранных российских розничных карточек. Категории предварительные.",
+  "unit": "Nutrients are per 100 g as recorded by the collection pipeline; source basis requires review before publication.",
+  "publication_status": "review_only",
+  "auto_import": false,
+  "source_csv_sha256": "8f943c8c292c084918955c6c9fe2ec365d529c258cbf6da0a55a61be5bf31747"
+}
